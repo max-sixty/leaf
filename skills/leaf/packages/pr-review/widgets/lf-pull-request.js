@@ -6,6 +6,7 @@ import {
   clocked,
   el,
   highlightBlocks,
+  keeps,
   keepsText,
   loadMarkdown,
   projectData,
@@ -74,8 +75,8 @@ function renderChecks(card, checks) {
     a.localeCompare(b),
   )) {
     const item = prior.get(checkName) ?? el("tr", "lf-pr-check");
-    item.dataset.check = checkName;
-    item.dataset.status = checkStatus;
+    keeps(item, "data-check", checkName);
+    keeps(item, "data-status", checkStatus);
     let name = item.querySelector(".lf-pr-check-name");
     let status = item.querySelector(".lf-pr-check-status");
     if (!name) {
@@ -130,11 +131,12 @@ function renderCard(record, prior, descriptionChanged) {
   const description = card.querySelector(".lf-pr-description-body");
   const observed = card.querySelector(".lf-pr-observed");
 
-  card.setAttribute(
+  keeps(
+    card,
     "aria-label",
     `${record.repository} pull request ${record.number}: ${record.title}`,
   );
-  status.dataset.status = record.status;
+  keeps(status, "data-status", record.status);
   keepsText(identityLabel, `${record.repository} · PR #${record.number}`);
   keepsText(status, record.status);
   keepsText(title, record.title);
@@ -148,7 +150,7 @@ function renderCard(record, prior, descriptionChanged) {
   )
     descriptionChanged.value = true;
   keepsText(observed, `Observed ${ago(record.observedAt)}`);
-  observed.title = record.observedAt;
+  keeps(observed, "title", record.observedAt);
   renderFacts(card, record);
   renderChecks(card, record.checks);
   return card;
@@ -157,7 +159,7 @@ function renderCard(record, prior, descriptionChanged) {
 function renderMissing(prior) {
   const card = prior ?? el("article", "lf-pr-card lf-pr-missing");
   keepsText(card, "Waiting for pull request data.");
-  card.setAttribute("aria-label", "Pull request data unavailable");
+  keeps(card, "aria-label", "Pull request data unavailable");
   return card;
 }
 

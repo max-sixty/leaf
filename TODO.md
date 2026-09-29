@@ -14,13 +14,17 @@ has tried; settle that before building it.
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
-  behavior. Set one focus-ring weight for every keyboard target.
+  behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly.** Generate a short title from the first user
-  message with a lightweight model request that excludes the full agent context.
-  Measure the request's input tokens and latency; keep the subdued pulsing ellipsis
-  until the title arrives.
+- **Name a new Thread promptly everywhere.** A Claude Code page and an App Server
+  carrier (leaf.page and `leaf codex start`) title a thread from its opening
+  message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
+  queue` still titles on the agent's reply; give it the same request, through
+  `codex exec`. Worktrunk's `codex exec` command took 3.7–5 s and about 13k input
+  tokens per title here, and it leaves the user's MCP servers on, which the App
+  Server request turns off by name. A request at admission, as Claude Code's is,
+  would serve every harness once the page server can reach each one's model.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide
@@ -97,16 +101,15 @@ and its chrome coordinate.
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
   panes outside a workspace also restates the Layout's pane scrolling (the feature
   gallery), which could key on `--lf-full-height` instead.
-- **Place markers so they cover less without losing what they track.** Where no rail
-  stands, a marker pins inside its block's top-right corner and covers the end of the
-  block's first line. On a 390px phone an Ask's pin covers the end of its question's
-  heading, and a blind judge named that in 24 of 34 arrangement-eval judgments. A
-  marker is an overlay, so the answer cannot reserve room, pad a block, or move text
-  when a marker comes or goes (`skills/leaf/assets/AGENTS.md`, "Space and
-  scrolling"). A better place must still sit at its own target and not a neighbour's,
-  hold still as the page scrolls and reflows, stay off the block's controls, and work
-  where the target is inside a pane that scrolls on its own. Hiding the annotations
-  (`o`, or Hide annotations in More under a finger) stays the escape.
+- **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
+  target that covers no words (`pinSpot`), which clears single markers on most pages,
+  but under a finger Accept and Reject together are a 96×44px pair: that needs a line
+  ending 100px short on the run's last line and 44px from that line to the next block.
+  At 390px, 5 of the 7 shipped suggestions find no such room and stay over their words;
+  one 44px marker would find room for 3 of those 5. Folding the pair into one marker
+  that opens Accept and Reject, only where the pair has no room, is the nearest design;
+  it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
+  a finger) stays the escape.
 - **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail
@@ -126,8 +129,6 @@ and its chrome coordinate.
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the
   [arrangement eval](notes/arrangement-eval/README.md).
-- **Balance a tile row.** `.layout-tiles` wraps four metrics 3 + 1 where four don't
-  fit (live-progress at 480–647px), as `lf-grid` did.
 - **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
   the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
   but stacked they often outrun the window: on a findings page one Ask with its
@@ -157,13 +158,15 @@ and its chrome coordinate.
   `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
   1200px with the drawer closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
-- **Decide whether the shortcut line should wrap on a narrow window.** Below about
-  390px with a fine pointer, the resting line wraps to a second row
-  (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page
-  beyond the bottom bar the page reserves. The alternative is truncating the resting line
-  to one row. A key sequence and the expanded bar must still wrap, so truncating brings back
-  a one-row mode beside them, and it has to keep More, which sits last, from being
-  cut first.
+- **Land a sent comment's thread where its comment box stood.** A comment typed beside
+  an option near the top of the window (the box standing just under the banner) came
+  back as a margin card level with the option, about 330px lower, so the words the
+  user just wrote jump across the page on send. The send's carry transition
+  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
+  jump rather than avoiding it. The card and the box choose their places by different
+  rules: the box from the target and the room at the moment it opened, the card from the
+  margin's own layout. Either the card opens where the box stood, or the box opens where
+  the card will stand.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
@@ -262,14 +265,15 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  about 0.3–0.5s warm and 2.5s cold, and the host waits for it. That cost is why
-  the `PostToolUse` registration keeps its `if` prefilter, and it limits what
-  else hooks can carry. Most of the warm time is Python startup and imports:
-  `leaf.hooks` alone pulls in `delivery`, `event_contracts` and
-  `anchor_capture`, about 120ms. Get the hook path off those imports, then consider a `leaf` filter in
-  front of every tool-result hook, so Leaf can answer more events itself.
-  Rewriting the hook path in a compiled language is the further step if that
-  is not enough.
+  and the host waits for it. In a session holding no page it costs about 50ms
+  warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
+  uv adds about 15ms, Python startup about 10ms, and importing the CLI about
+  15ms. A session holding a page adds about 0.1s to import page reading and
+  read each page's state, so its prompt and Stop hooks cost about 0.15s. That cost is why the `PostToolUse`
+  registration keeps its `if` prefilter, and it limits what else hooks can
+  carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
+  can answer more events itself. Rewriting the hook path in a compiled language
+  is the further step if that is not enough.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

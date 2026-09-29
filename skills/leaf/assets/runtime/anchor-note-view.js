@@ -16,7 +16,8 @@
 import { addressableAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./margin-entry-model.js";
-import { keeps, keepsText, offer } from "./widget-elements.js";
+import { offer } from "./widget-elements.js";
+import { keeps, keepsText } from "./keeps.js";
 
 const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 

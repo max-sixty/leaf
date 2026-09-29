@@ -44,7 +44,7 @@
    from a list of ask tags. Where a source is nested in an `x-ask-surface` region,
    the row names the region: its heading, context, and evidence are the ask the user
    is being sent to, while the source remains the owner of the answer.
-   `addressableSays` supplies each row's own label and the owned command scope's
+   `addressableLabel` supplies each row's own label and the owned command scope's
    `options.answer` supplies its current answer. Selecting a drawer row travels through
    the same ask-arrival function as `a` and `A`, so the panel and directional walk
    agree about focus, reveal, arrival placement, and `landed`; only the drawer's list is
@@ -98,7 +98,7 @@
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
 
-import { landingBand, shownBox, shownParts } from "../geometry.js";
+import { documentPoint, landingBand, shownBox, shownParts } from "../geometry.js";
 import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
@@ -109,15 +109,10 @@ import {
   routedCommand,
   spell,
 } from "../keyboard/bindings.js";
-import {
-  closestAcross,
-  elementById,
-  elementFromPointAcross,
-  inChrome,
-  TEXT_BLOCK,
-} from "../passages.js";
+import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
+import { keeps, keepsText } from "../keeps.js";
 import { asksBtn, asksList, asksOffered, asksPanel, drawerIsOpen } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import {
@@ -136,7 +131,7 @@ import {
   paintKeys,
   projectCommandScope,
 } from "../keyboard/scopes.js";
-import { addressableSays, addressableWord } from "../anchor-resolution.js";
+import { addressableLabel, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
@@ -305,7 +300,7 @@ export function createAskView({
   const rowModel = (ask, unanswered) => {
     const node = askNode(ask);
     const kind = addressableWord(node) || ask.tag.replace(/^lf-/, "");
-    const says = addressableSays(node) || ask.id;
+    const says = addressableLabel(node) || ask.id;
     const answered = !unanswered.has(ask.id);
     const answer = answered ? currentAskAnswer(ask) : "";
     return Object.freeze({
@@ -523,6 +518,9 @@ export function createAskView({
           command,
         ),
     );
+  // Away from every Ask the row still stands in the command reference, as the range the
+  // digits take once the user stands in one, since that is where a question's options
+  // are pressed by number; the widgets' own Decision rows have no key of their own there.
   const actionRow = {
     id: "ask.activate-nth",
     touch: false,
@@ -530,14 +528,21 @@ export function createAskView({
     routes: actionRoutes,
     label: () => {
       const count = actionRoutes().length;
+      if (!count) return `1–${MAX_ASK_ACTIONS}`;
       return count > 1 ? `1–${count}` : "1";
     },
-    does: () =>
-      `Activate an action in this Ask: ${actionRoutes()
+    does: () => {
+      const routes = actionRoutes();
+      if (!routes.length)
+        return "Activate an action in the Ask you stand at, by its number";
+      return `Activate an action in this Ask: ${routes
         .map(({ binding, line }) => `${spell(binding)} ${line}`)
-        .join("; ")}`,
+        .join("; ")}`;
+    },
     line: "Ask actions",
+    reach: "in an Ask",
     when: () => actionRoutes().length > 0,
+    commandReferenceWhen: () => allAsks().length > 0,
   };
   const reachableActionRoutes = (available = availableCommandRoutes()) => {
     const reachable = available.get(actionRow) ?? new Set();
@@ -575,10 +580,11 @@ export function createAskView({
       (visible.right - visible.left) / 4,
       (visible.bottom - visible.top) / 4,
     );
-    // An option's state control shares this slot and turns fully transparent while its
-    // binding badge stands. It remains in the hit-test stack without covering the face.
-    const transparentControl =
-      Number.parseFloat(getComputedStyle(control).opacity) === 0;
+    // The whole stack at each point, read the same whether the face is worn or withheld
+    // (transparent, and still in the hit test): nothing may stand over the face but the
+    // control it labels, whose state mark shares the slot and yields it to a worn face
+    // (an option's pick turns transparent).
+    const root = bindingBadge.getRootNode();
     return [
       [x, y],
       [x, visible.top + inset],
@@ -586,23 +592,32 @@ export function createAskView({
       [visible.left + inset, y],
       [visible.right - inset, y],
     ].every(([atX, atY]) => {
-      const onTop = elementFromPointAcross(atX, atY);
-      return (
-        under(onTop, bindingBadge) || (transparentControl && under(onTop, control))
-      );
+      const stack = root.elementsFromPoint(atX, atY);
+      const at = stack.indexOf(bindingBadge);
+      return at >= 0 && stack.slice(0, at).every((over) => under(over, control));
     });
   }
-  function restoreBindingBadge(bindingBadge, { display, priority, text }) {
+  // What a face said before the Ask lent it: its words, and the inline properties the
+  // loan sets.
+  const LENT_PROPERTIES = ["display", "opacity"];
+  function restoreStyle(bindingBadge, name) {
+    const [value, priority] = wornBindingBadges.get(bindingBadge)[name];
+    if (value) bindingBadge.style.setProperty(name, value, priority);
+    else bindingBadge.style.removeProperty(name);
+  }
+  function restoreBindingBadge(bindingBadge) {
     bindingBadge.removeAttribute("data-lf-ask-binding-badge");
-    bindingBadge.textContent = text;
-    if (display) bindingBadge.style.setProperty("display", display, priority);
-    else bindingBadge.style.removeProperty("display");
+    keepsText(bindingBadge, wornBindingBadges.get(bindingBadge).text);
+    for (const name of LENT_PROPERTIES) restoreStyle(bindingBadge, name);
+    wornBindingBadges.delete(bindingBadge);
   }
-  function restoreBindingBadges() {
-    for (const [bindingBadge, previous] of wornBindingBadges)
-      restoreBindingBadge(bindingBadge, previous);
-    wornBindingBadges.clear();
+  function restoreBindingBadges(kept = new Set()) {
+    for (const bindingBadge of [...wornBindingBadges.keys()])
+      if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge);
   }
+  // A chip per control, kept across passes, so a pass that finds the same chips standing
+  // where they stood writes nothing.
+  const bindingChips = new Map();
   // Withdraw the routes' scope from every control but the ones still routed.
   function withdrawRoutes(kept = new Set()) {
     for (const control of routedControls) {
@@ -615,8 +630,10 @@ export function createAskView({
     restoreBindingBadges();
     withdrawRoutes();
   }
+  // The page scrolls under these projections on every frame, so a pass writes only what
+  // changed (keeps.js): a badge already worn keeps its face, and a chip
+  // stands in the document plane, where the scroll carries it.
   function paintActionProjections() {
-    restoreBindingBadges();
     const available = availableCommandRoutes();
     const routes = reachableActionRoutes(available);
     for (const route of routes) {
@@ -634,6 +651,8 @@ export function createAskView({
     }
     withdrawRoutes(new Set(routes.map(({ control }) => control)));
     if (!routes.length) {
+      restoreBindingBadges();
+      bindingChips.clear();
       askActionLayer.replaceChildren();
       return;
     }
@@ -656,47 +675,72 @@ export function createAskView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed shortcut bar above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
+    // That can be read only off the face as it would stand, so the face stays lent while
+    // its route stands: one that is not exposed keeps the digit and its box but turns
+    // transparent, rather than being put back after each measurement and lent again on
+    // the next pass. A press on it is a press on what it labels (lf-options.js).
+    const lent = new Set();
+    const worn = new Set();
     for (const { binding, control, bindingBadge } of routes) {
+      // A control the window does not show cannot show its face either, and wearing
+      // the face only to measure it away would write it twice on every scroll.
       if (
         covered(control) ||
         !bindingBadge?.isConnected ||
-        bindingBadgeClaims.get(bindingBadge) !== 1
+        bindingBadgeClaims.get(bindingBadge) !== 1 ||
+        !placement.visibleBounds(control)
       )
         continue;
-      const previous = {
-        display: bindingBadge.style.getPropertyValue("display"),
-        priority: bindingBadge.style.getPropertyPriority("display"),
-        text: bindingBadge.textContent,
-      };
-      bindingBadge.setAttribute("data-lf-ask-binding-badge", "");
-      bindingBadge.textContent = spell(binding);
-      bindingBadge.style.display = "block";
-      const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
-      if (
-        !box ||
-        !exposedBindingBadge(bindingBadge, control, box) ||
-        !placement.reserve(box)
-      ) {
-        restoreBindingBadge(bindingBadge, previous);
-        continue;
+      if (!wornBindingBadges.has(bindingBadge)) {
+        const said = { text: bindingBadge.textContent };
+        for (const name of LENT_PROPERTIES)
+          said[name] = [
+            bindingBadge.style.getPropertyValue(name),
+            bindingBadge.style.getPropertyPriority(name),
+          ];
+        wornBindingBadges.set(bindingBadge, said);
       }
-      wornBindingBadges.set(bindingBadge, previous);
+      keepsText(bindingBadge, spell(binding));
+      bindingBadge.style.display = "block";
+      lent.add(bindingBadge);
+      const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
+      const exposed = Boolean(
+        box &&
+        exposedBindingBadge(bindingBadge, control, box) &&
+        placement.reserve(box),
+      );
+      bindingBadge.toggleAttribute("data-lf-ask-binding-badge", exposed);
+      if (exposed) {
+        restoreStyle(bindingBadge, "opacity");
+        worn.add(bindingBadge);
+      } else bindingBadge.style.opacity = "0";
     }
+    restoreBindingBadges(lent);
 
     const chips = [];
     for (const { binding, control, bindingBadge } of routes) {
       if (covered(control)) continue;
-      if (bindingBadge && wornBindingBadges.has(bindingBadge)) continue;
+      if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = placement.badgeBox(presented);
       if (!box) continue;
-      const chip = el("span", "lf-key-badge lf-ask-binding-badge", spell(binding));
-      chip.setAttribute("aria-hidden", "true");
-      chip.style.left = `${box.left}px`;
-      chip.style.top = `${box.top}px`;
-      chips.push(chip);
+      let chip = bindingChips.get(control);
+      if (!chip) {
+        chip = el("span", "lf-key-badge lf-ask-binding-badge");
+        chip.setAttribute("aria-hidden", "true");
+        bindingChips.set(control, chip);
+      }
+      keepsText(chip, spell(binding));
+      chips.push({
+        chip,
+        owner: presented,
+        corner: box,
+        at: documentPoint(box.left, box.top),
+      });
     }
+    for (const control of [...bindingChips.keys()])
+      if (!chips.includes(bindingChips.get(control))) bindingChips.delete(control);
     placement.paint(askActionLayer, chips);
   }
   // Resizing can make routes unreachable or put their controls under a covering drawer.
@@ -748,7 +792,7 @@ export function createAskView({
     // region wears the ring. Keep that stop until the user leaves the region.
     const holder = sourceNode(record);
     if (askLent && askLent !== here && askLent !== holder) lend(null);
-    for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
+    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
     paintActionProjections();
   }
   // Where the walk measures from: where the user is standing, rather than where the walk
@@ -1110,6 +1154,7 @@ export function createAskView({
     }
     presenter.disconnect();
     clearActionProjections();
+    bindingChips.clear();
     askActionLayer.replaceChildren();
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);

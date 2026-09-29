@@ -94,8 +94,8 @@ Options:
   --part ID      declared visual part within --section
   --text TEXT    comment text (default: stdin)
   --markup TEXT  widget markup to render after the text, validated here
-  --title TEXT   name the thread for the panel: a few words, at most 80
-                 characters
+  --title TEXT   name the thread for the panel unless it has a name: a few
+                 words, at most 80 characters
   --help         Show this message and exit.
 
 ## leaf thread reply --help
@@ -122,8 +122,8 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
-  --title TEXT    name the thread for the panel: a few words, at most 80
-                  characters
+  --title TEXT    name the thread for the panel unless it has a name: a few
+                  words, at most 80 characters
   --help          Show this message and exit.
 
 ## leaf thread edit --help

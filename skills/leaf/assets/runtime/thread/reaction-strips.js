@@ -13,14 +13,14 @@ export class ReactionStripView {
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
+    this.node.classList.add("lf-react-strip", "lf-react-surface");
+    this.node.setAttribute("role", "group");
+    this.node.setAttribute("aria-label", "React to this reply");
   }
 
   present(model) {
     this.#model = model;
-    this.node.classList.add("lf-react-strip", "lf-react-surface");
     this.node.classList.toggle("lf-open", model.latest);
-    this.node.setAttribute("role", "group");
-    this.node.setAttribute("aria-label", "React to this reply");
     render(
       html` <button
           type="button"

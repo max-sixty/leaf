@@ -108,6 +108,32 @@ export function createAnchorPaint({
     );
   }
 
+  const outlined = () =>
+    new Set([
+      ...elementMarks(marked.values()),
+      ...elementMarks(reacted.values()),
+      ...pendingOutline,
+      ...actionOutline,
+    ]);
+
+  // Each element's outline classes follow the current record. Toggling the last pass's
+  // elements with this one's writes only the classes that moved.
+  function paintOutlines(before) {
+    const marks = new Set(elementMarks(marked.values()));
+    const reactions = new Set(elementMarks(reacted.values()));
+    const pending = new Set(pendingOutline);
+    const action = new Set(actionOutline);
+    for (const element of new Set([...before, ...outlined()])) {
+      element.classList.toggle(
+        "lf-mark-el",
+        marks.has(element) || pending.has(element),
+      );
+      element.classList.toggle(PENDING, pending.has(element));
+      element.classList.toggle("lf-react-el", reactions.has(element));
+      element.classList.toggle("lf-action-target", action.has(element));
+    }
+  }
+
   function panelThread(id) {
     return id ? panelThreadForId(id) : null;
   }
@@ -116,16 +142,15 @@ export function createAnchorPaint({
     hovering = id;
     const thread = panelThread(id);
     if (hoverThread !== thread) {
-      hoverThread?.classList.remove(HOVER);
-      thread?.classList.add(HOVER);
+      hoverThread?.classList.toggle(HOVER, false);
+      thread?.classList.toggle(HOVER, true);
       hoverThread = thread;
     }
     const where = marksFor(id);
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hoverParts)
-      if (!parts.includes(part)) part.classList.remove(HOVER);
-    for (const part of parts)
-      if (!part.classList.contains(HOVER)) part.classList.add(HOVER);
+      if (!parts.includes(part)) part.classList.toggle(HOVER, false);
+    for (const part of parts) part.classList.toggle(HOVER, true);
     hoverParts = parts;
     CSS.highlights.set(
       HOVER,
@@ -142,9 +167,8 @@ export function createAnchorPaint({
     const where = marksFor(focusedAnchorThreadId());
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
-      if (!parts.includes(part)) part.classList.remove(HERE);
-    for (const part of parts)
-      if (!part.classList.contains(HERE)) part.classList.add(HERE);
+      if (!parts.includes(part)) part.classList.toggle(HERE, false);
+    for (const part of parts) part.classList.toggle(HERE, true);
     hereParts = parts;
     CSS.highlights.set(
       HERE,
@@ -200,13 +224,7 @@ export function createAnchorPaint({
     // the page's anchor reading authoritative.
     if (!anchoringIsReady()) return null;
 
-    for (const where of allMarks())
-      if (where instanceof Element) where.classList.remove("lf-mark-el");
-    for (const where of [...reacted.values()].flat())
-      if (where instanceof Element) where.classList.remove("lf-react-el");
-    for (const element of pendingOutline)
-      element.classList.remove("lf-mark-el", PENDING);
-    for (const element of actionOutline) element.classList.remove("lf-action-target");
+    const before = outlined();
     marked.clear();
     reacted.clear();
     placed.clear();
@@ -241,7 +259,6 @@ export function createAnchorPaint({
         let before;
         if (targetElement(found)) {
           const parts = targetParts(found);
-          for (const part of parts) part.classList.add("lf-react-el");
           rememberVisual(found);
           reacted.set(thread.id, parts);
           [at, before] = [found.place, true];
@@ -265,9 +282,7 @@ export function createAnchorPaint({
       if (targetElement(found)) {
         rememberVisual(found);
         if (!thread.root.drawing) {
-          const parts = targetParts(found);
-          for (const part of parts) part.classList.add("lf-mark-el");
-          marked.set(thread.id, parts);
+          marked.set(thread.id, targetParts(found));
         }
       } else if (!thread.root.drawing) {
         const ranges = targetSegments(found).map((segment) => rangeOf([segment]));
@@ -308,10 +323,7 @@ export function createAnchorPaint({
     if (targetElement(resolvedDraft)) {
       const taken = allMarks();
       for (const part of pendingMarks)
-        if (!taken.includes(part)) {
-          part.classList.add("lf-mark-el", PENDING);
-          pendingOutline.push(part);
-        }
+        if (!taken.includes(part)) pendingOutline.push(part);
     }
     if (targetSegments(resolvedDraft).length) pending.push(...pendingMarks);
 
@@ -319,7 +331,7 @@ export function createAnchorPaint({
     const action = active && !active.quote ? resolveAnchor(active, text) : null;
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);
-    for (const part of actionOutline) part.classList.add("lf-action-target");
+    paintOutlines(before);
 
     CSS.highlights.set(MARK, new Highlight(...posted));
     CSS.highlights.set(REACT, new Highlight(...reactions));
@@ -357,25 +369,20 @@ export function createAnchorPaint({
     mounted = false;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
-    for (const where of allMarks())
-      if (where instanceof Element) where.classList.remove("lf-mark-el");
-    for (const where of [...reacted.values()].flat())
-      if (where instanceof Element) where.classList.remove("lf-react-el");
-    for (const element of pendingOutline)
-      element.classList.remove("lf-mark-el", PENDING);
-    for (const element of actionOutline) element.classList.remove("lf-action-target");
-    for (const element of hoverParts) element.classList.remove(HOVER);
-    for (const element of hereParts) element.classList.remove(HERE);
-    hoverThread?.classList.remove(HOVER);
-    for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
-    targetPaint.setTargets([]);
+    const before = outlined();
     marked.clear();
     reacted.clear();
+    pendingOutline = [];
+    actionOutline = [];
+    paintOutlines(before);
+    for (const element of hoverParts) element.classList.toggle(HOVER, false);
+    for (const element of hereParts) element.classList.toggle(HERE, false);
+    hoverThread?.classList.toggle(HOVER, false);
+    for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
+    targetPaint.setTargets([]);
     placed.clear();
     pendingPlaced = null;
     pendingMarks = [];
-    pendingOutline = [];
-    actionOutline = [];
     visualTargets.clear();
     hovering = null;
     hoverParts = [];

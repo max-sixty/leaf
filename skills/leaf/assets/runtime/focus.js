@@ -133,6 +133,22 @@ export const deepFocus = (at = document.activeElement) => {
 // batch's that commits, costs nothing: the one listener below counts placements for
 // every hold, and a hold compares the count it began at.
 let restoring = false;
+// A chrome placement moving a box the user may be standing in: the focus it takes off
+// and hands straight back inside `move` is the layer's own, not the user going anywhere.
+// Stated here rather than beside the one placer, because what has to know is every
+// reader of where the user stands, and they ask `placingChrome()` from their focus
+// listeners.
+let placing = false;
+export const placingChrome = () => placing;
+export function placeChrome(move) {
+  const was = placing;
+  placing = true;
+  try {
+    return move();
+  } finally {
+    placing = was;
+  }
+}
 let placements = 0;
 // Where the user last stood. A change that removes or hides the node they stand on puts
 // focus on the body and fires no `focusin`, so this still names that node afterwards.
@@ -154,10 +170,27 @@ document.addEventListener(
   },
   true,
 );
+// Leaving for nowhere from a node still drawn is the user's own move, and so a
+// placement: body holds no stop, so a press on the page's words takes focus off the
+// control and puts it nowhere with no `focusin` to count, and a hold still waiting
+// would pull the user back from the words they chose. It is not a drop either, so the
+// node is forgotten as where they stood: a later change removing it drops nobody. A node
+// a change hid or replaced is not drawn once it blurs, which leaves it the dropped place
+// above rather than a move, and a window losing focus leaves the document's focus where
+// it was.
 document.addEventListener(
   "focusout",
   (event) => {
-    if (event.relatedTarget === null) stood = event.composedPath()[0];
+    if (event.relatedTarget !== null) return;
+    const left = event.composedPath()[0];
+    stood = left;
+    if (restoring) return;
+    queueMicrotask(() => {
+      const at = document.activeElement;
+      if ((at !== null && at !== document.body) || !drawn(left)) return;
+      placements += 1;
+      if (stood === left) stood = null;
+    });
   },
   true,
 );
@@ -332,8 +365,17 @@ export function declareCovering({ surface, landing }) {
   coveringSurface = surface;
   coveringLanding = landing;
 }
+//
+// It is the same pair on the body, which carries no tab stop of its own. A standing
+// `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
+// also made the body the focusable ancestor of every word: a click on a pane's text
+// focused the body, and Chrome starts Space, PageDown and the arrows from the focused
+// element before the node last pressed, so they scrolled the root, which a held
+// workspace keeps still, and never the pane under the click. So the body borrows the stop
+// for the focus that moves the starting point to the top, and gives it back on the blur.
 export function releaseFocus() {
-  document.body.focus({ preventScroll: true });
+  focusDestination(document.body);
+  document.body.blur();
 }
 
 // Letting go of what the user stands on, the standing scope's Escape, is a landing that

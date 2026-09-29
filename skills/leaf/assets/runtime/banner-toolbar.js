@@ -78,15 +78,23 @@ const visible = (entry) => {
   return entry.seat !== "gesture" || entry.rank === nearestGesture();
 };
 
+// The door is part of the row's template, so Lit writes its state only where it moved.
 function rowTemplate() {
+  const open = overflowMenu.matches(":popover-open");
+  const news = menu.some((entry) => entry.urgent && visible(entry));
+  const name = news ? "More page controls, new" : "More page controls";
+  // Keep the native invoker standing until its open popover has closed. A semantic
+  // update can retire the last visible item while the user is inside it; closing then
+  // lets paint remove the empty door.
   return html`
     <button
       class="lf-btn lf-banner-more"
       type="button"
-      aria-expanded="false"
-      aria-label="More page controls"
-      title="More page controls"
-      hidden
+      aria-expanded=${String(open)}
+      aria-label=${name}
+      title=${name}
+      ?data-lf-news=${news}
+      ?hidden=${!open && !menu.some(visible)}
     >
       ⋯
     </button>
@@ -122,24 +130,10 @@ function paintControl(entry) {
   entry.control.style.visibility = visible(entry) ? "" : "hidden";
 }
 
-function paintDoor() {
-  const hasMenu = menu.some(visible);
-  const news = menu.some((entry) => entry.urgent && visible(entry));
-  // Keep the native invoker standing until its open popover has closed. A semantic
-  // update can retire the last visible item while the user is inside it; closing then
-  // lets paint remove the empty door.
-  overflowBtn.hidden = !hasMenu && !overflowMenu.matches(":popover-open");
-  overflowBtn.toggleAttribute("data-lf-news", news);
-  const name = news ? "More page controls, new" : "More page controls";
-  overflowBtn.setAttribute("aria-label", name);
-  overflowBtn.title = name;
-}
-
 function paint() {
   render(rowTemplate(), bannerActions);
   render(menuTemplate(), overflowMenu);
   for (const entry of controls.values()) paintControl(entry);
-  paintDoor();
 }
 
 const focusable = (entry) =>
@@ -150,10 +144,9 @@ const focusable = (entry) =>
   entry.control.checkVisibility();
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
-  overflowBtn.setAttribute("aria-expanded", String(open));
+  render(rowTemplate(), bannerActions);
   if (open && document.activeElement === overflowBtn)
     menu.find(focusable)?.focusTarget.focus();
-  if (!open) paintDoor();
   repaint();
 });
 
@@ -216,25 +209,43 @@ export function registerBannerControl({
 }
 
 /** Show or hide one retained contribution without changing its registered identity. */
-export function showBannerControl(control, shown) {
-  let entry = controls.get(control);
-  if (!entry) throw new TypeError("Banner control is not registered");
-  shown = Boolean(shown);
-  if (entry.present === shown) return;
-  const heldFocus = document.activeElement === entry.focusTarget;
-  const wasInMenu = menu.includes(entry);
+export const showBannerControl = (control, shown) =>
+  showBannerControls([[control, shown]]);
+
+/**
+ * Show or hide several retained contributions, as `[control, shown]` pairs, in one
+ * paint. Which controls stand on the row depends on every contribution at once (a
+ * gesture step displaces the reading loop), so a contributor that moves several says
+ * so in one call: moved one at a time, a step leaving and the next arriving would put
+ * the reading loop back and take it away again in between.
+ */
+export function showBannerControls(changes) {
+  const moved = [];
+  for (const [control, shown] of changes) {
+    const prior = controls.get(control);
+    if (!prior) throw new TypeError("Banner control is not registered");
+    if (prior.present === Boolean(shown)) continue;
+    moved.push({
+      prior,
+      entry: Object.freeze({ ...prior, present: Boolean(shown) }),
+      heldFocus: document.activeElement === prior.focusTarget,
+      wasInMenu: menu.includes(prior),
+    });
+  }
+  if (!moved.length) return;
   const loopFocus = row.find(
     (candidate) =>
       candidate.seat !== "menu" && document.activeElement === candidate.focusTarget,
   );
-  const prior = entry;
-  entry = Object.freeze({ ...entry, present: shown });
-  replaceEntry(prior, entry);
+  for (const { prior, entry } of moved) replaceEntry(prior, entry);
   paint();
-  if (heldFocus && !shown) focusAfterRemoval(entry, wasInMenu);
+  const removed = moved.find(({ entry, heldFocus }) => heldFocus && !entry.present);
+  if (removed) focusAfterRemoval(removed.entry, removed.wasInMenu);
   // The step takes the place of the control focus stood on, so focus takes it too.
   else if (loopFocus && !visible(loopFocus))
-    entry.focusTarget.focus({ preventScroll: true });
+    moved
+      .find(({ entry }) => entry.present)
+      ?.entry.focusTarget.focus({ preventScroll: true });
 }
 
 export function showNews(control, on) {
@@ -283,6 +294,18 @@ export function bannerControlDoor(control) {
   if (control.isConnected && control.checkVisibility()) return control;
   const menu = control.closest(".lf-banner-menu");
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
+}
+
+// Escape from a layer that opens from a banner control lands on that control, its parent
+// (runtime/keyboard/AGENTS.md, "Escape unwinds the hierarchy"). A control behind More is
+// reached as its door reaches it: More opens from the door, so More's own Escape then
+// hands the user back to the door, and the user stands on the control.
+export function returnToBannerControl(control) {
+  if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
+    overflowBtn.focus({ preventScroll: true });
+    overflowMenu.showPopover();
+  }
+  control.focus({ preventScroll: true });
 }
 
 export function dismissBannerControls() {

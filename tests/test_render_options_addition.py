@@ -17,6 +17,7 @@ from render_cases_layout import (
 )
 from render_harness import (
     EXAMPLE_MEDIA,
+    EXAMPLES,
     consume_browser_errors,
     holding,
     open_page,
@@ -309,7 +310,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
-    expect(field).to_have_attribute("placeholder", "Another option — add to select")
+    expect(field).to_have_attribute("placeholder", "Add another option")
     write(field, "Insulate the camera battery")
     add = added.get_by_role("button", name="Add and select option", exact=True)
     add.focus()
@@ -541,3 +542,27 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
+
+
+def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
+    """The add field keeps room at its end for the Add press and the Ask's key, so on a
+    phone the words before that room are few: alert-review's card group at 360px cut
+    "Another option — add to select" to "Another option — ad…", which lost the verb.
+    The hint says the same in words that fit, and the room it keeps is measured here
+    rather than restated."""
+    example = next(p for p in EXAMPLES if p.stem == "alert-review")
+    context = browser.new_context(
+        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(example), context=context)
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    fit = field.evaluate("""field => {
+      const style = getComputedStyle(field);
+      const room = field.clientWidth - parseFloat(style.paddingInlineStart)
+        - parseFloat(style.paddingInlineEnd);
+      const pen = document.createElement('canvas').getContext('2d');
+      pen.font = style.font;
+      return {room, words: pen.measureText(field.getAttribute('placeholder')).width};
+    }""")
+    assert fit["words"] <= fit["room"], fit

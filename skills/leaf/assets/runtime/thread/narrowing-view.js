@@ -3,9 +3,12 @@
  * `narrowing.js` supplies one frozen presentation reading and stable commands. This
  * synchronous light-DOM Lit owner retains the search control and local View
  * disclosure while rendering the order, declared facet controls, summary, and Reset. The
- * summary follows the choices so that its arrival never moves a choice under the press
- * that caused it, and the disclosure's label never changes with what is chosen. It
- * never reads its rendering back into user intent.
+ * summary follows the choices so that a change to it never moves a choice under the press
+ * that caused it, and the disclosure's label never changes with what is chosen. The
+ * summary stands in every view, the default's included, and Reset keeps its box where it
+ * has nothing to put back, so the first letter typed into the find box or the first
+ * choice pressed never inserts a row that pushes the list down under the user. It never
+ * reads its rendering back into user intent.
  */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 import { offer } from "../widget-elements.js";
@@ -156,12 +159,13 @@ class ThreadNarrowingView extends HTMLElement {
           (group) => this.#group(group),
         )}
       </div>
-      <div class="lf-thread-view" ?hidden=${this.#model.hidden}>
+      <div class="lf-thread-view">
         <span class="lf-thread-view-summary">${this.#model.summary}</span>
         <button
           type="button"
           class="lf-btn lf-thread-filter-reset"
           aria-label="Reset thread filters"
+          ?data-lf-unoffered=${!this.#model.resettable}
           @click=${(event) => this.#resetFilters(event)}
         >
           Reset

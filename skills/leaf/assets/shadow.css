@@ -180,6 +180,18 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * In this file, because a widget declaring x-shadow builds its controls in a tree the
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
+/* Every keyboard target no rule rings, the page's own among them — a link, a summary, a
+   block the runtime lands the user on — wears the layer's band. At no weight, so each
+   rule that rings its own control still wins. Left to the browser these drew its 1px
+   auto ring flush against the words, beside the 2px band on every Leaf control. */
+:where(:focus-visible) { outline: var(--focus-ring); --lf-focus-ring: focus;
+  outline-offset: var(--focus-ring-gap); }
+/* Where the user stands wears a ring outside its box, so a scroll that brings the focus
+   into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
+   room at the scroller's edge: an Ask landed at the top of a scrolling pane stood flush
+   with it, the top of its ring cut off under the pane's header rule. At no weight, like
+   the ring. */
+:where(:focus) { scroll-margin-block: var(--focus-ring-room); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
@@ -211,7 +223,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-margin-entry,
+.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); min-width: var(--aim-floor); }
@@ -364,6 +377,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 .lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
 .lf-react[aria-busy="true"] { opacity: .55; }
+/* A reaction's word, while a press on it is held or the keyboard stands on it
+   (reactions.js, `holdToRead`): the finger's and the keyboard's reading of a face that is
+   otherwise one glyph. The word is the choice's own name, so it says what the accessible
+   name says, and it stands above the choice, where the finger pressing it does not cover
+   it. The press owns the gesture, so it neither scrolls nor opens the platform's
+   long-press menu; a margin choice says its word through its own label (theme.css). */
+.lf-react { touch-action: none; -webkit-touch-callout: none;
+          user-select: none; -webkit-user-select: none; }
+.lf-react:not(.lf-margin-entry) { position: relative; }
+.lf-react:not(.lf-margin-entry):is([data-lf-held-word], :focus-visible, .lf-focus-visible)::after {
+          content: attr(aria-label); position: absolute; z-index: 5;
+          inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
+          width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
+          background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
+          font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
    a standing token remains visible in a closed message strip as the user's receipt
    and eraser. */
@@ -410,6 +438,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
 }
+/* Under a finger the trigger takes the aim floor, and with no hover to reveal it, it
+   stands on every reply for good; either way it is more than an overlay on the corner
+   can hold. Hung there at the floor's size it covered the last words of the reply's
+   first line at 360px, so the head row it stands beside holds its height and the
+   trigger stands in that row. The head's words keep their shared baseline and are
+   centred on the trigger by padding, since the panel's head states its alignment in
+   chrome.css, which this layer does not outrank. */
+@media (pointer: coarse), (hover: none) {
+  .lf-react-strip > .lf-react-trigger { inset-block-start: 0; }
+  :is(.lf-msg, .lf-page-thread-msg).agent > :is(.lf-msg-head, .lf-page-thread-head) {
+          --lf-react-row: max(26px, var(--aim-floor));
+          box-sizing: border-box; min-height: var(--lf-react-row);
+          padding-block-start: max(0px, (var(--lf-react-row) - 1lh) / 2);
+          padding-inline-end: var(--lf-react-row); }
+}
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
@@ -435,10 +478,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * scroll position: inline end at the start, both edges in the middle, and inline start
  * at the end. Masking the box makes the content itself recede instead of casting an
  * unexplained shadow behind it. That is right for text, where a word fading at the edge
- * reads as cut; a widget whose content it fails for paints the same marks its own way
- * (lf-diagram's theme, for a drawing). Focus within removes the mask so the scroller's
- * complete ring and controls painted outside its box remain visible; the user standing
- * there already has the platform's scroll affordance.
+ * reads as cut. A widget whose content reads otherwise states how wide the fade is
+ * (--lf-more-fade, 24px) and how much of the content is left at the edge
+ * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. Focus within
+ * removes the mask so the scroller's complete ring and controls painted outside its box
+ * remain visible; the user standing there already has the platform's scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
  * feed the measurement back into itself. Screen only, because a mark whose whole
@@ -451,8 +495,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   [data-lf-more-before]:where(
       [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
     ) {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent));
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent));
   }
   [data-lf-more-before]:where(
       [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
@@ -460,23 +504,23 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   [data-lf-more-after]:where(
       [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
     ) {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
-    mask-image: linear-gradient(to right, transparent, #000 24px);
+    -webkit-mask-image: linear-gradient(to right, var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px));
+    mask-image: linear-gradient(to right, var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px));
   }
   [data-lf-more-before][data-lf-more-after] {
     -webkit-mask-image: linear-gradient(
       to right,
-      transparent,
-      #000 24px,
-      #000 calc(100% - 24px),
-      transparent
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent)
     );
     mask-image: linear-gradient(
       to right,
-      transparent,
-      #000 24px,
-      #000 calc(100% - 24px),
-      transparent
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent)
     );
   }
   :is([data-lf-more-before], [data-lf-more-after]):is(
@@ -663,7 +707,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    this file because document selectors do not cross a declared shadow root. */
-:host-context(body[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
   cursor: auto !important; }

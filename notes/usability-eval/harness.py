@@ -662,7 +662,7 @@ def acknowledge(run: Run, page: Path) -> None:
         "import sys\nfrom pathlib import Path\n"
         "from leaf.delivery import batch_data, freeze_delivery\n"
         "from leaf.service import PageTransaction, unacknowledged\n"
-        "from leaf.session import receive\n"
+        "from leaf.delivery import receive\n"
         "page_dir = Path(sys.argv[1])\n"
         "with PageTransaction(page_dir) as page:\n"
         "    batch = batch_data(page_dir, page, unacknowledged(page.events, page.cursor))\n"

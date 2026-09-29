@@ -3,14 +3,17 @@
  * The preview remains authored DOM. Core captures and resolves every selected target;
  * labels and visible context describe a reference but never participate in its identity.
  * Working changes mutate only declared box-model properties, after saving the prior
- * inline value; every repaint restores those values before applying the current ordered
- * draft. Prose carries a target key beside its words. The complete target/change graph
- * is submitted as one recordless action, so replay, refusal, and undo use Leaf's
- * ordinary projection instead of a widget-owned event history. */
+ * inline value; every repaint applies the current ordered draft and restores the saved
+ * value of each property no change holds any longer. Prose carries a target key beside
+ * its words. The complete target/change graph is submitted as one recordless action,
+ * so replay, refusal, and undo use Leaf's ordinary projection instead of a
+ * widget-owned event history. */
 import {
   captureTargetReference,
   commands,
   failSoft,
+  keepsHidden,
+  keepsText,
   layoutChanged,
   notice,
   offer,
@@ -368,7 +371,7 @@ customElements.define(
         this.#tabIndexes.clear();
         this.#clearHovered();
         this.#candidates = [];
-        if (this.#candidateList) this.#candidateList.hidden = true;
+        keepsHidden(this.#candidateList, true);
       }
       paintKeys();
     }
@@ -388,7 +391,7 @@ customElements.define(
     #leftPreview = () => this.#clearHovered();
 
     #clearHovered() {
-      this.#hovered?.classList.remove("lf-targeting-candidate");
+      this.#hovered?.classList.toggle("lf-targeting-candidate", false);
       this.#hovered = null;
     }
 
@@ -420,7 +423,7 @@ customElements.define(
         button.addEventListener("click", () => this.#addTarget(candidate));
         this.#candidateList.append(button);
       }
-      this.#candidateList.hidden = false;
+      keepsHidden(this.#candidateList, false);
       this.#candidateList.querySelector("button")?.focus({ preventScroll: true });
       layoutChanged(this);
       return true;
@@ -478,7 +481,7 @@ customElements.define(
       );
       if (existing) {
         this.disarm();
-        this.#candidateList.hidden = true;
+        keepsHidden(this.#candidateList, true);
         this.#targetList
           .querySelector(`[data-target-key="${existing.key}"] input`)
           ?.focus({ preventScroll: true });
@@ -492,7 +495,7 @@ customElements.define(
         ...selection,
       };
       this.#configuration.targets.push(target);
-      this.#candidateList.hidden = true;
+      keepsHidden(this.#candidateList, true);
       this.disarm();
       this.#changed();
       this.#styleTarget.value = target.key;
@@ -575,7 +578,7 @@ customElements.define(
             const targetOption = select.querySelector(
               `wa-option[value="${CSS.escape(target.key)}"]`,
             );
-            if (targetOption) targetOption.textContent = value;
+            keepsText(targetOption, value);
           }
           this.#beginDraft();
           this.#paintAvailability();
@@ -723,23 +726,42 @@ customElements.define(
     }
 
     #restorePreview() {
-      for (const [element, properties] of this.#restoredStyles)
+      this.#restoreStyles(new Map());
+      this.#paintClasses(new Set());
+    }
+
+    // Each saved property the draft's `styles` no longer name gets its saved value back.
+    #restoreStyles(styles) {
+      for (const [element, properties] of this.#restoredStyles) {
         for (const [property, prior] of properties) {
+          if (styles.get(element)?.has(property)) continue;
           if (prior.value)
             element.style.setProperty(property, prior.value, prior.priority);
           else element.style.removeProperty(property);
+          properties.delete(property);
         }
-      this.#restoredStyles.clear();
-      for (const element of this.#authoredClasses.keys())
-        element.classList.remove("lf-targeting-selected", "lf-targeting-candidate");
+        if (!properties.size) this.#restoredStyles.delete(element);
+      }
     }
 
+    // Each authored element carries the selection mark exactly when a target covers it,
+    // and no hover mark, so a repaint writes only the elements whose marks moved.
+    #paintClasses(selected) {
+      for (const element of this.#authoredClasses.keys()) {
+        element.classList.toggle("lf-targeting-selected", selected.has(element));
+        element.classList.toggle("lf-targeting-candidate", false);
+      }
+    }
+
+    // The draft's styles in change order, a later change to one property winning. A
+    // property no change holds any longer gets its saved value back; one a change still
+    // holds is set straight to the draft's value, never restored first and set again.
     #applyPreview() {
       if (!this.#preview) return;
-      this.#restorePreview();
+      const selected = new Set();
       for (const target of this.#configuration.targets)
-        for (const element of this.#elementsFor(target))
-          element.classList.add("lf-targeting-selected");
+        for (const element of this.#elementsFor(target)) selected.add(element);
+      const styles = new Map();
       for (const change of this.#configuration.changes) {
         if (change.kind !== "style") continue;
         const target = this.#configuration.targets.find(
@@ -747,19 +769,27 @@ customElements.define(
         );
         if (!target) continue;
         for (const element of this.#elementsFor(target)) {
-          let properties = this.#restoredStyles.get(element);
-          if (!properties) {
-            properties = new Map();
-            this.#restoredStyles.set(element, properties);
-          }
-          if (!properties.has(change.property))
-            properties.set(change.property, {
-              value: element.style.getPropertyValue(change.property),
-              priority: element.style.getPropertyPriority(change.property),
-            });
-          element.style.setProperty(change.property, change.value);
+          if (!styles.has(element)) styles.set(element, new Map());
+          styles.get(element).set(change.property, change.value);
         }
       }
+      this.#restoreStyles(styles);
+      for (const [element, wanted] of styles) {
+        let properties = this.#restoredStyles.get(element);
+        if (!properties) {
+          properties = new Map();
+          this.#restoredStyles.set(element, properties);
+        }
+        for (const [property, value] of wanted) {
+          if (!properties.has(property))
+            properties.set(property, {
+              value: element.style.getPropertyValue(property),
+              priority: element.style.getPropertyPriority(property),
+            });
+          element.style.setProperty(property, value);
+        }
+      }
+      this.#paintClasses(selected);
     }
 
     #canSubmit() {
@@ -776,8 +806,8 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.disabled = !this.#canSubmit();
-      this.#revert.disabled = !this.#dirty;
+      this.#submit.toggleAttribute("disabled", !this.#canSubmit());
+      this.#revert.toggleAttribute("disabled", !this.#dirty);
       paintKeys();
     }
 

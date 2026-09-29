@@ -165,7 +165,13 @@ ready raises with App Server's whole log, whose reason is at its end.
 The `turn_reply_first_text_published` record marks the first non-empty final-answer
 text written into the addressed thread, which is the user-visible response milestone;
 `turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion
-from Leaf's durable validation and append. `turn_interrupted` and
+from Leaf's durable validation and append; `turn_stream_completed` also carries the
+turn's `modelRequests` and the `inputTokens`, `cachedInputTokens` and `outputTokens`
+they summed to. `thread_title_generated` records the title request for an untitled
+thread the turn answers, with its duration, tokens, and whether the title was
+`written`; `thread_title_skipped` and `thread_title_failed` record a thread left
+untitled. A refused title's failure carries no `detail`, because its words are drawn
+from the user's. `turn_interrupted` and
 `turn_interrupt_failed` record the follower stopping a turn it can no longer watch, and
 `turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that

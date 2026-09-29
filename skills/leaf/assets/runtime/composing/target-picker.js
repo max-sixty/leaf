@@ -18,7 +18,7 @@ import {
 import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { handBack } from "../focus.js";
+import { handBack, releaseFocus } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -32,6 +32,7 @@ import {
   progressStates,
 } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
+import { keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -210,7 +211,7 @@ export function createTargetPicker({
     matches = [];
     active = -1;
     pageSearchInput.value = "";
-    pageSearchSurface.hidden = true;
+    keepsHidden(pageSearchSurface, true);
     if (on && withHints) {
       const found = hints.arm();
       announce(
@@ -228,7 +229,7 @@ export function createTargetPicker({
 
   function setPageSearch(on) {
     pageSearchOpen = on;
-    pageSearchSurface.hidden = !on;
+    keepsHidden(pageSearchSurface, !on);
     if (on) {
       pageSearchInput.focus({ preventScroll: true });
       presentSearchStatus();
@@ -237,7 +238,7 @@ export function createTargetPicker({
       pageSearchInput.value = "";
       matches = [];
       active = -1;
-      document.body.focus({ preventScroll: true });
+      releaseFocus();
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
@@ -396,7 +397,7 @@ export function createTargetPicker({
 
   function chooseTarget(target) {
     setTargetPicker(false);
-    document.body.focus({ preventScroll: true });
+    releaseFocus();
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
   }
@@ -418,7 +419,7 @@ export function createTargetPicker({
   }
 
   function selectMatch(segments) {
-    document.body.focus({ preventScroll: true });
+    releaseFocus();
     const selection = getSelection();
     selection.removeAllRanges();
     selection.addRange(rangeOf(segments));

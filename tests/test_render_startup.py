@@ -69,6 +69,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     TOKEN,
     _traffic,
     comment_note,
@@ -425,7 +426,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
 @pytest.mark.parametrize(
     ("width", "has_touch", "banner_height"),
-    [(800, False, 88), (1200, True, 53), (1724, False, 42)],
+    [(390, True, 89), (740, True, 53), (800, False, 42), (1724, False, 42)],
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
     browser, serve, width, has_touch, banner_height
@@ -794,7 +795,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )
-        expect(page.locator("body[data-lf-covering-surface]")).to_have_count(
+        expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
             1 if window < {"asks": 620, "threads": 740}[surface] else 0
         )
         presented = geometry()
@@ -814,14 +815,15 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "widgets" / "lf-feed.js"
     module.write_text(
         module.read_text()
+        .replace("{offer,", "{keeps, keepsText, offer,")
         .replace("({value}) => {", "({value}, prior) => {")
         .replace(
             "const row = document.createElement('p');\n"
             "      row.append(value, offer('button', 'inspect', 'Inspect'));",
             """const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      link.href = value === 'Ready' ? 'https://example.com/status' : '#title';
-      link.textContent = value;
+      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, value);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';
@@ -1064,9 +1066,9 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
             posture: leaf.readingPosture(previewId),
           };
 
+          // Hidden until it is removed below.
           previewHost.hidden = true;
           const hiddenBounds = leaf.shownRegionBounds(previewId);
-          previewHost.hidden = false;
 
           let refused;
           try {
@@ -2330,7 +2332,7 @@ def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve
         page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
     )
 
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     with page.expect_event("pageerror") as raised:
         page.keyboard.press("t")
     assert "Failed to fetch dynamically imported module" in str(raised.value)
@@ -3469,6 +3471,21 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_count(1)
     expect(other_workflow).to_have_count(1)
     expect(other_workflow).to_have_text("Sent")
+    # The panel keeps one thread open. A folded row names the stage, since it shows no
+    # message; the open one's message names it beside itself, so its summary does not
+    # say it a second time.
+    header_status = held_thread.locator(":scope > .lf-thread-summary .lf-thread-status")
+    held_summary = held_thread.locator(":scope > .lf-thread-summary")
+    expect(held_thread).to_have_js_property("open", True)
+    expect(header_status).to_have_text("Working")
+    expect(header_status).to_be_hidden()
+    other_thread.locator(":scope > .lf-thread-summary").click()
+    expect(held_thread).to_have_js_property("open", False)
+    expect(header_status).to_be_visible()
+    held_summary.click()
+    expect(held_thread).to_have_js_property("open", True)
+    expect(header_status).to_be_hidden()
+    expect(held_workflow).to_be_visible()
     # The move's state is metadata on the exact outgoing message, closing that row
     # rather than taking a full-width row of its own. Resolve settles the thread, not
     # the message, so it stands in the thread's corner and the row ends here.
@@ -3535,7 +3552,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # in the compact card. It does not invent an unasked message workflow.
     status("working", "re-running it against the rolling deploy", "--on", held)
     expect(held_workflow).to_have_count(0)
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Working")
+    expect(header_status).to_have_text("Working")
+    # No message carries this work, so the open card's summary still says it.
+    expect(header_status).to_be_visible()
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
@@ -4411,14 +4430,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so the margin's
-    # thread margin entry and each passage's comment count open the fallback card and Threads
-    # stays shut; a disconnected widget leaves no such destination and the panel answers.
+    # thread margin entry on each datum and each passage's comment count open the fallback
+    # card and Threads stays shut; a disconnected widget leaves no such destination and
+    # the panel answers.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.locator(".lf-threads-toggle").click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
-        expect(markers).to_have_count(1)
+        expect(markers).to_have_count(2)
         markers.first.click()
         expect(page.locator(".lf-margin-preview")).to_be_visible()
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
@@ -4952,10 +4972,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
             currentRevision = snapshot?.revision ?? null;
           });
           stopCurrent();
-          widget.removeAttribute('source');
-          let unbound = 'not-called';
-          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
-          stopUnbound();
           widget.setAttribute('source', 'constructor');
           let absent = 'not-called';
           const stop = watchData(widget, 'rows', snapshot => { absent = snapshot; });
@@ -4980,6 +4996,10 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           next.sources.deployments.revision = 'next-revision';
           acceptData(next, runtime.state.taken);
           stopCaptured();
+          widget.removeAttribute('source');
+          let unbound = 'not-called';
+          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
+          stopUnbound();
           return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )

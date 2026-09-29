@@ -119,7 +119,8 @@
         {
           "when": {
             "required": [
-              "thread"
+              "thread",
+              "answer"
             ],
             "properties": {
               "thread": {
@@ -131,15 +132,17 @@
                     "type": "null"
                   }
                 }
+              },
+              "answer": {
+                "properties": {
+                  "kind": {
+                    "const": "reply"
+                  }
+                }
               }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
             }
           },
-          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words."
+          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands."
         },
         {
           "when": {
@@ -177,7 +180,8 @@
         {
           "when": {
             "required": [
-              "thread"
+              "thread",
+              "answer"
             ],
             "properties": {
               "thread": {
@@ -189,15 +193,17 @@
                     "type": "null"
                   }
                 }
+              },
+              "answer": {
+                "properties": {
+                  "kind": {
+                    "const": "reply"
+                  }
+                }
               }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
             }
           },
-          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words."
+          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands."
         },
         {
           "when": {

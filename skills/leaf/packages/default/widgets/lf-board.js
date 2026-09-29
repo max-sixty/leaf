@@ -43,6 +43,8 @@ import {
   rankAt,
   reducedMotion,
   scrollBehavior,
+  keeps,
+  keepsHidden,
   keepsText,
 } from "/runtime/widget-api.js";
 
@@ -81,17 +83,16 @@ customElements.define(
       }
       // The room a card's text keeps clear of its grip, measured off the grip's own
       // box rather than stated as a number (the pick column's answer): the theme
-      // spends it (--lf-grip-room), and only a board that grew grips states it, so
-      // paper, copies and quoted boards hold no dead column.
+      // spends it (--lf-grip-room across, --lf-grip-block down), and only a board
+      // that grew grips states it, so paper, copies and quoted boards hold no room.
       // Off the grip's own box, so it waits for one (`measure`): a board quoted into
       // a reply is built into the thread panel, which may not be open yet.
       measure(this, () => {
         const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
-        if (grip)
-          this.style.setProperty(
-            "--lf-grip-room",
-            Math.ceil(grip.getBoundingClientRect().width) + "px",
-          );
+        if (!grip) return;
+        const box = grip.getBoundingClientRect();
+        this.style.setProperty("--lf-grip-room", Math.ceil(box.width) + "px");
+        this.style.setProperty("--lf-grip-block", Math.ceil(box.height) + "px");
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
@@ -170,12 +171,11 @@ customElements.define(
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
-          if (grip && grip.getAttribute("aria-label") !== name)
-            grip.setAttribute("aria-label", name);
+          keeps(grip, "aria-label", name);
           for (const button of card.querySelectorAll(
             ":scope > .lf-board-destinations > .lf-board-destination",
           ))
-            button.hidden = button.dataset.lfBoardTarget === col.id;
+            keepsHidden(button, button.dataset.lfBoardTarget === col.id);
         }
       }
     }
@@ -215,13 +215,13 @@ customElements.define(
       for (const grip of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-grip",
       )) {
-        grip.setAttribute("aria-disabled", String(!available));
-        grip.tabIndex = available ? 0 : -1;
+        keeps(grip, "aria-disabled", !available);
+        keeps(grip, "tabindex", available ? 0 : -1);
       }
       for (const button of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-board-destinations button",
       ))
-        button.disabled = !available;
+        button.toggleAttribute("disabled", !available);
     };
 
     #available() {

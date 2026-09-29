@@ -18,10 +18,12 @@
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
-     row must declare one, unless a Decision command can fall back to its `decision` action
-     name in the command reference.
-     An Ask instead shows the resolved binding beside that separate action name, so an
-     inline hint always says what the user actually presses.
+     row must declare one, unless it is a Decision. One an Ask seats (it carries the
+     Ask's `bindingBadge`) is pressed by the digit its Ask gives it, and the command
+     reference names it only under that digit, while the user stands in the Ask; any
+     other falls back to its `decision` name there. An Ask shows the resolved binding
+     beside that separate action name, so an inline hint always says what the user
+     actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
      its containing Ask. The row may carry an existing `bindingBadge`. Routes may carry
@@ -43,7 +45,7 @@
      next press — F7, ⌥ click, a press on a draft's own box.
    - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
      never changes whether the command dispatches or appears in the command reference, and an
-     active sequence shows every live row regardless of it.
+     active sequence offers every live row regardless of it.
    - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
      by default; a local action that happens to clear state can leave the slot to the
      next action on that state. A step of the ladder sets the same field for the shared
@@ -171,7 +173,14 @@ const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
 export const submitLabel = () => spell(submitBindings()[0]);
-export const submitHint = () => (softKeyboard() ? "" : submitLabel());
+// Whether a surface advertises keys: a key drawn where the user has no keyboard names a
+// press they cannot make, and costs room on the smallest window there is. The same
+// finger reading hides the shortcut bar (chrome.css, `(pointer: coarse)`); every
+// runtime surface that paints a key it was not asked for — a field's send key, the
+// contextual key that enters it — asks this rather than the pointer. A map the user
+// armed from a keyboard (Go-to, the target picker) is an answer, not an advert, and
+// draws regardless.
+export const advertisesKeys = () => !coarsePointer.matches;
 // Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
 // which is the keyboard's face, while a listener needs the physical press because many
 // speech configurations do not distinguish letter case.

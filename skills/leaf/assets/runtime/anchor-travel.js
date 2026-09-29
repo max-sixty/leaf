@@ -239,17 +239,25 @@ export function createAnchorTravel({
     return true;
   }
 
+  // Where in its scroller's landing band a destination's top stands. An element keeps
+  // the room its own `scroll-margin-top` asks for, which is the browser's rule for every
+  // native landing: a destination wearing the ring outside itself asks for the ring's
+  // room, and a landing flush with the band's edge cut the ring off there.
   function centreBy(where, block = "center", box = pageScroller) {
     const rect =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
     const band = landingBand(box);
     const room = band.bottom - band.top;
+    const margin =
+      where instanceof Range
+        ? 0
+        : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
     const place =
       where instanceof Range
         ? (room - rect.height) / 2
         : block === "start"
-          ? 0
-          : Math.max((room - rect.height) / 2, 0);
+          ? margin
+          : Math.max((room - rect.height) / 2, margin);
     return rect.top - band.top - place;
   }
 

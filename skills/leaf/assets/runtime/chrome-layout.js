@@ -37,7 +37,7 @@
 // auxiliary surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
-import { overlaps, overlapsAcross } from "./rect.js";
+import { overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
 import { scheduleResidency } from "./margin-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
@@ -111,17 +111,13 @@ export function createChromeLayout({
         row.getBoundingClientRect().right > panelLeft,
     );
     panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
-    // The status stands in the bottom bar (chrome.css) and moves only to stay live above
-    // a covering panel's foot: unlike the inert shortcut guide, notices are live feedback
-    // from the foreground action. Everything the page ends above is the bottom bar's
-    // stated height, so nothing here writes a reservation for the document or the drawers.
-    bottomStatusEl.style.bottom = "";
-    bottomStatusEl.style.translate = "";
-    const status = bottomStatusEl.getBoundingClientRect();
-    if (panelCovers() && status.height && overlaps(status, foot)) {
-      bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-      bottomStatusEl.style.translate = "none";
-    }
+    // The status stands in the bottom bar (chrome.css) and rises above a covering panel's
+    // foot, which stands over the bar's right end: unlike the inert shortcut guide,
+    // notices are live feedback from the foreground action. The stylesheet places it by
+    // the panel's modal state and this foot height. Everything the page ends above is the
+    // bottom bar's stated height, so nothing here writes a reservation for the document or
+    // the drawers.
+    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${foot.height}px`);
     // A region gives up the part of a bottom surface that stands over it: the band from
     // that surface's top down to the region's own foot, plus air above it. Read off the
     // rendered box, since what crosses the panel's list is a status whose place follows

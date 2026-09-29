@@ -171,7 +171,7 @@
       }
     </style>
     <script type="module">
-      import { keeps, layoutChanged, once } from "/runtime/widget-api.js";
+      import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
 
       const EVENTS = [
         {
@@ -285,6 +285,7 @@
           #playground = null;
           #change = null;
           #values = null;
+          #cards = "";
 
           connectedCallback() {
             if (once(this)) this.#build();
@@ -335,18 +336,34 @@
               "data-selected",
               this.#values.format === "status strip",
             );
-            this.#banner.feed.replaceChildren(
-              ...events.map((event, index) =>
-                notification(event, "banner", index, this.#values),
-              ),
+            // The cards read only the event count, the first title and the owner line;
+            // a colour or a radius leaves them standing.
+            const cards = JSON.stringify([
+              this.#values.events,
+              this.#values.title,
+              this.#values["show-owner"],
+            ]);
+            if (cards !== this.#cards) {
+              this.#cards = cards;
+              this.#banner.feed.replaceChildren(
+                ...events.map((event, index) =>
+                  notification(event, "banner", index, this.#values),
+                ),
+              );
+              this.#strip.feed.replaceChildren(
+                ...events.map((event, index) =>
+                  notification(event, "status strip", index, this.#values),
+                ),
+              );
+            }
+            keepsText(
+              this.#banner.metric,
+              `${this.#values.events} cards · full detail`,
             );
-            this.#strip.feed.replaceChildren(
-              ...events.map((event, index) =>
-                notification(event, "status strip", index, this.#values),
-              ),
+            keepsText(
+              this.#strip.metric,
+              `${this.#values.events} rows · compact summary`,
             );
-            this.#banner.metric.textContent = `${this.#values.events} cards · full detail`;
-            this.#strip.metric.textContent = `${this.#values.events} rows · compact summary`;
             layoutChanged(this);
           }
         },

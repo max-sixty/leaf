@@ -7,6 +7,8 @@
 // between its two worlds; the Painter reconciles keyed SVG nodes against that frame. The
 // page tells the step beside the film from the chapter and caption each frame carries.
 
+import { keeps, keepsText } from "/runtime/widget-api.js";
+
 const SVG = "http://www.w3.org/2000/svg";
 const W = 1280;
 const H = 720;
@@ -981,8 +983,8 @@ const fit = (text, cols = 48) =>
   text.length > cols ? `${text.slice(0, cols - 1)}…` : text;
 
 const describe = (g, label, info) => {
-  g.dataset.label = label;
-  g.dataset.info = info ?? "";
+  keeps(g, "data-label", label);
+  keeps(g, "data-info", info ?? "");
 };
 
 // A commit and everything it descends from, following the edges visible in this frame.
@@ -1151,7 +1153,7 @@ export class Painter {
       const col = tone(n.tone);
       const to = this.#anchor(world, n.at);
       if (!to || n.o < 0.02) {
-        g.setAttribute("opacity", 0);
+        keeps(g, "opacity", 0);
         continue;
       }
       const w = n.text.length * 7.4 + 20;
@@ -1167,12 +1169,13 @@ export class Painter {
           (dir > 0 ? Math.max(from.y, to.y) : Math.min(from.y, to.y)) + dir * 64;
         const pad = (to.r ?? 13) + 4;
         const ang = Math.atan2(to.y - my, to.x - mx);
-        lead.setAttribute(
+        keeps(
+          lead,
           "d",
           `M${from.x},${from.y + dir * ((from.r ?? 13) + 3)} Q${mx},${my} ${to.x - Math.cos(ang) * pad},${to.y - Math.sin(ang) * pad}`,
         );
-        lead.setAttribute("marker-end", `url(#${this.arrowId})`);
-        lead.setAttribute("stroke-dasharray", "none");
+        keeps(lead, "marker-end", `url(#${this.arrowId})`);
+        keeps(lead, "stroke-dasharray", "none");
         lx = mx - w / 2;
         ly = dir > 0 ? my - 18 : my - 8;
       } else {
@@ -1190,25 +1193,25 @@ export class Painter {
         const sx = to.x + Math.sign(ex - to.x) * (n.side === "up" ? 0 : r - 2);
         const sy =
           to.y + (n.side === "up" ? -r + 2 : n.side === "down-left" ? r - 2 : 0);
-        lead.setAttribute("d", `M${sx},${sy} L${ex},${ey}`);
+        keeps(lead, "d", `M${sx},${sy} L${ex},${ey}`);
         lead.removeAttribute("marker-end");
-        lead.setAttribute("stroke-dasharray", "3 3");
+        keeps(lead, "stroke-dasharray", "3 3");
       }
       lx = Math.max(BOX[0] + 12, Math.min(lx, TERM.x - w - 12));
-      lead.setAttribute("stroke", col);
+      keeps(lead, "stroke", col);
       // An arrow with no words is drawn alone.
       if (n.text) box.removeAttribute("visibility");
-      else box.setAttribute("visibility", "hidden");
-      box.setAttribute("x", lx);
-      box.setAttribute("y", ly);
-      box.setAttribute("width", w);
-      box.setAttribute("fill", C.bg);
-      box.setAttribute("stroke", col);
-      text.setAttribute("x", lx + 10);
-      text.setAttribute("y", ly + 18);
-      text.setAttribute("fill", col);
-      text.textContent = n.text;
-      g.setAttribute("opacity", n.o);
+      else keeps(box, "visibility", "hidden");
+      keeps(box, "x", lx);
+      keeps(box, "y", ly);
+      keeps(box, "width", w);
+      keeps(box, "fill", C.bg);
+      keeps(box, "stroke", col);
+      keeps(text, "x", lx + 10);
+      keeps(text, "y", ly + 18);
+      keeps(text, "fill", col);
+      keepsText(text, n.text);
+      keeps(g, "opacity", n.o);
     }
   }
 
@@ -1219,7 +1222,7 @@ export class Painter {
       node = make();
       this.pool.set(id, node);
     }
-    node.dataset.seen = this.stamp;
+    this.seen.add(id);
     return node;
   }
 
@@ -1243,12 +1246,12 @@ export class Painter {
   }
 
   paint(film, fr, focus = null) {
-    this.stamp = String(Math.random());
+    this.seen = new Set();
     const { world } = fr;
     const lit = focus ? lineage(world, focus) : null;
     const dim = (id, o) => (lit && !lit.has(id) ? o * 0.22 : o);
-    this.termTitle.textContent = `${film.scenario.worktree} — zsh`;
-    this.flash.setAttribute("opacity", 0.14 * fr.flash);
+    keepsText(this.termTitle, `${film.scenario.worktree} — zsh`);
+    keeps(this.flash, "opacity", 0.14 * fr.flash);
 
     for (const [key, e] of Object.entries(world.edges)) {
       const a = world.nodes[e.a];
@@ -1256,15 +1259,16 @@ export class Painter {
       if (!a || !b) continue;
       const path = this.keyed("edge", key, () => el("path", {}, this.edges));
       const mx = (a.x + b.x) / 2;
-      path.setAttribute("d", `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`);
-      path.setAttribute("stroke", tone(e.tone));
-      path.setAttribute(
+      keeps(path, "d", `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`);
+      keeps(path, "stroke", tone(e.tone));
+      keeps(
+        path,
         "opacity",
         lit && !(lit.has(e.a) && lit.has(e.b))
           ? 0.08 * e.o
           : Math.min(e.o, a.o + 0.2, b.o + 0.2),
       );
-      path.setAttribute("stroke-dasharray", e.dash > 0.5 ? "6 7" : "none");
+      keeps(path, "stroke-dasharray", e.dash > 0.5 ? "6 7" : "none");
     }
     for (const [key, n] of Object.entries(world.nodes)) {
       const g = this.keyed("node", key, () => {
@@ -1294,21 +1298,21 @@ export class Painter {
       });
       const [circle, hash, inner] = g.children;
       const c = tone(n.tone);
-      circle.setAttribute("cx", n.x);
-      circle.setAttribute("cy", n.y);
-      circle.setAttribute("r", n.r);
-      circle.setAttribute("fill", n.wip > 0.5 ? C.bg : c);
-      circle.setAttribute("stroke", n.merge ? C.ink : c);
-      circle.setAttribute("stroke-width", n.wip > 0.5 ? 2.5 : n.merge ? 3 : 0);
-      circle.setAttribute("stroke-dasharray", n.wip > 0.5 ? "4 4" : "none");
-      hash.setAttribute("x", n.x);
-      hash.setAttribute("y", n.y + (n.y < (MAIN_Y + FEAT_Y) / 2 ? 36 : 36));
-      hash.textContent = n.hash ?? "";
-      inner.setAttribute("x", n.x);
-      inner.setAttribute("y", n.y + 4);
-      inner.setAttribute("fill", C.bg);
-      inner.textContent = n.msg?.includes("→") ? n.msg : "";
-      g.setAttribute("opacity", dim(key, n.o));
+      keeps(circle, "cx", n.x);
+      keeps(circle, "cy", n.y);
+      keeps(circle, "r", n.r);
+      keeps(circle, "fill", n.wip > 0.5 ? C.bg : c);
+      keeps(circle, "stroke", n.merge ? C.ink : c);
+      keeps(circle, "stroke-width", n.wip > 0.5 ? 2.5 : n.merge ? 3 : 0);
+      keeps(circle, "stroke-dasharray", n.wip > 0.5 ? "4 4" : "none");
+      keeps(hash, "x", n.x);
+      keeps(hash, "y", n.y + (n.y < (MAIN_Y + FEAT_Y) / 2 ? 36 : 36));
+      keepsText(hash, n.hash);
+      keeps(inner, "x", n.x);
+      keeps(inner, "y", n.y + 4);
+      keeps(inner, "fill", C.bg);
+      keepsText(inner, n.msg?.includes("→") ? n.msg : "");
+      keeps(g, "opacity", dim(key, n.o));
       describe(g, `commit ${n.hash}`, n.info);
     }
     for (const [key, r] of Object.entries(world.refs)) {
@@ -1321,16 +1325,16 @@ export class Painter {
       const [rect, text] = g.children;
       const w = r.label.length * 8.2 + 20;
       const y = r.side < 0 ? r.y - 58 : r.y + 50 + (r.side - 1) * 34;
-      rect.setAttribute("x", r.x - w / 2);
-      rect.setAttribute("y", y);
-      rect.setAttribute("width", w);
-      rect.setAttribute("fill", C.panel2);
-      rect.setAttribute("stroke", tone(r.tone));
-      text.setAttribute("x", r.x);
-      text.setAttribute("y", y + 17);
-      text.setAttribute("fill", tone(r.tone));
-      text.textContent = r.label;
-      g.setAttribute("opacity", r.o);
+      keeps(rect, "x", r.x - w / 2);
+      keeps(rect, "y", y);
+      keeps(rect, "width", w);
+      keeps(rect, "fill", C.panel2);
+      keeps(rect, "stroke", tone(r.tone));
+      keeps(text, "x", r.x);
+      keeps(text, "y", y + 17);
+      keeps(text, "fill", tone(r.tone));
+      keepsText(text, r.label);
+      keeps(g, "opacity", r.o);
       describe(g, `ref ${r.label}`, r.info);
     }
     for (const [key, c] of Object.entries(world.chips)) {
@@ -1351,21 +1355,23 @@ export class Painter {
             : c.state === "bg"
               ? C.muted
               : C.warn;
-      box.setAttribute("x", c.x);
-      box.setAttribute("y", c.y);
-      box.setAttribute("width", w);
-      box.setAttribute("fill", C.panel2);
-      box.setAttribute("stroke", col);
-      bar.setAttribute("x", c.x + 12);
-      bar.setAttribute("y", c.y + 30);
-      bar.setAttribute("width", (w - 24) * c.p);
-      bar.setAttribute("fill", col);
-      text.setAttribute("x", c.x + 16);
-      text.setAttribute("y", c.y + 22);
-      text.setAttribute("fill", col);
-      text.textContent =
-        (c.state === "run" ? "◎ " : c.state === "bg" ? "◌ " : "") + c.label;
-      g.setAttribute("opacity", c.o);
+      keeps(box, "x", c.x);
+      keeps(box, "y", c.y);
+      keeps(box, "width", w);
+      keeps(box, "fill", C.panel2);
+      keeps(box, "stroke", col);
+      keeps(bar, "x", c.x + 12);
+      keeps(bar, "y", c.y + 30);
+      keeps(bar, "width", (w - 24) * c.p);
+      keeps(bar, "fill", col);
+      keeps(text, "x", c.x + 16);
+      keeps(text, "y", c.y + 22);
+      keeps(text, "fill", col);
+      keepsText(
+        text,
+        (c.state === "run" ? "◎ " : c.state === "bg" ? "◌ " : "") + c.label,
+      );
+      keeps(g, "opacity", c.o);
       describe(g, c.label.replace(/ [✓]$/, ""), c.info);
     }
     for (const [key, tr] of Object.entries(world.trees)) {
@@ -1379,31 +1385,32 @@ export class Painter {
       const [box, path, meta] = g.children;
       const bx = GRAPH_X - 20 + tr.i * 350;
       const by = 520 + (tr.gone ? 12 * (1 - tr.o) : 0);
-      box.setAttribute("x", bx);
-      box.setAttribute("y", by);
-      box.setAttribute("fill", C.panel);
-      box.setAttribute("stroke", tr.here > 0.5 ? C.main : C.rule);
-      path.setAttribute("x", bx + 16);
-      path.setAttribute("y", by + 26);
-      path.setAttribute("fill", C.ink);
-      path.textContent = `▣ ${tr.path}`;
-      meta.setAttribute("x", bx + 16);
-      meta.setAttribute("y", by + 48);
-      meta.setAttribute("fill", tr.dirty > 0.5 ? C.warn : C.muted);
-      meta.textContent =
+      keeps(box, "x", bx);
+      keeps(box, "y", by);
+      keeps(box, "fill", C.panel);
+      keeps(box, "stroke", tr.here > 0.5 ? C.main : C.rule);
+      keeps(path, "x", bx + 16);
+      keeps(path, "y", by + 26);
+      keeps(path, "fill", C.ink);
+      keepsText(path, `▣ ${tr.path}`);
+      keeps(meta, "x", bx + 16);
+      keeps(meta, "y", by + 48);
+      keepsText(
+        meta,
         `[${tr.branch}]` +
-        (tr.note
-          ? `  ⚠ ${tr.note}`
-          : tr.dirty > 0.5
-            ? `  ● ${Math.round(tr.dirty)} uncommitted`
-            : "  clean") +
-        (tr.here > 0.5 ? "  ← you are here" : "");
-      meta.setAttribute("fill", tr.note ? C.bad : tr.dirty > 0.5 ? C.warn : C.muted);
-      g.setAttribute("opacity", tr.o);
+          (tr.note
+            ? `  ⚠ ${tr.note}`
+            : tr.dirty > 0.5
+              ? `  ● ${Math.round(tr.dirty)} uncommitted`
+              : "  clean") +
+          (tr.here > 0.5 ? "  ← you are here" : ""),
+      );
+      keeps(meta, "fill", tr.note ? C.bad : tr.dirty > 0.5 ? C.warn : C.muted);
+      keeps(g, "opacity", tr.o);
       describe(g, `worktree ${tr.path}`, tr.info);
     }
     for (const [id, node] of this.pool) {
-      if (node.dataset.seen !== this.stamp) {
+      if (!this.seen.has(id)) {
         node.remove();
         this.pool.delete(id);
       }

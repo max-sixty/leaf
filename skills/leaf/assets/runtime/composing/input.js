@@ -1,7 +1,7 @@
 import { focused, keys } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { keeps, keepsText } from "../widget-elements.js";
-import { submitBindings, submitHint, submitLabel } from "../keyboard/bindings.js";
+import { keeps, keepsHidden, keepsText } from "../keeps.js";
+import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
@@ -63,7 +63,7 @@ class PastedMediaShelf extends LitElement {
   }
 
   updated() {
-    this.hidden = this.model.length === 0;
+    keepsHidden(this, this.model.length === 0);
   }
 
   render() {
@@ -105,8 +105,8 @@ export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 export function createCompositionInputs({ uploadMedia, inputHint }) {
   // The standing paint paints every box whose own state changed since it last ran, and
   // the previous and current box for focus and for the contextual-entry hint, since
-  // either may need to lose or gain its hint. A focus move asks for that paint itself
-  // (keyboard/controller.js).
+  // either may need to lose or gain its hint. The repaint owner asks for that paint on
+  // every focus move (repaint.js).
   const inputPaints = new WeakMap();
   const stale = new Set();
   let paintedInput = null;
@@ -204,7 +204,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Keep the full native placeholder, but paint a copy so only the key can use mono.
     // The accessible name stays independent of that changing hint. The send button's
     // tooltip spells out its key. A focused box claims the send key; an unfocused box
-    // may show the contextual key that enters it. Labels can change while a box stands.
+    // may show the contextual key that enters it; a finger is shown neither
+    // (`advertisesKeys`). Labels can change while a box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
@@ -221,12 +222,15 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const paint = (contextualHint) => {
       // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
       const standing = focused() === ta;
-      const sendKeys = submitHint();
-      const suffix = standing
-        ? sendKeys
-        : contextualHint?.box === ta
-          ? contextualHint.label
-          : "";
+      const advertising = advertisesKeys();
+      const sendKeys = advertising ? submitLabel() : "";
+      const suffix = !advertising
+        ? ""
+        : standing
+          ? sendKeys
+          : contextualHint?.box === ta
+            ? contextualHint.label
+            : "";
       const word = label();
       const placeholder = suffix ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;

@@ -152,9 +152,9 @@ production reading.
 this working tree installed as its plugin, through the App Server adapter `leaf codex
 start` leaves running, and checks each comment it posts is answered once and each
 turn is closed under App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, or the claim's turn in `service.py`; the suite
-scripts App Server, and only this run shows what Codex itself sends. It spends a
-few turns on the host's Codex login, and CI has none.
+`codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
+`service.py`; the suite scripts App Server, and only this run shows what Codex
+itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
 ## Compare checkout versions
 

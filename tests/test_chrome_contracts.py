@@ -721,8 +721,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 ):
     """Submit belongs to the field while Resolve stands with the root metadata.
 
-    Growing the field carries Submit with it and leaves Resolve fixed. Draft words
-    begin at the sent message's edge and leave room for Submit in the same row.
+    Growing the field carries Submit with it and leaves Resolve fixed. The field
+    stands on the messages' column, and its draft words start as far inside it as the
+    page composer's do, leaving room for Submit in the same row.
     Resolve aligns with the root author and time instead of the quoted target. The
     same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
@@ -794,6 +795,16 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                           textStart: rect('.lf-compose leaf-text').x +
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
+                          // How far the page composer's words start inside its field.
+                          generalInset: (() => {
+                            const field = document.querySelector('.lf-general .lf-compose-field');
+                            const text = field.querySelector('leaf-text');
+                            const style = getComputedStyle(text);
+                            return text.getBoundingClientRect().x +
+                              parseFloat(style.borderInlineStartWidth) +
+                              parseFloat(style.paddingInlineStart) -
+                              field.getBoundingClientRect().x;
+                          })(),
                           textEnd: rect('.lf-compose leaf-text').right -
                             parseFloat(inputStyle.borderInlineEndWidth) - padding,
                           padding,
@@ -803,7 +814,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 
     short = geometry()
     assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
-    assert short["message"]["x"] - short["field"]["x"] == pytest.approx(8, abs=1)
+    assert short["field"]["x"] == pytest.approx(short["message"]["x"], abs=1)
+    assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
         short["thread"]["right"] - short["field"]["right"], abs=1
     )
@@ -836,7 +848,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     write(field_box, "First line.\nSecond line.\nThird line.\nFourth line.")
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
-    assert grown["textStart"] == pytest.approx(grown["message"]["x"], abs=1)
+    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(
+        grown["generalInset"], abs=1
+    )
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
     assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
@@ -852,7 +866,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         field_box.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
-        assert scrolling["textStart"] == pytest.approx(scrolling["message"]["x"], abs=1)
+        assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
+            scrolling["generalInset"], abs=1
+        )
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
 
@@ -950,6 +966,31 @@ def test_signoff_enabled_face_is_readable(browser, serve):
     }, f"the banner's primary action lost its readable face: {paint}"
 
 
+def test_the_approved_face_keeps_the_buttons_inset(browser, serve):
+    """The approval control reserves the width of its longest words, "✓ Version
+    approved", and those words stand inside it with the inset every chrome button
+    keeps. With 2px of padding they filled the reserved box to the border."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html))
+    resized(page, 1440, 900)
+    button = page.locator(".lf-signoff")
+    button.click()
+    expect(button).to_have_text("✓ Version approved")
+    inset = button.evaluate(
+        """el => {
+          const box = el.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const words = range.getBoundingClientRect();
+          return [words.left - box.left, box.right - words.right];
+        }"""
+    )
+    assert min(inset) >= 8, f"the approved words stand {inset}px from the border"
+
+
 def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     """A standing comparison remains legible in its fixed menu seat."""
     html = SUGGESTION_PAGE.replace(
@@ -1005,6 +1046,65 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
         " edge: getComputedStyle(d).borderTopColor})"
     )
     assert face["dot"] == accent and face["edge"] != accent, face
+
+
+def test_the_version_being_read_spans_the_versions_menu(browser, serve):
+    """The row for the version being read has no Compare beside it, so it takes both of
+    the menu's columns: it was only as wide as its own words, its hover and ring
+    stopping short of the rows below. The rows wear the menu's own type."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    _publish(serve.page_dir, 2, html, "reworded the suggestion")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    resized(page, 1440, 900)
+    open_versions(page)
+    versions = page.locator(".lf-version-menu")
+    expect(versions).to_be_visible()
+    reading = versions.evaluate(
+        """menu => {
+          const style = getComputedStyle(menu);
+          const inner = menu.getBoundingClientRect().width
+            - 2 * parseFloat(style.borderLeftWidth)
+            - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          const current = menu.querySelector('.lf-version-row[aria-current]');
+          return {inner, current: current.getBoundingClientRect().width,
+                  font: getComputedStyle(current).fontSize,
+                  menuFont: style.fontSize};
+        }"""
+    )
+    assert reading["current"] == pytest.approx(reading["inner"], abs=1), reading
+    assert reading["font"] == reading["menuFont"], reading
+
+
+def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, serve):
+    """Approval waits until every Ask is answered, and the control says so to whoever
+    reaches it. Natively disabled, it held its reason in `title` alone: Tab skipped it,
+    so a keyboard user never learned why, and a finger never sees a title. It stays in
+    the tab order, refused by `aria-disabled` and described by its reason, and a press
+    shows the reason in the status line rather than approving."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    approval = page.locator(".lf-signoff")
+    reason = "Answer every Ask before approving this work"
+    expect(approval).to_have_attribute("aria-disabled", "true")
+    expect(approval).to_have_attribute("aria-description", reason)
+    expect(approval).to_be_disabled()
+    page.locator(".lf-banner-more").focus()
+    page.keyboard.press("Tab")
+    expect(approval).to_be_focused()
+    before = events_model.read_events(serve.page_dir)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(reason)
+    expect(approval).to_have_text("Approve version")
+    assert events_model.read_events(serve.page_dir) == before
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
@@ -1099,9 +1199,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
         else:
-            # Centred on the bottom bar's row, inside the band. A line too wide for a
-            # narrow window wraps upward, so the row is the one More stands on rather
-            # than the middle of the line's whole box.
+            # Centred on the bottom bar's row, inside the bar: the row More stands on.
             band = page.locator(".lf-shortcut-bar").bounding_box()
             more = page.locator(".lf-shortcut-more").bounding_box()
             assert band["y"] <= geometry["top"] and geometry["bottom"] <= 800, (
@@ -1114,7 +1212,8 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                 more["y"] + more["height"] / 2, abs=1
             ), (width, panel_open, geometry, more)
         pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
-        accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
+        # The notice's own card ground, inside its padding: a scrim over it would tint it.
+        ground = tuple(map(int, re.findall(r"\d+", token_colour(page, "--card"))))
         assert (
             pixels.getpixel(
                 (
@@ -1122,8 +1221,22 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                     round((geometry["top"] + geometry["bottom"]) / 2),
                 )
             )
-            == accent
-        ), (width, panel_open, "the notice is covered by the panel or its scrim")
+            == ground
+        ), (width, panel_open, "the notice is covered by a scrim")
+        # The panel's ground is the same card token, so the pixel alone cannot see the
+        # panel over the notice, and the covered page is inert, so a hit test skips the
+        # notice either way. The two stand in one stacking context, where the order is
+        # their z-index.
+        order = page.evaluate(
+            """() => {
+              const status = document.querySelector('.lf-bottom-status');
+              const panel = document.querySelector('.lf-thread-panel');
+              const z = (el) => Number(getComputedStyle(el).zIndex);
+              return {shared: status.parentElement === panel.parentElement,
+                      above: z(status) > z(panel)};
+            }"""
+        )
+        assert order == {"shared": True, "above": True}, (width, panel_open, order)
 
 
 PHONE_PAGE = leaf_page(

@@ -11,6 +11,7 @@ import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
@@ -69,10 +70,26 @@ export function threadReading(
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
+  const attention = threadAttention(thread);
+  const messages = turns(thread).map((message) =>
+    messageReading(message, {
+      panel,
+      nativeAuthored: panel && commands.nativeAuthored !== false,
+      reactions: reactionReading(thread, message, panel || surface === "outlet"),
+      workflows: message.workflows,
+    }),
+  );
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
-    titlePending: thread.title == null,
+    // A title comes from the agent's answer or beside it, so an untitled thread
+    // waits for one only while the agent's work on it is under way. A turn that
+    // ended, stalled or was never picked up sends none, and the thread reads its
+    // opening words.
+    titlePending:
+      thread.title == null &&
+      thread.attention?.kind === "waiting" &&
+      thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
     // The message a reply or settlement addresses, which is not the thread's id where
@@ -86,7 +103,14 @@ export function threadReading(
     search,
     quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
-    attention: threadAttention(thread),
+    attention,
+    // A waiting thread's status is the stage of one message's workflow, which that
+    // message already draws in its own header. The summary repeats it only for the
+    // folded row, where no message shows; whose turn it is stays, since no message
+    // says that.
+    statusFolded:
+      attention?.kind === "waiting" &&
+      messages.some((message) => message.workflow?.id === attention.workflow?.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -96,16 +120,7 @@ export function threadReading(
     settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved,
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
-    messages: Object.freeze(
-      turns(thread).map((message) =>
-        messageReading(message, {
-          panel,
-          nativeAuthored: panel && commands.nativeAuthored !== false,
-          reactions: reactionReading(thread, message, panel || surface === "outlet"),
-          workflows: message.workflows,
-        }),
-      ),
-    ),
+    messages: Object.freeze(messages),
   });
 }
 
@@ -117,8 +132,12 @@ function navigationSummary(navigation, model) {
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
-  // Until the agent names the thread, the title slot says so in words drawn apart from
-  // any title; the theme sweeps a highlight through them while the naming is under way.
+  // While a title is on its way, the title slot says so in words drawn apart from any
+  // title; the theme sweeps a highlight through them while the naming is under way.
+  // The meta row digests a folded card. What the open card shows elsewhere is marked
+  // `data-lf-folded`: the draft stands in the reply box and the unread messages behind
+  // their boundary, so typing or an arriving reply doesn't grow the row and move the
+  // card under the reader.
   return html`<summary
     class="lf-thread-summary"
     title=${pendingTitle ? nothing : title}
@@ -127,12 +146,13 @@ function navigationSummary(navigation, model) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
-      ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
+      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status
           ? html`<span
               class="lf-thread-status"
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
+              data-lf-folded=${model.statusFolded ? "" : nothing}
               title=${
                 model.attention?.secondary
                   ? `${status} · ${model.attention.secondary}`
@@ -146,6 +166,7 @@ function navigationSummary(navigation, model) {
         model.unreadCount
           ? html`<span
               class="lf-thread-unread"
+              data-lf-folded
               aria-label=${`${model.unreadCount} unread`}
               >${model.unreadCount} unread</span
             >`
@@ -202,11 +223,18 @@ export class ThreadView {
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
-    if (surface === "panel") this.node.setAttribute("name", commands.detailsGroup);
-    else this.node.tabIndex = -1;
+    // A panel card's disclosure is the thread list's to write, from its one choice.
+    if (surface !== "panel") {
+      this.node.tabIndex = -1;
+      this.node.classList.add("lf-page-thread", "lf-ui");
+      this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
+      this.node.dataset.lfGen = "1";
+      this.node.dataset.lfOffer = "";
+    }
+    this.#metadataActions.className = "lf-thread-meta-actions";
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
-      this.node.classList.remove("grow");
+      this.node.classList.toggle("grow", false);
     });
     this.node.addEventListener("lf-reveal", (event) => {
       const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
@@ -260,24 +288,18 @@ export class ThreadView {
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
-    this.node.hidden = !model.visible && !model.folding;
+    keepsHidden(this.node, !model.visible && !model.folding);
     this.#growing ||= !prior && model.grow;
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
     this.node.classList.toggle("grow", this.#growing && !model.folding);
-    if (!panel) {
-      this.node.classList.add("lf-page-thread", "lf-ui");
-      this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-      this.node.dataset.lfGen = "1";
-      this.node.dataset.lfOffer = "";
-    }
-    this.node.inert = model.folding;
-    this.node.setAttribute(panel ? "data-id" : "data-thread", model.id);
-    this.node.dataset.resolved = String(model.resolved);
-    if (model.attempt) this.node.dataset.attempt = model.attempt;
+    this.node.toggleAttribute("inert", model.folding);
+    keeps(this.node, panel ? "data-id" : "data-thread", model.id);
+    keeps(this.node, "data-resolved", model.resolved);
+    if (model.attempt) keeps(this.node, "data-attempt", model.attempt);
     else delete this.node.dataset.attempt;
     if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
-      this.node.open = !model.resolved;
+      this.node.toggleAttribute("open", !model.resolved);
       this.#summaryResolved = model.resolved;
     }
     const wanted = new Set(model.messages.map((message) => message.key));
@@ -286,7 +308,6 @@ export class ThreadView {
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || model.folding || marginControls) {
-      this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement];
@@ -338,7 +359,7 @@ export class ThreadView {
       }
       const nodes = range.messages.map((message) => {
         const node = messageNodes.get(message.key);
-        node.dataset.lfSummary = range.summary.id;
+        keeps(node, "data-lf-summary", range.summary.id);
         return node;
       });
       return {
@@ -519,12 +540,12 @@ export class ThreadView {
       button.onclick = this.#settle;
       this.#settlements.set(state.kind, button);
     }
-    button.setAttribute("aria-disabled", String(state.pending || model.folding));
-    button.setAttribute("aria-busy", String(state.pending && !model.folding));
+    keeps(button, "aria-disabled", state.pending || model.folding);
+    keeps(button, "aria-busy", state.pending && !model.folding);
     if (!reopen) {
       const label = model.folding ? "Resolved" : state.label;
-      button.setAttribute("aria-label", label);
-      button.title = label;
+      keeps(button, "aria-label", label);
+      keeps(button, "title", label);
     }
     render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
     return button;
@@ -557,12 +578,12 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = () => {
-      if (!mayLand() || !this.node.contains(focused())) return false;
+    const land = (may = mayLand) => {
+      if (!may() || !this.node.contains(focused())) return false;
       scrollThreadIntoView(this.node, focused());
       return true;
     };
-    return { optimistic: land, refused: land };
+    return { optimistic: () => land(), reverse: land };
   };
 
   #returnToQuote = (event) => {
@@ -655,8 +676,8 @@ export class ThreadView {
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
-        refused: () => {
-          if (mayRestore()) {
+        reverse: (may = mayRestore) => {
+          if (may() && mayLand.available()) {
             const card = shownCard();
             if (card) focusThread(card, { preventScroll: true });
           }
@@ -674,8 +695,13 @@ export class ThreadView {
         if (destination) mayRestore = travel.retainPanelLanding(destination);
         return Boolean(destination);
       },
-      refused: async () => {
-        const restoreFocus = mayRestore();
+      // The filter the reopen cleared goes back with the thread, while Threads is open.
+      // An undo's intent governs the whole reversal, so a later input wins over both
+      // halves. A refusal has none: the narrowing's own guard decides the filter, and
+      // the landing's decides the focus.
+      reverse: async (may = null) => {
+        if (!mayLand.available() || (may && !may())) return;
+        const restoreFocus = (may ?? mayRestore)();
         await narrowing.restore(async () => {
           if (restoreFocus)
             await travel.showThread(this.#model.id, { focus: "thread" });

@@ -71,6 +71,114 @@ const reactionVocabulary = () => registry.$reactions?.tokens;
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
+// Press and hold to read, release to commit. A reaction's word is otherwise only its
+// tooltip and accessible name, which a finger never sees, so every reaction choice —
+// the response bar's, a reply strip's, the margin's under `e` — answers a press the same
+// way. The choice under the pointer wears `data-lf-held-word`, whose paint says its word
+// (shadow.css; theme.css for a margin entry's label), for as long as the press is held;
+// sliding onto a neighbouring choice of the same list reads that one instead; and the
+// release presses the choice it ends on, or none when it ends off the list. So a tap
+// still reacts, and a finger that reads the wrong word slides off before letting go.
+//
+// The release presses by dispatching the choice's click, counted as the pointer's
+// (surfaces read the count to tell a pointer from the keyboard), and the browser's own
+// click after it is swallowed: a finger held long enough to read may get none, so the
+// release, not the click, is the commit. A keyboard press carries no count and passes
+// untouched; the keyboard reads a word by focusing its choice, which paints the same.
+// Touch capture is released at the press so the slide is heard over each choice.
+//
+// A press or release with a modifier held is not this gesture: ctrl-click is the Mac's
+// context menu, and Option/Alt aims at the item. Such a press is left to the platform
+// and the choice's own click handling, and a modifier arriving before the release takes
+// the hold back without reacting.
+const REACTION_CHOICE = ".lf-react";
+const modified = (event) =>
+  event.ctrlKey || event.metaKey || event.altKey || event.shiftKey;
+function holdToRead() {
+  let hold = null;
+  let released = null;
+  const choiceIn = (event) =>
+    event
+      .composedPath()
+      .find((node) => node instanceof Element && node.matches(REACTION_CHOICE));
+  const read = (choice) => {
+    if (hold.reading === choice) return;
+    hold.reading?.removeAttribute("data-lf-held-word");
+    hold.reading = choice;
+    choice?.setAttribute("data-lf-held-word", "");
+  };
+  const under = (event) => {
+    const choice = choiceIn(event);
+    return choice?.parentElement === hold.list ? choice : null;
+  };
+  const end = (event, commit) => {
+    if (hold?.pointerId !== event.pointerId) return;
+    const choice = commit && !modified(event) ? under(event) : null;
+    read(null);
+    hold = null;
+    if (!choice) return;
+    released = choice;
+    choice.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        detail: 1,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      }),
+    );
+  };
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      released = null;
+      if (hold) read(null);
+      hold = null;
+      if (!event.isPrimary || event.button !== 0 || modified(event)) return;
+      const choice = choiceIn(event);
+      if (!choice || choice.matches(":disabled, [aria-disabled='true']")) return;
+      const origin = event.composedPath()[0];
+      if (origin.hasPointerCapture?.(event.pointerId))
+        origin.releasePointerCapture(event.pointerId);
+      hold = { pointerId: event.pointerId, list: choice.parentElement, reading: null };
+      read(choice);
+    },
+    { capture: true },
+  );
+  document.addEventListener(
+    "pointermove",
+    (event) => {
+      if (hold?.pointerId === event.pointerId) read(under(event));
+    },
+    { capture: true },
+  );
+  document.addEventListener("pointerup", (event) => end(event, true), {
+    capture: true,
+  });
+  document.addEventListener("pointercancel", (event) => end(event, false), {
+    capture: true,
+  });
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!released || !event.isTrusted || !event.detail || !choiceIn(event)) return;
+      released = null;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    { capture: true },
+  );
+  // A held choice would offer the platform's own long-press menu instead.
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      if (hold) event.preventDefault();
+    },
+    { capture: true },
+  );
+}
+
 // One token as a press in the response bar; a reply's strip builds its own
 // (thread/reaction-strips.js). The token names the control; a layer may add an
 // explanation without making prose part of the platform's vocabulary. The compact face stays the declared mark. Digits remain keyboard
@@ -153,16 +261,16 @@ export function createReactionController({
     anchor = fabAnchorAt(),
   ) {
     // Read before the bar goes, because the reading is about the bar that is standing.
-    // `showFab(null)` lands the user on this same answer, but `setReact(false)` runs
-    // after it and the palette makes a return of its own, so the landing is asserted once
-    // more once everything has settled. The bar owns what that answer is.
+    // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
+    // palette makes a return of its own, so the user lands once, when everything has
+    // settled, rather than once as the bar goes and again after the palette.
     const returnTo = fabReturnTo();
     const restoreTargetFocus = () => handBack(returnTo);
     if (!anchor) return;
     if (standing) {
       await commands.withdrawReaction(standing);
       hideComposer();
-      showFab(null);
+      showFab(null, null, { returnFocus: "none" });
       setReact(false);
       restoreTargetFocus();
       return;
@@ -176,7 +284,7 @@ export function createReactionController({
     if (designModeActive()) event.about = "design";
     const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
-    showFab(null);
+    showFab(null, null, { returnFocus: "none" });
     setReact(false);
     restoreTargetFocus();
     getSelection()?.removeAllRanges();
@@ -251,7 +359,7 @@ export function createReactionController({
         ),
     });
     marginTarget = target;
-    if (openMarginEntryOptions(target, { owner: "responses" })) {
+    if (openMarginEntryOptions(target, "responses")) {
       marginUnfolded = !standing;
       return true;
     }
@@ -439,6 +547,11 @@ export function createReactionController({
     // the liveness captured at that boundary rather than listing every conditional choice.
     liveInCommandReference: true,
     at: () => reactArmed,
+    // The open list is where the mode stands, so a surface covering the page keeps it
+    // when the list is inside that surface: a reply's strip in a covering Threads panel
+    // lost every row to the panel's floor, and the stray key closed the list. The
+    // margin's list has no node of its own and stands wherever its entry does.
+    root: () => (reactSurface instanceof Element ? reactSurface : document),
     claims: allButCommandReference,
     rows: [
       {
@@ -510,6 +623,7 @@ export function createReactionController({
     marginEntryContextContains(fabTargetAt(), node);
 
   function mount() {
+    holdToRead();
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });

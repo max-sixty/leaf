@@ -63,7 +63,6 @@ import {
 import { captureCarry, restoreCarry } from "./carry.js";
 import { retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
-import { letGo } from "./focus.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -87,14 +86,16 @@ import {
   readingPosture,
   readingRegionFor,
   readingRegions,
+  recentReadingRegion,
   scrollersSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { showNews } from "./banner-toolbar.js";
+import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
+import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
@@ -298,11 +299,12 @@ export function createVersionController({
   // `source`, which buys the anchor and the invoker relationship and nothing about focus
   // — so every door into this menu shows it from the button, and a pointer press that
   // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
-  // the whole of it: the close, and then the page the menu stood over, which is where a
-  // layer's one step lands the user rather than on the picker in the banner. Scoping
-  // the platform handback to its door rather than to the state is what keeps it off a
-  // light dismissal, which restores nothing on purpose: a user who pressed away into
-  // the page is left where they pressed.
+  // the whole of it: the close, and then the menu's parent. The picker stands in More,
+  // so the menu opens from inside More and a layer's one step lands the user back there,
+  // on the picker, whichever route opened it. Scoping the platform handback to its door
+  // rather than to the state is what keeps it off a light dismissal, which restores
+  // nothing on purpose: a user who pressed away into the page is left where they
+  // pressed.
   function closeVersionMenu() {
     versionPicker.close();
   }
@@ -395,7 +397,7 @@ export function createVersionController({
   // The picker represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
   // handoff that a popover does not provide. Light dismissal stays native; Escape is the
-  // menu's own row (`version.close`), which closes it and lands the user on the page.
+  // menu's own row (`version.close`), which closes it and returns the user to More.
   const VERSIONS = {
     title: "In the versions menu",
     root: () => versionMenu,
@@ -473,7 +475,7 @@ export function createVersionController({
         promoteEscape: false,
         run: () => {
           closeVersionMenu();
-          letGo();
+          returnToBannerControl(versionBtn);
         },
       },
     ],
@@ -977,11 +979,12 @@ export function createVersionController({
       base.revision < runtime.currentRevision
     );
   };
-  // Whether the comparison is standing and what against — the only thing that decides
-  // it, the marks and the paint being renderings rather than a second copy.
-  function setDiff(on, base) {
+  // Whether the comparison is standing and what against, or which base a stopped one is
+  // waiting on — the only thing that decides it, the marks and the paint being renderings
+  // rather than a second copy.
+  function setDiff(on, base, pendingBase = null) {
     diffOn = on;
-    diffPendingBase = null;
+    diffPendingBase = pendingBase;
     if (on) diffBase = base;
     if (!on) {
       diffRequest++; // a stop outranks a comparison still on its way
@@ -1009,11 +1012,10 @@ export function createVersionController({
     // Selection is immediate even though its result needs two documents. Clear the prior
     // marks, move the menu's checked state to the requested base, and expose the wait as
     // busy. A fast walk then never leaves the last completed base highlighted under focus
-    // on a different row.
-    setDiff(false);
+    // on a different row. One presentation says both, so the picker never passes through
+    // an unlit state it is about to leave.
+    setDiff(false, null, base);
     const mine = ++diffRequest;
-    diffPendingBase = base;
-    presentPicker();
     const baseVersion = stamped(base);
     const baseRevision = baseVersion?.revision;
     if (baseRevision == null) {
@@ -1603,7 +1605,6 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  let lastReadingRegionId = null;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
@@ -1643,7 +1644,7 @@ export function createVersionController({
   };
 
   // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
-  // still names its own pane to d/u through readingRegionFor; because the furniture does
+  // still names its own pane to d/u through userReadingRegion; because the furniture does
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
   // nested region body with the outer scroller that actually carries it.
@@ -1654,7 +1655,7 @@ export function createVersionController({
     const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
-    const recent = candidates.find(({ id }) => id === lastReadingRegionId);
+    const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
     if (recent) return recent;
     return candidates
       .map((region) => [region, blocksOnScreen(region, blocks).next().value?.[1]])
@@ -1892,15 +1893,6 @@ export function createVersionController({
       ],
       versionsToWalk,
     );
-    for (const type of ["pointerdown", "keydown", "wheel", "touchstart"])
-      addEventListener(
-        type,
-        (event) => {
-          const region = readingRegionFor(event.composedPath()[0]);
-          if (region) lastReadingRegionId = region.id;
-        },
-        { capture: true, passive: true },
-      );
     renderVersions(null);
   }
 

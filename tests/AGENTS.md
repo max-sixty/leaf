@@ -94,7 +94,8 @@ Focus evidence starts in keyboard modality: press `Tab` to the exact stop and re
 `:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
 delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
 is not that evidence.
-`document.body.focus()` resets the sequential starting point; `blur()` keeps it. Read
+`RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
+it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
 linked carrier may draw it.
 
@@ -151,6 +152,13 @@ at its causal point with `consume_browser_errors`, or `reported_browser_errors` 
 its report arrives in parts. For a recurring fault, close the page first and then
 consume. Otherwise close a page only when closing is part of the journey. Filtering
 the collector is not an assertion.
+
+A DOM write that changes nothing is one of those problems (`write_watch.js`): a value
+restated where it already stands, or a place one script takes away and puts back. Fix
+the writer (`runtime/keeps.js`). A write that restates for a reason of its own, as a
+vendored component or a focus borrow does, joins `EXPECTED` in `write_watch.js` with
+that reason. A test that reads the page by changing it and putting it back does so
+inside `lfUnwatched`.
 
 ## A page is ready when it says what has finished
 
@@ -272,10 +280,12 @@ nothing moved straddles a transition that would move without the rule. Check wha
 lower layer already guarantees: a send queue that drops a second POST hides whether
 the widget refused it.
 
-The corpus has two matrices. Return state is anchored on a first visit
+The corpus has three matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence.
-Both stay declaration-driven so a new widget or verb joins through the registry. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
+standing actions or reports twice and checking the visible state and idempotence; and a
+scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
+written on every step. All three stay
+declaration-driven, so a new widget, verb, or page joins without a case of its own. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
 ### An absence needs a control and a settled frame

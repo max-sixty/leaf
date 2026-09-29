@@ -143,6 +143,17 @@ export const langForPath = (path) =>
 // without the file's reading of the same page needing to know it happened.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
+// A block's declared language where the registry colours it.
+const languageOf = (code) => {
+  const lang = code.className.match(LANGUAGE_CLASS)?.[1];
+  return registry.$languages.names.includes(lang) ? lang : undefined;
+};
+// Blocks whose tokens are on their way. A pass that reaches one again before they land,
+// as a message that renders twice in a turn does, would tokenize the same text and
+// write the same spans over the ones the first pass wrote. So the pass in flight
+// answers for the block as it stands when its tokens land, not as it stood when it
+// asked: text or a language that changed meanwhile is tokenized again.
+const tokenizing = new WeakSet();
 export async function highlightBlocks(root) {
   const blocks = [];
   // The root counts, like every other dressing pass: a revision that rewrote a block's
@@ -150,23 +161,37 @@ export async function highlightBlocks(root) {
   const found = [...root.querySelectorAll(BLOCK)];
   if (root.matches?.(BLOCK)) found.unshift(root);
   for (const code of found) {
-    const lang = code.className.match(LANGUAGE_CLASS)?.[1];
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    if (registry.$languages.names.includes(lang) && code.dataset.lfSyntax !== lang)
-      blocks.push([code, lang]);
+    const lang = languageOf(code);
+    if (lang && code.dataset.lfSyntax !== lang && !tokenizing.has(code)) {
+      tokenizing.add(code);
+      blocks.push(code);
+    }
   }
   if (!blocks.length) return;
-  for (const [code, lang] of blocks) {
+  for (const code of blocks) {
+    let lang = languageOf(code);
     try {
-      code.replaceChildren(...synNodes(await syntax(code.textContent, lang)));
+      let tokens;
+      while (lang) {
+        const source = code.textContent;
+        tokens = await syntax(source, lang);
+        if (code.textContent === source && languageOf(code) === lang) break;
+        lang = languageOf(code);
+      }
+      if (!lang) continue;
+      // Tokens that colour nothing are the text the block already holds.
+      if (tokens.some(({ role }) => role)) code.replaceChildren(...synNodes(tokens));
       code.dataset.lfSyntax = lang;
     } catch (err) {
       console.error(
         `leaf: <pre><code class="language-${lang}"> failed to highlight`,
         err,
       );
+    } finally {
+      tokenizing.delete(code);
     }
   }
 }

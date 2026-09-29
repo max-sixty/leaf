@@ -3,7 +3,7 @@
 // and how this run treats each one, and adds a line saying why where a step was skipped
 // or stopped the merge. A click on a step plays the film from it.
 
-import { once } from "/runtime/widget-api.js";
+import { keeps, keepsText, once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-merge-steps",
@@ -32,15 +32,16 @@ customElements.define(
       for (const li of this.items) {
         const key = li.dataset.chapter;
         const now = key === d.chapter;
-        li.dataset.state = d.status[key] ?? "run";
+        const state = d.status[key] ?? "run";
+        keeps(li, "data-state", state);
         li.toggleAttribute("data-now", now);
         // The run's own line only where it adds something: why a step was skipped or
         // stopped, what the branch is, and how the run ended. The caption leads with the
         // step's number and name, which the list already shows.
-        const telling = key === "setup" || key === "end" || li.dataset.state !== "run";
+        const telling = key === "setup" || key === "end" || state !== "run";
         const run = li.querySelector(".this-run");
-        run.textContent = now && telling ? d.caption.replace(/^\d · [^—]+— /, "") : "";
-        run.dataset.tone = d.captionTone;
+        keepsText(run, now && telling ? d.caption.replace(/^\d · [^—]+— /, "") : "");
+        keeps(run, "data-tone", d.captionTone);
       }
     }
   },

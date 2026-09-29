@@ -19,7 +19,11 @@
  * its words.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
- * The darker lens is the part of the document in the viewport.
+ * The darker lens is the part of the document in the viewport. The scroll moves it, as
+ * a scroll-driven animation: its keyframes are the lens at each scroll position where
+ * the map bends, and the browser interpolates between them as the scroller moves, so a
+ * scroll writes nothing to the page. New keyframes are set only when the map or the
+ * landing band changes. Where the browser has no scroll timeline the map has no lens.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges
@@ -35,6 +39,7 @@
 import {
   cancelRender,
   inChrome,
+  keeps,
   landingInsets,
   LAYOUT,
   nextRender,
@@ -47,6 +52,9 @@ import {
 } from "/runtime/widget-api.js";
 
 const HEADING_SELECTOR = "h2, h3, h4, h5, h6";
+// The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
+const LENS_FLOOR = 14;
+const round = (value) => Math.round(value * 64) / 64;
 
 customElements.define(
   "lf-toc",
@@ -54,6 +62,9 @@ customElements.define(
     #main;
     #nav;
     #rows;
+    #lens = null;
+    #lensMotion = null;
+    #lensInputs = "";
     #sections = [];
     #positions = [];
     #mapPositions = [];
@@ -95,6 +106,9 @@ customElements.define(
       window.removeEventListener("resize", this.#onResize);
       cancelRender(this.#measureFrame);
       cancelRender(this.#paintFrame);
+      this.#lensMotion?.cancel();
+      this.#lensMotion = null;
+      this.#lensInputs = "";
       this.#measureFrame = 0;
       this.#paintFrame = 0;
     }
@@ -176,7 +190,11 @@ customElements.define(
         { destination: startDestination, row: start, link: startLink },
         ...items,
       ];
-      this.#rows.append(lens, start, list);
+      if ("ScrollTimeline" in globalThis) {
+        this.#lens = lens;
+        this.#rows.append(lens);
+      }
+      this.#rows.append(start, list);
       this.#nav.append(heading, this.#rows);
       this.append(this.#nav);
     }
@@ -206,7 +224,7 @@ customElements.define(
       this.#renamed = new MutationObserver(() =>
         this.#sections.forEach(({ destination, link }, position) => {
           if (!destination.id) this.#targetFor(destination, position);
-          link.href = `#${destination.id}`;
+          keeps(link, "href", `#${destination.id}`);
         }),
       );
       for (const { destination } of this.#sections)
@@ -258,17 +276,28 @@ customElements.define(
         );
       });
       this.#fitRows();
+      this.#lensInputs = "";
       this.#paint();
     }
 
+    // A row's shift moves its label and dot (a transform and an inset), never the row, so
+    // the rows are measured where they stand and each shift is written once, as fitted.
     #fitRows() {
+      this.#mapPositions = [];
+      const shifts = this.#fitLabels();
+      this.#sections.forEach(({ row }, index) => {
+        if (shifts.has(index))
+          row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
+        else row.style.removeProperty("--lf-toc-row-shift");
+      });
+    }
+
+    // Each fitted row's shift, by section index.
+    #fitLabels() {
+      const shifts = new Map();
       this.removeAttribute("data-lf-compact");
       this.removeAttribute("data-lf-outline");
-      for (const { row } of this.#sections)
-        row.style.removeProperty("--lf-toc-row-shift");
-
-      this.#mapPositions = [];
-      if (getComputedStyle(this.#rows).display !== "flex") return;
+      if (getComputedStyle(this.#rows).display !== "flex") return shifts;
       const track = this.#rows.getBoundingClientRect();
       this.#mapHeight = track.height;
 
@@ -312,7 +341,7 @@ customElements.define(
         const focused = document.activeElement;
         if (focused instanceof HTMLElement && this.#nav.contains(focused))
           focused.scrollIntoView({ block: "nearest" });
-        return;
+        return shifts;
       }
 
       let prefix = 0;
@@ -353,11 +382,11 @@ customElements.define(
         for (let at = block.start; at <= block.end; at += 1) {
           const label = layout.labels[at];
           const fitted = top + label.prefix;
-          const { row } = this.#sections[label.index];
-          row.style.setProperty("--lf-toc-row-shift", `${fitted - label.ideal}px`);
           this.#mapPositions[label.index] = fitted;
+          shifts.set(label.index, fitted - label.ideal);
         }
       }
+      return shifts;
     }
 
     #mapPosition(position) {
@@ -424,13 +453,7 @@ customElements.define(
       const visibleStart = this.#scroller.scrollTop + clear.top;
       const visibleEnd =
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
-      const start = this.#mapPosition(visibleStart);
-      const end = Math.max(start, this.#mapPosition(visibleEnd));
-      this.#rows.style.setProperty("--lf-toc-window-start", `${start}px`);
-      this.#rows.style.setProperty(
-        "--lf-toc-window-size",
-        `${Math.max(this.#mapHeight * 0.012, end - start)}px`,
-      );
+      this.#standLens(clear);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
       let current = 0;
@@ -447,6 +470,61 @@ customElements.define(
       this.#currentLink?.removeAttribute("aria-current");
       link.setAttribute("aria-current", "location");
       this.#currentLink = link;
+    }
+
+    // Keyframes are set again only when a measure has moved the map, or the scroller's
+    // length or landing band has changed; a scroll alone reaches the early return.
+    #standLens(clear) {
+      if (!this.#lens) return;
+      const scroller = this.#scroller;
+      const reach = scroller.scrollHeight - scroller.clientHeight;
+      const band = scroller.clientHeight - clear.top - clear.bottom;
+      const inputs = `${reach} ${band} ${clear.top}`;
+      if (inputs === this.#lensInputs) return;
+      this.#lensInputs = inputs;
+      const floor = Math.max(LENS_FLOOR, this.#mapHeight * 0.012);
+      const span = (scrolled) => {
+        const start = this.#mapPosition(scrolled + clear.top);
+        return {
+          start,
+          size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
+        };
+      };
+      const transform = ({ start, size }) =>
+        `translateY(${round(start)}px) scaleY(${round(Math.max(floor, size))})`;
+      if (reach <= 0) {
+        this.#lensMotion?.cancel();
+        this.#lensMotion = null;
+        keeps(this.#lens, "style", `transform: ${transform(span(0))};`);
+        return;
+      }
+      // The map is linear between the scroll positions where the band's top or foot
+      // meets a destination or the document's ends, and where the lens meets its floor.
+      const bends = [this.#contentStart, this.#contentEnd, ...this.#positions]
+        .flatMap((position) => [position - clear.top, position - clear.top - band])
+        .filter((scrolled) => scrolled > 0 && scrolled < reach);
+      const stops = [...new Set([0, reach, ...bends])].sort((a, b) => a - b);
+      const floored = stops.flatMap((scrolled, index) => {
+        const next = stops[index + 1];
+        if (next === undefined) return [scrolled];
+        const [from, to] = [span(scrolled).size, span(next).size];
+        if ((from - floor) * (to - floor) >= 0) return [scrolled];
+        return [
+          scrolled,
+          scrolled + ((floor - from) / (to - from)) * (next - scrolled),
+        ];
+      });
+      const frames = floored.map((scrolled) => ({
+        offset: scrolled / reach,
+        transform: transform(span(scrolled)),
+      }));
+      this.#lens.removeAttribute("style");
+      if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
+      else
+        this.#lensMotion = this.#lens.animate(frames, {
+          timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
+          fill: "both",
+        });
     }
 
     #destinationFor(heading, position) {

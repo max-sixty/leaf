@@ -28,6 +28,8 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    - `shownRect` for visible placement of floating chrome and key badges;
    - `seenRect` for whether, and how much of, something is in front of the user;
    - `clippedRect` for an element's box the caller has adjusted;
+   - `pagePlaneRect` for the same box drawn by paint in the document plane, which the
+     window does not cut;
    - `clippedContents` when the subject has no element box of its own.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
@@ -103,6 +105,30 @@ export function documentPoint(left, top) {
     left: left + scrollX,
     top: top + scrollY,
   };
+}
+
+// A positioned chip stands on whole pixels. The inline style keeps a length to six
+// significant digits, so a fractional place reads back as a nearby one, and a pass that
+// computes from what it reads writes a value that differs from what stands while saying
+// the same thing. A whole pixel reads back as itself.
+export function placeChip(chip, left, top) {
+  chip.style.left = `${Math.round(left)}px`;
+  chip.style.top = `${Math.round(top)}px`;
+}
+
+// The box a positioned chip would take at `at`, a `left` and `top` in its own
+// coordinates, read off where it stands now. A placement pass measures a chip at its
+// anchor this way rather than moving it there to look, so the chip is written once, to
+// where the pass seats it; one not yet placed is put at `at` to be read.
+export function boxAt(chip, at) {
+  if (!chip.style.left || !chip.style.top) placeChip(chip, at.left, at.top);
+  const now = chip.getBoundingClientRect();
+  return new DOMRect(
+    now.left + at.left - parseFloat(chip.style.left),
+    now.top + at.top - parseFloat(chip.style.top),
+    now.width,
+    now.height,
+  );
 }
 
 // What a container lets the user see of what it holds, or null where it shows all of
@@ -515,16 +541,22 @@ export const startsAt = (item, clips) => {
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
 export const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+// The same walk for paint that stands in the document plane, which a root scroll carries
+// with the page: the page's own boxes cut it, and the window does not, since cutting it
+// there moves the cut with every scroll and has the paint written again for each one.
+// A header stuck over the root's edge still cuts it, since it stands over the page.
+export const pagePlaneRect = (box, item, clips) =>
+  clipped(box, item, clips, false, false);
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.
 export const clippedContents = (box, holder, clips) =>
   clipped(box, holder, clips, true);
-function clipped(box, item, clips, held) {
-  let left = Math.max(box.left, 0),
-    top = Math.max(box.top, 0),
-    right = Math.min(box.right, innerWidth),
-    bottom = Math.min(box.bottom, innerHeight);
+function clipped(box, item, clips, held, inWindow = true) {
+  let left = inWindow ? Math.max(box.left, 0) : box.left,
+    top = inWindow ? Math.max(box.top, 0) : box.top,
+    right = inWindow ? Math.min(box.right, innerWidth) : box.right,
+    bottom = inWindow ? Math.min(box.bottom, innerHeight) : box.bottom;
   // From the box itself, not from its parent: an element is not clipped by its own
   // overflow — that clips what it holds — so its band is skipped and only its position is
   // read. Starting at the parent instead asked the question of every ancestor of a fixed
@@ -554,8 +586,17 @@ function clipped(box, item, clips, held) {
       );
     }
     if ((held || a !== item) && c.band) {
-      const band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
+      let band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
       if (!band) return null;
+      // In the page's plane the root's band is the window, which cuts nothing there;
+      // only a header stuck over one of its edges does.
+      if (!inWindow && a === a.ownerDocument?.scrollingElement)
+        band = {
+          left: band.left > c.band.left ? band.left : -Infinity,
+          top: band.top > c.band.top ? band.top : -Infinity,
+          right: band.right < c.band.right ? band.right : Infinity,
+          bottom: band.bottom < c.band.bottom ? band.bottom : Infinity,
+        };
       left = Math.max(left, band.left);
       top = Math.max(top, band.top);
       right = Math.min(right, band.right);

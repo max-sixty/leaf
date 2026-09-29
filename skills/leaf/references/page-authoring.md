@@ -206,8 +206,11 @@ log beside the chart it explains, which the page's `<style>` places:
 
 ```css
 #regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
-@media (width < 900px) { #regions { grid-template-columns: 1fr; } }
+@media (width < 720px) { #regions { grid-template-columns: 1fr; } }
 ```
+
+Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
+wider window still share its one height, and `page check --render` refuses them.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
@@ -270,12 +273,14 @@ geometry without them:
   CSS that should follow the margin keys on it, such as
   `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
 - A wide page fills the window up to its cap and keeps no rail there. Its
-  markers stand as pins over the page inside the top-right corner of their blocks, as
-  every marker does where the rail does not stand: in a narrower window, and in a pane
-  that scrolls on its own. A pin covers that corner of its block, 26px of it with a
-  mouse and 44px under a finger, so a block whose first line runs to its right edge
-  loses the end of that line under a pin. It never stands on a control of the block,
-  such as a card's grip, and goes below one instead.
+  markers stand as pins over the page by their targets, as every marker does where the
+  rail does not stand: in a narrower window, and in a pane that scrolls on its own. A
+  block's pin stands inside its top-right corner and a run of text's just after its
+  last word, unless that covers words, a control, or another block; then it takes the
+  nearest room beside its target that covers none, such as the free end of a line or
+  the gap below it. A pin is 26px with a mouse and 44px under a finger, and where no
+  such room exists, as for a pair of them in a phone's full lines, it stays in the
+  corner over the block's words.
 - A marker on a figure grown past the rail stands on the figure as a pin, at the
   corner of the part it names when it names one.
 - The user hides every pin and passage mark with `o`, or with Hide annotations in the
@@ -283,7 +288,7 @@ geometry without them:
   covers nothing. So leave no room for a pin in the page's CSS, such as padding at the
   end of a heading: wherever the rail stands, the room is left empty.
 
-`data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
+`data-rail="right"` on `body` keeps the rail on a wide page, and `data-rail="none"`
 gives a column page's right margin to something of the page's own. A marker level
 with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
 neither.

@@ -104,7 +104,8 @@ leaf wait:
           h1: >-
             This event's thread has no title yet: name it by adding `--title "<a
             few words>"` to the reply that answers it, so the thread panel lists
-            its subject rather than its opening words.
+            its subject rather than its opening words. If Leaf has named it from
+            its opening message by then, that name stands.
           h2: >-
             When the event asks for work, name that work before any other, including
             reading the source it concerns: `leaf status <page> working "<the work,
@@ -179,7 +180,8 @@ Claude Code hook:
             h1: >-
               This event's thread has no title yet: name it by adding `--title "<a
               few words>"` to the reply that answers it, so the thread panel lists
-              its subject rather than its opening words.
+              its subject rather than its opening words. If Leaf has named it from
+              its opening message by then, that name stands.
             h2: >-
               When the event asks for work, name that work before any other, including
               reading the source it concerns: `leaf status <page> working "<the
@@ -256,7 +258,8 @@ Codex queue:
           h1: >-
             This event's thread has no title yet: name it by adding `--title "<a
             few words>"` to the reply that answers it, so the thread panel lists
-            its subject rather than its opening words.
+            its subject rather than its opening words. If Leaf has named it from
+            its opening message by then, that name stands.
           h2: >-
             When the event asks for work, name that work before any other, including
             reading the source it concerns: `leaf status <page> working "<the work,
@@ -329,10 +332,6 @@ Codex App Server:
                 actions: []
             handling:
               h1: >-
-                This event's thread has no title yet: name it by adding `--title
-                "<a few words>"` to the reply that answers it, so the thread panel
-                lists its subject rather than its opening words.
-              h2: >-
                 Your turn's first and final messages are the reply, and `leaf thread
                 reply` refuses this event. Before your first tool call, open with
                 a short message to the user: the answer, or what you are about to
@@ -340,7 +339,7 @@ Codex App Server:
                 stay in Codex. Finish the reply in your final message: the answer,
                 or what changed and where it appears. The reply leaves the thread
                 on its anchor.
-              h3: >-
+              h2: >-
                 Your reply renders as Markdown, so show code or markup in a fenced
                 block.
             events:
@@ -358,7 +357,7 @@ Codex App Server:
                   kind: thread
                   id: 1946b466
                 threads: [1946b466]
-                handling: [h1, h2, h3]
+                handling: [h1, h2]
                 answer:
                   kind: turn
                   to: 1946b466

@@ -41,6 +41,7 @@ import {
   nextFrame,
   isCanonicalMediaUrl,
   commands,
+  keeps,
   marginEntry,
   paintKeys,
   relabel,
@@ -356,8 +357,8 @@ customElements.define(
       const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
       if (handle) {
         const before = Number((100 - position).toFixed(2));
-        handle.setAttribute("aria-label", `Before and after — ${this.#alt}`);
-        handle.setAttribute("aria-valuetext", `Before ${before}%, after ${position}%`);
+        keeps(handle, "aria-label", `Before and after — ${this.#alt}`);
+        keeps(handle, "aria-valuetext", `Before ${before}%, after ${position}%`);
         handle.style.setProperty("--lf-focus-ring", "shot");
       }
       const chromeState =
@@ -373,7 +374,7 @@ customElements.define(
       this.#box.checked = position > 50;
       for (const [state, caption] of this.#captions) {
         const endpoint = state === "after" ? 100 : 0;
-        caption.setAttribute("aria-pressed", String(position === endpoint));
+        keeps(caption, "aria-pressed", position === endpoint);
       }
       this.#margin?.update();
       paintKeys();

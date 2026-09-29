@@ -90,6 +90,7 @@ from .session import Watch, read_watch_pass
 from .thread import (
     delivery_reply_reserved,
 )
+from .thread_titles import app_server_title, name_untitled_threads
 
 QUEUE_TIMEOUT = 20
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -442,6 +443,11 @@ def accept_offered_delivery(session_id: str, delivery_id: str, turn_id: str) -> 
         accept_codex_delivery(session_id, turn_id)
 
 
+def _log_record(event: str, **fields) -> None:
+    """One structured line in the adapter's log."""
+    print(json.dumps({"event": event, **fields}), file=sys.stderr, flush=True)
+
+
 def start_delivery_turn(
     observer: "TaskObserver",
     session_id: str,
@@ -496,6 +502,11 @@ def start_delivery_turn(
         # turn the moment it says anything; every other failure has given it back.
         socket.close()
         raise
+    # On the task's configured model: a user's App Server offers no model this
+    # process could name for every account.
+    name_untitled_threads(
+        app_server_title(observer.endpoint, None), payload, session_id, _log_record
+    )
     return DeliveryTurn(
         observer,
         session_id,

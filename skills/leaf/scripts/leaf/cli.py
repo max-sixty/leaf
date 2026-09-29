@@ -717,8 +717,27 @@ def wait(dir: str | None, ack: str | None) -> None:
 def _title_option(command):
     return click.option(
         "--title",
-        help="name the thread for the panel: a few words, at most 80 characters",
+        help=(
+            "name the thread for the panel unless it has a name: a few words, at "
+            "most 80 characters"
+        ),
     )(command)
+
+
+def _name(page_dir: Path, message: str, title: str | None) -> None:
+    """Name the thread a posted message is in, unless something named it first."""
+    from leaf.thread import cmd_name
+
+    if title is None:
+        return
+    if record := cmd_name(page_dir, message, title):
+        _print_records(record)
+    else:
+        print(
+            "the thread already has a title, which stands; "
+            f"`leaf thread edit {page_dir} {message} --title` renames it",
+            file=sys.stderr,
+        )
 
 
 def _titled(page_dir: Path, title: str | None) -> None:
@@ -757,14 +776,13 @@ def thread_open(
     The user answers it in the browser. Refuses a quote the active revision does
     not hold, or holds more than once. The comment's id is the thread's.
     """
-    from leaf.thread import cmd_comment, cmd_title
+    from leaf.thread import cmd_comment
 
     page_dir = resolve_dir(dir)
     _titled(page_dir, title)
     accepted = cmd_comment(page_dir, quote, section, part, text, markup)
     _print_records(accepted)
-    if title is not None:
-        _print_records(cmd_title(page_dir, accepted["id"], title))
+    _name(page_dir, accepted["id"], title)
 
 
 @thread.command("reply", short_help="Reply to a thread as the agent.")
@@ -814,7 +832,7 @@ def thread_reply(
     removes it when the subject leaves the page. The original anchor stays in
     the log. A reply validates and activates any changed source before posting.
     """
-    from leaf.thread import cmd_reply, cmd_title
+    from leaf.thread import cmd_reply
 
     if thread is not None and for_event is not None:
         raise click.UsageError("THREAD and --for cannot be used together")
@@ -834,8 +852,7 @@ def thread_reply(
         validate_source=True,
     )
     _print_records(accepted)
-    if title is not None:
-        _print_records(cmd_title(page_dir, accepted["id"], title))
+    _name(page_dir, accepted["id"], title)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

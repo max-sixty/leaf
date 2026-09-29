@@ -20,6 +20,7 @@ import {
   holdFocus,
   authoredScope,
   commands,
+  keeps,
   keepsText,
   matchesWhen,
   offer,
@@ -235,7 +236,7 @@ function openFleet(plan, mode) {
 function setWorkers(goal, open) {
   goal.toggleAttribute("data-lf-open", open);
   const crew = goal.querySelector(":scope > .lf-task-meta .lf-task-crew");
-  crew?.setAttribute("aria-expanded", String(open));
+  keeps(crew, "aria-expanded", open);
 }
 
 function toggleWorkers(goal) {
@@ -329,11 +330,8 @@ function renderGoal(goal) {
     meta.append(crew);
   }
   if (goal.held) meta.append(chip("paused by you", "lf-task-held"));
-  const strong = goal.element.querySelector(":scope > strong");
-  const quiet = goal.element.querySelector(":scope > .lf-quiet");
-  if (quiet) quiet.after(meta);
-  else if (strong) strong.after(meta);
-  else goal.element.prepend(meta);
+  // First, so the chips float level with the title (theme.css).
+  goal.element.prepend(meta);
   return true;
 }
 

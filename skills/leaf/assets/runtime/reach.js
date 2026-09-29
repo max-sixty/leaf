@@ -2,10 +2,11 @@
 
 import { TAB_STOP, TEXT_BOX } from "./focus.js";
 import { skipped } from "./geometry.js";
-import { sizeObserver } from "./rendering.js";
+import { afterScript, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 // Anything a mouse can scroll, a keyboard can reach. A `pre` too wide for the column
 // scrolls, and a user working from the keyboard had no way at all to the half of the
@@ -110,11 +111,16 @@ export function reachReadingScroller(el) {
   reachSizes.observe(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
+  // A host moved in one script lets go of its body and registers it again before the
+  // script ends, so the cue leaves when the script does, and only a body nobody reached again
+  // by then loses it.
   return () => {
     downwards.delete(el);
     if (!watched(el)) reachSizes.unobserve(el);
     el.removeEventListener("scroll", readingScrolled);
-    el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+    afterScript(() => {
+      if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+    });
   };
 }
 
@@ -237,7 +243,7 @@ function paintSidewaysReach(el) {
   const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
   const raw = Math.abs(el.scrollLeft);
   const position = Math.min(maximum, Math.max(0, raw));
-  if (scrolls) el.setAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
+  if (scrolls) keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
   else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolls && position > 1);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreAfter, scrolls && position < maximum - 1);

@@ -35,6 +35,8 @@
    layers the browser is holding, because that is the one fact about the scene that its
    own DOM cannot be asked for in order. */
 
+import { releaseFocus } from "../focus.js";
+
 const entries = [];
 const watchedRoots = new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
@@ -58,7 +60,25 @@ function pushNativeLayer(node, kind) {
   const standing = at < 0 ? null : entries[at];
   if (standing?.active()) return;
   prune();
-  entries.push({ root: node, kind, active: () => held(node) });
+  const holding = document.activeElement;
+  entries.push({
+    root: node,
+    kind,
+    active: () => held(node),
+    fromNowhere: !holding || holding === document.body,
+  });
+}
+
+// A layer opened while nothing held focus has nobody to hand focus back to as it closes,
+// so the browser leaves focus on the hidden control it held until the next rendering
+// update drops it, and a key pressed in that frame was dispatched from a control the
+// user can no longer see. Closing such a layer lets go at once, as its opening found
+// the user: standing nowhere.
+function closing(event) {
+  if (event.newState !== "closed") return;
+  const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry?.fromNowhere && event.target.contains(document.activeElement))
+    releaseFocus();
 }
 
 HTMLDialogElement.prototype.showModal = function () {
@@ -79,6 +99,7 @@ export function watchLayers(root) {
       pushNativeLayer(event.target, "popover");
   };
   root.addEventListener("beforetoggle", opened, true);
+  root.addEventListener("beforetoggle", closing, true);
   root.addEventListener("toggle", opened, true);
 }
 

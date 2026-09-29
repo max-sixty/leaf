@@ -108,6 +108,7 @@
     <script type="module">
       import {
         keeps,
+        keepsText,
         layoutChanged,
         nextRender,
         offer,
@@ -211,8 +212,10 @@
               keeps(candidate, "data-density", setting.density);
               keeps(candidate, "data-wrap", setting.wrap);
               candidate.style.width = `${values.width}px`;
-              candidate.querySelector(".code-candidate-title").textContent =
-                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`;
+              keepsText(
+                candidate.querySelector(".code-candidate-title"),
+                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
+              );
             }
             nextRender(() => {
               for (const name of ["A", "B"]) {
@@ -220,7 +223,10 @@
                 const pre = candidate.querySelector("lf-code pre");
                 const measurement = candidate.querySelector(".code-measurement");
                 if (!pre || !measurement) continue;
-                measurement.textContent = `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`;
+                keepsText(
+                  measurement,
+                  `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
+                );
               }
               layoutChanged(this);
             });

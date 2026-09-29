@@ -1,7 +1,7 @@
 /* Drawer DOM and readonly visibility are safe to import before browser boot.
  * createDrawers binds modality transitions to explicit commands and paint functions;
  * mountDrawers installs the controls only after chrome has been attached. */
-import { el } from "./widget-elements.js";
+import { closeControl, el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
@@ -12,10 +12,10 @@ import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
 import { rowWalk } from "./walk-position.js";
-import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createAskDrawerList } from "./asks/drawer-list.js";
+import { keeps } from "./keeps.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The leaves drawer covers the document
 // because its rows leave the page. The asks drawer leaves the page live beside it, because
@@ -60,10 +60,10 @@ export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   const head = el("div", "lf-drawer-head");
   const title = el("span", "lf-auxiliary-title", name);
-  const close = el("button", "lf-btn lf-icon-action lf-close-action");
-  close.append(iconElement("cross", "lf-action-icon"));
-  close.title = `Close ${name.toLowerCase()} (Esc)`;
-  close.setAttribute("aria-label", `Close ${name.toLowerCase()}`);
+  const close = closeControl({
+    name: `Close ${name.toLowerCase()}`,
+    title: `Close ${name.toLowerCase()} (Esc)`,
+  });
   list.classList.add("lf-drawer-list");
   head.append(title, close);
   panel.append(head, list);
@@ -150,23 +150,26 @@ export function createDrawers({
       // Asks needs the document beside it because its rows lead to controls there.
       // Leaves covers it: its rows leave the page.
       beside: key === "asks",
+      // Every drawer list ends above the bottom bar, which stands over the drawer in
+      // both postures.
+      underBand: true,
       focus: () =>
         panel.querySelector(".lf-drawer-list button, .lf-drawer-list a[href]") ?? panel,
       arrival: "presentation",
       show({ phase }) {
         dismissBannerControls();
         closePreview();
-        btn.setAttribute("aria-expanded", "true");
+        keeps(btn, "aria-expanded", "true");
         // Filled before it is shown, so the drawer is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
         // is the mirror of it, below: emptied once it is hidden, never before, or the
         // user watches the list they just closed blank out and an empty card slide away.
         paint?.();
-        panel.classList.add("open");
+        panel.classList.toggle("open", true);
         if (phase === "gesture") slide(panel, "left", "in");
       },
       hide({ returnFocus }) {
-        btn.setAttribute("aria-expanded", "false");
+        keeps(btn, "aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
         // Before the slide, which makes the drawer inert and would drop focus to body.
         if (returnFocus && panel.contains(document.activeElement))
@@ -176,7 +179,7 @@ export function createDrawers({
         const out = slide(panel, "left", "out");
         const hide = () => {
           if (drawerIsOpen(key)) return; // reopened mid-slide; it stays up, list and all
-          panel.classList.remove("open");
+          panel.classList.toggle("open", false);
           paint?.();
         };
         if (out) out.finished.then(hide, () => {});

@@ -91,6 +91,7 @@ from render_harness import (
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -1548,7 +1549,10 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     else:
         page.locator("#source [data-lf-datum]").click(modifiers=["Alt"])
     quote = page.locator("#lf-composer-quote")
-    expect(quote).to_contain_text("Original source words.")
+    # A whole datum is named as its widget is; only a quote carries its words.
+    expect(quote).to_contain_text(
+        "Original source words." if quote_anchor else "§ text-document"
+    )
     draft = page.locator(".lf-fab-input")
     write(draft, "Keep this comment about the original source.")
     expect(draft).to_be_focused()
@@ -1874,7 +1878,11 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-signoff")).to_have_count(1)
-    expect(page.locator(".lf-signoff")).to_be_hidden()
+    expect(page.locator(".lf-signoff")).to_be_visible()
+    expect(page.locator(".lf-signoff")).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-signoff")).to_have_attribute(
+        "aria-description", "There is no stamped version to approve yet"
+    )
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
@@ -1894,14 +1902,12 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         == "2"
     ), "the new version's page-local style did not activate"
 
-    # The revision owns authored body attributes, but body remains the runtime's stable
-    # programmatic focus destination after the replacement, including for callers that
-    # use the platform operation directly rather than the Escape helper.
-    expect(page.locator("body")).to_have_attribute("tabindex", "-1")
+    # The revision owns authored body attributes, and the runtime's let-go still takes
+    # the user off an element after the replacement.
     page.locator("#live-reading").evaluate(
         "el => { el.tabIndex = -1; el.focus({preventScroll: true}); }"
     )
-    page.evaluate("document.body.focus({preventScroll: true})")
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate("document.activeElement === document.body")
 
     page.evaluate("window.__leafMain = document.querySelector('main')")
@@ -2977,13 +2983,13 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-conditional", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("phase", state.phase.value); }
+  renderState(state) { keeps(this, "phase", state.phase.value); }
 });
 """
     page = open_page(
@@ -5519,7 +5525,7 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
-        """import { once, widgetController } from "/runtime/widget-api.js";
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-pair", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -5528,7 +5534,7 @@ customElements.define("lf-pair", class extends HTMLElement {
   renderState(state) {
     for (const [verb, reading] of Object.entries(state)) {
       if (reading.value === null) this.removeAttribute(verb);
-      else this.setAttribute(verb, reading.value);
+      else keeps(this, verb, reading.value);
     }
   }
 });
@@ -5701,7 +5707,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -5709,9 +5715,9 @@ customElements.define("lf-tally", class extends HTMLElement {
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     if (state.set.value === null) this.removeAttribute("count");
-    else this.setAttribute("count", state.set.value);
+    else keeps(this, "count", state.set.value);
     if (state.observe.value === null) this.removeAttribute("seen");
-    else this.setAttribute("seen", state.observe.value);
+    else keeps(this, "seen", state.observe.value);
   }
 });
 """
@@ -5846,13 +5852,13 @@ customElements.define("lf-owner", class extends HTMLElement {
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("pinned", state.move.value); }
+  renderState(state) { keeps(this, "pinned", state.move.value); }
 });
 """
     )
@@ -6285,7 +6291,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     identified as overriding authored placement in the tab that moved it and in a fresh
     replay alike, because the runtime compares the page's state against the version's
     own snapshot rather than remembering who wrote what. The runtime's quiet word and
-    Page Map entry carry that origin while the grip names the move and its destination.
+    Page Map row carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
@@ -6326,12 +6332,16 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
             exact=True,
         )
     ).to_be_visible()
+    # The Page Map names the move once: while the agent owes it an answer, under the
+    # row saying the move was sent, which is the user's change as much as its own row.
     second.keyboard.press("g")
     second.keyboard.press("Shift+m")
-    user_origin = second.get_by_role(
-        "button", name=re.compile(r"^Open your change: Your change")
-    )
-    expect(user_origin).to_be_visible()
+    expect(
+        second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
+    ).to_be_visible()
+    expect(
+        second.get_by_role("button", name=re.compile(r"^Open your change"))
+    ).to_have_count(0)
     second.keyboard.press("Escape")
     assert (
         second.locator("#card-importer").evaluate(
@@ -6630,13 +6640,13 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { once, widgetController } from "/runtime/widget-api.js";
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("decision", state.decide.value); }
+  renderState(state) { keeps(this, "decision", state.decide.value); }
 });
 """
     )
@@ -6764,7 +6774,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
         """\
-import {once, widgetController} from "/runtime/widget-api.js";
+import {keeps, once, widgetController} from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   #controller;
   #presented;
@@ -6790,14 +6800,14 @@ customElements.define("lf-trial", class extends HTMLElement {
   #markAfterPresentation(reading) {
     if (!reading.state) return;
     if (document.body.dataset.lfPresented === "1") {
-      this.setAttribute("data-lf-state", "shelve");
+      keeps(this, "data-lf-state", "shelve");
       return;
     }
     this.#presented ??= new MutationObserver(() => {
       if (document.body.dataset.lfPresented !== "1") return;
       this.#presented.disconnect();
       this.#presented = undefined;
-      if (this.isConnected) this.setAttribute("data-lf-state", "shelve");
+      if (this.isConnected) keeps(this, "data-lf-state", "shelve");
     });
     this.#presented.observe(document.body, {
       attributes: true, attributeFilter: ["data-lf-presented"],
@@ -8412,6 +8422,33 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_command_goal_s_words_flow_as_prose(browser, serve):
+    """A goal is authored prose. Laid out as a grid, each inline piece became a cell, so
+    "Last worktree: <a>atlas/dedupe-attempt</a>." stood on three rows with its full stop
+    alone; and its chips took the serif through `font: inherit`."""
+    page = open_page(browser, serve(COMMAND_HUB_PAGE))
+    resized(page, 1440, 900)
+    link = page.locator('a[href="#tree-w-5"]')
+    expect(link).to_be_visible()
+    reading = link.evaluate(
+        """a => {
+          const words = document.createRange();
+          words.selectNodeContents(a.previousSibling);
+          const lines = [...words.getClientRects()];
+          const box = a.getBoundingClientRect();
+          const chip = a.closest('[data-lf-command-goal]')
+            .querySelector(':scope > .lf-task-meta > span');
+          return {display: getComputedStyle(a).display,
+                  sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
+                  chipFont: getComputedStyle(chip).fontFamily,
+                  sans: getComputedStyle(document.documentElement)
+                    .getPropertyValue('--sans').trim()};
+        }"""
+    )
+    assert reading["display"] == "inline" and reading["sameLine"], reading
+    assert reading["chipFont"] == reading["sans"], reading
+
+
 WIDE_TREE_PAGE = leaf_page(
     "A plan on a wide page",
     """
@@ -8741,8 +8778,8 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     page.evaluate(
         """() => {
           document.querySelector('#goal-parser').removeAttribute('data-lf-open');
-          document.querySelector('#goal-parser > .lf-task-meta .lf-task-crew')
-            .setAttribute('aria-expanded', 'false');
+          const crew = document.querySelector('#goal-parser > .lf-task-meta .lf-task-crew');
+          if (crew.ariaExpanded !== 'false') crew.ariaExpanded = 'false';
           document.querySelector('#tree-w-1').removeAttribute('data-lf-open');
         }"""
     )
@@ -9192,7 +9229,7 @@ def test_project_widget_can_join_the_orchestration_projection(
         command,
         layer_registry=registry,
         layer_widgets={
-            "lf-area.js": """import { once, widgetController } from \"/runtime/widget-api.js\";
+            "lf-area.js": """import { keeps, once, widgetController } from \"/runtime/widget-api.js\";
 customElements.define(\"lf-area\", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -9201,7 +9238,7 @@ customElements.define(\"lf-area\", class extends HTMLElement {
     this.#stop ??= this.#controller.subscribe(() => {});
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute(\"phase\", state.phase.value); }
+  renderState(state) { keeps(this, \"phase\", state.phase.value); }
 });
 """
         },
@@ -9310,7 +9347,10 @@ def test_datum_travel_resolves_the_destination_after_reveal(
             if (replacement === 'removed' || revealed) {
               row.remove();
             } else {
+              // Marked, so the rebuild is a different row and not the same one
+              // written again.
               const next = row.cloneNode(true);
+              next.dataset.rebuilt = '';
               row.replaceWith(next);
               revealed = true;
             }

@@ -3,14 +3,19 @@
  * This object owns the shared scroll/resize doors and the one response-bar placement
  * frame. Feature state and paint enter as fixed constructor capabilities; no feature
  * imports the thread presenter to request a refresh.
+ *
+ * `pageShifted` runs on every scroll event, so each capability it calls writes only
+ * what changed (keeps.js). Target paint stands in the document plane
+ * (`pagePlaneRect`), where the compositor carries it through a root scroll, so its
+ * shifted callback moves only what a nested scroller moved.
  */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
 import { coarsePointer } from "./pointer.js";
-import { keepsText, LAYOUT } from "./widget-elements.js";
+import { LAYOUT } from "./widget-elements.js";
+import { keeps, keepsText } from "./keeps.js";
 
 export function createPageGeometry({
   refreshAnchorHover,
@@ -68,7 +73,7 @@ export function createPageGeometry({
       delete inspect.dataset.lfPaintPlane;
       return;
     }
-    inspect.dataset.lfPaintPlane = inChrome(target.element) ? "chrome" : "page";
+    keeps(inspect, "data-lf-paint-plane", inChrome(target.element) ? "chrome" : "page");
     const name = target.part
       ? `${target.part} · ${designMode.name(target.element)}`
       : designMode.name(target.element);
@@ -99,11 +104,6 @@ export function createPageGeometry({
     // while page scrolling may bring previously unpaintable items into view.
     queueLegend();
     if (activeActionAnchor()) queueActionPlacement();
-  }
-
-  function traceTarget(target) {
-    const part = target ? visualAt(target, { unclaimed: false })?.part : null;
-    targetPaint.paintTrace(target, part?.element === target ? part.surface : target);
   }
 
   const invalidate = () => targetPaint.geometryChanged();
@@ -144,6 +144,5 @@ export function createPageGeometry({
     refreshAim,
     invalidate,
     pageShifted,
-    traceTarget,
   };
 }

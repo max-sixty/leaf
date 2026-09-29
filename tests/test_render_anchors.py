@@ -146,8 +146,14 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const fab = document.querySelector('.lf-fab-input');
         // A user reaches everything eventually — opens the details, clicks through to
         // the other tab — so everything is in scope, not just what the page opens on.
-        document.querySelectorAll('details').forEach(d => (d.open = true));
-        document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
+        // The page's own content, not the chrome, whose runtime owns what it shows.
+        const own = el => !el.closest('.lf-ui');
+        document.querySelectorAll('details').forEach(d => {
+            if (own(d)) d.toggleAttribute('open', true);
+        });
+        document.querySelectorAll('[hidden]').forEach(e => {
+            if (own(e)) e.removeAttribute('hidden');
+        });
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -274,6 +280,40 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_attribute("aria-label", label)
     page.keyboard.type(" What must Finance decide?")
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
+
+
+def test_a_comment_box_carried_away_comes_back_for_the_words_typed_into_it(
+    browser, serve
+):
+    """The box floats over the page beside its passage, so a scroll carries it off with
+    the passage, and the browser's caret reveal cannot bring back a box fixed over the
+    page. The first word typed into it brings the passage, and the box, back."""
+    source = next(source for source in EXAMPLES if source.stem == "triage-board")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 500)
+    box = page.locator("#triage-lede").bounding_box()
+    y = box["y"] + 10
+    select(page, (box["x"] + 2, y), (box["x"] + 200, y))
+    page.locator(".lf-fab-input").click()
+    field = page.locator(".lf-composer leaf-text")
+    expect(field).to_be_focused()
+    bar = page.locator(".lf-fab-bar")
+    page.mouse.wheel(0, 3000)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fab-bar').getBoundingClientRect().bottom < 0"
+    )
+    rendered(page)
+    expect(field).to_be_focused()
+    page.keyboard.type("x")
+    page.wait_for_function(
+        """() => {
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          return bar.top >= head && bar.bottom <= innerHeight;
+        }"""
+    )
+    expect(bar).to_be_visible()
+    expect(field).to_have_js_property("value", "x")
 
 
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
@@ -1317,6 +1357,42 @@ def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser,
     expect(page.locator("#known [data-lf-syn]").first).to_be_attached()
     assert page.locator("#unknown [data-lf-syn]").count() == 0
     assert page.locator("#unknown code").text_content() == "y = 2"
+
+
+def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
+    """A second dressing pass that reaches a block whose tokens are still on their way
+    leaves it to the pass in flight, so that pass colors the text the block holds when
+    its tokens land. Text rewritten meanwhile, as a live revision rewrites a block in
+    place, must not be put back to what the first pass read."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "rewritten block",
+                '<h1 id="t">Blocks</h1>\n'
+                '<pre id="later"><code class="language-python">x = 1</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
+    text = page.evaluate(
+        """async () => {
+          const syntax = performance.getEntriesByType('resource')
+            .find(resource => resource.name.endsWith('/runtime/syntax.js'));
+          const {highlightBlocks} = await import(syntax.name);
+          const code = document.createElement('code');
+          code.className = 'language-python';
+          code.textContent = 'old = 1';
+          document.querySelector('#later').after(
+            Object.assign(document.createElement('pre'), {id: 'rewritten'}));
+          document.querySelector('#rewritten').append(code);
+          const first = highlightBlocks(code);
+          code.textContent = 'new = 2';
+          await Promise.all([first, highlightBlocks(code)]);
+          return code.textContent;
+        }"""
+    )
+    assert text == "new = 2"
 
 
 def test_code_is_colored_without_a_word_moving(browser, serve):
@@ -3553,6 +3629,22 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
     assert "1–3" not in menu_line, menu_line
 
 
+def test_a_layer_opened_from_nowhere_lets_go_as_it_closes(browser, serve):
+    """A popover opened while nothing held focus has nobody to hand focus back to, so
+    the browser left focus on its hidden row until the next rendering update: a key
+    pressed in that frame was dispatched from a control the user could no longer see.
+    Closing it lets go in the same task."""
+    page = open_page(browser, live_url(serve(INLINE_PAGE)))
+    assert page.evaluate("() => document.activeElement === document.body")
+    open_versions(page)
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
+    assert menu.evaluate(
+        "m => { m.hidePopover(); return document.activeElement === document.body; }"
+    )
+
+
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 
@@ -3574,12 +3666,11 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
-    # A menu opened from the keyboard leaves the same way one opened by pointer does:
-    # the menu is a layer over the page, so its one press lands the user on the page
-    # rather than on the picker that is its implementation door — or on the heading
-    # they happened to be standing on when they asked for it.
+    # A menu opened from the keyboard returns to its banner door, just as one opened
+    # by pointer does, rather than to the heading that held focus before the shortcut.
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
@@ -3587,7 +3678,8 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
@@ -3671,8 +3763,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-    page.locator(".lf-banner-more").click()
+    expect(btn).to_be_focused()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(btn).to_be_visible()
     page.keyboard.press("Escape")
@@ -3783,13 +3874,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes the menu and lands the user on the page it stood over, whatever
-    # door they came through. A popover restores focus to whatever had it when it
-    # showed, which for a menu opened from the page is the body; Leaf performs the whole
-    # step instead, so the landing is the same one every time.
+    # Escape closes the menu and returns to its banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
 
     # g V opens it from anywhere on the page, the way g L opens the leaves drawer, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
@@ -3817,10 +3905,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape is what closes this, onto the page the menu stood over.
+    # it navigates — so Escape closes this and returns to the banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
@@ -4986,6 +5074,76 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "quotes => quotes.map(quote => [...quote.classList])"
     )
     assert all("detached" not in classes for classes in quote_classes), quote_classes
+
+
+def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser, serve):
+    """A diff written into the page rather than bound to data, and a real drag rather
+    than a range handed to the selection: Chrome keeps the document's selection in the
+    light DOM, so a drag wholly inside the diff's shadow tree reports both its ends at
+    the host, and `isCollapsed` says nothing is selected while the words are painted
+    selected. Read that way, no Comment field rose over the drag and `c` opened a comment
+    on the page with no passage at all. The passage is the composed range the user drew,
+    so the comment carries the words and their neighbours."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n def route(request):\n"
+        '-    return f"legacy:{request.token.id}"\n'
+        '+    return f"tok:{request.token.id}"\n'
+    )
+    url = serve(
+        leaf_page(
+            "written diff",
+            '<h1 id="title">Review</h1>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+        )
+    )
+    page = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    line = page.locator('lf-diff [data-content] [data-line-type="change-addition"]')
+    # Where the phrase's first and last glyphs stand, so the drag starts and ends on them.
+    ends = line.evaluate(
+        """line => {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const nodes = [], starts = [];
+          let flat = '';
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            starts.push(flat.length); nodes.push(node); flat += node.data;
+          }
+          const glyph = offset => {
+            const index = starts.findLastIndex(value => value <= offset);
+            const range = document.createRange();
+            range.setStart(nodes[index], offset - starts[index]);
+            range.setEnd(nodes[index], offset - starts[index] + 1);
+            return range.getBoundingClientRect();
+          };
+          const phrase = 'request.token.id';
+          const start = flat.indexOf(phrase);
+          const first = glyph(start), last = glyph(start + phrase.length - 1);
+          return { x0: first.left + 1, x1: last.right - 1,
+                   y: (first.top + first.bottom) / 2 };
+        }"""
+    )
+    page.mouse.move(ends["x0"], ends["y"])
+    page.mouse.down()
+    page.mouse.move(ends["x1"], ends["y"], steps=6)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
+    write(page.locator(".lf-fab-input"), "Review this expression.")
+    with sending(page, "the comment on the dragged expression"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comment["anchor"]["section"] == "patch", comment
+    assert comment["anchor"]["quote"] == "request.token.id", comment
+    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
 
 
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])

@@ -73,10 +73,8 @@ class VersionPickerView {
       for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
     });
     this.menu.addEventListener("toggle", (event) => {
-      const open = event.newState === "open";
-      if (this.#model.picker.offered)
-        this.button.setAttribute("aria-expanded", String(open));
-      if (!open) {
+      this.#presentDisclosure();
+      if (event.newState !== "open") {
         this.#displayedRows = this.#model.rows;
         this.#renderMenu();
       }
@@ -149,13 +147,7 @@ class VersionPickerView {
     if (!picker.offered) this.close();
 
     this.button.toggleAttribute("disabled", !picker.offered);
-    if (picker.offered) {
-      keeps(this.button, "aria-haspopup", "menu");
-      keeps(this.button, "aria-expanded", this.isOpen());
-    } else {
-      this.button.removeAttribute("aria-haspopup");
-      this.button.removeAttribute("aria-expanded");
-    }
+    this.#presentDisclosure();
     this.button.classList.toggle("on", picker.compared);
     this.button.toggleAttribute("data-lf-news", picker.news);
     keeps(this.button, "data-lf-key-title", picker.keyTitle);
@@ -168,6 +160,18 @@ class VersionPickerView {
 
     if (!this.isOpen()) this.#displayedRows = model.rows;
     this.#renderMenu();
+  }
+
+  // The button's disclosure state has one writer, which reads the popover itself: a new
+  // model and the popover's own toggle both arrive here.
+  #presentDisclosure() {
+    if (this.#model.picker.offered) {
+      keeps(this.button, "aria-haspopup", "menu");
+      keeps(this.button, "aria-expanded", this.isOpen());
+    } else {
+      this.button.removeAttribute("aria-haspopup");
+      this.button.removeAttribute("aria-expanded");
+    }
   }
 
   #renderMenu() {

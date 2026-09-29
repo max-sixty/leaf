@@ -435,29 +435,56 @@ export function renderShortcutBar(goToStatus) {
     presentation,
     span: rowSpans[index],
   }));
-  // Lit leaves `hidden` alone, so every paint first restores each row's semantic
-  // eligibility; the trim below is then the one measurement that may hide more.
-  for (const { presentation, span } of drawn) keepsHidden(span, presentation.hidden);
   // The status stands at the bar's far end, level with the one row, so a standing status
   // pads the row's end and More and the way out stop short of it. A transient notice
   // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
   // the line for the seconds it shows. The expanded bar's upper row is not level with the
   // status, so it reserves nothing.
+  const barStyle = getComputedStyle(shortcutBarEl);
+  const gap = parseFloat(barStyle.columnGap);
   const [status] = expanded ? [] : standingStatusBoxes();
-  const room = status
-    ? status.width + parseFloat(getComputedStyle(shortcutBarEl).columnGap)
-    : 0;
-  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
-  const rowsUsed = () => {
-    const items = [...shortcutBarEl.children].filter(
-      (node) => !node.hidden && node.checkVisibility(),
+  const reserved = status ? status.width + gap : 0;
+  // Which rows fit is worked out from widths the line already has, not by showing a row
+  // to see whether it wraps: a row the line leaves keeps its width out of flow
+  // (chrome.css), so every row is measured where it stands and each `hidden` and the
+  // status room are written once, to the value they end at. The line breaks as flex-wrap
+  // breaks it: a box joins the row while it and the gap before it still fit.
+  const outer = (node) => {
+    const style = getComputedStyle(node);
+    return (
+      node.getBoundingClientRect().width +
+      parseFloat(style.marginLeft) +
+      parseFloat(style.marginRight)
     );
-    const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;
-    const tops = [];
-    for (const node of items)
-      if (tops.every((top) => Math.abs(top - node.offsetTop) > tolerance))
-        tops.push(node.offsetTop);
-    return tops.length;
+  };
+  const line =
+    shortcutBarEl.getBoundingClientRect().width -
+    parseFloat(barStyle.borderLeftWidth) -
+    parseFloat(barStyle.borderRightWidth) -
+    parseFloat(barStyle.paddingLeft) -
+    parseFloat(barStyle.paddingRight) +
+    (parseFloat(shortcutBarEl.style.getPropertyValue("--lf-status-room")) || 0);
+  const eligible = new Map(
+    drawn.map(({ span, presentation }) => [span, !presentation.hidden]),
+  );
+  const widths = new Map(
+    [...shortcutBarEl.children]
+      .filter((node) => eligible.get(node) ?? !node.hidden)
+      .map((node) => [node, outer(node)]),
+  );
+  const trimmed = new Set();
+  const rowsUsed = (room) => {
+    let rows = 0;
+    let used = Infinity;
+    for (const [node, width] of widths) {
+      if (trimmed.has(node)) continue;
+      used += gap + width;
+      if (used > line - room) {
+        rows += 1;
+        used = width;
+      }
+    }
+    return rows;
   };
   // A row ceiling rather than permission to clip: one row, or two in the expanded bar.
   // The line yields its lowest-ranked current commands until More fits; hidden rows remain
@@ -467,14 +494,17 @@ export function renderShortcutBar(goToStatus) {
   // the end would drop it first of all.
   const ceiling = expanded ? 2 : 1;
   const removable = drawn
-    .filter(({ span, presentation }) => !span.hidden && !presentation.wayOut)
+    .filter(({ presentation }) => !presentation.hidden && !presentation.wayOut)
     .map(({ span }) => span)
     .toReversed();
-  while (rowsUsed() > ceiling && removable.length) removable.shift().hidden = true;
+  while (rowsUsed(reserved) > ceiling && removable.length)
+    trimmed.add(removable.shift());
   // A status too wide to leave More and the way out their row gives the room back and
   // stands over them, since it takes no pointer events and the row is the promise.
-  if (room && rowsUsed() > ceiling)
-    shortcutBarEl.style.setProperty("--lf-status-room", "0px");
+  const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
+  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
+  for (const { presentation, span } of drawn)
+    keepsHidden(span, presentation.hidden || trimmed.has(span));
 }
 
 const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();

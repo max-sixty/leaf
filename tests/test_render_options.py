@@ -96,7 +96,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
         const dot = document.querySelector(".lf-dot");
-        dot.classList.add("working");
+        dot.classList.toggle("working", true);
         const runtimeAnimation = dot.getAnimations()[0];
         return {
             pageDistance: transform === "none" ? null : new DOMMatrix(transform).m41,

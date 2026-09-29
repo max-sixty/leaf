@@ -33,7 +33,11 @@ export const noticeVisible = () => noticePresentation.visible;
 
 // The complete bottom-status renderer registers one synchronous invalidation door. A
 // notice acknowledges a gesture before its caller returns; routing this through the
-// shared frame repaint would turn that same-turn contract into eventual feedback.
+// shared frame repaint would turn that same-turn contract into eventual feedback. Taking
+// a notice down acknowledges nothing, so it is drawn at the end of the turn's script,
+// still before paint: a gesture that takes one notice down and puts the next up (a walk
+// beginning, then its acknowledgement) writes the notice once, to the one it put up.
+let takedownQueued = false;
 export function registerNoticePresentation(invalidate) {
   if (invalidateNoticePresentation)
     throw new Error("The notice presentation already has an owner");
@@ -42,7 +46,14 @@ export function registerNoticePresentation(invalidate) {
 
 const presentNotice = (message, visible) => {
   noticePresentation = Object.freeze({ message, visible });
-  invalidateNoticePresentation?.();
+  if (visible) invalidateNoticePresentation?.();
+  else if (!takedownQueued) {
+    takedownQueued = true;
+    queueMicrotask(() => {
+      takedownQueued = false;
+      invalidateNoticePresentation?.();
+    });
+  }
 };
 
 export function announce(msg) {

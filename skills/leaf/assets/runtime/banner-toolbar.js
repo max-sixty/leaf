@@ -209,25 +209,43 @@ export function registerBannerControl({
 }
 
 /** Show or hide one retained contribution without changing its registered identity. */
-export function showBannerControl(control, shown) {
-  let entry = controls.get(control);
-  if (!entry) throw new TypeError("Banner control is not registered");
-  shown = Boolean(shown);
-  if (entry.present === shown) return;
-  const heldFocus = document.activeElement === entry.focusTarget;
-  const wasInMenu = menu.includes(entry);
+export const showBannerControl = (control, shown) =>
+  showBannerControls([[control, shown]]);
+
+/**
+ * Show or hide several retained contributions, as `[control, shown]` pairs, in one
+ * paint. Which controls stand on the row depends on every contribution at once (a
+ * gesture step displaces the reading loop), so a contributor that moves several says
+ * so in one call: moved one at a time, a step leaving and the next arriving would put
+ * the reading loop back and take it away again in between.
+ */
+export function showBannerControls(changes) {
+  const moved = [];
+  for (const [control, shown] of changes) {
+    const prior = controls.get(control);
+    if (!prior) throw new TypeError("Banner control is not registered");
+    if (prior.present === Boolean(shown)) continue;
+    moved.push({
+      prior,
+      entry: Object.freeze({ ...prior, present: Boolean(shown) }),
+      heldFocus: document.activeElement === prior.focusTarget,
+      wasInMenu: menu.includes(prior),
+    });
+  }
+  if (!moved.length) return;
   const loopFocus = row.find(
     (candidate) =>
       candidate.seat !== "menu" && document.activeElement === candidate.focusTarget,
   );
-  const prior = entry;
-  entry = Object.freeze({ ...entry, present: shown });
-  replaceEntry(prior, entry);
+  for (const { prior, entry } of moved) replaceEntry(prior, entry);
   paint();
-  if (heldFocus && !shown) focusAfterRemoval(entry, wasInMenu);
+  const removed = moved.find(({ entry, heldFocus }) => heldFocus && !entry.present);
+  if (removed) focusAfterRemoval(removed.entry, removed.wasInMenu);
   // The step takes the place of the control focus stood on, so focus takes it too.
   else if (loopFocus && !visible(loopFocus))
-    entry.focusTarget.focus({ preventScroll: true });
+    moved
+      .find(({ entry }) => entry.present)
+      ?.entry.focusTarget.focus({ preventScroll: true });
 }
 
 export function showNews(control, on) {

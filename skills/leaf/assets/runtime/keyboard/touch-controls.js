@@ -16,7 +16,7 @@ import {
   bannerControlDoor,
   dismissBannerControls,
   registerBannerControl,
-  showBannerControl,
+  showBannerControls,
 } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
 import { el } from "../widget-elements.js";
@@ -70,6 +70,7 @@ export function paintTouchControls() {
     ...commands.map((press) => place(press, "menu")),
     ...(innermost?.presses.map((press) => press.id) ?? []),
   ]);
+  const presence = [];
   for (const [id, { press, button }] of controls) {
     const on = coarsePointer.matches && shown.has(id);
     if (on) {
@@ -77,6 +78,7 @@ export function paintTouchControls() {
       const disabled = !live(press.row);
       if (button.disabled !== disabled) button.disabled = disabled;
     }
-    showBannerControl(button, on);
+    presence.push([button, on]);
   }
+  showBannerControls(presence);
 }

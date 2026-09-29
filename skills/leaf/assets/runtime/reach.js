@@ -111,11 +111,16 @@ export function reachReadingScroller(el) {
   reachSizes.observe(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
+  // A host moved in one task lets go of its body and registers it again before the task
+  // ends, so the cue leaves at the end of the task, and only a body nobody reached again
+  // by then loses it.
   return () => {
     downwards.delete(el);
     if (!watched(el)) reachSizes.unobserve(el);
     el.removeEventListener("scroll", readingScrolled);
-    el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+    queueMicrotask(() => {
+      if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+    });
   };
 }
 

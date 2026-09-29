@@ -349,11 +349,29 @@ export function reflectFirstScopes() {
     reflectElementShortcuts(scope.el);
   }
 }
+// The keys are painted once per task, when its synchronous work is done. A render that
+// replaces the control the user stood on and the focus that lands on its successor each
+// ask for a paint; painted at once, the first would reflect the moment between them,
+// when the user stands nowhere, and the second put back what it took off. A scope refused
+// there is reported as a frame callback's failure is, and the elements after it still
+// paint.
+let keysOwed = false;
 export const paintKeys = () => {
-  pruneScopedElements();
-  for (const ref of scopeRefs) {
-    const scoped = ref.deref();
-    if (scoped?.isConnected) reflectElementShortcuts(scoped);
+  if (!keysOwed) {
+    keysOwed = true;
+    queueMicrotask(() => {
+      keysOwed = false;
+      pruneScopedElements();
+      for (const ref of scopeRefs) {
+        const scoped = ref.deref();
+        if (!scoped?.isConnected) continue;
+        try {
+          reflectElementShortcuts(scoped);
+        } catch (error) {
+          reportError(error);
+        }
+      }
+    });
   }
   repaint();
 };

@@ -265,7 +265,12 @@ export function createPageMapDialog({
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
-    const hold = place.take();
+    place.around(() => presentSheet());
+    // A control the filter hid or the render removed hands the user to the search.
+    restoreFocus?.(dialogSearch);
+  }
+
+  function presentSheet() {
     const query = dialogSearch.value.trim().toLocaleLowerCase();
     const searchTextByKey = new Map(
       entries.map((entry) => {
@@ -319,9 +324,6 @@ export function createPageMapDialog({
         : "No margin controls, status indicators, or locations yet",
     );
     keepsHidden(dialogEmpty, shown !== 0);
-    place.finish(hold);
-    // A control the filter hid or the render removed hands the user to the search.
-    restoreFocus?.(dialogSearch);
   }
 
   function pageMapInvoker() {

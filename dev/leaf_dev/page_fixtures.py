@@ -10,7 +10,7 @@ from pathlib import Path
 
 import click
 from leaf.media import media_name
-from leaf.schema import MEDIA_DIR
+from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 
 from leaf_dev import ROOT
 from leaf_dev.example_data import data_operations, example_versions
@@ -89,9 +89,13 @@ def publish_media(images: tuple[str, ...]) -> None:
     catalog's other images; the pin moves to the new revision. Prints the path each
     page names the image by."""
     directory = DEFAULT_PACKAGES.parent.relative_to(ROOT) / "media"
-    named = {
-        media_name(path.read_bytes(), path.suffix): path for path in map(Path, images)
-    }
+    paths = [Path(image) for image in images]
+    for path in paths:
+        if path.suffix.lower() not in MEDIA_TYPES:
+            raise click.BadParameter(
+                f"{path}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
+            )
+    named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = clone(Path(raw))
         target = checkout / directory

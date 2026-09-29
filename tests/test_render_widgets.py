@@ -7903,7 +7903,14 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
+    # The Add press must enter the tab order in the input event itself. A paint on
+    # the next frame can come after the next Tab and send focus to the next Ask.
+    page.evaluate("""() => document.addEventListener('input', () => {
+      window.__addEmptyAtInput = document.querySelector(
+        '#live-question .lf-compose-submit').hasAttribute('data-lf-empty');
+    }, {once: true})""")
     write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
+    assert page.evaluate("window.__addEmptyAtInput") is False
     page.keyboard.press("Tab")
     binding_badge = addition.locator("> .lf-key-badge[data-lf-ask-binding-badge]")
     expect(binding_badge).to_be_visible()

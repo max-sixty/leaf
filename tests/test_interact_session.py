@@ -1569,6 +1569,18 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert "CLAUDE_CODE_SESSION_ID" not in call["env"]
     assert call["env"]["MAX_THINKING_TOKENS"] == "0"
 
+    # The page server's output goes nowhere, so the session's log says what the
+    # request did, until the session ends.
+    log = leases_model.titles_log("s1")
+    [line] = wait_for(
+        lambda: log.read_text().splitlines() if log.exists() else [],
+        bool,
+        failure="the request was never logged",
+    )
+    assert json.loads(line)["event"] == "thread_title_generated"
+    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    assert not log.exists()
+
 
 def test_both_hosts_are_asked_for_a_title_in_the_same_words(
     page_dir, app_server, tmp_path, monkeypatch, snapshot

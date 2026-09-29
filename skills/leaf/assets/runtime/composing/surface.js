@@ -195,10 +195,8 @@ export function createResponseSurface({
   let fabAnchor = null;
   let fabOrigin = null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
-  // stands level with (pointed-place.js). `gesturePoint` carries it from the gesture,
-  // for the length of its synchronous open, to the showFab that raises the bar there.
+  // stands level with (pointed-place.js).
   let fabPoint = null;
-  let gesturePoint = null;
   let fabFloating = true;
   let fabInlineOutlet = null;
   let fabPlacement = null;
@@ -721,7 +719,7 @@ export function createResponseSurface({
   function showFab(
     anchor,
     target = null,
-    { returnFocus = "target", origin = null, place = true } = {},
+    { returnFocus = "target", origin = null, place = true, point = undefined } = {},
   ) {
     const previous = fabAnchor;
     const previousOrigin = fabOrigin;
@@ -741,16 +739,13 @@ export function createResponseSurface({
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
     if (!anchor && composerOpen) hideComposer();
-    // A gesture on this anchor says where in it the bar stands; re-placing the bar keeps
-    // where the last one said, and any other anchor starts at its target's top.
-    const point =
-      gesturePoint && sameAnchor(gesturePoint.anchor, anchor)
-        ? gesturePoint.point
-        : sameAnchor(previous, anchor)
-          ? fabPoint
-          : null;
-    const pointMoved = point !== fabPoint;
-    fabPoint = point;
+    // A gesture opening the bar says where in its target the bar stands, `null` for
+    // nowhere; re-placing the bar on the same anchor keeps where the last one said, and
+    // any other anchor starts at its target's top.
+    const stands =
+      point !== undefined ? point : sameAnchor(previous, anchor) ? fabPoint : null;
+    const pointMoved = stands !== fabPoint;
+    fabPoint = stands;
     if (
       !anchor ||
       !previous ||
@@ -937,9 +932,7 @@ export function createResponseSurface({
     targetActivation = true;
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
-    gesturePoint = { anchor, point };
-    openComment(anchor, "", { carry: true });
-    gesturePoint = null;
+    openComment(anchor, "", { carry: true, point });
     if (origin) showFab(anchor, null, { origin });
     setTimeout(() => {
       targetActivation = false;

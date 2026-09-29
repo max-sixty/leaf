@@ -47,7 +47,8 @@ import { renderedParent } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
-import { committedPoint } from "./pointed-place.js";
+import { pointOf } from "./pointed-place.js";
+import { threadKey } from "./thread/model.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's declared room keeps clear. Travel
@@ -393,12 +394,15 @@ export function createAnchorTravel({
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
   // Where a thread's travel lands: its first mark, or the element its anchor placed.
-  // A thread pointed into its target is travelled to at the row its cluster stands by
-  // (pointed-place.js), which a target taller than the window would otherwise leave off
-  // screen.
+  // A thread pointed into its target is travelled to at the row its own margin row
+  // stands by (pointed-place.js), which a target taller than the window would otherwise
+  // leave off screen.
   const threadDestination = (id) => {
     const where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element ?? null;
-    return (where instanceof Element && committedPoint(where)) || where;
+    const thread =
+      where instanceof Element &&
+      currentThreads().find((candidate) => candidate.id === id);
+    return (thread && pointOf(threadKey(thread), where)) || where;
   };
 
   async function scrollToThread(id, { land = null, keep = false } = {}) {

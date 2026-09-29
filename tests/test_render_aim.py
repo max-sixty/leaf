@@ -1091,6 +1091,144 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
     )
 
 
+TALL_ASK_PAGE = leaf_page(
+    "A tall Ask",
+    '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
+    + "".join(
+        f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
+    )
+    + '<lf-options id="route" choose><lf-option id="north">North</lf-option>'
+    '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
+)
+# Every margin row by what it stands for: the rows about `target`, each as its top
+# measured from the target's, and whether it holds a comment. Rows are read by their
+# host, which the margin keeps for as long as what it stands for stands.
+ROWS_ON = """([target]) => {
+  const at = document.getElementById(target).getBoundingClientRect().top;
+  window.__rows ??= new Map();
+  return [...document.querySelectorAll('[data-lf-margin-for]')]
+    .filter((row) => row.lfTarget?.id === target)
+    .map((row) => {
+      if (!window.__rows.has(row)) window.__rows.set(row, window.__rows.size);
+      return [window.__rows.get(row), Math.round(row.getBoundingClientRect().top - at)];
+    })
+    .sort((a, b) => a[0] - b[0]);
+}"""
+
+
+@pytest.mark.parametrize("case", ["ask", "thread"])
+def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
+    """A comment pointed at a row deep in its target stands its own margin row there;
+    the rest of the target's margin does not follow it. An Ask's marker stays with the
+    Ask it accompanies, and a comment already on the target stays at the target's top,
+    where `t` still lands it."""
+    if case == "ask":
+        url, target = serve(TALL_ASK_PAGE), "way"
+        row = f"#{target} p >> nth=25"
+    else:
+        url, target = serve(TALL_DIFF_PAGE), "whole"
+        first = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "The whole diff first.",
+                "anchor": {"section": "whole"},
+            },
+        )["id"]
+        row = "lf-diff [data-line] >> nth=50"
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    rendered(page)
+    before = page.evaluate(ROWS_ON, [target])
+    assert before and all(abs(top) <= 8 for _, top in before), (
+        f"the target's own rows must start at its top: {before}"
+    )
+
+    pointed = page.locator(row)
+    pointed.scroll_into_view_if_needed()
+    rendered(page)
+    pointed.click(modifiers=["Alt"], position={"x": 20, "y": 5})
+    write(open_compact_comment(page), "About this row.")
+    with sending(page, "the pointed comment"):
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {"section": target}
+    page.keyboard.press("Escape")
+    rendered(page)
+    depth = pointed.evaluate(
+        "(row, target) => Math.round(row.getBoundingClientRect().top"
+        " - document.getElementById(target).getBoundingClientRect().top)",
+        target,
+    )
+    after = dict(page.evaluate(ROWS_ON, [target]))
+    for index, top in before:
+        assert abs(after.get(index, 1e9) - top) <= 8, (
+            f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
+        )
+    added = [top for index, top in after.items() if index not in dict(before)]
+    assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
+        f"the pointed comment has no row of its own at {depth}: {after}"
+    )
+    if case == "thread":
+        # The walk reaches the thread already there at the target's top, in page order
+        # before the pointed one.
+        page.keyboard.press("t")
+        shown = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(shown).to_have_count(1)
+        if shown.get_attribute("data-thread") != first:
+            page.keyboard.press("Shift+t")
+        expect(shown).to_have_attribute("data-thread", first)
+        scroll_settled(page)
+        rendered(page)
+        card = page.locator(".lf-margin-preview").bounding_box()
+        top = page.locator("#whole").bounding_box()["y"]
+        assert abs(card["y"] - top) <= 60, (card, top)
+
+
+def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
+    browser, serve
+):
+    """A revision that rewrites the diff replaces every row the comment was pointed at.
+    The comment's row keeps its place by the words of the row it was pointed at, which
+    the new rendering still holds, rather than falling back to the diff's top."""
+    page = open_page(browser, live_url(serve(TALL_DIFF_PAGE)))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    row = page.locator("lf-diff [data-line]").nth(50)
+    row.scroll_into_view_if_needed()
+    rendered(page)
+    row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
+    write(open_compact_comment(page), "Why this line?")
+    with sending(page, "the pointed comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    rendered(page)
+    page.evaluate(
+        "() => { window.__row = document.querySelector('lf-diff').shadowRoot"
+        ".querySelectorAll('[data-line]')[50]; }"
+    )
+
+    (serve.page_dir / "index.html").write_text(
+        TALL_DIFF_PAGE.replace("A tall diff", "A tall diff, revised").replace(
+            "compute(3);", "compute(3 + 0);"
+        )
+    )
+    told(page)
+    expect(page).to_have_title("A tall diff, revised")
+    page.wait_for_function(
+        "() => { const rows = document.querySelector('lf-diff').shadowRoot"
+        ".querySelectorAll('[data-line]'); return rows.length === 80"
+        " && rows[50] !== window.__row; }"
+    )
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert abs(at["cluster"] - at["row"]) <= at["height"], (
+        f"the revision took the comment's row {at['row'] - at['cluster']:.0f}px from"
+        f" the row it was pointed at: {at}"
+    )
+
+
 def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(

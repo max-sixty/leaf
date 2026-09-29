@@ -2,11 +2,13 @@
 
    This module combines registered contributions with core readings such as Threads,
    Asks, version changes, delivery receipts, and work claims. It reconciles one cluster
-   and the inline thread card per target, then supplies the complete target projection to
-   `page-map-dialog.js`. `margin-entries.js` owns the public control grammar and contribution
-   registry; `margin-cluster-view.js` owns retained control materialization and Lit child
-   order; `margin-layout.js` owns where each row stands: its lane, its posture in the rail
-   or as a pin, and the packing that keeps rows clear of one another.
+   and the inline thread card per target, and one more cluster for each thread a
+   pointing gesture stood at a row inside its target (pointed-place.js), then supplies
+   the complete target projection to `page-map-dialog.js`. `margin-entries.js` owns the
+   public control grammar and contribution registry; `margin-cluster-view.js` owns
+   retained control materialization and Lit child order; `margin-layout.js` owns where
+   each row stands: its lane, its posture in the rail or as a pin, and the packing that
+   keeps rows clear of one another.
 
    `margin-model.js` derives the immutable inventory and cluster selection; its public
    records carry target coordinates, captured contribution readings, and generated facts.
@@ -121,7 +123,7 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
-import { committedPoint, pointBand } from "./pointed-place.js";
+import { pointBand, pointOf } from "./pointed-place.js";
 import {
   TEXT_FIELD,
   declareRelease,
@@ -298,6 +300,13 @@ export function createMarginProjection({
   const targets = new Map();
   const itemSources = new WeakMap();
   const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
+  // The thread key a pointed entry stands for (groupFor), read afresh each time so a
+  // re-rendered target finds the row again by its words.
+  const pointKeys = new Map();
+  const entryPoint = (entry) =>
+    entry && pointKeys.has(entry.key)
+      ? pointOf(pointKeys.get(entry.key), targetFor(entry))
+      : null;
   const sourceItem = (item) => itemSources.get(item);
   function captureItem(item) {
     const { activate, discloses, thread, ...data } = item;
@@ -760,7 +769,7 @@ export function createMarginProjection({
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     if (row.checkVisibility()) return row;
     const target = targetFor(previewEntry);
-    return committedPoint(target) ?? target ?? row;
+    return entryPoint(previewEntry) ?? target ?? row;
   }
   // Where the card stands is thread-card-geometry.js's rule, worked out in client
   // coordinates. Floating UI measures the cluster in the card's positioning space; the
@@ -790,7 +799,7 @@ export function createMarginProjection({
         // A target pointed into is, for the card, the row its cluster stands by: the
         // card clears that row rather than a whole target taller than the window.
         const box = target?.getBoundingClientRect() ?? null;
-        const point = committedPoint(target);
+        const point = entryPoint(previewEntry);
         const geometry = threadCardGeometry({
           cluster: clusterBox,
           target: point ? pointBand(box, point) : box,
@@ -906,28 +915,36 @@ export function createMarginProjection({
     return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
   }
 
-  function groupFor(groups, target) {
-    let group = groups.get(target);
+  // One group per target, and one more for each thread a pointing gesture stood at a
+  // row inside it (pointed-place.js): that thread's row stands at its point, and
+  // everything else about the target (its other threads, an Ask's marker, a widget's
+  // actions) keeps the target's own row. `pointed` is `{ key, element }`, the thread's
+  // key and the element it stands level with.
+  function groupFor(groups, target, pointed = null) {
+    const slot = pointed ? `point:${pointed.key}` : target;
+    let group = groups.get(slot);
     if (!group) {
-      const key = targetPath(target);
+      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
       const word = addressableWord(target);
       group = {
         key,
         target,
+        point: pointed?.element ?? null,
+        pointKey: pointed?.key ?? null,
         word,
         subject: null,
         title: null,
         items: [],
         offers: [],
       };
-      groups.set(target, group);
+      groups.set(slot, group);
     }
     return group;
   }
 
-  function add(groups, target, item) {
+  function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
-    const group = groupFor(groups, target);
+    const group = groupFor(groups, target, pointed);
     group.items.push(item);
   }
 
@@ -978,39 +995,47 @@ export function createMarginProjection({
       const attention = threadAttention(thread);
       const onUser = attention?.kind === "needs_user";
       const unread = thread.unread.length;
-      add(groups, target, {
-        kind: "comment",
-        // One row for one thread, across the log answering for it. A thread the
-        // user just opened is known by its attempt until the log names it, and a row
-        // whose identity changed there would be rebuilt — taking with it the reply box
-        // the send had just put them in.
-        id: marginThreadItem(thread),
-        text: labelWords(
-          thread.root.text || anchorLabel(thread.anchor, thread.root.about),
-        ),
-        thread,
-        // The Thread record already combines server attention with the local workflow
-        // overlay. Margin and Page Map carry that reading rather than deriving another
-        // answer from raw turn or workflow fields.
-        userAttention: onUser
-          ? {
-              label: attention.label,
-              reason: thread.attention?.reason ?? "workflow",
-            }
-          : null,
-        unread,
-        // Page Map lists each thread on its own row, so the word goes on the row
-        // rather than on an aggregate.
-        ...(onUser
-          ? { mapContext: attention.label }
-          : unread
-            ? { mapContext: `${unread} unread` }
-            : {}),
-        // Work decorates the thread control; it never replaces the control's
-        // comment face or its disclosure action.
-        workflowReceipt: onUser ? null : attention?.workflow,
-        activate: () => showThread(id),
-      });
+      const key = threadKey(thread);
+      const point = pointOf(key, target);
+      const pointed = point ? { key, element: point } : null;
+      add(
+        groups,
+        target,
+        {
+          kind: "comment",
+          // One row for one thread, across the log answering for it. A thread the
+          // user just opened is known by its attempt until the log names it, and a row
+          // whose identity changed there would be rebuilt — taking with it the reply box
+          // the send had just put them in.
+          id: marginThreadItem(thread),
+          text: labelWords(
+            thread.root.text || anchorLabel(thread.anchor, thread.root.about),
+          ),
+          thread,
+          // The Thread record already combines server attention with the local workflow
+          // overlay. Margin and Page Map carry that reading rather than deriving another
+          // answer from raw turn or workflow fields.
+          userAttention: onUser
+            ? {
+                label: attention.label,
+                reason: thread.attention?.reason ?? "workflow",
+              }
+            : null,
+          unread,
+          // Page Map lists each thread on its own row, so the word goes on the row
+          // rather than on an aggregate.
+          ...(onUser
+            ? { mapContext: attention.label }
+            : unread
+              ? { mapContext: `${unread} unread` }
+              : {}),
+          // Work decorates the thread control; it never replaces the control's
+          // comment face or its disclosure action.
+          workflowReceipt: onUser ? null : attention?.workflow,
+          activate: () => showThread(id),
+        },
+        pointed,
+      );
     }
 
     const asks = openAsks();
@@ -1198,12 +1223,16 @@ export function createMarginProjection({
       .filter((group) => !group.subject)
       .map((group) => group.target);
     targets.clear();
+    pointKeys.clear();
     return marginInventory(
       collected
-        .sort((left, right) => comesBefore(left.target, right.target))
+        .sort((left, right) =>
+          comesBefore(left.point ?? left.target, right.point ?? right.target),
+        )
         .map((group) => {
           const subject = outlineSubjectFor(group.target, subjects, outline);
           targets.set(group.key, group.target);
+          if (group.pointKey !== null) pointKeys.set(group.key, group.pointKey);
           return Object.freeze({
             key: group.key,
             targetId: group.target.id,
@@ -1239,7 +1268,7 @@ export function createMarginProjection({
   function markerOptions(row, order) {
     return {
       anchor: () => targetFor(row.lfEntry),
-      point: () => committedPoint(targetFor(row.lfEntry)),
+      point: () => entryPoint(row.lfEntry),
       order,
       priority: 10,
       move: (into) => moveHost(row, into),
@@ -1384,13 +1413,12 @@ export function createMarginProjection({
   // anything paints, so the cluster renders once, already open, rather than shut and
   // then opened in the same task.
   function openMarginEntryOptions(target, owner) {
-    const entry = collectEntries().find((candidate) => targetFor(candidate) === target);
-    if (
-      !entry ||
-      !entryHasMarginHost(entry) ||
-      !entry.offers.some((offered) => offered.key === owner)
-    )
-      return false;
+    const entry = collectEntries().find(
+      (candidate) =>
+        targetFor(candidate) === target &&
+        candidate.offers.some((offered) => offered.key === owner),
+    );
+    if (!entry || !entryHasMarginHost(entry)) return false;
     if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
       renderMargin.refresh();
       const options = hosts.get(entry.key)?.options;
@@ -1422,7 +1450,7 @@ export function createMarginProjection({
     const item = closestAcross(control, "[data-lf-margin-for]");
     const entry = item?.lfEntry;
     if (!targetFor(entry) || !control) return false;
-    scrollToElement(targetFor(entry), undefined, "nearest");
+    scrollToElement(entryPoint(entry) ?? targetFor(entry), undefined, "nearest");
     // Arrive before activation, then use the exact visible margin entry's own press. A generated
     // route never chooses among the cluster's actions on the user's behalf.
     focusForNavigation(control);
@@ -2712,13 +2740,13 @@ export function createMarginProjection({
   // compact projection. An open disclosure continues to use aria-expanded instead.
   function paintSelectedMarginEntries(selections) {
     const selected = new Set();
-    for (const selection of selections) {
-      const entry = pageInventory.find(
-        (candidate) => targetFor(candidate) === selection.target,
-      );
-      const control = entry && readingMarginEntry(entry, selection.kind);
-      if (control?.isConnected) selected.add(control);
-    }
+    // A target's own row and each pointed thread's row (groupFor) are all about it.
+    for (const selection of selections)
+      for (const entry of pageInventory) {
+        if (targetFor(entry) !== selection.target) continue;
+        const control = readingMarginEntry(entry, selection.kind);
+        if (control?.isConnected) selected.add(control);
+      }
     for (const control of selectedReadingCarriers)
       if (!selected.has(control)) syncMarginEntrySelection(control, false);
     for (const control of selected) syncMarginEntrySelection(control, true);
@@ -2758,6 +2786,13 @@ export function createMarginProjection({
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
   // target, such as a comment note, arrives at that target as its own content does.
+  // A target with pointed threads (groupFor) has a row for each: standing inside a
+  // pointed row takes that thread, and standing elsewhere on the target takes its own
+  // row, or a pointed one where it has none.
+  const pointRank = (entry, place) => {
+    const point = entryPoint(entry);
+    return !point ? 1 : under(place, point) ? 2 : 0;
+  };
   const threadEntryAt = (node) => {
     const place = placeOf(node);
     let standing = null;
@@ -2765,7 +2800,14 @@ export function createMarginProjection({
       const target = targetFor(entry);
       if (!target || !threadReading(entry) || !under(place, target)) continue;
       if (seatedOnPage(threadIdOf(entry))) continue;
-      if (!standing || under(target, targetFor(standing))) standing = entry;
+      const held = standing && targetFor(standing);
+      if (
+        !standing ||
+        (target === held
+          ? pointRank(entry, place) >= pointRank(standing, place)
+          : under(target, held))
+      )
+        standing = entry;
     }
     return standing;
   };

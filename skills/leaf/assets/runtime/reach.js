@@ -6,6 +6,7 @@ import { sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 // Anything a mouse can scroll, a keyboard can reach. A `pre` too wide for the column
 // scrolls, and a user working from the keyboard had no way at all to the half of the
@@ -237,7 +238,7 @@ function paintSidewaysReach(el) {
   const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
   const raw = Math.abs(el.scrollLeft);
   const position = Math.min(maximum, Math.max(0, raw));
-  if (scrolls) el.setAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
+  if (scrolls) keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
   else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolls && position > 1);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreAfter, scrolls && position < maximum - 1);

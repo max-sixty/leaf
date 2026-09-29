@@ -22,6 +22,7 @@ import {
   commandScope,
   commands,
   FOLD_MS,
+  keeps,
   marginEntry,
   motion,
   once,
@@ -531,7 +532,7 @@ customElements.define(
       this.#deciding = null;
       this.removeAttribute("aria-busy");
       this.#presentedOutcome = outcome;
-      this.dataset.lfState = outcome;
+      keeps(this, "data-lf-state", outcome);
       // The retired slot's marker is the layer's rendering of that state, and the
       // theme's one hide rule reads it. The accepted response replays through this
       // method on the gesture's own tab, so it hides the slot in the frame the

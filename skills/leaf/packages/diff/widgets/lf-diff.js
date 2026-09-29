@@ -10,6 +10,8 @@ import {
   focusDestination,
   inChrome,
   commands,
+  keeps,
+  keepsText,
   langForPath,
   layoutChanged,
   loadDeferred,
@@ -499,7 +501,7 @@ customElements.define(
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
       // the module answers it once with the layer's own predicate and paints the answer.
-      if (!inChrome(this)) this.dataset.lfDiffPinned = "";
+      this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
       if (!this.reviewKeys) {
         this.reviewKeys = commands(
           this,
@@ -663,7 +665,7 @@ customElements.define(
             () => null,
             { nested: true, snapshot },
           );
-          this.classList.remove("lf-rendered");
+          this.classList.toggle("lf-rendered", false);
           return;
         }
         if (bound && typeof source === "object") {
@@ -719,7 +721,7 @@ customElements.define(
               { nested: true, labelOf: datumLabel, snapshot },
             );
           this.declareHeadRoom();
-          this.classList.add("lf-rendered");
+          this.classList.toggle("lf-rendered", true);
         } finally {
           resume();
         }
@@ -729,7 +731,7 @@ customElements.define(
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;
-        this.classList.remove("lf-rendered");
+        this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
         if (bound)
@@ -821,7 +823,7 @@ customElements.define(
         this.stageManifest();
         this.projectManifest();
         this.declareHeadRoom();
-        this.classList.add("lf-rendered");
+        this.classList.toggle("lf-rendered", true);
       } finally {
         resume();
       }
@@ -1098,7 +1100,7 @@ customElements.define(
         return null;
       }
       if (!entry.details || entry.loaded || entry.failed) return null;
-      entry.details.open = true;
+      entry.details.toggleAttribute("open", true);
       return this.loadManifestEntry(entry);
     }
 
@@ -1169,11 +1171,8 @@ customElements.define(
     paintReviewAvailability = () => {
       const available = this.controller.read().actions.review?.available ?? false;
       for (const entry of this.fileEntries ?? [])
-        if (
-          entry.review instanceof HTMLButtonElement &&
-          entry.review.disabled !== !available
-        )
-          entry.review.disabled = !available;
+        if (entry.review instanceof HTMLButtonElement)
+          entry.review.toggleAttribute("disabled", !available);
     };
 
     setReviewed(entry, reviewed, { repaint = true } = {}) {
@@ -1181,8 +1180,9 @@ customElements.define(
       entry.reviewed = reviewed;
       if (!entry.review) return;
       entry.node.toggleAttribute("data-reviewed", reviewed);
-      entry.review.setAttribute("aria-pressed", String(reviewed));
-      entry.review.setAttribute(
+      keeps(entry.review, "aria-pressed", reviewed);
+      keeps(
+        entry.review,
         "aria-label",
         `Mark ${entry.record.path} ${reviewed ? "unreviewed" : "reviewed"}`,
       );
@@ -1221,11 +1221,13 @@ customElements.define(
       const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
       const total = this.fileEntries.length;
       const suffix = shown.length === total ? "" : ` · ${shown.length} matching`;
-      this.diffTools.progress.textContent = this.reviewing()
-        ? `${reviewed} of ${total} reviewed${suffix}`
-        : `${total} file${total === 1 ? "" : "s"}${suffix}`;
-      if (this.diffTools.next)
-        this.diffTools.next.disabled = this.nextReviewEntry() === null;
+      keepsText(
+        this.diffTools.progress,
+        this.reviewing()
+          ? `${reviewed} of ${total} reviewed${suffix}`
+          : `${total} file${total === 1 ? "" : "s"}${suffix}`,
+      );
+      this.diffTools.next?.toggleAttribute("disabled", this.nextReviewEntry() === null);
       paintKeys();
     }
 
@@ -1314,7 +1316,7 @@ customElements.define(
 
     async openEntry(entry) {
       if (!entry.details) return;
-      entry.details.open = true;
+      entry.details.toggleAttribute("open", true);
       await this.loadManifestEntry(entry);
     }
 
@@ -1384,7 +1386,7 @@ customElements.define(
     // change marker and first characters under them. Each box between the target and
     // the shadow root keeps the sideways place the user left it at.
     land(box, node = box) {
-      if (node.tabIndex < 0) node.tabIndex = -1;
+      if (node.tabIndex < 0) keeps(node, "tabindex", -1);
       const sideways = [];
       for (let el = box.parentElement; el; el = el.parentElement)
         if (el.scrollWidth > el.clientWidth) sideways.push([el, el.scrollLeft]);
@@ -1428,7 +1430,7 @@ customElements.define(
       if (!entry) return;
       this.reviewCursor = entry;
       if (entry.details) {
-        entry.details.open = true;
+        entry.details.toggleAttribute("open", true);
         await this.loadManifestEntry(entry);
         if (!mayLand()) return;
       }

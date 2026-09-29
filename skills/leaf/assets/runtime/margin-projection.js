@@ -126,7 +126,8 @@ import {
   letGo,
   placeChrome,
 } from "./focus.js";
-import { closeControl, el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { closeControl, el, offer } from "./widget-elements.js";
+import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -662,7 +663,7 @@ export function createMarginProjection({
   };
   // A scroll moves the held edge and with it the room to the boundary, so the cap the
   // geometry asks for moves with every scroll, and every write during a scroll costs a
-  // repaint (widget-elements.js, `keeps`) while the card's far edge, written from the
+  // repaint (keeps.js) while the card's far edge, written from the
   // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
   // cap the card wears: a card short of both caps renders the same under either, and a
   // card at its cap takes a new one only once its contents change, when a turn arrives
@@ -2190,11 +2191,11 @@ export function createMarginProjection({
       : null;
     const title = labelWords(targetHeading || quoted || entry.title);
     keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
-    previewNav.hidden = threadItems.length < 2;
+    keepsHidden(previewNav, threadItems.length < 2);
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-    previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
-    previewPrevious.disabled = selectedIndex === 0;
-    previewNext.disabled = selectedIndex === threadItems.length - 1;
+    keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
+    previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
+    previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
     setChildren(previewList, selected ? [previewItemNode(selected)] : []);
     // The list holds the one thread the card shows, so a user whose place in a thread
     // the rebuild took lands on that thread; a step button it hid hands them to Close.
@@ -2266,7 +2267,7 @@ export function createMarginProjection({
         },
       },
     );
-    node.dataset.lfMarginEntry = item.id;
+    keeps(node, "data-lf-margin-entry", item.id);
     node.lfMarginItem = item.id;
     return node;
   }
@@ -2312,7 +2313,7 @@ export function createMarginProjection({
     previewEntry = entry;
     transferThreadCard(button);
     buildThreadCard(entry, threadItem);
-    preview.hidden = false;
+    keepsHidden(preview, false);
     const positioned = placedThreadPreview();
     refreshHighlight();
     for (const row of rows.values())

@@ -6,6 +6,7 @@ import {
   bodyText,
   once,
   failSoft,
+  keeps,
   registerVisualParts,
   widgetController,
 } from "/runtime/widget-api.js";
@@ -85,7 +86,7 @@ customElements.define(
         // the widget instead of scaling its labels below legibility.
         const natural = drawn.viewBox.baseVal.width;
         if (natural) {
-          drawn.setAttribute("width", natural);
+          keeps(drawn, "width", natural);
           drawn.style.maxWidth = "";
         }
 

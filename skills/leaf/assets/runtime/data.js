@@ -17,6 +17,7 @@ import {
   whenApplicationRegionsPresented,
 } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
 import { layerHeaders, reportPageError, sameDelivery } from "./layer-client.js";
@@ -53,7 +54,7 @@ export async function notifyDataSubscribers() {
   // later state read into the same page-wide failure. A data-only page therefore
   // cannot be read while an asynchronous projection is still pending.
   if (version !== null && runtime.data.version === version)
-    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataVersion, version);
+    setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
 
 // A source value remains the server snapshot's to own. Subscribers name one input on

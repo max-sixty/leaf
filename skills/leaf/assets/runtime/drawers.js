@@ -15,6 +15,7 @@ import { rowWalk } from "./walk-position.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createAskDrawerList } from "./asks/drawer-list.js";
+import { keeps } from "./keeps.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The leaves drawer covers the document
 // because its rows leave the page. The asks drawer leaves the page live beside it, because
@@ -158,17 +159,17 @@ export function createDrawers({
       show({ phase }) {
         dismissBannerControls();
         closePreview();
-        btn.setAttribute("aria-expanded", "true");
+        keeps(btn, "aria-expanded", "true");
         // Filled before it is shown, so the drawer is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
         // is the mirror of it, below: emptied once it is hidden, never before, or the
         // user watches the list they just closed blank out and an empty card slide away.
         paint?.();
-        panel.classList.add("open");
+        panel.classList.toggle("open", true);
         if (phase === "gesture") slide(panel, "left", "in");
       },
       hide({ returnFocus }) {
-        btn.setAttribute("aria-expanded", "false");
+        keeps(btn, "aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
         // Before the slide, which makes the drawer inert and would drop focus to body.
         if (returnFocus && panel.contains(document.activeElement))
@@ -178,7 +179,7 @@ export function createDrawers({
         const out = slide(panel, "left", "out");
         const hide = () => {
           if (drawerIsOpen(key)) return; // reopened mid-slide; it stays up, list and all
-          panel.classList.remove("open");
+          panel.classList.toggle("open", false);
           paint?.();
         };
         if (out) out.finished.then(hide, () => {});

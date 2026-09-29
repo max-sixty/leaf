@@ -29,7 +29,8 @@ import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, keepsText, offer } from "./widget-elements.js";
+import { closeControl, el, offer } from "./widget-elements.js";
+import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import {
   BANNER_CONTROL_RANK,
@@ -311,10 +312,13 @@ export function createPageMapDialog({
     const shown = groups.filter(
       (group) => !query || group.search.includes(query),
     ).length;
-    dialogEmpty.textContent = query
-      ? "No matching actions, statuses, or locations"
-      : "No margin controls, status indicators, or locations yet";
-    dialogEmpty.hidden = shown !== 0;
+    keepsText(
+      dialogEmpty,
+      query
+        ? "No matching actions, statuses, or locations"
+        : "No margin controls, status indicators, or locations yet",
+    );
+    keepsHidden(dialogEmpty, shown !== 0);
     place.finish(hold);
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);

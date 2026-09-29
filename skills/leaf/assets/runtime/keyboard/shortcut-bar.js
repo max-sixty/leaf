@@ -65,7 +65,8 @@ import {
   progressStates,
   rowSteps,
 } from "./presentation.js";
-import { el, keeps, keepsHidden } from "../widget-elements.js";
+import { el } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
 import {

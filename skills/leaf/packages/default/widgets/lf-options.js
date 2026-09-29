@@ -104,6 +104,7 @@ import {
   threadInput,
   html,
   inChrome,
+  keeps,
   commands,
   landInThread,
   offer,
@@ -161,31 +162,37 @@ class OptionControl extends LitElement {
     return this;
   }
 
+  // The host is not in the template, so its attributes are written here, each only
+  // where it moved.
   willUpdate() {
     this.classList.toggle("lf-ui", this.pressable);
-    this.dataset.lfGen = "1";
+    keeps(this, "data-lf-gen", "1");
     this.toggleAttribute("data-lf-said", false);
     this.toggleAttribute("data-lf-echo", false);
     if (!this.pressable) {
-      this.setAttribute("role", "img");
-      this.setAttribute("aria-label", `${SELECTED}: ${this.label}`);
-      this.removeAttribute("aria-checked");
-      this.removeAttribute("aria-disabled");
-      this.removeAttribute("data-lf-offer");
-      this.removeAttribute("data-lf-selectable-offer");
-      this.removeAttribute("tabindex");
+      keeps(this, "role", "img");
+      keeps(this, "aria-label", `${SELECTED}: ${this.label}`);
+      for (const name of [
+        "aria-checked",
+        "aria-disabled",
+        "data-lf-offer",
+        "data-lf-selectable-offer",
+        "tabindex",
+      ])
+        this.removeAttribute(name);
       return;
     }
-    this.setAttribute("role", "checkbox");
-    this.setAttribute(
+    keeps(this, "role", "checkbox");
+    keeps(
+      this,
       "aria-label",
       `${this.word}: ${this.label} — option ${this.position} of ${this.total}`,
     );
-    this.setAttribute("aria-checked", String(this.selected));
-    this.setAttribute("aria-disabled", String(!this.available));
-    this.dataset.lfOffer = "checkbox";
-    this.dataset.lfSelectableOffer = "";
-    this.tabIndex = this.available ? 0 : -1;
+    keeps(this, "aria-checked", this.selected);
+    keeps(this, "aria-disabled", !this.available);
+    keeps(this, "data-lf-offer", "checkbox");
+    keeps(this, "data-lf-selectable-offer", "");
+    keeps(this, "tabindex", this.available ? 0 : -1);
   }
 
   render() {
@@ -222,7 +229,7 @@ class DoneControl extends LitElement {
   }
 
   updated() {
-    if (this.busy) this.control?.setAttribute("aria-busy", "true");
+    if (this.busy) keeps(this.control, "aria-busy", "true");
     else this.control?.removeAttribute("aria-busy");
   }
 

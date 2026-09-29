@@ -280,10 +280,12 @@ geometry without them:
   nearest room beside its target that covers none, such as the free end of a line or
   the gap below it. Where its target leaves no such room, it may take the empty end of
   a neighbouring block's line, such as beside a short heading above it, unless that
-  block paints its box (a fill, border or shadow, as a card or table does). A pin is
-  26px with a mouse and 44px under a finger, and where no
-  such room exists, as for a pair of them in a phone's full lines, it stays in the
-  corner over the block's words.
+  block paints its box (a fill, border or shadow, as a card or table does). Where none
+  of that room lies within reach, it reaches one line further out, past a line of words
+  but never past a painted block or nearer another pin's target, such as to the end of
+  the section's heading above a full first line. A pin is 26px with a mouse and 44px
+  under a finger, and where no such room exists, as for a pair of them in a phone's
+  full lines deep in a paragraph, it stays in the corner over the block's words.
 - A marker on a figure grown past the rail stands on the figure as a pin, at the
   corner of the part it names when it names one.
 - The user hides every pin and passage mark with `o`, or with Hide annotations in the

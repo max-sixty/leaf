@@ -3419,7 +3419,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(draft_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
-    # On a narrow screen each item stands near its target in room where it finds some.
+    # On a narrow screen each item stands near its target in room where it finds some:
+    # within 12px, or a line of its words further out where none lies nearer, as the
+    # suggestion's pin does at the end of the heading above its paragraph.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
@@ -3431,10 +3433,15 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         stands = item.evaluate(
             """item => {
               const row = item.getBoundingClientRect();
-              const box = item.lfTarget.getBoundingClientRect();
+              const target = item.lfTarget;
+              const box = target.getBoundingClientRect();
+              const block = getComputedStyle(target).display.startsWith('inline')
+                ? target.parentElement : target;
+              const line = parseFloat(getComputedStyle(block).lineHeight) || 0;
               return {near: Math.hypot(
                         Math.max(0, row.left - box.right, box.left - row.right),
-                        Math.max(0, row.top - box.bottom, box.top - row.bottom)) <= 12,
+                        Math.max(0, row.top - box.bottom, box.top - row.bottom))
+                        <= 12 + line,
                       inPage: row.left >= 0 && row.right <= innerWidth};
             }"""
         )
@@ -8428,6 +8435,46 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
     )
     # Within the 12px `pinSpot` reaches from its target.
     assert apart <= 12, (pair, reading["parts"])
+
+
+def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, serve):
+    """On release-notes at 390px under a finger, the API section's deletion starts on
+    its paragraph's second line, below a first line full of words, and ends where a
+    96px Accept/Reject pair has no room before the next block. No room lies within
+    12px of the run, so the pair reaches one line further out, to the empty end of the
+    section's heading, rather than covering the words it decides."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = page.evaluate(PIN_READING, "rn-sug-dry")
+    heading, line = page.evaluate(
+        """() => {
+          const {left, top, right, bottom} =
+            document.querySelector('#rn-api-section > h2').getBoundingClientRect();
+          return [{left, top, right, bottom},
+            parseFloat(getComputedStyle(document.getElementById('rn-api-why')).lineHeight)];
+        }"""
+    )
+    # Accept and Reject.
+    assert len(reading["entries"]) == 2, reading["entries"]
+    for entry in reading["entries"]:
+        covered = [word for word in reading["words"] if _meets(word, entry)]
+        assert not covered, (entry, covered)
+        assert _meets(entry, heading), (entry, heading)
+    # The pair stands above the run, no further out than `pinSpot`'s 12px and one line
+    # of the paragraph.
+    apart = min(part["top"] for part in reading["parts"]) - max(
+        entry["bottom"] for entry in reading["entries"]
+    )
+    assert 12 < apart <= 12 + line, (reading["entries"], reading["parts"], line)
 
 
 def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, serve):

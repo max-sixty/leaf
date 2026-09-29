@@ -391,10 +391,12 @@ function blockOf(target) {
 // box's: a card, a callout, a framed table or code block. Every other block that paints
 // nothing is a `neighbour`: it covers only by its words, so the empty end of a short
 // heading or line beside the target is room, but a pin there can read as that block's,
-// and `pinSpot` takes it only where the target has no room of its own. Inside the
-// target's own block nothing counts whole, since that is the pin's own. A box that holds
-// the target is not one to avoid, since the pin stands on it. The walk leaves any
-// subtree whose box misses the band, so a long page costs what lies near the target.
+// and `pinSpot` takes it only where the target has no room of its own. Everything that
+// counts whole and is no control is also a `wall`, which a pin reaching past a line of
+// words may not pass on its way to its target. Inside the target's own block nothing
+// counts whole, since that is the pin's own. A box that holds the target is not one to
+// avoid, since the pin stands on it. The walk leaves any subtree whose box misses the
+// band, so a long page costs what lies near the target.
 //
 // The controls come back apart as well, since packing keeps the pin off them, a pin left
 // at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
@@ -427,6 +429,7 @@ function paintsItsBox(style) {
 
 function coverIn(root, band, target, block, bands, stop) {
   const cover = [];
+  const walls = [];
   const neighbours = [];
   const controls = [];
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
@@ -455,7 +458,7 @@ function coverIn(root, band, target, block, bands, stop) {
       ) {
         const shown = clippedBand(node, box, bands, stop);
         if (shown) cover.push(shown);
-        if (shown && control) controls.push(shown);
+        if (shown) (control ? controls : walls).push(shown);
         continue;
       }
       if (node instanceof SVGElement) continue;
@@ -463,6 +466,7 @@ function coverIn(root, band, target, block, bands, stop) {
         const style = getComputedStyle(node);
         if (paintsItsBox(style)) {
           cover.push(edges(box));
+          walls.push(edges(box));
           continue;
         }
         if (!style.display.startsWith("inline") && style.display !== "contents")
@@ -479,7 +483,7 @@ function coverIn(root, band, target, block, bands, stop) {
     }
   };
   visit(root);
-  return { cover, neighbours, controls };
+  return { cover, walls, neighbours, controls };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -496,8 +500,16 @@ function contentBox(scroller) {
   };
 }
 
-// How far from its target's nearest part a pin may stand when its corner covers words.
+// How far from its target's nearest part a pin stands and still touches it; one line of
+// the target's words further out is the furthest it may reach (`pinSpot`).
 const REACH = 12;
+
+// The height of one line of a block's words: its `line-height`, which `normal` leaves to
+// the font, near 1.2 of its size.
+function lineOf(block) {
+  const { lineHeight, fontSize } = getComputedStyle(block);
+  return lineHeight === "normal" ? 1.2 * parseFloat(fontSize) : parseFloat(lineHeight);
+}
 
 // Each pin's seat, measured from the box it anchors to, as the last pass took it: a pin
 // under the pointer or holding focus keeps it (`seatRows`), and a scroll inside a pane
@@ -532,7 +544,9 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
     const parts = target.getRootNode() === document ? partsOf(point ?? target) : [];
-    const around = height + REACH + GAP;
+    // A pin reaching past a line of words reads the page a line further out (`pinSpot`).
+    const line = lineOf(blockOf(target));
+    const around = height + REACH + line + GAP;
     const band = {
       top: Math.min(home.top, ...parts.map((part) => part.top)) - around,
       bottom: Math.max(home.bottom, ...parts.map((part) => part.bottom)) + around,
@@ -541,7 +555,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
-    const { cover, neighbours, controls } = coverIn(
+    const { cover, walls, neighbours, controls } = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
@@ -570,7 +584,9 @@ function seatPins(standing, { bands, shell, pinInset }) {
       held: entry.held,
       parts,
       cover,
+      walls,
       neighbours,
+      line,
       seat: inline
         ? {
             left: end.right + GAP,

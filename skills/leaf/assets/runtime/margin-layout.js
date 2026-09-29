@@ -528,9 +528,10 @@ function seatPins(standing, { bands, shell, pinInset }) {
             bottom: box.top + held.top + height,
           }
         : null;
-    // A pin level with a pointed row keeps to that row, as a pin keeps to its target.
-    const about = point ?? target;
-    const parts = about.getRootNode() === document ? partsOf(about) : [];
+    // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
+    // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
+    // since the walk below reads the room around the target, which is the document's.
+    const parts = target.getRootNode() === document ? partsOf(point ?? target) : [];
     const around = height + REACH + GAP;
     const band = {
       top: Math.min(home.top, ...parts.map((part) => part.top)) - around,

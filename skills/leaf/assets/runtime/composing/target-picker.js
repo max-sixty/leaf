@@ -32,6 +32,7 @@ import {
   progressStates,
 } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
+import { keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -210,7 +211,7 @@ export function createTargetPicker({
     matches = [];
     active = -1;
     pageSearchInput.value = "";
-    pageSearchSurface.hidden = true;
+    keepsHidden(pageSearchSurface, true);
     if (on && withHints) {
       const found = hints.arm();
       announce(
@@ -228,7 +229,7 @@ export function createTargetPicker({
 
   function setPageSearch(on) {
     pageSearchOpen = on;
-    pageSearchSurface.hidden = !on;
+    keepsHidden(pageSearchSurface, !on);
     if (on) {
       pageSearchInput.focus({ preventScroll: true });
       presentSearchStatus();

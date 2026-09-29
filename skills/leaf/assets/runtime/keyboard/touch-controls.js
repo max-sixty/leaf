@@ -19,7 +19,8 @@ import {
   showBannerControl,
 } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
-import { el, keepsText } from "../widget-elements.js";
+import { el } from "../widget-elements.js";
+import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
 import { live, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";

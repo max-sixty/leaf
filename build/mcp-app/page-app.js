@@ -64,8 +64,21 @@ function errorText(error) {
   return error?.message || error?.data?.message || String(error);
 }
 
+// A write that restates what a node already says still reaches everything watching the
+// document, so each update writes only what changed. A flag or a class goes through
+// `toggleAttribute` or `classList.toggle(name, force)`, which keep that rule themselves;
+// an attribute's value and a node's words go through these, as a page's do through
+// skills/leaf/assets/runtime/keeps.js, which this standalone resource cannot import.
+function keeps(node, name, value) {
+  if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+}
+
+function keepsText(node, text) {
+  if (node.textContent !== text) node.textContent = text;
+}
+
 function showStatus(text, { error = false } = {}) {
-  statusText.textContent = text;
+  keepsText(statusText, text);
   status.classList.toggle("show", Boolean(text));
   status.classList.toggle("error", error);
 }
@@ -76,11 +89,17 @@ function supportsServerTools() {
 
 function syncControls() {
   const canCall = supportsServerTools();
-  refresh.disabled = busy || !canCall || !current;
-  commentPage.disabled = busy || !canCall || currentMode !== "snapshot";
-  snapshotButton.disabled = busy || !canCall || currentMode !== "page";
-  send.disabled = busy || !canCall;
-  fullscreen.disabled = busy;
+  refresh.toggleAttribute("disabled", busy || !canCall || !current);
+  commentPage.toggleAttribute(
+    "disabled",
+    busy || !canCall || currentMode !== "snapshot",
+  );
+  snapshotButton.toggleAttribute(
+    "disabled",
+    busy || !canCall || currentMode !== "page",
+  );
+  send.toggleAttribute("disabled", busy || !canCall);
+  fullscreen.toggleAttribute("disabled", busy);
 }
 
 function setBusy(value) {
@@ -224,9 +243,8 @@ function cleanDocument(html) {
 function resetComposer() {
   selection = null;
   comment.value = "";
-  quote.textContent = "";
-  composer.classList.remove("open");
-  sizeComment();
+  keepsText(quote, "");
+  composer.classList.toggle("open", false);
 }
 
 function clearReadyTimer() {
@@ -236,8 +254,8 @@ function clearReadyTimer() {
 
 function blankPageFrame() {
   clearReadyTimer();
-  frame.hidden = true;
-  frame.src = "about:blank";
+  frame.toggleAttribute("hidden", true);
+  if (frame.src !== "about:blank") frame.src = "about:blank";
   readyUrl = null;
 }
 
@@ -262,7 +280,7 @@ function frameOriginApproved(url) {
 async function showSnapshotFallback(state, message) {
   if (current !== state || currentMode !== "page") return;
   if (!supportsServerTools()) {
-    pageLoading.textContent = "The complete page is unavailable in this host.";
+    keepsText(pageLoading, "The complete page is unavailable in this host.");
     showStatus("Use Open in browser for the full interface.", { error: true });
     return;
   }
@@ -271,7 +289,7 @@ async function showSnapshotFallback(state, message) {
     await callTool("leaf_snapshot_refresh", { page: state.page });
     showStatus(message);
   } catch (error) {
-    pageLoading.textContent = "The complete page is unavailable in this host.";
+    keepsText(pageLoading, "The complete page is unavailable in this host.");
     showStatus(`Its snapshot also failed: ${errorText(error)}`, { error: true });
   } finally {
     setBusy(false);
@@ -300,19 +318,22 @@ function renderPage(state) {
     inlineUrl: state.inline_url,
     browserUrl: state.browser_url,
   };
-  shell.classList.add("page-mode");
-  surface.classList.add("page-surface");
-  title.textContent = state.title || "Untitled page";
-  meta.textContent = `Complete page · ${state.active?.label ?? "no revision"} · event ${state.event_seq}`;
-  commentPage.hidden = true;
-  snapshotButton.hidden = false;
-  browser.textContent = "Open in browser";
-  browser.title = "Open the complete Leaf page outside this attachment";
-  browser.disabled = !(state.browser_url || state.inline_url);
-  pageHost.hidden = true;
-  pageLoading.hidden = false;
-  pageLoading.textContent = "Opening the complete page…";
-  frame.hidden = true;
+  shell.classList.toggle("page-mode", true);
+  surface.classList.toggle("page-surface", true);
+  keepsText(title, state.title || "Untitled page");
+  keepsText(
+    meta,
+    `Complete page · ${state.active?.label ?? "no revision"} · event ${state.event_seq}`,
+  );
+  commentPage.toggleAttribute("hidden", true);
+  snapshotButton.toggleAttribute("hidden", false);
+  keepsText(browser, "Open in browser");
+  keeps(browser, "title", "Open the complete Leaf page outside this attachment");
+  browser.toggleAttribute("disabled", !(state.browser_url || state.inline_url));
+  pageHost.toggleAttribute("hidden", true);
+  pageLoading.toggleAttribute("hidden", false);
+  keepsText(pageLoading, "Opening the complete page…");
+  frame.toggleAttribute("hidden", true);
   shadow.replaceChildren();
   resetComposer();
   const next = safePageUrl(state.inline_url);
@@ -332,8 +353,8 @@ function renderPage(state) {
   if (frame.src !== next) frame.src = next;
   if (readyUrl === next) {
     clearReadyTimer();
-    pageLoading.hidden = true;
-    frame.hidden = false;
+    pageLoading.toggleAttribute("hidden", true);
+    frame.toggleAttribute("hidden", false);
     showStatus("Complete Leaf page ready.");
   } else {
     showStatus(
@@ -353,18 +374,21 @@ function renderSnapshot(state) {
     state.url || fullRoute?.browserUrl || fullRoute?.inlineUrl || null;
   current = { ...state, ...(fallbackUrl && { url: fallbackUrl }) };
   currentMode = "snapshot";
-  shell.classList.remove("page-mode");
-  surface.classList.remove("page-surface");
-  title.textContent = state.title || "Leaf review";
-  meta.textContent = `Authored snapshot · comments only · r${state.revision} · event ${state.eventSeq}`;
-  commentPage.hidden = false;
-  snapshotButton.hidden = true;
-  browser.textContent = "Full page";
-  browser.title = "Open the full Leaf runtime for active controls";
-  browser.disabled = false;
-  pageLoading.hidden = true;
+  shell.classList.toggle("page-mode", false);
+  surface.classList.toggle("page-surface", false);
+  keepsText(title, state.title || "Leaf review");
+  keepsText(
+    meta,
+    `Authored snapshot · comments only · r${state.revision} · event ${state.eventSeq}`,
+  );
+  commentPage.toggleAttribute("hidden", false);
+  snapshotButton.toggleAttribute("hidden", true);
+  keepsText(browser, "Full page");
+  keeps(browser, "title", "Open the full Leaf runtime for active controls");
+  browser.toggleAttribute("disabled", false);
+  pageLoading.toggleAttribute("hidden", true);
   blankPageFrame();
-  pageHost.hidden = false;
+  pageHost.toggleAttribute("hidden", false);
   const theme = document.createElement("style");
   theme.dataset.leafTheme = "";
   theme.textContent = themeCss(state.theme);
@@ -420,11 +444,6 @@ async function callTool(name, args) {
   if (!supportsServerTools())
     throw new Error("This host cannot call Leaf tools; use Full page instead.");
   return acceptToolResult(await app.callServerTool({ name, arguments: args }));
-}
-
-function sizeComment() {
-  comment.style.height = "auto";
-  comment.style.height = `${Math.min(Math.max(comment.scrollHeight, 66), 240)}px`;
 }
 
 // The passage as the document holds it, which is not the passage the host paints. A
@@ -484,20 +503,26 @@ function captureSelection() {
 
 function openComposer(nextSelection) {
   selection = nextSelection;
-  quote.textContent = selection?.quote
-    ? `On “${selection.quote.length > 150 ? `${selection.quote.slice(0, 147)}…` : selection.quote}”`
-    : selection?.section
-      ? `On § ${selection.section}`
-      : "On this page";
-  comment.placeholder = commentHint(
+  keepsText(
+    quote,
     selection?.quote
-      ? "Comment on this passage"
+      ? `On “${selection.quote.length > 150 ? `${selection.quote.slice(0, 147)}…` : selection.quote}”`
       : selection?.section
-        ? "Comment on this item"
-        : "Comment on this page",
+        ? `On § ${selection.section}`
+        : "On this page",
   );
-  composer.classList.add("open");
-  sizeComment();
+  keeps(
+    comment,
+    "placeholder",
+    commentHint(
+      selection?.quote
+        ? "Comment on this passage"
+        : selection?.section
+          ? "Comment on this item"
+          : "Comment on this page",
+    ),
+  );
+  composer.classList.toggle("open", true);
   comment.focus();
 }
 
@@ -518,12 +543,14 @@ function applyHostContext(update) {
   }
   displayMode = hostContext.displayMode ?? displayMode;
   const modes = hostContext.availableDisplayModes || [];
-  fullscreen.hidden = !modes.includes("fullscreen") || displayMode === "fullscreen";
-  fullscreen.textContent =
-    displayMode === "fullscreen" ? "Return inline" : "Fullscreen";
+  fullscreen.toggleAttribute(
+    "hidden",
+    !modes.includes("fullscreen") || displayMode === "fullscreen",
+  );
+  keepsText(fullscreen, displayMode === "fullscreen" ? "Return inline" : "Fullscreen");
   if (currentMode === "snapshot" && hostContext.theme !== previousTheme) {
     const style = shadow.querySelector("style[data-leaf-theme]");
-    if (style) style.textContent = themeCss(current.theme);
+    if (style) keepsText(style, themeCss(current.theme));
   }
 }
 
@@ -567,7 +594,6 @@ pageHost.addEventListener("dblclick", (event) => {
 });
 
 cancel.addEventListener("click", resetComposer);
-comment.addEventListener("input", sizeComment);
 comment.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.isComposing || event.shiftKey || event.altKey)
     return;
@@ -650,8 +676,8 @@ window.addEventListener("message", (event) => {
   if (event.origin !== new URL(url).origin) return;
   readyUrl = url;
   clearReadyTimer();
-  pageLoading.hidden = true;
-  frame.hidden = false;
+  pageLoading.toggleAttribute("hidden", true);
+  frame.toggleAttribute("hidden", false);
   showStatus("Complete Leaf page ready.");
 });
 

@@ -109,7 +109,7 @@ export function slide(el, side, direction) {
   const at = running && { transform: getComputedStyle(el).transform };
   running?.cancel();
   el.toggleAttribute(LEAVING, direction === "out");
-  el.inert = direction === "out";
+  el.toggleAttribute("inert", direction === "out");
   const away = { transform: `translateX(${side === "left" ? "-100%" : "100%"})` };
   const home = { transform: "translateX(0)" };
   const played =
@@ -119,7 +119,7 @@ export function slide(el, side, direction) {
   if (!played) {
     slides.delete(el);
     el.removeAttribute(LEAVING);
-    el.inert = false;
+    el.toggleAttribute("inert", false);
     return null;
   }
   slides.set(el, played);
@@ -127,7 +127,7 @@ export function slide(el, side, direction) {
     () => {
       slides.delete(el);
       el.removeAttribute(LEAVING);
-      el.inert = false;
+      el.toggleAttribute("inert", false);
       el.dispatchEvent(new Event(SLIDE_END, { bubbles: true, composed: true }));
     },
     () => {},

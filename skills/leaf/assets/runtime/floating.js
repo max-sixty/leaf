@@ -30,7 +30,7 @@
    after a fetch. */
 
 import { afterPresentation } from "./presentation.js";
-import { keeps } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { anchorElement, anchorName } from "./anchor-names.js";
 import { shownWindow } from "./geometry.js";
 

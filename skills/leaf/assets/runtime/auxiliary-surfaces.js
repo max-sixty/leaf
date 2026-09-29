@@ -41,6 +41,7 @@ import { under } from "./shadow.js";
 import { deepFocus, tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
+import { keeps, keepsHidden } from "./keeps.js";
 
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
 let selectedKey = null;
@@ -94,12 +95,12 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     const next = new Set(background(controller));
     for (const [node, inert] of controller.suspended) {
       if (next.has(node)) continue;
-      node.inert = inert;
+      node.toggleAttribute("inert", inert);
       controller.suspended.delete(node);
     }
     for (const node of next) {
       if (!controller.suspended.has(node)) controller.suspended.set(node, node.inert);
-      node.inert = true;
+      node.toggleAttribute("inert", true);
     }
   };
 
@@ -126,11 +127,11 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     active = controller;
     syncBackground(controller);
     controller.role = controller.surface.getAttribute("role");
-    controller.surface.setAttribute("role", "dialog");
-    controller.surface.setAttribute("aria-modal", "true");
+    keeps(controller.surface, "role", "dialog");
+    keeps(controller.surface, "aria-modal", "true");
     document.documentElement.dataset.lfCoveringSurface = controller.surface.id;
     band.toggleAttribute("data-lf-over-covering", controller.underBand);
-    scrim.hidden = false;
+    keepsHidden(scrim, false);
     backgroundMutations.observe(document.body, { childList: true });
     backgroundMutations.observe(chromeRoot, { childList: true });
     focusMutations.observe(controller.surface, { childList: true, subtree: true });
@@ -143,14 +144,15 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (active !== controller) return;
     backgroundMutations.disconnect();
     focusMutations.disconnect();
-    for (const [node, inert] of controller.suspended) node.inert = inert;
+    for (const [node, inert] of controller.suspended)
+      node.toggleAttribute("inert", inert);
     controller.suspended.clear();
     if (controller.role === null) controller.surface.removeAttribute("role");
-    else controller.surface.setAttribute("role", controller.role);
+    else keeps(controller.surface, "role", controller.role);
     controller.surface.removeAttribute("aria-modal");
     delete document.documentElement.dataset.lfCoveringSurface;
     band.removeAttribute("data-lf-over-covering");
-    scrim.hidden = true;
+    keepsHidden(scrim, true);
     active = null;
   }
 

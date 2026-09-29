@@ -9,6 +9,8 @@
 import {
   indicate,
   inlineMarkdownFragment,
+  keeps,
+  keepsText,
   loadMarkdown,
   nextRender,
   offer,
@@ -322,20 +324,26 @@ customElements.define(
       this.#values = makeInput(this.#input, this.#seed);
       this.#film = trace(this.#values);
       this.#plain = plainMergeComparisons(this.#values);
-      this.shuffleBtn.disabled = this.#input !== "random";
+      this.shuffleBtn.toggleAttribute("disabled", this.#input !== "random");
       this.#t = 0;
       this.#step = -1;
-      this.scrub.max = this.#film.total;
+      keeps(this.scrub, "max", this.#film.total);
       this.momentCount.style.width = `${String(this.#film.steps.length).length}ch`;
-      this.momentTail.textContent = ` of ${this.#film.steps.length} · click to pause · Option/Alt-click to comment`;
+      keepsText(
+        this.momentTail,
+        ` of ${this.#film.steps.length} · click to pause · Option/Alt-click to comment`,
+      );
       this.#paintTimeline();
       this.#paint();
     }
 
+    // Neighbouring steps often say the same thing, and the note is rebuilt only when
+    // its words, or how Markdown renders them, changed.
     #renderNote() {
-      this.noteEl.replaceChildren(
-        inlineMarkdownFragment(this.#film.steps[this.#step].note, false),
-      );
+      const note = document.createElement("span");
+      note.append(inlineMarkdownFragment(this.#film.steps[this.#step].note, false));
+      if (note.innerHTML !== this.noteEl.innerHTML)
+        this.noteEl.replaceChildren(...note.childNodes);
     }
 
     // The timeline strip: each step's span coloured by phase, so where the time goes
@@ -373,21 +381,23 @@ customElements.define(
       const fr = frame(this.#film, this.#t);
       this.painter.paint(this.#film, fr, this.#C);
       this.scrub.value = this.#t;
-      this.playhead?.setAttribute("x", (1000 * this.#t) / this.#film.total - 1.5);
+      keeps(this.playhead, "x", (1000 * this.#t) / this.#film.total - 1.5);
       if (fr.i !== this.#step) {
         this.#step = fr.i;
         const s = fr.step;
-        this.phaseEl.textContent = PHASE_NAME[s.phase];
+        keepsText(this.phaseEl, PHASE_NAME[s.phase]);
         this.#renderNote();
         this.momentEl.dataset.part = `moment:${this.#input}:${this.#seed}:${fr.i}`;
-        this.momentCount.textContent = fr.i + 1;
-        this.dataset.phase = s.phase;
+        keepsText(this.momentCount, fr.i + 1);
+        keeps(this, "data-phase", s.phase);
         const final = s.kind === "done";
-        this.stats.textContent =
+        keepsText(
+          this.stats,
           `${s.cmp} comparisons and ${s.moves} element moves so far` +
-          (final
-            ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
-            : `, of ${this.#film.comparisons} in all.`);
+            (final
+              ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
+              : `, of ${this.#film.comparisons} in all.`),
+        );
         this.#indicate(s.line ? LINES[s.line] : null);
         this.dispatchEvent(
           new CustomEvent("sort-step", {
@@ -480,9 +490,10 @@ customElements.define(
       this.#autoPlayTimer = 0;
       this.#playing = false;
       cancelAnimationFrame(this.#raf);
-      if (this.playBtn)
-        this.playBtn.textContent =
-          this.#film && this.#t >= this.#film.total - 0.01 ? "Replay" : "Play";
+      keepsText(
+        this.playBtn,
+        this.#film && this.#t >= this.#film.total - 0.01 ? "Replay" : "Play",
+      );
     }
   },
 );

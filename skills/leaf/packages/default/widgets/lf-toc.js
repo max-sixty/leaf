@@ -280,14 +280,24 @@ customElements.define(
       this.#paint();
     }
 
+    // A row's shift moves its label and dot (a transform and an inset), never the row, so
+    // the rows are measured where they stand and each shift is written once, as fitted.
     #fitRows() {
+      this.#mapPositions = [];
+      const shifts = this.#fitLabels();
+      this.#sections.forEach(({ row }, index) => {
+        if (shifts.has(index))
+          row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
+        else row.style.removeProperty("--lf-toc-row-shift");
+      });
+    }
+
+    // Each fitted row's shift, by section index.
+    #fitLabels() {
+      const shifts = new Map();
       this.removeAttribute("data-lf-compact");
       this.removeAttribute("data-lf-outline");
-      for (const { row } of this.#sections)
-        row.style.removeProperty("--lf-toc-row-shift");
-
-      this.#mapPositions = [];
-      if (getComputedStyle(this.#rows).display !== "flex") return;
+      if (getComputedStyle(this.#rows).display !== "flex") return shifts;
       const track = this.#rows.getBoundingClientRect();
       this.#mapHeight = track.height;
 
@@ -331,7 +341,7 @@ customElements.define(
         const focused = document.activeElement;
         if (focused instanceof HTMLElement && this.#nav.contains(focused))
           focused.scrollIntoView({ block: "nearest" });
-        return;
+        return shifts;
       }
 
       let prefix = 0;
@@ -372,11 +382,11 @@ customElements.define(
         for (let at = block.start; at <= block.end; at += 1) {
           const label = layout.labels[at];
           const fitted = top + label.prefix;
-          const { row } = this.#sections[label.index];
-          row.style.setProperty("--lf-toc-row-shift", `${fitted - label.ideal}px`);
           this.#mapPositions[label.index] = fitted;
+          shifts.set(label.index, fitted - label.ideal);
         }
       }
+      return shifts;
     }
 
     #mapPosition(position) {

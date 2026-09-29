@@ -815,14 +815,15 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "widgets" / "lf-feed.js"
     module.write_text(
         module.read_text()
+        .replace("{offer,", "{keeps, keepsText, offer,")
         .replace("({value}) => {", "({value}, prior) => {")
         .replace(
             "const row = document.createElement('p');\n"
             "      row.append(value, offer('button', 'inspect', 'Inspect'));",
             """const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      link.href = value === 'Ready' ? 'https://example.com/status' : '#title';
-      link.textContent = value;
+      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, value);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';

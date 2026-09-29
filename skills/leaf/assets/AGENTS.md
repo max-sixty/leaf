@@ -159,11 +159,13 @@ lint refuses the browser's own.
 
 The browser moves what a scroll moves. A box that follows page content stands where
 CSS puts it, by an anchor, a sticky offset, or a scroll timeline, and no scroll handler
-writes its position, which would trail the scroll by a frame. Code that runs on a
-scroll, a frame, or a repeated reading writes only what changed (`widget-elements.js`,
-above `keeps`): while a highlight holds a range, Chrome repaints the whole document for
-any write, so a write per scroll event makes every page with a quoted comment judder.
-`test_a_scroll_writes_only_what_it_changes` holds both over the corpus.
+writes its position, which would trail the scroll by a frame. Every write says only
+what changed (`runtime/keeps.js`): while a highlight holds a range, Chrome repaints the
+whole document for any write, so a write per scroll event makes every page with a
+quoted comment judder. One place has one writer: two owners that each set it in turn
+rewrite it every time either paints. The browser fixture fails a write that changes
+nothing in any test (`tests/write_watch.js`), and
+`test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow

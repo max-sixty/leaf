@@ -12,6 +12,8 @@
 // One liberty: MIN_RUN is 6 rather than 32, and the short-slice path (len <= 64: plain
 // insertion sort) is not taken, so a 40-element slice shows the run and merge structure.
 
+import { keeps, keepsText } from "/runtime/widget-api.js";
+
 export const N = 40;
 export const MIN_RUN = 6;
 
@@ -577,7 +579,8 @@ export function frame(film, t) {
 }
 
 // ---------------------------------------------------------------------------------
-// Paint: frame → SVG. Colours come from the page's theme, resolved by the caller.
+// Paint: frame → SVG. Colours come from the page's theme, resolved by the caller. The
+// nodes that outlive a frame are written only where the frame changed them (`keeps`).
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
@@ -722,7 +725,7 @@ export class Painter {
     const G = (this.G = geometry(width));
     this.slot = G.laneW / this.n;
     const set = (node, attrs) => {
-      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+      for (const [k, v] of Object.entries(attrs)) keeps(node, k, v);
     };
     set(this.svg, { viewBox: `0 0 ${G.W} ${G.H}` });
     // The height is set in pixels rather than left to the viewBox's proportions, so in
@@ -763,8 +766,8 @@ export class Painter {
     const { step } = fr;
     const G = this.G;
     const w = this.slot - 3;
-    this.bg.setAttribute("fill", C.card);
-    for (const line of [this.baseV, this.baseS]) line.setAttribute("stroke", C.rule);
+    keeps(this.bg, "fill", C.card);
+    for (const line of [this.baseV, this.baseS]) keeps(line, "stroke", C.rule);
     for (const [node, text] of [
       [this.laneV, "v — the slice being sorted"],
       [
@@ -774,10 +777,10 @@ export class Painter {
           : "buf — scratch for the shorter run",
       ],
     ]) {
-      node.textContent = text;
-      node.setAttribute("fill", C.muted);
-      node.setAttribute("font-family", C.sans);
-      node.setAttribute("font-size", TYPE);
+      keepsText(node, text);
+      keeps(node, "fill", C.muted);
+      keeps(node, "font-family", C.sans);
+      keeps(node, "font-size", TYPE);
     }
 
     // Which run on the stack (or the run being scanned) each slot belongs to.
@@ -803,10 +806,10 @@ export class Painter {
       const px = A.x + (B.x - A.x) * e.p;
       const pb = A.base + (B.base - A.base) * e.p;
       const h = 10 + (e.value / this.n) * G.maxH;
-      rect.setAttribute("x", px);
-      rect.setAttribute("y", pb - h);
-      rect.setAttribute("width", w);
-      rect.setAttribute("height", h);
+      keeps(rect, "x", px);
+      keeps(rect, "y", pb - h);
+      keeps(rect, "width", w);
+      keeps(rect, "height", h);
       const key =
         e.to.lane === "tmp"
           ? "tmp:0"
@@ -825,8 +828,9 @@ export class Painter {
         e.to.slot < step.focus.end
       )
         fill = C.ink2;
-      rect.setAttribute("fill", fill);
-      rect.setAttribute(
+      keeps(rect, "fill", fill);
+      keeps(
+        rect,
         "opacity",
         owner[e.to.slot] >= 0 &&
           e.to.lane === "v" &&

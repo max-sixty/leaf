@@ -36,7 +36,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
-import { TEXT_BOX, holdFocus } from "./focus.js";
+import { TEXT_BOX } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -44,6 +44,7 @@ import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
 import { upFrom } from "./shadow.js";
+import { keeps, keepsText } from "./keeps.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -99,37 +100,6 @@ export function el(tag, cls, text) {
 // which the theme hides itself; the widget still collapses and reopens, ⌘F
 // just can't see in.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
-
-// A render bound to semantic publication can run on a page nobody
-// has touched, so a write that restates what the node already says restates it at that
-// rate: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty box
-// for whatever reads next, and — for the attributes the document's disclosure watch
-// reads — a repaint of every key on the page. A placement that follows the scroll
-// restates at the scroll's rate: on a page whose marks hold CSS highlight ranges, one
-// same-value class rewrite per scroll event made Chrome repaint the whole document on
-// every scroll frame. `toggleAttribute` keeps
-// the rule for the flags by construction, and `classList.toggle(name, force)` for a
-// class, where `add` and `remove` rewrite the attribute whether or not the class
-// changes; these three are the same rule for the names, states, and words that have no
-// such door.
-// The comparison is against what the node would read back, not what the caller held:
-// `getAttribute` and `textContent` answer with a string and their setters stringify, so
-// a boolean or a count compared raw is never equal to what already stands and rewrites
-// on every pass — the defect this closes, wearing the shape of the guard.
-export function keeps(node, name, value) {
-  const said = String(value);
-  if (node && node.getAttribute(name) !== said) node.setAttribute(name, said);
-}
-
-export function keepsHidden(node, hidden) {
-  if (node && node.hidden !== hidden) node.hidden = hidden;
-}
-
-// Null clears the words, as the `textContent` setter reads it.
-export function keepsText(node, text) {
-  const said = String(text ?? "");
-  if (node && node.textContent !== said) node.textContent = said;
-}
 
 // The user's hand on a widget, in the layer's own word: a drag the log has not taken
 // yet. This module holds it, and everything that has to wait for the hand asks here:
@@ -521,10 +491,12 @@ export function relabel(node, label, { says } = {}) {
 // itself there. The two sweeps (a press, and the poll) stay the check that the words
 // listed here are the words the writers actually write.
 //
-// Measured in place: text-only controls, swapped and restored synchronously, so no
-// frame paints mid-swap. Stood out of flow for the moment — absolute, hidden — so a
-// control whose news hasn't arrived yet (display: none) measures all the same and
-// its neighbours don't feel the measurement. Sized by its words alone while it stands
+// Measured beside itself: a shallow copy of the control, wearing its classes and
+// attributes, stands next to it for the measurement and leaves in the same task, so the
+// control the user may be holding is never rewritten and keeps its focus, and no frame
+// paints the copy. The copy stands out of flow — absolute, hidden — so a control whose
+// news hasn't arrived yet (display: none) measures all the same and its neighbours
+// don't feel the measurement. Sized by its words alone while it stands
 // there, its own width cleared along with its place: a stated width can mean "and grow
 // past this" in flow — a table cell laid out at `width: 0` takes what its content
 // needs — where out of flow it is simply obeyed, and the widest word then measures as
@@ -544,30 +516,23 @@ export function relabel(node, label, { says } = {}) {
 // asks again the first time there is a box. A floor of zero is not a missing
 // measurement to look at; it is the control holding no room at all.
 export function reserve(control, labels) {
-  // Standing the control out of flow hides it, and hiding a focused element takes the
-  // focus off it — onto body, silently, and on no fixed frame: the browser runs that
-  // fixup around the layout, not after a turn this owner can count. The measurement is
-  // synchronous and invisible, and losing the user's place is not part of what it was
-  // asked to do. A focused control may be remeasured after its face or typography
-  // changes; it must remain the user's place throughout.
-  const restoreFocus = holdFocus(control);
-  const stood = { nodes: [...control.childNodes], css: control.style.cssText };
-  Object.assign(control.style, {
+  const copy = control.cloneNode(false);
+  copy.removeAttribute("id");
+  Object.assign(copy.style, {
     minWidth: "0",
     width: "auto",
     display: "inline-block",
     position: "absolute",
     visibility: "hidden",
   });
+  control.after(copy);
   let widest = 0;
   for (const label of labels) {
-    control.textContent = label;
-    widest = Math.max(widest, control.getBoundingClientRect().width);
+    copy.textContent = label;
+    widest = Math.max(widest, copy.getBoundingClientRect().width);
   }
-  control.replaceChildren(...stood.nodes);
-  control.style.cssText = stood.css;
+  copy.remove();
   control.style.minWidth = Math.ceil(widest) + "px";
-  restoreFocus?.();
   forgetDetached();
   reservations.set(control, { labels, face: reservedFace(control) });
   reservedFaces.observe(document.documentElement);
@@ -622,14 +587,15 @@ export function closeControl({ name, title = name, className = "" }) {
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape. Restating the anatomy a
-// control already wears writes nothing, the `keeps` rule above.
+// control already wears writes nothing (keeps.js).
 export function responseAction(
   control,
   { glyph = null, icon = null, label, behavior = "action", collapse = false },
 ) {
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
     throw new TypeError("A response action needs exactly one glyph or icon");
-  control.classList.add("lf-response-control", "lf-response-action");
+  control.classList.toggle("lf-response-control", true);
+  control.classList.toggle("lf-response-action", true);
   keeps(control, "data-lf-behavior", behavior);
   control.toggleAttribute("data-lf-collapse", collapse);
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))

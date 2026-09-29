@@ -160,7 +160,9 @@ export async function highlightBlocks(root) {
   if (!blocks.length) return;
   for (const [code, lang] of blocks) {
     try {
-      code.replaceChildren(...synNodes(await syntax(code.textContent, lang)));
+      const tokens = await syntax(code.textContent, lang);
+      // Tokens that colour nothing are the text the block already holds.
+      if (tokens.some(({ role }) => role)) code.replaceChildren(...synNodes(tokens));
       code.dataset.lfSyntax = lang;
     } catch (err) {
       console.error(

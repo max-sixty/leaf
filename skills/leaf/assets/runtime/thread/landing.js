@@ -349,7 +349,7 @@ async function showThreadNow(id, focus, revealThread, threadsBox) {
     .querySelector(
       `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
     )
-    ?.classList.remove("grow");
+    ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(id);
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
@@ -403,9 +403,9 @@ async function showThreadNow(id, focus, revealThread, threadsBox) {
     // is context in full; a requested message keeps the least-moving direct route.
     block: target === thread ? "center" : directThread ? "start" : "nearest",
   });
-  target.classList.remove("grow");
-  target.classList.add("flash");
-  setTimeout(() => target.classList.remove("flash"), 1300);
+  target.classList.toggle("grow", false);
+  target.classList.toggle("flash", true);
+  setTimeout(() => target.classList.toggle("flash", false), 1300);
   return true;
 }
 

@@ -272,7 +272,7 @@ export function renderSurfaces(collection, placedAt, commands) {
       clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
       registration.outlets = new Set(byOutlet.keys());
       for (const [outlet, threads] of byOutlet) {
-        outlet.dataset.lfThreadSurface = "";
+        outlet.toggleAttribute("data-lf-thread-surface", true);
         const response =
           compositionPrepared && outlet === compositionOutlet
             ? commands.composition.node()

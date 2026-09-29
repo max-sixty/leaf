@@ -28,10 +28,10 @@
    column by no more than that room's shortfall. The card keeps its height in every
    case; one too tall for its spot slides across its cluster rather than shrinking. This
    module supplies the visible boundary — the reading region or the viewport under the
-   banner and over the bottom chrome — measures the card, and clips it to the part of
-   the window the page shows, so a card leaving with its cluster passes under the chrome
-   rather than over it. Floating UI (floating.js) carries the spot into the card's
-   positioning space and follows what moves the cluster. The card contains the complete
+   banner and over the bottom chrome — and measures the card. Floating UI (floating.js)
+   carries the spot into the card's positioning space, in the plane the geometry names,
+   and follows what moves the cluster. A card leaving with its cluster passes under the
+   chrome, which stacks over it, and a reading region clips it at its edge. The card contains the complete
    inline thread view; the Threads panel remains the complete index and takes over when
    already open. Once placed, the card keeps its side and holds one edge at its distance
    from the cluster (the geometry's `hold`): its foot, and the editor pinned to it,
@@ -105,6 +105,7 @@ import {
   optionsOffered,
   markerFace,
   readingFace,
+  readingLabel,
   readingState,
   readingBehavior,
   awaitingUser,
@@ -123,8 +124,9 @@ import {
   handBack,
   holdFocus,
   letGo,
+  placeChrome,
 } from "./focus.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { closeControl, el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -147,15 +149,16 @@ import {
 } from "./annotation-layer.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
-import { versionBtn } from "./version-chooser.js";
+import { versionBtn } from "./version-picker.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
-import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
+import { addressableLabel, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./thread/state.js";
 import { threadKey, turns } from "./thread/model.js";
+import { whenDocumentPresented } from "./semantic-state.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -167,11 +170,11 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import { bannerControlDoor } from "./banner-shelf.js";
+import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow, skipped } from "./geometry.js";
-import { floatingPlacement, floatingUi } from "./floating.js";
+import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -181,7 +184,7 @@ import {
   threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
-import { renderedParent, under } from "./shadow.js";
+import { renderedParent, shadowHost, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
@@ -217,12 +220,12 @@ export function createMarginProjection({
       .trim();
 
   function targetPath(target) {
-    const root = target.getRootNode();
+    const host = shadowHost(target.getRootNode());
     // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
     // own stable path so two instances of the same shadow template stay distinct,
     // while a live-version replacement at the same authored coordinate can still
     // retain its marker and preview focus.
-    const prefix = root instanceof ShadowRoot ? `${targetPath(root.host)}/shadow/` : "";
+    const prefix = host ? `${targetPath(host)}/shadow/` : "";
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     for (let node = target; node;) {
@@ -316,14 +319,11 @@ export function createMarginProjection({
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
-  const previewClose = el(
-    "button",
-    "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
-  );
-  previewClose.append(iconElement("cross", "lf-action-icon"));
-  previewClose.type = "button";
-  previewClose.setAttribute("aria-label", "Dismiss thread view");
-  previewClose.title = "Dismiss thread view (Esc)";
+  const previewClose = closeControl({
+    name: "Dismiss thread view",
+    title: "Dismiss thread view (Esc)",
+    className: "lf-margin-preview-close",
+  });
   const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
@@ -654,16 +654,36 @@ export function createMarginProjection({
   // within its target's reading region when it has one. That is the visible viewport, so
   // a reply editor stays above a phone's software keyboard.
   function threadCardBoundary(target, { gap = CARD_GAP, viewport } = {}) {
-    const region = containingReadingRegionFor(target);
-    return shownWindow({
-      within: region ? shownRegionBounds(region) : null,
-      gap,
-      viewport,
-    });
+    return shownWindow({ within: regionBounds(target), gap, viewport });
   }
+  const regionBounds = (target) => {
+    const region = containingReadingRegionFor(target);
+    return region ? shownRegionBounds(region) : null;
+  };
+  // A scroll moves the held edge and with it the room to the boundary, so the cap the
+  // geometry asks for moves with every scroll, and every write during a scroll costs a
+  // repaint (widget-elements.js, `keeps`) while the card's far edge, written from the
+  // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
+  // cap the card wears: a card short of both caps renders the same under either, and a
+  // card at its cap takes a new one only once its contents change, when a turn arrives
+  // or a draft grows. A cap that would cut the card it stands on is always taken. Both
+  // are in the card's positioning space, as offsetHeight is.
+  let wornContent = null;
+  const threadCardContent = () =>
+    [previewList, ...previewList.querySelectorAll(REPLY_BOX)].reduce(
+      (sum, box) => sum + box.scrollHeight,
+      0,
+    );
   function measureThreadCard(width, cap) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
-    preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+    const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
+    const height = preview.offsetHeight;
+    const content = threadCardContent();
+    const atCap = height >= worn - 0.5;
+    if (!(worn >= 0) || cap < height - 0.5 || (atCap && content !== wornContent)) {
+      preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+      wornContent = content;
+    }
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
@@ -723,10 +743,11 @@ export function createMarginProjection({
         const replyEditor = previewList.querySelector(REPLY_BOX);
         // Drafting is standing anywhere in the reply's row, Send included. A send leaves
         // the user in the box it empties, and the card must not move then.
-        const drafting =
+        const drafting = Boolean(
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
-            replyEditor.value !== "");
+            replyEditor.value !== ""),
+        );
         const clusterBox = cluster.getBoundingClientRect();
         // Client pixels per positioning-space pixel.
         const scale = {
@@ -753,7 +774,14 @@ export function createMarginProjection({
             geometry,
             drafting,
             scale,
-            shown: threadCardBoundary(target, { gap: 0 }),
+            region: regionBounds(target),
+            // Held at a reading region's edge, the card goes where the page takes that
+            // region, which is its cluster's plane, not the window's.
+            plane:
+              geometry.plane === "window" &&
+              heldByWindow(geometry.y, geometry.y + geometry.height, CARD_GAP)
+                ? "window"
+                : "page",
           },
         };
       },
@@ -776,32 +804,42 @@ export function createMarginProjection({
           getBoundingClientRect: () => cluster.getBoundingClientRect(),
         };
         previewPlacement.watch(target ?? cluster, reference, autoUpdate);
-        return computePosition(reference, preview, {
-          strategy: "fixed",
-          middleware: [threadCardMiddleware(cluster, target)],
-        });
+        return previewPlacement.position(
+          computePosition,
+          reference,
+          { middleware: [threadCardMiddleware(cluster, target)] },
+          ({ middlewareData }) => middlewareData.threadCard?.plane,
+          cluster,
+        );
       })
       .then((position) => {
         const placed = position?.middlewareData.threadCard;
         if (!placed?.geometry || !stillCurrent()) return;
-        const { geometry, drafting, scale, shown } = placed;
+        const { geometry, drafting, scale, region } = placed;
         previewHold = geometry.hold;
         previewAway = geometry.away;
-        preview.style.left = `${position.x}px`;
+        // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         // A card held by its foot writes its foot, so growth before the next placement
         // moves its top.
-        preview.style.top = `${position.y + (drafting ? geometry.height / scale.y : 0)}px`;
-        // Leaving with its cluster, the card passes under the chrome rather than over it.
-        const inset = [
-          (shown.top - geometry.y) / scale.y,
-          (geometry.x + geometry.width - shown.right) / scale.x,
-          (geometry.y + geometry.height - shown.bottom) / scale.y,
-          (shown.left - geometry.x) / scale.x,
-        ];
-        preview.style.clipPath = `inset(${inset.map((side) => `${side}px`).join(" ")})`;
-        preview.dataset.lfThreadPlacement = geometry.placement;
-        if (drafting) preview.dataset.lfThreadHeld = "";
-        else delete preview.dataset.lfThreadHeld;
+        previewPlacement.stand(
+          position.x,
+          position.y + (drafting ? geometry.height / scale.y : 0),
+        );
+        // Leaving with its cluster, the card passes under the chrome, which stacks over
+        // it, and a reading region cuts it at the region's edge as it cuts the words.
+        if (region) {
+          const inset = [
+            (region.top - geometry.y) / scale.y,
+            (geometry.x + geometry.width - region.right) / scale.x,
+            (geometry.y + geometry.height - region.bottom) / scale.y,
+            (region.left - geometry.x) / scale.x,
+          ];
+          // At the browser's layout precision, so the same cut reads the same each time.
+          const length = (side) => `${Math.round(side * 64) / 64}px`;
+          preview.style.clipPath = `inset(${inset.map(length).join(" ")})`;
+        } else preview.style.removeProperty("clip-path");
+        keeps(preview, "data-lf-thread-placement", geometry.placement);
+        preview.toggleAttribute("data-lf-thread-held", drafting);
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         answerThreadPreviewPosition(true);
@@ -823,7 +861,7 @@ export function createMarginProjection({
   }
   // A viewport posture change can replace the focused full thread with its
   // compact action. Reconcile after resize delivery so the browser can finish its
-  // own focus and popover bookkeeping before that node changes shape. Panel and tray
+  // own focus and popover bookkeeping before that node changes shape. Panel and drawer
   // changes notify this runtime directly through their owners.
 
   // A margin cluster is hoisted away from the page target it belongs to, so ancestry
@@ -953,9 +991,12 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "ask",
         id: `ask:${id}`,
-        text: labelWords(
-          `${addressableWord(target)} · ${addressableSays(target) || id}`,
-        ),
+        // The group this row stands in already names the Ask; the row says why it is
+        // there, since these are the Asks the user owes.
+        text: "Waiting on you",
+        // The marker's own label is the question, which says more than the kind its
+        // glyph already shows.
+        label: addressableLabel(target) || null,
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -965,35 +1006,13 @@ export function createMarginProjection({
     }
 
     const projection = currentProjection();
-    for (const origin of projectionOrigins(authoredStates(), projection)) {
-      const target = elementById(origin.unit);
-      if (!target) continue;
-      const face = KINDS[origin.origin];
-      add(groups, target, {
-        kind: origin.origin,
-        id: `state-origin:${origin.origin}:${origin.unit}`,
-        // Durable provenance belongs in Page Map rather than another target margin entry:
-        // it remains explicit without changing the page's action density or geometry.
-        marker: false,
-        text: labelWords(
-          [face.label, addressableWord(target), addressableSays(target)]
-            .filter(Boolean)
-            .join(" · "),
-        ),
-        activate: () =>
-          revealTarget(
-            target,
-            `${face.label}: ${addressableSays(target)}`,
-            scrollToElement,
-          ),
-      });
-    }
     const claimActivity = new Map(
       workflows()
         .filter(isLiveWorkflow)
         .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
     );
     const activityAlreadyShown = new Set();
+    const acknowledged = new Set();
     for (const [coordinate, entry] of projection.desired) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
@@ -1003,7 +1022,7 @@ export function createMarginProjection({
       const account = [
         addressableWord(target),
         humanized(entry.e.action),
-        addressableSays(target),
+        addressableLabel(target),
       ]
         .filter(Boolean)
         .join(" · ");
@@ -1011,6 +1030,7 @@ export function createMarginProjection({
       if (!face) continue;
       if (face.kind === "activity")
         activityAlreadyShown.add(`widget:${receipt.subject.id}`);
+      acknowledged.add(target);
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
@@ -1023,6 +1043,34 @@ export function createMarginProjection({
       });
     }
 
+    for (const origin of projectionOrigins(authoredStates(), projection)) {
+      const target = elementById(origin.unit);
+      if (!target) continue;
+      // A gesture the agent still owes an answer to stands under its workflow row, which
+      // says the change is the user's and where it has got to; its provenance row would
+      // say the first half again.
+      if (origin.origin === "user" && acknowledged.has(target)) continue;
+      const face = KINDS[origin.origin];
+      add(groups, target, {
+        kind: origin.origin,
+        id: `state-origin:${origin.origin}:${origin.unit}`,
+        // Durable provenance belongs in Page Map rather than another target margin entry:
+        // it remains explicit without changing the page's action density or geometry.
+        marker: false,
+        text: labelWords(
+          [face.label, addressableWord(target), addressableLabel(target)]
+            .filter(Boolean)
+            .join(" · "),
+        ),
+        activate: () =>
+          revealTarget(
+            target,
+            `${face.label}: ${addressableLabel(target) || addressableWord(target)}`,
+            scrollToElement,
+          ),
+      });
+    }
+
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
       const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
@@ -1031,7 +1079,9 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
-        text: labelWords(`${mapAccount} · ${addressableSays(target)}`),
+        text: labelWords(
+          [mapAccount, addressableLabel(target)].filter(Boolean).join(" · "),
+        ),
         // A disclosure has to say what it holds, or its one word reports a fact and
         // promises nothing. The margin entry's quieter line carries it, and a block the
         // comparison holds nothing for has none, so no margin entry offers a press it has
@@ -1131,7 +1181,7 @@ export function createMarginProjection({
               [
                 group.subject ? null : subject.context,
                 group.word,
-                group.subject ?? addressableSays(group.target),
+                group.subject ?? addressableLabel(group.target),
               ]
                 .filter(Boolean)
                 .join(" · "),
@@ -1351,9 +1401,9 @@ export function createMarginProjection({
   }
 
   // Where the Map hands the user back, for `handBack`: the entry's own marker, then the
-  // way into the Map, then a row in view, then the version control. The Map is a shelf
+  // way into the Map, then a row in view, then the version control. The Map is a toolbar
   // control, so at a width that folds it the button itself is behind a shut door and
-  // cannot take focus; the shelf is asked for the way in.
+  // cannot take focus; the toolbar is asked for the way in.
   function mapControlPlaces(entry = null) {
     const visible = visibleRows();
     return [
@@ -1588,7 +1638,7 @@ export function createMarginProjection({
     const face = readingFace(choice);
     const behavior = readingBehavior(face);
     const count = choice.items.length;
-    const label = count > 1 ? `${face.label}s` : face.label;
+    const kind = count > 1 ? `${face.label}s` : face.label;
     const userContext =
       awaitingUser(choice.items) || unreadIn(choice.items)
         ? readingContext(choice)
@@ -1598,8 +1648,8 @@ export function createMarginProjection({
       marginEntry({
         key: `reading:${choice.key}`,
         icon: face.icon,
-        label,
-        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
+        label: readingLabel(choice),
+        accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",
@@ -1783,18 +1833,17 @@ export function createMarginProjection({
     // changes, synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
     // instruction to fold the controls it just exposed — and say the same thing to every
-    // other reader of where the user stands, which is what `placingChrome` is for.
+    // other reader of where the user stands, which is what `placeChrome` is for.
     const wasSettlingOptionsFocus = settlingOptionsFocus;
-    const wasPlacingChrome = runtime.placingChrome;
     settlingOptionsFocus = true;
-    runtime.placingChrome = true;
     let kept = true;
     try {
-      move();
-      kept = restoreFocus?.() ?? true;
+      kept = placeChrome(() => {
+        move();
+        return restoreFocus?.() ?? true;
+      });
     } finally {
       settlingOptionsFocus = wasSettlingOptionsFocus;
-      runtime.placingChrome = wasPlacingChrome;
     }
     // The one case where the placement did move the user: the control they were
     // standing on did not survive it, so focus is wherever the removal left it and the
@@ -1838,7 +1887,9 @@ export function createMarginProjection({
       transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
     const main = document.querySelector("main");
-    if (!nav.isConnected) chromeRoot.append(nav);
+    // Before the card, which anchors to its rows (`mount`).
+    if (!nav.isConnected)
+      chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
     const mainRect = main?.getBoundingClientRect();
     syncInlineOffers();
     pageInventory = collectEntries();
@@ -1898,7 +1949,7 @@ export function createMarginProjection({
         );
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
-        keys(host, "In the Page Map", marginKeys, () => marginKeysAvailable);
+        keys(host, "In the margin", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         more.setAttribute("aria-controls", optionsId);
         more.onclick = () => {
@@ -2187,17 +2238,29 @@ export function createMarginProjection({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
+        // A resolved thread has no margin card, so resolving closes the card and
+        // hands the user to its target, and a resolve that no longer stands opens the
+        // card on the thread again, while the margin is still where threads open.
         prepareLanding: () => {
           const target = targetFor(previewEntry);
+          const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => target?.isConnected,
+            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
             fallback: bannerControlDoor(mapButton),
           });
           return {
             optimistic: () => {
               if (previewOpen()) return false;
               return mayLand.handoff(() => focusDestination(target));
+            },
+            reverse: async (may = mayLand) => {
+              await whenDocumentPresented();
+              return (
+                may() &&
+                mayLand.available() &&
+                Boolean(openPageThread(thread, { focus: "thread" }))
+              );
             },
           };
         },
@@ -2408,7 +2471,7 @@ export function createMarginProjection({
   // which is the container it is part of.
   //
   // Once a contribution is engaged, its complete and escape controls are open because of
-  // semantic state rather than because the user disclosed the secondary tray. That
+  // semantic state rather than because the user disclosed the secondary drawer. That
   // state consumes the earlier disclosure step: Escape leaves the action the user is
   // standing on instead of first pretending to close controls that remain open by
   // contract.
@@ -2431,7 +2494,7 @@ export function createMarginProjection({
   // surface's old local listener did, without another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
-    title: "In the Page Map",
+    title: "In the margin",
     root: () => pageMapRung()?.root ?? document,
     when: () => Boolean(pageMapRung(false)),
     at: () => Boolean(pageMapRung()),
@@ -2622,7 +2685,7 @@ export function createMarginProjection({
   // showing its threads. The card shows the threads of the target the user stands at,
   // which is what lets both be up at once, and goes when they stand anywhere else on the
   // page, let go, or press outside all three. Keyboard focus passing through the chrome
-  // at large — the banner, a tray — is working on the page rather than a place on it,
+  // at large — the banner, a drawer — is working on the page rather than a place on it,
   // and leaves the card; a press anywhere else is the user's attention moving, and
   // takes it, as a press on another page place does.
   //
@@ -2822,7 +2885,7 @@ export function createMarginProjection({
   }
 
   // The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
-  // the version chooser, then its own parts in the root.
+  // the version picker, then its own parts in the root.
 
   function mount() {
     mountMarginLayer(toolbar);
@@ -2893,6 +2956,8 @@ export function createMarginProjection({
       scheduleWidthRender();
     });
     renderMargin();
+    // The card anchors to its row (floating.js), which an anchor may do only to a box
+    // laid out before it: the margin comes first.
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {
       previewRegionMounted = true;

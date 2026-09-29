@@ -49,7 +49,7 @@ turn also proves generic activity before its first work declaration; the receipt
 itself remains Picked up. `counts.overdue` counts the owed moves that stalled with
 the agent to act, still Sent past the pickup grace or left by a turn that ended or
 was interrupted before answering; over an `away` page they are when the banner asks
-the user to nudge the session. The banner and Leaves tray consume this same reading
+the user to nudge the session. The banner and Leaves drawer consume this same reading
 and present delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
@@ -175,8 +175,11 @@ handling fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were. Absent the harness the environment implies, nothing is
 claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
-run, decides none of that: it runs this command under `uv` and stays silent when
-it cannot get an answer, so a leaf bug costs a turn nothing.
+run, leaves the active-claim decision to this command. For a cold SessionEnd it
+releases records still naming that session directly under each page's transaction
+lock, without starting `uv`; the CLI uses the same release path. Other hooks run
+the command and stay silent when it cannot get an answer, so a leaf bug costs a
+turn nothing.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`

@@ -29,6 +29,7 @@ import { shownRect } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
+import { deepFocus } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
@@ -114,6 +115,36 @@ export const readingRegionFor = (node) => {
     .filter((candidate) => live(candidate) && under(node, candidate.host))
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return region && regionRecord(region);
+};
+
+// The region the user is reading in, which the reading keys scroll and continuity
+// restores first. Focus answers where it stands on the page or in a region; otherwise
+// the user's last press, wheel, touch or arrival does, which is the platform's own rule
+// for Space and PageDown: with nothing focused, Chrome scrolls from the node last
+// pressed. A click on a pane's words focuses nothing, so without this a pane the user had
+// just clicked into was no answer at all, and `d` scrolled a page a full-height workspace keeps
+// still. Anything on the page outside every region names the page, which is `undefined`
+// here as it is for `readingRegionFor`, and so does the body, where a let-go
+// (`releaseFocus`) or a press on nothing puts the user. Anything in the chrome names
+// nothing new, so opening a menu leaves the pane the user was reading as the answer.
+// A key press is not among them: its target is where focus already stands, which
+// arrived by `focusin`, or the body, which is where a click on words leaves it.
+let recentRegionId = null;
+const pageRoot = () => document.querySelector("body > main");
+const actedIn = (event) => {
+  const at = event.composedPath()[0];
+  const region = readingRegionFor(at);
+  if (region) recentRegionId = region.id;
+  else if (at === document.body || under(at, pageRoot())) recentRegionId = null;
+};
+for (const type of ["pointerdown", "wheel", "touchstart", "focusin"])
+  addEventListener(type, actedIn, { capture: true, passive: true });
+export const recentReadingRegion = () => readingRegion(recentRegionId);
+export const userReadingRegion = () => {
+  const at = deepFocus();
+  const region = readingRegionFor(at);
+  if (region || under(at, pageRoot())) return region;
+  return recentReadingRegion();
 };
 
 // The deepest region whose body actually contains this node. A region's host includes

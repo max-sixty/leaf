@@ -1,10 +1,10 @@
-/* The Leaves banner control and tray's generated light-DOM list.
+/* The Leaves banner control and drawer's generated light-DOM list.
 
    The caller derives one immutable model for the control's presence and words and the
-   keyed tray rows. The native control remains the banner shelf and tray owner's stable
+   keyed drawer rows. The native control remains the banner toolbar and drawer owner's stable
    node; a retained face paints inside it. This owner registers each native link's
    command scope once, preserves a surviving link and its focus through reordering, and
-   moves focus to a neighbouring link or the tray when the focused page disappears.
+   moves focus to a neighbouring link or the drawer when the focused page disappears.
    Each assigned reading opens one Leaves presentation region before either face
    schedules an update. A failed update restores both committed faces before the
    coordinator reports and settles the attempt. */
@@ -14,7 +14,7 @@ import {
   failSoftAfterRetention,
   PresentationRetentionError,
 } from "./semantic-state.js";
-import { showNews } from "./banner-shelf.js";
+import { showNews } from "./banner-toolbar.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { RetainedFace, RowFocus } from "./retained-face.js";
 
@@ -138,7 +138,8 @@ class LiveLeavesList extends RetainedFace {
     if (!model || !Array.isArray(model.rows))
       throw new TypeError("Leaves presentation needs a model with row models");
     if (!this.#face) throw new Error("Leaves presentation needs its banner control");
-    if (!this.#handle) throw new Error("Leaves presentation needs its connected tray");
+    if (!this.#handle)
+      throw new Error("Leaves presentation needs its connected drawer");
     const generation = ++this.#generation;
     let resolve;
     let reject;
@@ -161,7 +162,7 @@ class LiveLeavesList extends RetainedFace {
     for (const link of this.querySelectorAll(LINK)) {
       if (this.#wiredLinks.has(link)) continue;
       this.#wiredLinks.add(link);
-      keys(link, "In the leaves tray", openCommand);
+      keys(link, "In the leaves drawer", openCommand);
     }
     const offered = this.querySelector(LINK) !== null;
     if (offered !== this.#linksOffered) {

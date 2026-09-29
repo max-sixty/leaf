@@ -55,6 +55,8 @@ browser's order.
   title selects the same thread as its body. Enter or Space selects a closed
   title and keeps an open one selected; Comment enters the reply box even from a
   collapsed title.
+- The versions menu opens from inside More, so More is its parent whichever route
+  opened it (`g V` included), and Escape steps back to the version picker there.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
   document, through `letGo`, which lands on the visible block rather than an
   earlier chrome invoker.
@@ -98,7 +100,7 @@ state, and press come from the one row the key uses.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the
-reader, which a finger does by scrolling and by tapping the Threads list, the Asks tray,
+reader, which a finger does by scrolling and by tapping the Threads list, the Asks drawer,
 or the Page Map. `n` walks a search that has closed, which a finger searches again from
 More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
 The ⌥ aim names a target, which a finger does by selecting words or through Select

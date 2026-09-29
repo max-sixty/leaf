@@ -15,11 +15,9 @@ command names a `leaf wait` that command started, with how to close the turn it
 outlives. Codex runs the same `hooks.json` and ignores its `if` filter, so that
 registration keeps a `$CLAUDECODE` gate ahead of this script.
 
-This script decides nothing. Both questions — whether this session holds a page
-at all, and what to say about the ones it holds — belong to the `leaf` CLI, which
-owns the page-directory model. One `uv run` per turn is what it costs to ask
-them there; a cheap answer here would be a second copy of a rule that changes
-every time a host states its session lifetime a new way.
+The CLI owns the turn's active-ownership reading. SessionEnd only releases
+records still naming the ended session, under the page transaction lock. Its
+standard-library path works before this plugin copy has an environment.
 
 What is left is the one thing the CLI cannot do for itself: fail open. Anything
 unexpected — no uv on PATH, an install that will not sync, a timeout — is
@@ -39,6 +37,7 @@ never needs the browser the launcher's two special cases supply. `--no-dev`
 matches the launcher: the dev group is the suite's, not a host's.
 """
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -48,9 +47,18 @@ PROJECT = Path(__file__).resolve().parents[2]
 
 def main() -> None:
     try:
+        payload = sys.stdin.read()
+        hook = json.loads(payload)
+        event = hook.get("hook_event_name")
+        if event == "SessionEnd":
+            sys.path.insert(0, str(PROJECT / "skills" / "leaf" / "scripts"))
+            from leaf.state_paths import end_session
+
+            end_session(hook.get("session_id") or "")
+            return
         answer = subprocess.run(
             ["uv", "run", "-q", "--no-dev", "--project", str(PROJECT), "leaf", "hook"],
-            input=sys.stdin.read(),
+            input=payload,
             capture_output=True,
             text=True,
             timeout=15,

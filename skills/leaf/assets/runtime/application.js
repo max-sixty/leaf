@@ -71,7 +71,7 @@ export function mountApplication(dependencies) {
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
-    targetChooserOpen: dependencies.targetChooserOpen,
+    targetPickerOpen: dependencies.targetPickerOpen,
     pageComposerDrawing: dependencies.pageComposerDrawing,
   });
   let threadPresenter;
@@ -280,7 +280,11 @@ export function mountApplication(dependencies) {
     actions: threadActions,
     wireInput: dependencies.wireInput,
   };
-  const settlementView = { pendingEntries: ledger.snapshot, actions: threadActions };
+  const settlementView = {
+    pendingEntries: ledger.snapshot,
+    actions: threadActions,
+    retainReversal: projectionCommands.retainReversal,
+  };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
     actions: threadActions,
@@ -350,6 +354,9 @@ export function mountApplication(dependencies) {
     activeActionAnchor: dependencies.activeActionAnchor,
     renderMargin: margin.renderMargin,
     renderSurfaces,
+    // Where a thread stands now, put up for a user carried there from a box a surface
+    // stopped drawing: the surface drawing it, its margin card, or the panel.
+    openThread: (id) => margin.openPageThread(id, { travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {

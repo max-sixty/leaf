@@ -359,24 +359,25 @@ the served document as `data-lf-reading-role`, which the kernel's theme and the
 workspace Layout lay out as a pane from the first paint, so every package's pane takes
 the same rules; its module registers the pane's body as described below.
 
-Whether a pane's body scrolls is the workspace Layout's (`layouts.css`): where the
-window holds the workspace, the Layout gives its body a definite height, and a pane that
-is the body or a direct cell of it may shrink below its content and scrolls its body; a
-pane inside a section of the body, or inside another pane's body, flows with what holds
-it, and elsewhere every pane takes its content's height. Nothing in a module measures a
-minimum or chooses a posture. While it holds the window, the Layout sets `--lf-held: 1`
-on `main`, and a widget that should grow to fill the height it is given, such as a
-playground's stage, keys its rules on `@container style(--lf-held: 1)`. A behavior
+Whether a pane's body scrolls is the workspace Layout's (`layouts.css`). Where the
+window is large enough, the workspace is full-height: it fills the window, and the
+Layout gives its body a definite height, so a pane that is the body or a direct cell of
+it may shrink below its content and scrolls its body; a pane inside a section of the
+body, or inside another pane's body, flows with what holds it, and elsewhere every pane
+takes its content's height. Nothing in a module measures a minimum or chooses a
+posture. While the workspace is full-height, the Layout sets `--lf-full-height: 1` on
+`main`, and a widget that should grow to fill the height it is given, such as a
+playground's stage, keys its rules on `@container style(--lf-full-height: 1)`. A behavior
 module that composes regions out of boxes it generates, such as a playground's controls
 beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
 header, one body, and one footer. A generated pane scrolls its body wherever it stands in
-a held workspace, since its widget sizes it. The attributes are the module's to write and
-never an author's, since `page check` refuses `data-lf-` markup. Keep the package theme to placement
-inside that grammar, such as track sizes and chrome; a package copy of the held rules is
-a second posture decision that drifts from the Layout's. Generate boxes rather than
-`lf-pane` elements themselves: those are authored words the render gate pairs with the
-file.
+a full-height workspace, since its widget sizes it. The attributes are the module's to
+write and never an author's, since `page check` refuses `data-lf-` markup. Keep the
+package theme to placement inside that grammar, such as track sizes and chrome; a
+package copy of the full-height rules is a second posture decision that drifts from the
+Layout's. Generate boxes rather than `lf-pane` elements themselves: those are authored
+words the render gate pairs with the file.
 
 `registerReadingRegion({id, host, body})` binds a region's identity to its host and to
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
@@ -409,11 +410,11 @@ the entry was left at (`runtime/history.js`), unless the element the entry's fra
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
 and lands on it, as a followed link to it does.
 
-A sticky box that covers the top of its scroller declares the room it takes with
-`declareCoverRoom(host, property, covers)`, which keeps `property` on `host` at the
-tallest cover's height for a `scroll-padding` or `scroll-margin` to read, so every
+A sticky header, a sticky box over the top of its scroller, declares the room it takes
+with `declareStickyHeaders(host, property, headers)`, which keeps `property` on `host` at
+the tallest header's height for a `scroll-padding` or `scroll-margin` to read, so every
 landing, native or the runtime's, arrives below it. The same declaration tells the
-runtime that what passes under the cover is not on screen, for read acknowledgement,
+runtime that what passes under the header is not on screen, for read acknowledgement,
 arrival checks, and chrome placement.
 
 A composition allocates a Leaf element's outer box. The package owns how the element's
@@ -451,11 +452,15 @@ way it travels to a thread, clearing a panel that covers the page and opening wh
 holds the element.
 
 A module that names an element away from it, in a feed row or a summary, reads the page's
-shared names rather than its own. `addressableName(element)` is the name the authoring
-contract gives the element: the attribute its entry declares with `x-name`, else a
-leading `<summary>`, heading, or titled member's `<strong>`, inside a leading
-`<header>` too; it is empty where the
-contract gives none, and `addressableSays(element)` is the element's whole words. A
+shared names rather than its own. `addressableLabel(element)` is what the chrome calls
+it: first the name the authoring contract gives it (the attribute its entry declares
+with `x-name`, else a leading `<summary>`, heading, or titled member's `<strong>`,
+inside a leading `<header>` too), else its caption or `aria-label`. An element whose
+words are its own, such as a paragraph or a list item, is otherwise named by those
+words cut short; any other element takes the name of the nearest element holding it
+that has one, so a question's options are named by the question. Past that, plain
+markup is named by its words cut short and a widget by nothing: the label is empty, and
+`addressableWord(element)` is the word for its kind. A
 widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
 `markdownWords(text)` is the words a Markdown string renders to.
@@ -521,8 +526,8 @@ widget. Publish only action and status records to the margin, with explicit `ele
 `entries` relations when a disclosure owns another surface or entry.
 
 A contribution stands in its target's cluster wherever that cluster stands: in the rail
-beside a column page, or as a pin over the page inside the target's top-right
-corner, where an unfolding cluster grows leftward over the target. Leaf inserts nothing into the
+beside a column page, or as a pin over the page by the target, where an unfolding
+cluster grows leftward. Leaf inserts nothing into the
 page's content for it, so its controls come after the page's content in the tab order;
 the margin's own keyboard routes, `t`, and the Page Map reach them from the target.
 Nothing about the contribution changes with the posture, and a package never places or
@@ -620,7 +625,7 @@ contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then s
 same addressable marker as a native control.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
-the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed
+the answered row in the Asks drawer. Leaf normalizes whitespace and bounds the displayed
 answer; the package owns its meaning and words. Attach the answer reader to one stable scope
 owned by the Ask, even when several descendant scopes contribute controls. Answer metadata
 stays readable after a scope's availability condition closes, while the command rows remain gated.

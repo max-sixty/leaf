@@ -19,6 +19,7 @@ from conftest import LEAF_COMMAND
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -27,7 +28,6 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -719,6 +719,24 @@ def test_restarting_a_preview_discards_its_state_and_starts_it_fresh(
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
 
 
+def requested_documents(page):
+    """Record each document the page's main frame requests, in order.
+
+    A reload is a document request. `framenavigated` would also count the address the
+    bootstrap rewrites in place with `history.replaceState`, which loads nothing.
+    """
+    documents = []
+    page.on(
+        "request",
+        lambda request: (
+            documents.append(request.url)
+            if request.is_navigation_request() and request.frame == page.main_frame
+            else None
+        ),
+    )
+    return documents
+
+
 @pytest.mark.parametrize(
     "resource",
     [
@@ -742,13 +760,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         standing.close()
     page = browser.new_page()
     failures = []
-    navigations = []
-    page.on(
-        "framenavigated",
-        lambda frame: (
-            navigations.append(frame.url) if frame == page.main_frame else None
-        ),
-    )
+    documents = requested_documents(page)
 
     def interrupt_resource(route):
         if failures:
@@ -778,7 +790,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         with page.expect_response("**/registry.json") as response:
             pass
         assert response.value.ok
-        assert len(navigations) == 1
+        assert len(documents) == 1
         expect(status).to_be_visible()
         generation = json.loads((directory / "registry.json").read_text())["$layer"][
             "generation"
@@ -793,7 +805,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert len(navigations) == 2
+    assert len(documents) == 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         == generation
@@ -810,13 +822,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
     page = browser.new_page()
     failures = []
     probes = []
-    navigations = []
-    page.on(
-        "framenavigated",
-        lambda frame: (
-            navigations.append(frame.url) if frame == page.main_frame else None
-        ),
-    )
+    documents = requested_documents(page)
 
     def interrupt_entry(route):
         if failures:
@@ -826,7 +832,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
         route.abort()
 
     def static_registry(route):
-        if len(navigations) > 1:
+        if len(documents) > 1:
             route.continue_()
             return
         probes.append(True)
@@ -849,7 +855,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
             "data-lf-presented", "1", timeout=10000
         )
     assert len(probes) >= 2
-    assert len(navigations) == 2
+    assert len(documents) == 2
     expect(status).not_to_be_visible()
 
 
@@ -1044,7 +1050,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
-    [batch] = session_model.take_input(session)["batches"]
+    [batch] = delivery_model.take_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1201,7 +1207,8 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     """A text box paints in the standing paint, which an export mounts without chrome.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
-    Add and empty-field flag are that paint's, and typing repaints the flag."""
+    Add and empty-field flag are that paint's; focus alone repaints the placeholder with
+    its send key, and typing repaints the flag."""
     serve(ASK_PAGE)
     interactive = tmp_path / "interactive-addition.html"
     result = CliRunner().invoke(
@@ -1219,10 +1226,12 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
     add = form.locator(".lf-compose-submit")
-    expect(field).to_have_attribute("placeholder", "Another option — add to select")
+    expect(field).to_have_attribute("placeholder", "Add another option")
     expect(add).to_have_attribute("aria-disabled", "true")
     expect(add).to_have_attribute("data-lf-empty", "")
     expect(add).to_be_hidden()
+    field.click()
+    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
     write(field, "Portrait sketch")
     expect(add).not_to_have_attribute("data-lf-empty", "")
 

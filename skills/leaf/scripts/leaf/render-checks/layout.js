@@ -45,6 +45,34 @@ export function arrangedBoxes(open) {
   });
 }
 
+// How a workspace holds the page's own panes: for each body of a `main.layout-workspace`
+// that has panes the page wrote as its cells, whether the Layout fills the window
+// (`--lf-full-height`, layouts.css) and the most of those panes that stand side by side, meaning
+// how many share some stretch of the page's height. One is a column of panes; a grid with
+// two stacked on the left of a tall third is two.
+export function heldPanes() {
+  const main = document.querySelector("main.layout-workspace");
+  if (!main) return [];
+  const held =
+    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
+  return [...main.children].flatMap((body) => {
+    if (body.matches("header, footer")) return [];
+    const rects = [...body.children]
+      .filter((el) =>
+        el.matches('[data-lf-reading-role="pane"]:not([data-lf-generated])'),
+      )
+      .map((pane) => pane.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0);
+    if (rects.length < 2) return [];
+    const beside = Math.max(
+      ...rects.map(
+        (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
+      ),
+    );
+    return [{ at: element(body), held, panes: rects.length, beside }];
+  });
+}
+
 // Every box is drawn somewhere, and something has to answer for where. Three
 // readings ask it — of the column, of the room the page keeps for a wide widget,
 // and of the container that was handed a box's overflow — and the last two are

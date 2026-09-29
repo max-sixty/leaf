@@ -8,6 +8,7 @@ from html import escape
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -840,14 +841,14 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert "mono" in option["key"]["font-family"]
     assert option["emphasis"] == sequence["emphasis"] == legend["emphasis"]
 
-    # Target chooser uses letters rather than digits, but it names the same physical
+    # Target picker uses letters rather than digits, but it names the same physical
     # keys. Closing the Go-to sequence and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-go-to-hints .lf-go-to-hint")).to_have_count(0)
     page.keyboard.press("s")
     # With the go-to surface gone, compare an available selection key with the option
     # and sequence's neutral state.
-    selection_key = '.lf-target-chooser-hints .lf-target-chooser-hint kbd[data-lf-sequence-step-state="neutral"]'
+    selection_key = '.lf-target-picker-hints .lf-target-picker-hint kbd[data-lf-sequence-step-state="neutral"]'
     hint = page.locator(selection_key).first
     expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
@@ -1517,7 +1518,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
         '{"a": [1, 2, {"b": null}], "c": "<>&"}\n',
         "@@ -1 +1 @@\n-a <b>\n+c &d\n",
-        "TARGET_CHOOSER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
+        "TARGET_PICKER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
         '<!doctype html>\n<a href="x?a=1&b=2">t &amp; u</a>\n',
     ]
     bad = page.evaluate(
@@ -3174,12 +3175,12 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     quotes survived.
 
     That is also this file's floor for the corpus. The example sweeps serve the newest
-    version and never press anything, so with no reading here the chooser could offer
+    version and never press anything, so with no reading here the picker could offer
     a list nobody walks and a Compare control nobody presses on every page in examples/."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page = open_page(browser, serve(example))
 
-    # Served at the newest version, with the earlier one behind the chooser.
+    # Served at the newest version, with the earlier one behind the picker.
     expect(page.locator(".lf-version")).to_have_text("v2")
     expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
 
@@ -3227,7 +3228,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 
     # And the older document is a real destination, not just a row: choosing it pins
-    # the user to the virtual version address the chooser named.
+    # the user to the virtual version address the picker named.
     banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
@@ -3586,6 +3587,22 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
     assert "1–3" not in menu_line, menu_line
 
 
+def test_a_layer_opened_from_nowhere_lets_go_as_it_closes(browser, serve):
+    """A popover opened while nothing held focus has nobody to hand focus back to, so
+    the browser left focus on its hidden row until the next rendering update: a key
+    pressed in that frame was dispatched from a control the user could no longer see.
+    Closing it lets go in the same task."""
+    page = open_page(browser, live_url(serve(INLINE_PAGE)))
+    assert page.evaluate("() => document.activeElement === document.body")
+    open_versions(page)
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
+    assert menu.evaluate(
+        "m => { m.hidePopover(); return document.activeElement === document.body; }"
+    )
+
+
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 
@@ -3607,12 +3624,11 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
-    # A menu opened from the keyboard leaves the same way one opened by pointer does:
-    # the menu is a layer over the page, so its one press lands the user on the page
-    # rather than on the chooser that is its implementation door — or on the heading
-    # they happened to be standing on when they asked for it.
+    # A menu opened from the keyboard returns to its banner door, just as one opened
+    # by pointer does, rather than to the heading that held focus before the shortcut.
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
@@ -3620,7 +3636,8 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
@@ -3660,7 +3677,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
-    """The chooser is a press and a menu rather than a select, which buys the notes
+    """The picker is a press and a menu rather than a select, which buys the notes
     somewhere they can be read whole and costs the platform's own popup: opening,
     closing, and the keys between. A select came with all of that, so what this
     asserts is the part that had to be written back — the pointer route opens through
@@ -3704,8 +3721,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-    page.locator(".lf-banner-more").click()
+    expect(btn).to_be_focused()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(btn).to_be_visible()
     page.keyboard.press("Escape")
@@ -3755,12 +3771,12 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     )
     assert label_result.response["violations"] == []
 
-    # The keys are one declaration, so the "?" reference names them too — a page with
-    # a second version is the first that has a list to walk. The shelf stands beside the
-    # menu; the reference is a modal and global chrome, so entering it dismisses the menu
-    # the way the platform dismisses any auto popover, and leaves it dismissed. The rows
-    # are read off the declaration rather than off the standing mode, which is why they
-    # are there to read at all once the menu has gone.
+    # The keys are one declaration, so the "?" reference names them too — a page with a
+    # second version is the first that has a list to walk. The expanded shortcut bar
+    # stands beside the menu; the reference is a modal and global chrome, so entering it
+    # dismisses the menu the way the platform dismisses any auto popover, and leaves it
+    # dismissed. The rows are read off the declaration rather than off the standing mode,
+    # which is why they are there to read at all once the menu has gone.
     page.keyboard.press("?")
     expect(menu).to_be_visible()
     page.keyboard.press("?")
@@ -3778,7 +3794,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(menu).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-shelf-open", "false"
+        "data-lf-expanded", "false"
     )
     # The help layer returns to the visible root disclosure that preceded it. The
     # independent gV route below works directly from that real landing.
@@ -3810,21 +3826,18 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(position).to_have_text("Version 3 of 3")
     # The comparison the row it landed on states, which the reopen below reads: the base is
-    # settled when the chooser says so, and the base's document is a fetch away, so a test
+    # settled when the picker says so, and the base's document is a fetch away, so a test
     # that closed the menu on the press alone would ask where the walk stands from a loaded
     # machine and be told the version being read.
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes the menu and lands the user on the page it stood over, whatever
-    # door they came through. A popover restores focus to whatever had it when it
-    # showed, which for a menu opened from the page is the body; Leaf performs the whole
-    # step instead, so the landing is the same one every time.
+    # Escape closes the menu and returns to its banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
 
-    # g V opens it from anywhere on the page, the way g L opens the leaves tray, and lands
+    # g V opens it from anywhere on the page, the way g L opens the leaves drawer, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.
@@ -3833,7 +3846,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # is v1 and the row carrying it is where an open lands. Landing on the version being
     # read would put the focus and the base on different rows, and the user's next arrow
     # press would then move the base off the version they marked from — the whole reason
-    # the two are one thing (the chooser's focusSelectedRow).
+    # the two are one thing (the picker's focusSelectedRow).
     open_versions(page)
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
@@ -3850,10 +3863,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape is what closes this, onto the page the menu stood over.
+    # it navigates — so Escape closes this and returns to the banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
@@ -3869,7 +3882,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
 
     # The same press from the key's door, which is the one a hand-back can reach: opened
     # with the pointer the user was on the button going in, so nothing moves them either
-    # way. A press away from the menu is not a way back to the chooser — it is the user
+    # way. A press away from the menu is not a way back to the picker — it is the user
     # going somewhere else — and a close that hands focus to the bar whenever it finds none
     # takes them off the page they just pressed into. Escape says return; this does not.
     open_versions(page)
@@ -3947,10 +3960,11 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the
-    # page. The shelf stands beside the menu, and the reference is a modal, so entering
-    # it dismisses the menu as the platform dismisses any auto popover and does not
-    # rebuild it. Reopening is what stands the mode up again, and the user is back on
-    # the row they left, since a scope is where focus is and the overlay takes the focus.
+    # page. The expanded shortcut bar stands beside the menu, and the reference is a
+    # modal, so entering it dismisses the menu as the platform dismisses any auto popover
+    # and does not rebuild it. Reopening is what stands the mode up again, and the user is
+    # back on the row they left, since a scope is where focus is and the overlay takes the
+    # focus.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
     expect(menu).to_be_visible()
@@ -4125,7 +4139,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     So the pair is one exported fact (`PRESS`) and the four rows that named it by hand read
     it: the runtime's control scope, a card grip in both its states, and this row. A link is
     what keeps that fact honest rather than growing into "controls answer two keys" — Enter
-    follows an `<a>` and Space scrolls the page, so the leaves tray binds Enter alone and is
+    follows an `<a>` and Space scrolls the page, so the leaves drawer binds Enter alone and is
     right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
@@ -4328,7 +4342,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
 
 def test_the_current_page_has_a_menu_local_key(browser, serve):
     """A pinned version stays where the user put it and offers the current page as a chip. The
-    keyboard reaches that chip's destination through the chooser rather than past it: g V
+    keyboard reaches that chip's destination through the picker rather than past it: g V
     opens the menu and its local v takes the live page, by that row's own press, so the key
     leaves through the door the pointer uses and the historical URL stays exact.
 
@@ -4358,10 +4372,11 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
     # which is far longer than a navigation would take to start.
+    pinned = page.url
     open_versions(page)
     expect(menu).to_be_visible()
     ticked(page)
-    assert page.url.endswith("pin"), "the press that opens the menu navigated"
+    assert page.url == pinned, "the press that opens the menu navigated"
 
     # Walk off the version being read, so the row under the focus is not the current one and
     # not the one this press takes.
@@ -4515,10 +4530,10 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # The closed face keeps its stable address while the comparison remains in the
     # control's accessible name and active treatment.
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_have_text("v3")
-    expect(chooser).to_have_class(re.compile(r"\bon\b"))
-    expect(chooser).to_have_attribute(
+    picker = page.locator(".lf-version")
+    expect(picker).to_have_text("v3")
+    expect(picker).to_have_class(re.compile(r"\bon\b"))
+    expect(picker).to_have_attribute(
         "aria-label", "v3: comparing with v1; open versions"
     )
     banner_control(page, ".lf-version").click()
@@ -4538,9 +4553,9 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # Pressing the standing base again is the way off, and clears the marks and state.
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
-    expect(chooser).to_have_text("v3")
-    expect(chooser).not_to_have_class(re.compile(r"\bon\b"))
-    expect(chooser).to_have_attribute("aria-label", "v3: open versions")
+    expect(picker).to_have_text("v3")
+    expect(picker).not_to_have_class(re.compile(r"\bon\b"))
+    expect(picker).to_have_attribute("aria-label", "v3: open versions")
 
     # Compare is still reachable by keyboard, a Tab off the row it belongs to, and still the
     # toggle the pointer presses.
@@ -4816,11 +4831,11 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     datum_hint = added.evaluate(
         """line => {
           const box = line.getBoundingClientRect();
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((left, right) => {
               const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
               return Math.hypot(a.left - box.left, a.top - box.top)
@@ -5019,6 +5034,76 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     assert all("detached" not in classes for classes in quote_classes), quote_classes
 
 
+def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser, serve):
+    """A diff written into the page rather than bound to data, and a real drag rather
+    than a range handed to the selection: Chrome keeps the document's selection in the
+    light DOM, so a drag wholly inside the diff's shadow tree reports both its ends at
+    the host, and `isCollapsed` says nothing is selected while the words are painted
+    selected. Read that way, no Comment field rose over the drag and `c` opened a comment
+    on the page with no passage at all. The passage is the composed range the user drew,
+    so the comment carries the words and their neighbours."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n def route(request):\n"
+        '-    return f"legacy:{request.token.id}"\n'
+        '+    return f"tok:{request.token.id}"\n'
+    )
+    url = serve(
+        leaf_page(
+            "written diff",
+            '<h1 id="title">Review</h1>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+        )
+    )
+    page = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    line = page.locator('lf-diff [data-content] [data-line-type="change-addition"]')
+    # Where the phrase's first and last glyphs stand, so the drag starts and ends on them.
+    ends = line.evaluate(
+        """line => {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const nodes = [], starts = [];
+          let flat = '';
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            starts.push(flat.length); nodes.push(node); flat += node.data;
+          }
+          const glyph = offset => {
+            const index = starts.findLastIndex(value => value <= offset);
+            const range = document.createRange();
+            range.setStart(nodes[index], offset - starts[index]);
+            range.setEnd(nodes[index], offset - starts[index] + 1);
+            return range.getBoundingClientRect();
+          };
+          const phrase = 'request.token.id';
+          const start = flat.indexOf(phrase);
+          const first = glyph(start), last = glyph(start + phrase.length - 1);
+          return { x0: first.left + 1, x1: last.right - 1,
+                   y: (first.top + first.bottom) / 2 };
+        }"""
+    )
+    page.mouse.move(ends["x0"], ends["y"])
+    page.mouse.down()
+    page.mouse.move(ends["x1"], ends["y"], steps=6)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
+    write(page.locator(".lf-fab-input"), "Review this expression.")
+    with sending(page, "the comment on the dragged expression"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comment["anchor"]["section"] == "patch", comment
+    assert comment["anchor"]["quote"] == "request.token.id", comment
+    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
+
+
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
 def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arrived):
     """A thread the diff seats is a trip like any other: Back returns to where the
@@ -5131,6 +5216,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
@@ -5273,7 +5359,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     ring = """(el, compact) => { el.focus();
       const s = getComputedStyle(compact ? el.parentElement : el); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
-      border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
+      border: s.borderColor, name: s.getPropertyValue('--lf-focus-ring').trim(),
     }; }"""
     band = thread.locator("leaf-text").evaluate(ring, False)
     assert band == panel_thread.locator("leaf-text").evaluate(ring, True)

@@ -103,54 +103,149 @@ export const deepFocus = (at = document.activeElement) => {
 // stand-ins, most particular first: the replacement keyed on the identity the held node
 // had, then the widget's own fallback. The user lands on the first that is drawn and
 // takes focus, and the caret goes with them, since a stand-in is the same place under a
-// new node. A stand-in that is somewhere else, such as the reply of the thread a seat's
-// box gave way to, is the caller's own landing: a function that puts the user there its
-// own way, takes no caret, and answers whether it did. Restoring answers whether the user
-// now stands on one of them.
+// new node. A stand-in may be a function, called only if the ones before it fail, since
+// finding it may itself put something up, such as the card a thread moved to. Returning
+// an element makes it the same place under a new node, and the caret goes there too. A
+// stand-in that is somewhere else, such as the reply of the thread a seat's box gave way
+// to, is the caller's own landing: it puts the user there its own way, takes no caret,
+// and returns `true` where it did. Restoring answers whether the user now stands on one
+// of them.
 //
 // Nothing is owed while the user still stands on the held node and it is drawn, and
 // nothing once focus has been placed anywhere since the hold began: a user who moved on
 // during a wait, or an owner inside the change that landed them itself, said the newer
-// word, as with `handBack`. Another hold's restore is not a newer word, so holds nest.
+// word, as with `handBack`. A restore putting the user back in the place it held is not
+// a newer word, so holds nest; a function stand-in is the owner's own act, and wherever
+// it moves focus is a placement to every other hold.
 //
-// `null` where the user does not stand inside `scope`, which may be a shadow root. The
-// platform's retargeting answers that: a user inside a widget's shadow tree stands
-// inside the scope holding the widget.
+// A change can also run before the owner that hands the user on: a widget rebuilding
+// its tree drops the box a later pass draws again elsewhere, and focus is on the body
+// before any hold is read. So a hold read while the user stands nowhere holds the node
+// that change dropped them from, while it is not drawn and they have neither been placed
+// nor acted since.
+//
+// `null` where the user does not stand, and was not dropped from, inside `scope`, which
+// may be a shadow root or a node already taken out of the document. The platform's
+// retargeting answers that: a user inside a widget's shadow tree stands inside the scope
+// holding the widget.
 //
 // A hold is a reading and nothing more, so one its caller never restores, such as a
 // batch's that commits, costs nothing: the one listener below counts placements for
 // every hold, and a hold compares the count it began at.
 let restoring = false;
+// A chrome placement moving a box the user may be standing in: the focus it takes off
+// and hands straight back inside `move` is the layer's own, not the user going anywhere.
+// Stated here rather than beside the one placer, because what has to know is every
+// reader of where the user stands, and they ask `placingChrome()` from their focus
+// listeners.
+let placing = false;
+export const placingChrome = () => placing;
+export function placeChrome(move) {
+  const was = placing;
+  placing = true;
+  try {
+    return move();
+  } finally {
+    placing = was;
+  }
+}
 let placements = 0;
+// Where the user last stood. A change that removes or hides the node they stand on puts
+// focus on the body and fires no `focusin`, so this still names that node afterwards.
+// A move between two nodes of one shadow tree reaches the document as neither event, so
+// the node focus leaves for nowhere is read too, off the path of the `focusout` that
+// says so. Every later placement writes it again, so it names a place nothing has
+// placed the user away from.
+//
+// The user acting while they stand nowhere, a key, a press, a wheel, a touch, is them
+// going on from there, so the dropped place is forgotten: a later owner putting them
+// back in it would take them from whatever they went on to. While they still stand
+// somewhere, the same inputs are them working there, and change nothing.
+let stood = null;
 document.addEventListener(
   "focusin",
   () => {
     if (!restoring) placements += 1;
+    stood = deepFocus();
   },
   true,
 );
+// Leaving for nowhere from a node still drawn is the user's own move, and so a
+// placement: body holds no stop, so a press on the page's words takes focus off the
+// control and puts it nowhere with no `focusin` to count, and a hold still waiting
+// would pull the user back from the words they chose. It is not a drop either, so the
+// node is forgotten as where they stood: a later change removing it drops nobody. A node
+// a change hid or replaced is not drawn once it blurs, which leaves it the dropped place
+// above rather than a move, and a window losing focus leaves the document's focus where
+// it was.
+document.addEventListener(
+  "focusout",
+  (event) => {
+    if (event.relatedTarget !== null) return;
+    const left = event.composedPath()[0];
+    stood = left;
+    if (restoring) return;
+    queueMicrotask(() => {
+      const at = document.activeElement;
+      if ((at !== null && at !== document.body) || !drawn(left)) return;
+      placements += 1;
+      if (stood === left) stood = null;
+    });
+  },
+  true,
+);
+for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
+  addEventListener(
+    type,
+    () => {
+      const at = deepFocus();
+      if (!at || at === document.body) stood = null;
+    },
+    { capture: true, passive: true },
+  );
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 const drawn = (node) =>
   node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+// The node a change took out from under a user who now stands nowhere: where they last
+// stood, while it is no longer drawn.
+const dropped = () => {
+  const at = deepFocus();
+  if (at && at !== document.body) return null;
+  return stood && !drawn(stood) ? stood : null;
+};
 export function holdFocus(scope) {
   const standing = scope.getRootNode().activeElement;
-  if (!standing || standing === document.body || !scope.contains(standing)) return null;
-  const held = deepFocus(standing);
+  if (standing && standing !== document.body && scope.contains(standing))
+    return holdOn(deepFocus(standing));
+  const lost = dropped();
+  return lost && scope.contains(lost) ? holdOn(lost) : null;
+}
+
+// The same reading with no scope, for an owner that learns which place it holds from
+// the node: where the user stands, or the node a change dropped them from. `null` where
+// they stand on nothing, or on nothing a change took away.
+export function holdStanding() {
+  const at = deepFocus();
+  const node = at && at !== document.body ? at : dropped();
+  return node ? { node, restore: holdOn(node) } : null;
+}
+
+function holdOn(held) {
   const caret = readCaret(held);
   const began = placements;
   return (...standIns) => {
     if (placements !== began) return false;
     for (const standIn of [held, ...standIns]) {
-      if (typeof standIn === "function") {
-        if (land(standIn)) return true;
-        continue;
-      }
-      if (!drawn(standIn)) continue;
-      if (deepFocus() === standIn) return true;
+      // A function runs as the owner's own act, so whatever it does with focus counts
+      // as a placement to every other hold; only the move back to the held place does not.
+      const place = typeof standIn === "function" ? standIn() : standIn;
+      if (place === true) return true;
+      if (!(place instanceof Element) || !drawn(place)) continue;
+      if (place === held && deepFocus() === held) return true;
       const landed = land(() => {
-        focusDestination(standIn, caret);
-        return standIn.matches(":focus");
+        focusDestination(place, caret);
+        return place.matches(":focus");
       });
       if (landed) return true;
     }
@@ -254,7 +349,7 @@ export function controlNavigationKeys(node) {
 // letting go asks the covering surface before the page.
 //
 // Two readings, not one. The surface is the whole of what covers, and answers whether the
-// user is already somewhere inside it — a tray's close button, the panel's find box —
+// user is already somewhere inside it — a drawer's close button, the panel's find box —
 // where nothing is owed them. The landing is the one place within it that takes a user
 // who is nowhere. Both are the modality's, which is the thing that inerted the page: a
 // layout predicate of its own would be a second answer, disagreeing with it across a
@@ -270,8 +365,17 @@ export function declareCovering({ surface, landing }) {
   coveringSurface = surface;
   coveringLanding = landing;
 }
+//
+// It is the same pair on the body, which carries no tab stop of its own. A standing
+// `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
+// also made the body the focusable ancestor of every word: a click on a pane's text
+// focused the body, and Chrome starts Space, PageDown and the arrows from the focused
+// element before the node last pressed, so they scrolled the root, which a held
+// workspace keeps still, and never the pane under the click. So the body borrows the stop
+// for the focus that moves the starting point to the top, and gives it back on the blur.
 export function releaseFocus() {
-  document.body.focus({ preventScroll: true });
+  focusDestination(document.body);
+  document.body.blur();
 }
 
 // Letting go of what the user stands on, the standing scope's Escape, is a landing that
@@ -305,10 +409,10 @@ export function letGo() {
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,
-// most particular first — the control whose press opened the layer, the proxy the
-// layer's subject has on the page, the door a folded shelf shows in a control's place —
-// and the user lands on the first that takes focus. The page's body is nowhere: an
-// opener read while nothing held focus names no place to return to.
+// most particular first — the control whose press opened the layer, the proxy the layer's
+// subject has on the page, the door a folded toolbar shows in a control's place — and the
+// user lands on the first that takes focus. The page's body is nowhere: an opener read
+// while nothing held focus names no place to return to.
 //
 // A destination still in the document may not take focus yet: reconciliation can
 // replace a control in the same task, and the paint the close asked for may still hold

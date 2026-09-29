@@ -35,16 +35,19 @@ subpackage's initializer is only a marker, never a second API.
   page-level fold over workflows, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
 - `work`: transient subject claims and widget work seats;
-- `delivery`, `session`, `hooks`, `host`: the delivery envelope, direct wait
-  delivery, host lifecycle, and harness declarations;
-- `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
-  the detached carrier behind `leaf codex start`;
+- `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
+  and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
+  prompt and Stop hooks as a session's carrier, and harness declarations;
+- `codex`, `codex_adapter`, `codex_titles`: Codex delivery records and App Server
+  turn folds, the detached carrier behind `leaf codex start`, and the titles both
+  App Server carriers give the threads their turns answer;
 - `mcp_page`, `mcp_server`, `mcp_app`: the capability-scoped MCP page server, its
   transport, and the comments-only snapshot fallback;
-- `machine`, `leases`, `service`, `server`, `hosting`, `detached`: the state home
-  and process readings, process-backed leases taken through `take_lease` and
-  `release_lease`, page claims and serialized transactions, server state, HTTP
-  servers, and detached starts;
+- `state_paths`, `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
+  the state-home path and cold session cleanup, process readings,
+  process-backed leases taken through `take_lease` and `release_lease`, page
+  claims and serialized transactions, server state, HTTP servers, and detached
+  starts;
 - `presence`: page, claim, and neighboring-leaf presence;
 - `samples`: disposable child pages built from captured templates;
 - `http`: HTTP transport;
@@ -59,10 +62,11 @@ subpackage's initializer is only a marker, never a second API.
 - `media`, `publishing`, `live_shell`: page-bound media, public version stamps, and
   the static files a host serves beside Leaf's API.
 
-Within `registry/`, `contract` owns shared schema helpers, `layer`, `widgets`, and
-`state` own their vocabulary contracts, `validation` composes those gates, `page`
-composes page-owned declarations and provenance, `storage` owns the vendored-file
-cache, and `reactions` owns reaction descriptions.
+Within `registry/`, `contract` owns shared schema helpers, `kernel` the fixed
+kernel event contract, `layer`, `widgets`, and `state` own their vocabulary
+contracts, `validation` composes those gates, `page` composes page-owned
+declarations and provenance, `storage` owns the vendored-file cache, and
+`reactions` owns reaction descriptions.
 
 Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes

@@ -249,8 +249,11 @@ export function compareMarginEntryRecords(left, right) {
   return contribution || left.record.key.localeCompare(right.record.key);
 }
 
+// A disclosure's label says it opens with a trailing ellipsis, unless the label already
+// ends in a stop of its own: an ellipsis, or a question's mark, which would read as
+// "?…".
 export const visibleMarginEntryLabel = ({ behavior, label }) =>
-  behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
+  behavior !== "disclosure" || /[…?]$/.test(label) ? label : `${label}…`;
 
 // A contribution owns its reading IDs; generated readings have no owner.
 export const marginItemKey = (item) => JSON.stringify([item.owner ?? null, item.id]);
@@ -260,16 +263,20 @@ export const labelWords = (value) =>
     .replace(/\s+/g, " ")
     .trim();
 
-// Spoken names have a listening budget, independent of the space CSS gives the
-// visible label. Only accessibility presentations use this excerpt; inventory and
-// search retain the complete text. A long word or unspaced language keeps its prefix.
-const SPOKEN_SUBJECT_CAP = 120;
-export function spokenSubject(value) {
+// Words cut to at most `cap` characters, at a word boundary in the second half where
+// there is one, ending in an ellipsis. A long word or unspaced language keeps its prefix.
+export function excerptWords(value, cap) {
   const words = labelWords(value);
   const points = [...words];
-  if (points.length <= SPOKEN_SUBJECT_CAP) return words;
-  const excerpt = points.slice(0, SPOKEN_SUBJECT_CAP - 1);
+  if (points.length <= cap) return words;
+  const excerpt = points.slice(0, cap - 1);
   const boundary = excerpt.lastIndexOf(" ");
-  const end = boundary >= SPOKEN_SUBJECT_CAP / 2 ? boundary : excerpt.length;
+  const end = boundary >= cap / 2 ? boundary : excerpt.length;
   return `${excerpt.slice(0, end).join("")}…`;
 }
+
+// Spoken names have a listening budget, independent of the space CSS gives the
+// visible label. Only accessibility presentations use this excerpt; inventory and
+// search retain the complete text.
+const SPOKEN_SUBJECT_CAP = 120;
+export const spokenSubject = (value) => excerptWords(value, SPOKEN_SUBJECT_CAP);

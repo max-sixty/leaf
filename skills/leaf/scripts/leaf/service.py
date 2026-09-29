@@ -29,7 +29,7 @@ from leaf.host import (
 )
 from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
-from leaf.registry.layer import bookkeeping_kinds
+from leaf.registry.kernel import bookkeeping_kinds
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
@@ -380,7 +380,7 @@ class PageTransaction:
 
     @property
     def status(self) -> dict:
-        return read_json(self.page_dir / STATUS_FILE)
+        return read_status(self.page_dir)
 
     def set_status(
         self,
@@ -809,6 +809,20 @@ def close_session_turn(session_id: str, turn_id: str | None = None) -> bool:
         except FileNotFoundError:
             continue
     return bool(pages)
+
+
+def read_status(page_dir: Path) -> dict:
+    """The page's work declaration, `status.json`, as every reader takes it.
+
+    A page whose agent has declared nothing, such as a copy served before any
+    `leaf status`, reads as a bare `waiting`: no work under way and nothing ended,
+    so the page waits on its user and a wait keeps watching it. A record without
+    a `state` describes no declaration either, and reads the same (`AGENTS.md`,
+    "Stage"). The first status write replaces it."""
+    record = read_json(page_dir / STATUS_FILE)
+    if record is None or "state" not in record:
+        return {"state": "waiting", "detail": "", "after": 0}
+    return record
 
 
 def owned_pages(session_id: str | None) -> list:

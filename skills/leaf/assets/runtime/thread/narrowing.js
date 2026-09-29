@@ -218,13 +218,15 @@ function presentationReading(reading, threads, shown, places) {
     rows.some(({ thread, place }) => includesThread(userDestination, thread, place));
   return Object.freeze({
     summary,
-    hidden:
+    // Whether Reset has anything to put back: the view differs from the default.
+    resettable: !(
       !reading.finding &&
       reading.status === "open" &&
       reading.waiting === "all" &&
       reading.scope === "all" &&
       reading.subject === "all" &&
-      !reading.onlyGone,
+      !reading.onlyGone
+    ),
     groups: Object.freeze([order, ...renderedGroups]),
     userAvailable,
     userTitle:

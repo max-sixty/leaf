@@ -1,10 +1,9 @@
 /* Each Thread panel owns its scaffold and controls. A caller mounts an instance and
  * supplies its elements to the controllers that read them; creating a second panel
  * never aliases the first panel's DOM or reading region. */
-import { iconElement } from "../icons.js";
 import { focused } from "../keyboard/scopes.js";
 import { registerReadingRegion } from "../reading-regions.js";
-import { el } from "../widget-elements.js";
+import { closeControl, el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
 import { under } from "../shadow.js";
@@ -19,10 +18,10 @@ export function createThreadPanelElements({
   const panel = el("dialog", "lf-ui lf-thread-panel");
   panel.id = id;
   const panelHead = el("div", "lf-thread-panel-head");
-  const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
-  closeBtn.append(iconElement("cross", "lf-action-icon"));
-  closeBtn.title = "Close threads (Esc)";
-  closeBtn.setAttribute("aria-label", "Close threads");
+  const closeBtn = closeControl({
+    name: "Close threads",
+    title: "Close threads (Esc)",
+  });
   const panelTitle = el("span", "lf-auxiliary-title", "Threads");
   const firstUnreadBtn = el("button", "lf-btn lf-first-unread", "Next unread");
   firstUnreadBtn.type = "button";

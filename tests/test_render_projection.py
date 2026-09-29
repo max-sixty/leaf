@@ -91,6 +91,7 @@ from render_harness import (
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -101,8 +102,8 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_banner_control_offered,
+    fills_the_window,
     holding,
-    holds_the_window,
     leaf_page,
     open_page,
     opened_tab,
@@ -1339,14 +1340,14 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a root workspace, not prose followed by a narrow widget.
 
-    The case chooser never taxes the evidence width, the disposition is available before
+    The case picker never taxes the evidence width, the disposition is available before
     the pixels, and a tall mobile pair keeps its authored focus width side by side inside
     the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    holds_the_window(page, widget, True)
+    fills_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1440,7 +1441,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    holds_the_window(page, widget, True)
+    fills_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -1548,7 +1549,10 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     else:
         page.locator("#source [data-lf-datum]").click(modifiers=["Alt"])
     quote = page.locator("#lf-composer-quote")
-    expect(quote).to_contain_text("Original source words.")
+    # A whole datum is named as its widget is; only a quote carries its words.
+    expect(quote).to_contain_text(
+        "Original source words." if quote_anchor else "§ text-document"
+    )
     draft = page.locator(".lf-fab-input")
     write(draft, "Keep this comment about the original source.")
     expect(draft).to_be_focused()
@@ -1874,7 +1878,11 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-signoff")).to_have_count(1)
-    expect(page.locator(".lf-signoff")).to_be_hidden()
+    expect(page.locator(".lf-signoff")).to_be_visible()
+    expect(page.locator(".lf-signoff")).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-signoff")).to_have_attribute(
+        "aria-description", "There is no stamped version to approve yet"
+    )
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
@@ -1894,14 +1902,12 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         == "2"
     ), "the new version's page-local style did not activate"
 
-    # The revision owns authored body attributes, but body remains the runtime's stable
-    # programmatic focus destination after the replacement, including for callers that
-    # use the platform operation directly rather than the Escape helper.
-    expect(page.locator("body")).to_have_attribute("tabindex", "-1")
+    # The revision owns authored body attributes, and the runtime's let-go still takes
+    # the user off an element after the replacement.
     page.locator("#live-reading").evaluate(
         "el => { el.tabIndex = -1; el.focus({preventScroll: true}); }"
     )
-    page.evaluate("document.body.focus({preventScroll: true})")
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate("document.activeElement === document.body")
 
     page.evaluate("window.__leafMain = document.querySelector('main')")
@@ -2012,8 +2018,8 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
-    # The chooser stands behind More, and a mouse press anywhere outside the composer
-    # stands the composer down (standDown) — so reaching the chooser by mouse would end
+    # The picker stands behind More, and a mouse press anywhere outside the composer
+    # stands the composer down (standDown) — so reaching the picker by mouse would end
     # the hold on the very gesture that opens the menu, and whether the page had followed
     # by then would come down to whether a state read landed between the two presses. The
     # keyboard route leaves the composer standing through both.
@@ -2225,7 +2231,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
 
     A native selection and the element a page was handed belong to nodes rather than
     markup. The selection still reads what it read over the same text node, the
-    element is still the element, and the chooser says the page moved. Focus follows
+    element is still the element, and the picker says the page moved. Focus follows
     the user's route through More to the new-page control.
 
     A standing selection is a composition, so the page waits rather than moving under
@@ -6285,7 +6291,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     identified as overriding authored placement in the tab that moved it and in a fresh
     replay alike, because the runtime compares the page's state against the version's
     own snapshot rather than remembering who wrote what. The runtime's quiet word and
-    Page Map entry carry that origin while the grip names the move and its destination.
+    Page Map row carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
@@ -6326,12 +6332,16 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
             exact=True,
         )
     ).to_be_visible()
+    # The Page Map names the move once: while the agent owes it an answer, under the
+    # row saying the move was sent, which is the user's change as much as its own row.
     second.keyboard.press("g")
     second.keyboard.press("Shift+m")
-    user_origin = second.get_by_role(
-        "button", name=re.compile(r"^Open your change: Your change")
-    )
-    expect(user_origin).to_be_visible()
+    expect(
+        second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
+    ).to_be_visible()
+    expect(
+        second.get_by_role("button", name=re.compile(r"^Open your change"))
+    ).to_have_count(0)
     second.keyboard.press("Escape")
     assert (
         second.locator("#card-importer").evaluate(
@@ -8412,6 +8422,33 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_command_goal_s_words_flow_as_prose(browser, serve):
+    """A goal is authored prose. Laid out as a grid, each inline piece became a cell, so
+    "Last worktree: <a>atlas/dedupe-attempt</a>." stood on three rows with its full stop
+    alone; and its chips took the serif through `font: inherit`."""
+    page = open_page(browser, serve(COMMAND_HUB_PAGE))
+    resized(page, 1440, 900)
+    link = page.locator('a[href="#tree-w-5"]')
+    expect(link).to_be_visible()
+    reading = link.evaluate(
+        """a => {
+          const words = document.createRange();
+          words.selectNodeContents(a.previousSibling);
+          const lines = [...words.getClientRects()];
+          const box = a.getBoundingClientRect();
+          const chip = a.closest('[data-lf-command-goal]')
+            .querySelector(':scope > .lf-task-meta > span');
+          return {display: getComputedStyle(a).display,
+                  sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
+                  chipFont: getComputedStyle(chip).fontFamily,
+                  sans: getComputedStyle(document.documentElement)
+                    .getPropertyValue('--sans').trim()};
+        }"""
+    )
+    assert reading["display"] == "inline" and reading["sameLine"], reading
+    assert reading["chipFont"] == reading["sans"], reading
+
+
 WIDE_TREE_PAGE = leaf_page(
     "A plan on a wide page",
     """
@@ -9229,7 +9266,7 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
 
     The spent press. A press that has nothing left to do keeps its shape and gives up
     its opacity and the hand, the layer's one cue stated beside the hand it withdraws;
-    ink alone is dropped by greyscale. The press also wears the ordinary here ring,
+    ink alone is dropped by greyscale. The press also wears the ordinary focus ring,
     reached by keyboard."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
@@ -9253,10 +9290,10 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
     ring = page.evaluate(
         """() => { const cs = getComputedStyle(document.activeElement);
              return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--here-ring-w').trim()]; }"""
+                     cs.getPropertyValue('--focus-ring-w').trim()]; }"""
     )
     assert ring[0] == "solid" and ring[1] == ring[2], (
-        f"a layer-built press wears no here ring from the layer's shared rule: {ring}"
+        f"a layer-built press wears no focus ring from the layer's shared rule: {ring}"
     )
 
     press = page.locator(".lf-worktree-head").first

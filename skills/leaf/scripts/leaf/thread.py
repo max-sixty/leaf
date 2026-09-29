@@ -770,11 +770,12 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
         )
 
 
-def _title_event(thread: str, title: str) -> dict:
+def title_event(thread: str, title: str, identity: dict) -> dict:
+    """The `thread_title` event naming `thread`, in the voice of `identity`."""
     return {
         "kind": "thread_title",
         "author": "agent",
-        **message_identity(),
+        **identity,
         "thread": thread,
         "title": title,
     }
@@ -791,7 +792,7 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     )
     from leaf.page_view import PageView
 
-    event = _title_event("pending", title)
+    event = title_event("pending", title, message_identity())
     registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
     error = event_record_error(
         registry["$events"]["kinds"]["thread_title"], {**APPEND_STAMPED, **event}
@@ -805,7 +806,10 @@ def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
     obligations."""
     with PageTransaction(page_dir) as page:
         return append_admitted(
-            page, _title_event(thread_named(page_dir, page.events, thread), text)
+            page,
+            title_event(
+                thread_named(page_dir, page.events, thread), text, message_identity()
+            ),
         )
 
 

@@ -24,7 +24,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
@@ -103,7 +103,9 @@ from render_harness import (
     plant_quiet_word,
     primed,
     resized,
+    restless_writes,
     root_overflow,
+    scroll_writes,
     take_browser_errors,
     write,
 )
@@ -238,6 +240,65 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
         failure
     )
     assert reading.advice == []
+
+
+def _pane_regions(columns: str, media: str) -> str:
+    return leaf_page(
+        "pane regions",
+        """
+  <header><h1>Alerts</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
+    <lf-pane id="alert" label="Alert"><div><p>Disk pressure on db-2.</p></div></lf-pane>
+  </div>
+""",
+        head=f"""<style>
+#regions {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+@media {media}
+</style>""",
+        layout="workspace",
+    )
+
+
+STACK = "{ #regions { grid-template-columns: 1fr; } }"
+SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
+
+
+@pytest.mark.parametrize(
+    ("columns", "media", "stacked"),
+    [
+        ("1fr 2fr", f"(width < 900px) {STACK}", "720–880px"),
+        ("1fr 2fr", f"(width < 720px) {STACK}", None),
+        ("1fr", f"(width < 900px) {STACK}", None),
+        ("1fr", f"(width >= 1800px) {SPLIT}", None),
+    ],
+    ids=[
+        "stacks-early",
+        "stacks-where-the-layout-flows",
+        "rows-at-every-width",
+        "rows-then-columns-when-ultrawide",
+    ],
+)
+def test_a_workspace_stacks_its_panes_only_where_the_layout_stops_holding_it(
+    browser, serve, columns, media, stacked
+):
+    """Held, a workspace shares one window's height among its panes, so panes that stand
+    side by side at the desktop viewport and stack while the window is still held each
+    get a slice of it. Stacking where the Layout lets the page scroll passes, and so does
+    a body of rows, which was built to share the height, even where an ultrawide window
+    sets its panes side by side."""
+    reading = render_gate_model.render_version(
+        browser, serve(_pane_regions(columns, media), packages=())
+    )
+
+    if stacked is None:
+        assert reading.failures == []
+    else:
+        (failure,) = reading.failures
+        assert failure.startswith(
+            f"at {stacked} wide, <div id=regions> stacks its panes in one column "
+            "while the workspace fills the window"
+        ), failure
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -622,24 +683,24 @@ RECURSIVE_ROWS_PAGE = leaf_page(
 def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     browser, serve
 ):
-    """Rows in a held workspace's body split its height, and a pane's footer stays
+    """Rows in a full-height workspace's body split its height, and a pane's footer stays
     inside its row while the body above it scrolls. A window too short for the
     workspace hands the scroll to the page, where each pane takes its full height."""
     page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     resized(page, 1200, 700)
     upper = page.locator("#upper")
     pane_posture(page, upper, "bounded")
-    held = page.evaluate(
+    boxes = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
           return {upper: box('#upper'), lower: box('#lower'),
                   footer: box('#upper > footer'), workspace: box('main')};
         }"""
     )
-    assert held["lower"]["top"] >= held["upper"]["bottom"] - 1, held
-    assert held["footer"]["bottom"] <= held["upper"]["bottom"] + 1, held
-    assert held["workspace"]["bottom"] <= 700, held
-    assert abs(held["upper"]["height"] - held["lower"]["height"]) <= 1, held
+    assert boxes["lower"]["top"] >= boxes["upper"]["bottom"] - 1, boxes
+    assert boxes["footer"]["bottom"] <= boxes["upper"]["bottom"] + 1, boxes
+    assert boxes["workspace"]["bottom"] <= 700, boxes
+    assert abs(boxes["upper"]["height"] - boxes["lower"]["height"]) <= 1, boxes
 
     resized(page, 1200, 420)
     pane_posture(page, upper, "flow")
@@ -1070,12 +1131,12 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
-    Standing a tray up is a gesture and gestures move: the tray slides in over a fifth
-    of a second and the document steps aside to make the room. Coming back to a tray
+    Standing a drawer up is a gesture and gestures move: the drawer slides in over a fifth
+    of a second and the document steps aside to make the room. Coming back to a drawer
     that was already standing is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the user a fifth of a
     second of furniture instead of what they came back to read. The auxiliary-surface
-    owner passes arrival separately from a gesture, so even a tray whose first paint
+    owner passes arrival separately from a gesture, so even a drawer whose first paint
     waits for presentation appears without an opening slide.
 
     What is read is every motion the browser reports, which it does through the
@@ -1157,7 +1218,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
-    # tray up by hand is the gesture whose motion the arrivals must not have. What it
+    # drawer up by hand is the gesture whose motion the arrivals must not have. What it
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
@@ -2494,6 +2555,45 @@ def test_page_fixture_renders(browser, serve, source):
     assert stray == [], stray
 
 
+# The page's longest scroller, the one its reader spends the scroll in.
+READING_SCROLLER = (
+    "[document.scrollingElement, ...document.querySelectorAll('*')]"
+    ".filter((el) => el === document.scrollingElement ||"
+    " /auto|scroll/.test(getComputedStyle(el).overflowY))"
+    ".sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0]"
+)
+# Eight small steps down and back, from a third of the way in.
+SCROLL_PASS = (30,) * 8 + (-30,) * 8
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
+    """Scrolling a page writes to its DOM only where the scroll changed a state: which
+    section is current, which row a key reaches. Nothing is rewritten with the value it
+    already held, and nothing is placed from scroll events, since what follows the
+    scroll is laid out by the browser, which carries it with the scroll itself.
+
+    Every write costs Chrome a repaint of the whole document while a highlight holds a
+    range, which every page with a quoted comment does, so a write on every scroll event
+    makes the scroll judder. The pass runs twice and the second is read: the first is
+    where the pass's own arrivals happen, such as a margin row laid out as it comes
+    into view."""
+    page = open_page(browser, serve(source))
+    reach = page.evaluate(
+        f"() => {{ const s = {READING_SCROLLER}; return s.scrollHeight - s.clientHeight; }}"
+    )
+    # From a third of the way in, the pass must reach its depth before the page ends.
+    if reach < 1.5 * sum(step for step in SCROLL_PASS if step > 0):
+        pytest.skip("nothing on this page scrolls as far as the pass goes")
+    page.evaluate(
+        f"reach => {{ {READING_SCROLLER}.scrollTop = Math.round(reach / 3); }}", reach
+    )
+    rendered(page)
+    scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
+    restless = restless_writes(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
+    assert restless == [], "\n".join(restless)
+
+
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     """A frame trims the margin at its edge through every first or last child: a bare
     section, a boxless one, and a padded grid section alike, with nothing declared on
@@ -2912,6 +3012,100 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert root_overflow(page) == 0
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
+
+
+FRAMED_TABLES_PAGE = leaf_page(
+    "Framed tables",
+    """
+<h1 id="t">Checks</h1>
+<table id="bare"><tr><th scope="row">Error rate</th><td><code>0.11%</code></td></tr></table>
+<section class="panel" id="checks">
+<h2>Checks</h2>
+<table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
+<tbody><tr><th scope="row">Error rate</th><td><code>0.11%</code> / below <code>0.50%</code></td></tr></tbody></table>
+</section>
+<section class="panel" id="wide-checks">
+<h2>Sessions</h2>
+<table id="wide-framed"><tr>{cells}</tr></table>
+</section>
+""".format(cells="".join(f"<td>value_number_{i}</td>" for i in range(10))),
+)
+
+
+def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
+    browser, serve
+):
+    """A table directly in a panel runs its rules to the panel's inner edge, where they
+    used to stop short and read as a table cut off; the same table in the column keeps
+    to what its columns hold. A table too wide for the panel still scrolls inside it.
+    Code in a cell is set relative to the cell's text rather than at the chip size."""
+    url = serve(FRAMED_TABLES_PAGE)
+    page = open_page(browser, url)
+    measured = page.evaluate(
+        """() => {
+        const inner = (box) => {
+            const r = box.getBoundingClientRect(), s = getComputedStyle(box);
+            return r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth);
+        };
+        const rowEnd = (t) => t.querySelector('tr:last-child').getBoundingClientRect().right;
+        const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
+        const wide = document.querySelector('#wide-framed');
+        const cell = framed.querySelector('td'), code = cell.querySelector('code');
+        return {
+            framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
+            bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
+            wideScrolls: wide.scrollWidth - wide.clientWidth,
+            wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
+            codeRatio: parseFloat(getComputedStyle(code).fontSize)
+                / parseFloat(getComputedStyle(cell).fontSize),
+        };
+    }"""
+    )
+    assert abs(measured["framedShort"]) <= 1, measured
+    assert measured["bareShort"] > 100, "the bare table fills its column"
+    assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
+    assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
+    assert root_overflow(page) == 0
+    page.close()
+    assert render_gate_model.render_version(browser, url).failures == []
+
+
+def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, serve):
+    """A table that scrolls its columns keeps its caption on the part of it on screen,
+    where the caption used to run on past the scrollport; and a status tag in a narrow
+    column holds its word, where `overflow-wrap: anywhere` let the table's automatic
+    layout squeeze "passed" to "pas" over "sed"."""
+    caption = "What the final revision demonstrates and what remains to be measured"
+    source = WIDE_TABLE_PAGE.replace(
+        '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
+    ).replace(
+        "</table>",
+        "</table><table id='statuses'><tr><td><span class='tag ok'>passed</span></td>"
+        "<td>"
+        + "The replay covers every legacy export and the importer's output. " * 3
+        + "</td></tr></table>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 360, 740)
+    table = page.locator("#sessions")
+    read = """t => {
+      const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
+      const tag = document.querySelector('#statuses .tag');
+      return {scrolls: t.scrollWidth - t.clientWidth,
+              inside: cap.left >= box.left - 1 && cap.right <= box.right + 1,
+              tagLines: Math.round(tag.getBoundingClientRect().height
+                / parseFloat(getComputedStyle(tag).lineHeight))};
+    }"""
+    measured = table.evaluate(read)
+    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+    assert measured["inside"] and measured["tagLines"] == 1, measured
+    table.evaluate("t => { t.scrollLeft = t.scrollWidth; }")
+    page.wait_for_function(
+        """() => { const t = document.querySelector('#sessions');
+                   const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
+                   return t.scrollLeft > 0 && cap.left >= box.left - 1
+                     && cap.right <= box.right + 1; }"""
+    )
 
 
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
@@ -3682,7 +3876,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A thread about a table wants room a thread about a sentence does not,
-    and a tray of long names wants room a tray of short ones does not; only the user
+    and a drawer of long names wants room a drawer of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
     of. The region stands over the page, so the page yields nothing at any width.
 
@@ -3894,7 +4088,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 
     resized(page, narrow, 900)
     squeezed = geometry(page, edge)
-    covering = page.locator("body[data-lf-covering-surface]").count()
+    covering = page.locator("html[data-lf-covering-surface]").count()
 
     resized(page, 1400, 900)
     roomy = geometry(page, edge)
@@ -3916,21 +4110,21 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     )
 
 
-def test_both_trays_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
+def test_both_drawers_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
     """Leaves and decisions are the same furniture at two scopes, one at a time on one side of
-    the window, so the width is the side's rather than either tray's. A user who drew
-    the edge out to read long names has drawn the edge, and finding the other tray back
-    at its default would be one fact kept in two places — which is what a width per tray
+    the window, so the width is the side's rather than either drawer's. A user who drew
+    the edge out to read long names has drawn the edge, and finding the other drawer back
+    at its default would be one fact kept in two places — which is what a width per drawer
     would have been, and what the shared property is instead.
 
-    The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
-    tray of one — the page the user is already on — is not worth a control, so without
+    The `other_leaf` fixture is the whole reason there is a second drawer to swap to: a
+    drawer of one — the page the user is already on — is not worth a control, so without
     a neighbour `g L` is unavailable."""
     page = open_page(browser, serve(ASKS_PAGE))
-    trays = EDGES[1]
-    trays.stand(page)
-    edge_settled(page, trays)
-    draw_edge(page, trays, 160)
+    drawers = EDGES[1]
+    drawers.stand(page)
+    edge_settled(page, drawers)
+    draw_edge(page, drawers, 160)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -3943,8 +4137,8 @@ def test_both_trays_stand_on_the_one_edge_the_user_drew(browser, serve, other_le
     )
     page.close()
 
-    assert round(leaves) == trays.wide + 160, (
-        f"the second tray came up at a width the user had already moved: {leaves}"
+    assert round(leaves) == drawers.wide + 160, (
+        f"the second drawer came up at a width the user had already moved: {leaves}"
     )
 
 

@@ -3,13 +3,13 @@
   <head>
     <title>Authentication retry comparison</title>
     <style>
-      /* The regions side by side, stacked in a narrow window. */
+      /* The regions side by side, stacked where the workspace flows. */
       #comparison-regions {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #comparison-regions {
           grid-template-columns: 1fr;
         }

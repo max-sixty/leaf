@@ -140,7 +140,7 @@ html:root
   lf-targeting
   lf-target-preview
   :is(.lf-targeting-candidate, .lf-targeting-selected) {
-  outline: var(--here-ring-w) solid var(--accent);
+  outline: var(--focus-ring-w) solid var(--accent);
   outline-offset: 2px;
 }
 

@@ -68,7 +68,7 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
 /* A goal row stacks its chips under its name from the room the command has, which a
-   command inside a worker's disclosure or beside an open tray has less of than the
+   command inside a worker's disclosure or beside an open drawer has less of than the
    window says. */
 lf-command { container: lf-command / inline-size; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
@@ -152,25 +152,23 @@ lf-command-readings > section.panel { margin: 0; }
   .lf-stopped-why { color: var(--warn-ink); }
 .lf-fleet-view li > .lf-state { margin-left: var(--sp-1); }
 
-lf-command [data-lf-command-goal] { display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto auto;
-  column-gap: var(--sp-3); align-items: baseline; }
-lf-command [data-lf-command-goal] > strong { grid-column: 1; }
-lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
-  display: flex; align-items: center;
-  justify-content: flex-end; gap: var(--sp-1); min-width: max-content; }
+/* A goal is authored prose, so it lays out as prose: a grid made every inline piece of
+   it a cell of its own, and a goal ending "Last worktree: <a>atlas/dedupe-attempt</a>."
+   stood on three rows with its full stop alone on the last. The generated chips lead
+   the goal (lf-command.js) and float to its right, level with the title, which wraps
+   short of them. Containing the float makes the goal a frame its children's margins
+   stop at, so it says so and the theme trims them there. */
+lf-command [data-lf-command-goal] { display: flow-root; --lf-block-frame: 1; }
+lf-command [data-lf-command-goal] > strong { display: block; }
+lf-command [data-lf-command-goal] > .lf-task-meta { float: right;
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;
+  gap: var(--sp-1); margin-left: var(--sp-3); max-width: 50%; }
 .lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r);
-  padding: var(--chip-pad); background: var(--chip); color: var(--ink-2); font: inherit;
-  font-size: var(--t-6); line-height: var(--chip-lh); }
+  padding: var(--chip-pad); background: var(--chip); color: var(--ink-2);
+  font: var(--t-6) / var(--chip-lh) var(--sans); }
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-meta > .lf-task-held { color: var(--warn-ink); background: var(--warn-tint); }
 .lf-task-meta > .lf-task-signal { color: var(--accent); }
-lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-thread-seat) {
-  grid-column: 1 / -1; }
-lf-command [data-lf-command-goal] > [data-lf-command-goal],
-lf-command [data-lf-command-goal] > [data-lf-command-worker],
-lf-command [data-lf-command-goal] > .lf-thread-seat {
-  grid-column: 1 / -1; }
 lf-command [data-lf-command-goal] > [data-lf-command-worker] {
   display: none; margin: var(--sp-2) 0 0 12px; }
 lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { display: block; }

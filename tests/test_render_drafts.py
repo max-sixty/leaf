@@ -42,6 +42,7 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_MEDIA,
     LONG_PAGE,
+    RELEASE_FOCUS,
     CutOff,
     _traffic,
     _until,
@@ -108,11 +109,11 @@ def choose_comment_target(page, selector):
     """Choose one visible element through the user's target-hint route."""
     page.locator(selector).scroll_into_view_if_needed()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     code = page.evaluate(
         """selector => {
           const top = document.querySelector(selector).getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfHintCode;
@@ -1691,11 +1692,11 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     target_code = page.evaluate(
         """() => {
           const top = document.querySelector('#p2').getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfHintCode;
@@ -2540,7 +2541,10 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     # Nothing written, nothing to return to: the sequence does not offer the destination.
     page.keyboard.press("g")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Threads panel")
-    assert "your draft" not in shortcut_bar_text(page)
+    draft_route = page.locator(
+        '.lf-shortcut[data-lf-command-ids~="composer.kept-draft"]'
+    )
+    expect(draft_route).to_have_count(0)
     page.keyboard.press("Escape")
 
     compose(page, "#p3", kept)
@@ -2555,7 +2559,9 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     assert notice.inner_text() == "Draft kept — g D returns to it"
 
     page.keyboard.press("g")
-    assert "your draft" in shortcut_bar_text(page)
+    shortcut_bar_text(page)
+    # The one-row line can trim this destination while leaving it in the register.
+    expect(draft_route).to_have_count(1)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -2603,7 +2609,10 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     notice = page.locator(".lf-notice")
     assert notice.inner_text() == "Draft kept — g D returns to it"
     page.keyboard.press("g")
-    assert "your draft" in shortcut_bar_text(page)
+    shortcut_bar_text(page)
+    expect(
+        page.locator('.lf-shortcut[data-lf-command-ids~="composer.kept-draft"]')
+    ).to_have_count(1)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
@@ -2696,7 +2705,7 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     Two passages may already hold independent work. Choosing the second from the first
     tab should therefore reopen the draft at the chosen destination and leave the source
     draft where it was, rather than tombstoning the source and replacing the destination.
-    The target chooser is the real explicit gesture whose carry path owns that choice.
+    The target picker is the real explicit gesture whose carry path owns that choice.
     """
     url = serve(LONG_PAGE)
     first = open_page(browser, url, context=one_user)
@@ -2869,7 +2878,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     and walks back by posting another ordinary edit. A second tab proves restore is
     durable replay rather than local history state; copy mode proves the local history
     does not survive without its handlers."""
-    page = open_page(browser, serve(JOURNEY_V1))
+    url = serve(JOURNEY_V1)
+    page = open_page(browser, url)
     draft = page.locator("#draft-ops")
     edits = [
         "Run the migration before deploying. It takes one minute.",
@@ -2943,7 +2953,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
     assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
 
-    other = open_page(browser, page.url)
+    # The handover URL, since the key it carries has left this tab's address.
+    other = open_page(browser, url)
     expect(other.locator("#draft-ops .lf-draft-body")).to_have_text(edits[0])
     expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"
@@ -3121,7 +3132,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
             editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-here-ring').trim()},
+                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
           };
         }"""
     )
@@ -3226,7 +3237,7 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     contract here is simply that the document moves down and then back up without the
     runtime canceling either key."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
 
     def press_and_settle(key):
         page.evaluate("""() => {
@@ -3458,7 +3469,7 @@ def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, se
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Put the user on the page before asking which reading region the page gesture chooses.
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"
@@ -3520,7 +3531,7 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"

@@ -5,7 +5,7 @@ import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
-import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
+import { effectiveScroller, userReadingRegion } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
 import { standingPlace } from "./standing-target.js";
 import { under } from "./shadow.js";
@@ -136,7 +136,7 @@ export function placeThreadEdge(thread, edge) {
 //
 // The page the step measures is the one the user can see: the scroller's landing band.
 // The document's box lends its top edge to the fixed banner and its bottom edge to the
-// foot band, and its scroll-padding — read exactly so by scrollToElement — is where the
+// bottom bar, and its scroll-padding — read exactly so by scrollToElement — is where the
 // box already says how much of itself stands covered, so a reading-page step is 60% of
 // what is left rather than 60% of the box, which is the answer the user wants — a step
 // that landed them under the banner would be a step onto words they cannot read.
@@ -152,13 +152,14 @@ const holding = (box) =>
 // beside it, the document keeps its own top and bottom.
 const seenScroller = (coveringAuxiliaryScroller) =>
   coveringAuxiliaryScroller() ?? pageScroller;
-// Reading-page keys follow the region the user is working in. Focus can put them in a
-// panel or anchored thread beside the page. Inside a covering surface the focused
-// region still wins; its own scrollport may be nested in that surface. The covering
-// scrollport catches focus with no region, such as a blurred stop.
+// Reading-page keys follow the region the user is working in (`userReadingRegion`), so
+// `d` after a click in a pane scrolls that pane as PageDown does. Focus can put them in
+// a panel or anchored thread beside the page. Inside a covering surface the user's
+// region still wins where it is in that surface; its own scrollport may be nested
+// there. The covering scrollport catches everything else.
 const stepScroller = (coveringAuxiliaryScroller) => {
   const covering = coveringAuxiliaryScroller();
-  const region = readingRegionFor(document.activeElement);
+  const region = userReadingRegion();
   if (covering && !(region && under(region.host, coveringAuxiliarySurface())))
     return covering;
   return effectiveScroller(region);

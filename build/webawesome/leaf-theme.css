@@ -22,7 +22,10 @@
   --wa-color-text-normal: var(--ink);
   --wa-color-text-quiet: var(--muted);
   --wa-color-neutral-fill-quiet: var(--field);
-  --wa-color-neutral-fill-normal: var(--card);
+  /* The vendor's hover and track fill. It stands on --card (a listbox, a slider's
+     panel), so --card here drew an option's hover and a slider's unfilled track in the
+     colour of the ground they sit on; --chip is the hover fill .lf-btn uses. */
+  --wa-color-neutral-fill-normal: var(--chip);
   --wa-color-neutral-border-normal: var(--border-2);
   --wa-color-neutral-on-quiet: var(--ink-2);
   --wa-color-brand-fill-quiet: var(--accent-tint);
@@ -32,7 +35,7 @@
   /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
      vendored control wears that band rather than the vendor's own wider one. */
   --wa-focus-ring-style: solid;
-  --wa-focus-ring-width: var(--here-ring-w);
+  --wa-focus-ring-width: var(--focus-ring-w);
   --wa-form-control-activated-color: var(--accent);
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
@@ -72,10 +75,17 @@ wa-select::part(combobox) {
 
 /* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
    root, where the host rule a Leaf control wears reaches neither. The band is therefore
-   drawn and named on the field's own part: --lf-here-ring does not inherit, and the
+   drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
    layer credits a ring to the rule that names it. Leaf enables none of the buttons the
    field can carry beside its input, so focus inside it is focus in the input. */
 :is(wa-input, wa-textarea, wa-number-input):focus-within::part(base) {
-  outline: var(--here-ring);
-  --lf-here-ring: text-entry;
+  outline: var(--focus-ring);
+  --lf-focus-ring: text-entry;
+}
+
+/* A slider's unfilled track is the scale the value is read against, so it carries a
+   contour's weight rather than a hover's: at --chip it read as empty paper, and a value
+   of 4 of 6 looked like the limit. */
+wa-slider::part(track) {
+  background: var(--border-2);
 }

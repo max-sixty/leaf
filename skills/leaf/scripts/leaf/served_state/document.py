@@ -3,6 +3,7 @@
 from ..document_reading import DocumentReading, read_document
 from ..events import UndoReading, action_retracted
 from ..projection import PageReading, StateProjection
+from ..registry.kernel import bookkeeping_kinds
 from .wire import browser_projection
 
 
@@ -18,7 +19,7 @@ def browser_document(page: PageReading, threads: dict) -> tuple[dict, DocumentRe
                 floors=document.floors,
             ),
             # The complete Ask reading of this revision under the same transaction.
-            # The browser draws its tray, walk, and banner count
+            # The browser draws its drawer, walk, and banner count
             # from these lists rather than folding the declarations a second time.
             "asks": document.asks,
         },
@@ -44,9 +45,28 @@ def browser_undo_candidates(
     markup's, and a page action no longer stands once a later revision restated what
     it rests on. A decision carried from an earlier revision is otherwise as
     undoable as one made on this one; where this revision's markup places its unit,
-    the door refuses it (`absorbed`)."""
+    the door refuses it (`absorbed`).
+
+    `z` takes back the user's newest gesture or nothing, so the head carries
+    `newest` only when it is that gesture: the newest of the user's events that
+    is neither bookkeeping, an undo, nor already withdrawn. A reply sent after a
+    resolve ends the walk rather than letting `z` reach past it, and so does a
+    gesture this document no longer paints. Every entry stays on the list for the
+    exact control that names it."""
     candidates = []
     withdrawn = undo_reading.withdrawn
+    bookkeeping = bookkeeping_kinds()
+    newest = next(
+        (
+            event["id"]
+            for event in reversed(events)
+            if event.get("author") == "user"
+            and event["kind"] != "undo"
+            and event["kind"] not in bookkeeping
+            and event["id"] not in withdrawn
+        ),
+        None,
+    )
     for event in reversed(events):
         if (
             event.get("author") != "user"
@@ -70,4 +90,6 @@ def browser_undo_candidates(
                 continue
             item["coordinate"] = list(coordinate)
         candidates.append(item)
+    if candidates and candidates[0]["event"]["id"] == newest:
+        candidates[0]["newest"] = True
     return candidates

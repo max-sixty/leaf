@@ -1,7 +1,8 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
+import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
-import { el, offer, reserve } from "./widget-elements.js";
+import { el, keeps, keepsText, offer, reserve } from "./widget-elements.js";
 import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -9,9 +10,9 @@ import {
   registerBannerControl,
   showBannerControl,
   showNews,
-} from "./banner-shelf.js";
-import { latestChip, versionBtn } from "./version-chooser.js";
-import { asksBtn, othersBtn } from "./trays.js";
+} from "./banner-toolbar.js";
+import { latestChip, versionBtn } from "./version-picker.js";
+import { asksBtn, othersBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
@@ -19,6 +20,7 @@ import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -59,11 +61,10 @@ const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
-// the user has not seen yet.
-approveBtn.disabled = true;
+// the user has not seen yet. The face states that refusal from its first reading.
 const approvalFace = createBannerApprovalFace(approveBtn);
 
-// The shelf owns this complete order from typed contributions rather than discovering
+// The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
 registerBannerControl({
   key: "leaves",
@@ -121,7 +122,7 @@ const WORK_WORDS = {
   replying: "replying",
 };
 export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
-// What the banner and the leaves tray both read off one page's server-owned `activity`
+// What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
 //
@@ -398,18 +399,23 @@ function renderLayerReference(state) {
   layerReferenceElementCopy.value = layerDiagnostics;
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
-  layerReferenceElement.replaceChildren(
-    "Leaf ",
-    el("code", "lf-layer-version", identity),
-    ...(age ? [` · ${age}`] : []),
+  render(
+    html`Leaf <code class="lf-layer-version">${identity}</code>${
+        age ? ` · ${age}` : nothing
+      }`,
+    layerReferenceElement,
   );
-  layerReferenceElement.title = [
-    ...dateLines,
-    producer.dirty
-      ? "+ means this layer includes uncommitted changes · copy diagnostics"
-      : "Copy Leaf layer version and diagnostics",
-  ].join("\n");
-  layerReferenceElement.setAttribute("aria-label", `${named} · copy version`);
+  keeps(
+    layerReferenceElement,
+    "title",
+    [
+      ...dateLines,
+      producer.dirty
+        ? "+ means this layer includes uncommitted changes · copy diagnostics"
+        : "Copy Leaf layer version and diagnostics",
+    ].join("\n"),
+  );
+  keeps(layerReferenceElement, "aria-label", `${named} · copy version`);
 }
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
@@ -525,12 +531,13 @@ function renderSessionReference() {
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
   sessionReferenceElementCopy.copyLabel = `${sessionReferenceLabel} · copy reference`;
-  sessionReferenceElement.textContent = sessionReferenceLabel;
-  sessionReferenceElement.setAttribute(
+  keepsText(sessionReferenceElement, sessionReferenceLabel);
+  keeps(
+    sessionReferenceElement,
     "aria-label",
     `${sessionReferenceLabel} · copy reference`,
   );
-  sessionReferenceElement.title = `${sessionReferenceLabel} · copy reference`;
+  keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} · copy reference`);
 }
 
 function renderStatusNow(state) {
@@ -630,17 +637,42 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// The banner's row mounts after the version chooser and trays exist. Its complete
+// The banner wraps by what it holds (chrome.css), and the browser's wrap is the one
+// decision: this reports which it drew as `data-lf-banner-rows` on the root, where the
+// theme's --lf-banner-h reads it, so the document's head and every surface hung below
+// the banner follow the rows on screen. It watches the two boxes whose widths decide the
+// wrap. The write moves the document's head, and so the body other observers watch, so
+// it waits for the next frame rather than resizing a watched box during delivery; the
+// banner itself is sized by its lines (chrome.css) and is right in the frame it wraps.
+let rowsWrite = null;
+const bannerRows = sizeObserver(() => {
+  rowsWrite ??= nextRender(() => {
+    rowsWrite = null;
+    const wrapped =
+      bannerStatus.getClientRects().length > 0 &&
+      bannerActions.offsetTop > bannerStatus.offsetTop;
+    document.documentElement.dataset.lfBannerRows = wrapped ? "2" : "1";
+  });
+});
+
+// The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
-  signoff = isSignoffDeclared() && runtime.currentStamp !== null;
+  signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
   reserveBannerControls();
+  bannerRows.observe(bannerStatus);
+  bannerRows.observe(bannerActions);
   approveBtn.onclick = async () => {
     if (approving) return;
+    // A refused press answers with its reason where every user sees it.
+    if (approvalFace.reason) {
+      notice(approvalFace.reason);
+      return;
+    }
     approving = true;
     approveBtn.setAttribute("aria-busy", "true");
     paintApproval();
@@ -656,10 +688,12 @@ export function mountBanner({ approveVersion, paintApproval }) {
 
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
-// taken from the document each time rather than kept beside it. Stamping the document
-// already open can also add or remove this control without any revision change.
+// taken from the document each time rather than kept beside it. The control stands for
+// the declaration alone. A stamp arriving is news, and the banner wraps by what it holds,
+// so a control the stamp put up would move the document; before a stamp the press is
+// refused with its reason (paintApproval) instead.
 export function stateSignoff(next, syncLayout, paintApproval) {
-  const shown = next && runtime.currentStamp !== null;
+  const shown = next;
   if (shown === signoff) return;
   signoff = shown;
   showBannerControl(approveBtn, signoff);
@@ -689,24 +723,24 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   // surface that could have told a user what pressing it would do next went on
   // describing a press they had already made. Approved, it says the state and the way
   // out of it, which is `z` like every other user gesture.
+  // Why a press is refused now, or null where it approves. A press already in flight
+  // is refused silently: its aria-busy says so.
+  const reason = approved
+    ? "Approved. Press z to take it back while it is still your last gesture"
+    : runtime.currentStamp === null
+      ? "There is no stamped version to approve yet"
+      : !signoff ||
+          !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+          blockingAsks === null
+        ? "Approval waits until this page has read its current state"
+        : blockingAsks.length
+          ? "Answer every Ask before approving this work"
+          : null;
   approvalFace.present(
     Object.freeze({
-      disabled:
-        !signoff ||
-        approving ||
-        runtime.currentStamp === null ||
-        !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-        blockingAsks === null ||
-        blockingAsks.length > 0 ||
-        approved,
+      reason: reason ?? (approving ? "Approving this version" : null),
       text: approved ? "✓ Version approved" : "Approve version",
-      title: approved
-        ? "Approved. Press z to take it back while it is still your last gesture"
-        : blockingAsks === null
-          ? "Approval waits until this page has read its current state"
-          : blockingAsks.length
-            ? "Answer every Ask before approving this work"
-            : "Approve this work; the page stays open for follow-up",
+      title: reason ?? "Approve this work; the page stays open for follow-up",
     }),
   );
   repaint();

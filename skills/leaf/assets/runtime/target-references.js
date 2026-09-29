@@ -13,7 +13,7 @@
  * prove which candidate owns the reference. Callers must not choose one in either
  * unresolved state. */
 import { elementFromPointAcross, GENERATED } from "./passages.js";
-import { under, upFrom } from "./shadow.js";
+import { shadowHost, under, upFrom } from "./shadow.js";
 
 const isElement = (value) => value?.nodeType === Node.ELEMENT_NODE;
 
@@ -63,10 +63,8 @@ export function targetCandidates(root, source) {
 
 function parentStep(element) {
   if (element.parentElement) return { parent: element.parentElement, tree: "light" };
-  const root = element.getRootNode();
-  if (root instanceof ShadowRoot && root.host)
-    return { parent: root.host, tree: "shadow" };
-  return null;
+  const host = shadowHost(element.getRootNode());
+  return host ? { parent: host, tree: "shadow" } : null;
 }
 
 export function captureTargetReference(root, target) {

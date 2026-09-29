@@ -33,8 +33,8 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   opacity: 0; pointer-events: none;
 }
 lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
-  outline: var(--here-ring); --lf-here-ring: gloss-mark;
-  outline-offset: calc(-1 * var(--here-ring-w));
+  outline: var(--focus-ring); --lf-focus-ring: gloss-mark;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
   position: fixed; inset: auto; position-area: block-end center;
@@ -101,7 +101,7 @@ lf-chip {
 lf-chip {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact
@@ -412,9 +412,17 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option::before { content: ""; float: inline-end;
                      width: var(--lf-card-state-room); height: 22px;
                      pointer-events: none; }
+   /* The mark's box is the whole seat the binding badge takes in its place, the mark
+    * centred in it as the badge's digit is. A margin pin standing in the card's corner
+    * steps below the controls it finds there, and it found the 11px mark alone: it stood
+    * over the lower edge of the badge once the badge came, which then gave way to a
+    * chip on the mark's corner, 10px higher, with the mark's ring showing under it. */
    & > lf-option > .lf-pick {
                      left: auto; inset-inline-end: var(--sp-2);
-                     top: var(--sp-2); bottom: auto; z-index: 1; }
+                     top: var(--sp-2); bottom: auto; z-index: 1;
+                     min-width: var(--lf-key-badge-size);
+                     min-height: var(--lf-key-badge-size);
+                     justify-content: center; }
    & > lf-option[chosen] > .lf-pick {
                      padding: var(--chip-pad); border-radius: var(--chip-r);
                      background: var(--ok); color: var(--card);
@@ -522,8 +530,8 @@ lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
  * the same compact check without reviving a dead control or its former status caption. */
 @media print { lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
                                         font-family: var(--sans); font-weight: 700; } }
-lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
-                     outline-offset: var(--here-ring-gap); border-radius: 4px; }
+lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-pick;
+                     outline-offset: var(--focus-ring-gap); border-radius: 4px; }
 /* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
@@ -625,14 +633,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
      * used to stand here called it a float that "does not fill the row" when the grid
      * had been filling it all along. */
     & > * { margin-block: 0; }
-    /* A control packed into this group states its own inset (theme.css, --here-ring).
+    /* A control packed into this group states its own inset (theme.css, --focus-ring).
      * The group clips to the frame it draws, so a ring drawn outside a cell's box is
      * drawn into the pixels the frame cuts away: the Done press sits flush on the
      * group's bottom edge and lost the bottom run of its ring there, and the cells lose
      * their side runs the same way. Inset, the ring is inside the box it names and the
      * clip has nothing of it to take. The group's own frame is what stands off the
      * page, which is the gap's job on a box that stands alone. */
-    & .lf-btn:is(:focus-visible, .lf-focus-visible) { outline-offset: calc(-1 * var(--here-ring-w)); }
+    & .lf-btn:is(:focus-visible, .lf-focus-visible) { outline-offset: calc(-1 * var(--focus-ring-w)); }
     /* The hairline between neighbours: one line, stated once, on the upper of the
      * two, so a child no rule here names arrives already separated. It is the only
      * border in the group: a cell wears none of its own, and the card's is withheld
@@ -662,6 +670,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
     & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[chosen] { --fill: var(--ok-tint); }
+    /* An ok chip is drawn in the same tint the pick fills its cell with, so on the chosen
+     * cell a "recommended" chip lost its ground and read as loose green words. There
+     * it stands on the card's ground instead, keeping its tone in its ink. */
+    & > lf-option[chosen] > lf-chip[tone="ok"] { background: var(--card); }
     /* The add form is the group's own child, so joining the group takes it inside the
      * border too, butted against the last cell by the hairline every child shares. It is
      * a cell rather than a footer: it creates the option the user writes when none of
@@ -694,8 +706,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   ) { --lf-ask-ring: none; }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
-      outline: var(--here-ring); --lf-here-ring: options-row;
-      outline-offset: calc(-1 * var(--here-ring-w));
+      outline: var(--focus-ring); --lf-focus-ring: options-row;
+      outline-offset: calc(-1 * var(--focus-ring-w));
     }
   /* The add field's own outline is off (below), so the row it sits in is the only thing
    * that can answer the keyboard for it — in every group that shows the field, not just
@@ -704,8 +716,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * nothing on screen saying where they were. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
     > .lf-another:has(leaf-text:is(:focus, .lf-focus)) {
-      outline: var(--here-ring); --lf-here-ring: options-row;
-      outline-offset: calc(-1 * var(--here-ring-w));
+      outline: var(--focus-ring); --lf-focus-ring: options-row;
+      outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
                 --lf-option-add-seat-inset: var(--sp-1);
@@ -927,7 +939,7 @@ lf-options[settled] > .lf-settled {
  * is authored namespace for a fact no version carries (lf-options.js). */
 lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
-lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-settled;
+lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-settled;
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
@@ -1078,7 +1090,7 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * following space. Long unbreakable runs (a path, a sha) still
  * break where they must; that is the page-wide bargain and no width buys it back.
  *
- * The grip's column is in the floor for the same reason it is in the card's padding: it
+ * The grip's width is in the floor because a card's title is set beside it (below): it
  * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
  * the measure and its insets alone. */
 /* The board's minimum is every column at its floor and the gaps between them. A layout
@@ -1123,7 +1135,7 @@ lf-column { display: block; background: var(--field); box-sizing: border-box;
 /* Where sharing the board between columns would leave none of them readable, one column
    takes the width and the next stays visible as the cue that the board continues
    sideways. The floor still wins inside a narrower frame. The board asks its own box, so
-   a board beside an open tray answers for the room it has rather than for the room the
+   a board beside an open drawer answers for the room it has rather than for the room the
    window has; snapping needs no condition of its own, since proximity snapping does
    nothing until a column offers a snap position. */
 @media screen {
@@ -1179,16 +1191,32 @@ lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
           padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2);
           container-type: inline-size; --lf-block-frame: 1; }
-/* The column the grip hangs in, spent only where a grip hangs: the module measures its
-   own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
-   pick column already is, so the ladder moving or a platform substituting a different
-   glyph re-measures itself. The number this replaces was 34px read out of a browser
-   once — and stated unconditionally, so paper and quoted boards, neither of which ever
-   grows a grip, carried a dead column beside every card. No module, no var, no room;
-   paper keeps the var in the style attribute, which is why the rule asks the medium
-   too. */
+/* The room the grip takes, spent only beside the grip: an empty float the grip's own
+   size stands in the card's top corner, so the lines level with the grip (the title's,
+   and on a finger's taller grip the first line after it) stop short of it, and what
+   runs below takes the card's whole width. It used to be a column down the card's full
+   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   where the grip does, 2px under the card's edge and so 10px above its 12px padding,
+   and its width keeps the card's inset between the words and the grip.
+
+   The module measures its own grip's box and states both sides of it (--lf-grip-room,
+   --lf-grip-block; lf-board.js), the same answer the pick column already is, so the
+   ladder moving or a platform substituting a different glyph re-measures itself. No
+   module, no var, no room, so paper and quoted boards, neither of which grows a grip,
+   keep none; paper keeps the vars in the style attribute, which is why the rule asks
+   the medium too. The float is generated rather than the grip itself floated, which
+   would have to come first in the card and so be read before its title.
+
+   Under a finger the grip is the aim floor tall and reaches past a one-line title. The
+   prose lines running on after the title wrap beside it, which is right, since its box
+   takes their presses; but a block that lays itself out on its own (a pre, a table) was
+   set beside the float for its whole height, 44px narrower than the card. So every
+   block after the card's first child clears the grip: it starts under the grip's box
+   and takes the card's width. An inline child ignores `clear`. */
 @media screen {
- lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
+  lf-card::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
+                    block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
+  lf-card > :not(:first-child) { clear: right; }
 }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
@@ -1204,6 +1232,12 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
+/* The grip names its card, so the browser's own reveal of a focused grip reveals the
+   card: its scroll margin runs back to the card's left edge (the card is an inline-size
+   container, so 100cqi is its content). Without it a board scrolling sideways showed only
+   the 30px grip, leaving the card's words and column cut off at the board's edge. The
+   reveal is the browser's, so a focus restored without scrolling leaves the board be. */
+lf-card .lf-grip { scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset)); }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls
@@ -1212,11 +1246,14 @@ lf-card .lf-grip:hover { background: var(--chip); }
    clips a pixel outside the last column's cards, so the ring's right run and both
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
-lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: calc(-1 * var(--here-ring-w));
+lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
-lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); }
+/* A held card says so with its contour. The lift's shadow alone does not show on the
+   dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
+   is merely focused. */
+lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
 lf-card.lf-inhand { opacity: 1; cursor: grabbing;
                     box-shadow: 0 8px 24px var(--shade); }
@@ -1247,15 +1284,15 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * wears the layer's band, which reads as the walk leaving the page. Inset, because the
  * button's foot is on the strip's rule and an outset band would be drawn over it. */
 .lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
-               outline: var(--here-ring); --lf-here-ring: tab-btn;
-               outline-offset: calc(-1 * var(--here-ring-w)); }
+               outline: var(--focus-ring); --lf-focus-ring: tab-btn;
+               outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
                display: inline-block; padding: 2px 5px; }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
-/* A tab's counts: the passages the version diff marks, and, in the tone the tray's
+/* A tab's counts: the passages the version diff marks, and, in the tone the drawer's
  * count wears, the Asks that still wait on the user. A count with nothing to count
  * takes no room. */
 :is(.lf-tabdiff, .lf-tabowed) { font-size: var(--t-6); margin-left: 6px;
@@ -1367,7 +1404,7 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
     lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
-      top: var(--lf-banner-h);
+      top: var(--lf-top);
       z-index: 2;
       flex-wrap: nowrap;
       overflow-x: auto;
@@ -1431,8 +1468,8 @@ lf-shot .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio
     border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
     background: var(--card); --divider-width: 2px; --handle-size: 38px;
     --wa-color-surface-default: var(--card); --wa-color-neutral-on-quiet: var(--ink-2);
-    --wa-focus-ring: var(--here-ring); --wa-focus-ring-offset: 1px;
-    --lf-here-ring: shot; }
+    --wa-focus-ring: var(--focus-ring); --wa-focus-ring-offset: 1px;
+    --lf-focus-ring: shot; }
 lf-shot .lf-shotcomparison::part(divider) {
     background: color-mix(in srgb, var(--ink-2) 48%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
@@ -1522,7 +1559,7 @@ lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
     box-shadow: inset 0 -2px var(--accent); }
 
 lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
-    outline: var(--here-ring); --lf-here-ring: shot; outline-offset: 1px;
+    outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;
     border-radius: var(--r); }
 
 @media print {
@@ -1580,11 +1617,14 @@ lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
 lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
 lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
 lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
-           text-decoration: none; }
+/* Each link is a stacked row with no gap to the next, so its box is the whole of its aim:
+ * the padding centres its line in the aim floor, which a finger raises to 44px where the
+ * 3px a mouse needs left 24px rows. */
+lf-toc a { display: inline-block; color: inherit; text-decoration: none;
+           padding-block: max(3px, (var(--aim-floor) - 1lh) / 2); }
 lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
-/* The core sidebar states its actual posture after viewport and tray-room decisions.
+/* The core sidebar states its actual posture after viewport and drawer-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC stays open.
  *
@@ -1611,10 +1651,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                box-sizing: border-box;
                padding-block: var(--sp-4);
                pointer-events: none;
-               /* Between the banner and the bottom band, as every region is: the band is
+               /* Between the banner and the bottom bar, as every region is: the bar is
                 * attached to the window's foot at one stated height, so the map ends above
                 * it rather than losing its last entry under the keyboard's line. */
-               height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-band-h, 0px));
+               height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-bottom-bar-h, 0px));
                margin: 0; }
       lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
@@ -1636,12 +1676,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-rows::before { content: ""; position: absolute;
                                     z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
                                     background: var(--border-2); }
+      /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
+       * animation, which the compositor runs. */
       lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
-                              top: var(--lf-toc-window-start, 0%);
-                              left: 0; width: 1px;
-                              height: var(--lf-toc-window-size, 12%);
-                              min-height: 14px; border-radius: 2px;
-                              background: var(--ink-2); }
+                              top: 0; left: 0; width: 1px; height: 1px;
+                              transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
        * row's span never stands over that link: the link is the only thing here to
@@ -1680,8 +1719,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc li a[aria-current="location"]:not(:hover, :focus-visible) {
         color: var(--ink-2);
       }
-      lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
-                               outline-offset: calc(-1 * var(--here-ring-w)); }
+      lf-toc a:focus-visible { outline: var(--focus-ring); --lf-focus-ring: toc-link;
+                               outline-offset: calc(-1 * var(--focus-ring-w)); }
       lf-toc:is(:hover, :focus-within) .lf-toc-nav,
       body[data-lf-go-to-active] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
@@ -1784,11 +1823,11 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
 lf-ask { display: block; }
-/* An Ask that is a held workspace's body (`--lf-held` on main, layouts.css) and is a
+/* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
  * heading and one answer gives the answer what the heading leaves, so a widget composing
  * its own regions there, such as a playground, fills the window. With context between
  * the two there is no one box to give the height to, so every part keeps its own. */
-@container style(--lf-held: 1) {
+@container style(--lf-full-height: 1) {
   main > lf-ask { display: flex; flex-direction: column; }
   main > lf-ask > :nth-child(2):last-child {
     flex: 1 1 0;
@@ -2044,8 +2083,8 @@ lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: none; }
 lf-code.lf-rendered:has(> pre:is(:focus-visible, .lf-focus-visible))::after {
              content: ""; position: absolute; inset: 0; pointer-events: none;
              border-radius: var(--r);
-             outline: var(--here-ring); --lf-here-ring: code-pre-light;
-             outline-offset: calc(-1 * var(--here-ring-w)); }
+             outline: var(--focus-ring); --lf-focus-ring: code-pre-light;
+             outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
    package answers the same question on its own rows, but from the track rather than the
    line, because there every row has to end where the widest one does: this block's lines
@@ -2115,8 +2154,10 @@ lf-text-document > .lf-text-document-view {
   margin: 0; border: 1px solid var(--code-border); border-radius: var(--r);
   overflow: hidden; background: var(--pre-bg); --lf-block-frame: 1;
 }
+/* The caption is the frame's header bar, not a line of reading, so it spans the frame:
+   under the reading measure its rule stopped 53px short of a 795px frame. */
 lf-text-document figcaption {
-  padding: 7px 11px; border-bottom: 1px solid var(--rule);
+  max-inline-size: none; padding: 7px 11px; border-bottom: 1px solid var(--rule);
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
@@ -2139,7 +2180,7 @@ lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-
    Keep its generic focus ring inside that frame: the figure clips at its rounded
    corners, so an outside ring loses a pixel on three sides. */
 lf-text-document pre:is(:focus-visible, .lf-focus-visible) {
-  outline-offset: calc(-1 * var(--here-ring-w));
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
@@ -2195,7 +2236,7 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
    size larger than the words it showed. */
 lf-draft { font-size: max(var(--entry-floor), 1em); }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
-           --lf-here-ring: none; }
+           --lf-focus-ring: none; }
 .lf-draft-history { display: none; }
 @media screen {
   html:root {
@@ -2209,9 +2250,9 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
     lf-draft:has(.lf-draft-edit) { border-style: solid;
                border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
                box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-    lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--here-ring);
-               --lf-here-ring: draft-editor;
-               outline-offset: calc(-1 * (var(--here-ring-w) + var(--here-ring-gap))); }
+    lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--focus-ring);
+               --lf-focus-ring: draft-editor;
+               outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
     lf-draft:has(.lf-draft-edit) > .lf-draft-body { display: none; }
     .lf-draft-history { display: block; }
   }

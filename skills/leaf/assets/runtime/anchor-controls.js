@@ -5,7 +5,7 @@
  * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
- * declared part through the target chooser (`s`). A standing reaction first reveals
+ * declared part through the target picker (`s`). A standing reaction first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */

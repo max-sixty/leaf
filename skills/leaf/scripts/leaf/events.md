@@ -51,6 +51,11 @@ The user may withdraw a resolve, unresolve, action, or approval. A reaction
 may also be withdrawn while unanswered and on an unresolved thread. Spoken
 messages cannot be withdrawn. An undo cannot itself be undone.
 
+The page's undo key takes back the user's newest gesture or nothing: a newer
+gesture it cannot take back, such as a sent reply, ends the walk, while bookkeeping
+and gestures already withdrawn do not. An exact control, such as a widget's Undo,
+may still withdraw an older gesture it names.
+
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus

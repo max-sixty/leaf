@@ -1,12 +1,12 @@
 """Score a guidance change: `claude plugin eval` on the cases in `evals/`, run at once on
 the base's payload and the working tree's, read into one table.
 
-    uv run leaf-dev guidance-ab pin-takes-no-page-room --runs 1
+    uv run leaf-dev guidance-eval pin-takes-no-page-room --runs 1
 
 Both arms are built outside the checkout, since `claude plugin eval` loads every plugin
 and case below its target. Both get the working tree's case directories matching a
 CASE glob, or every case, so a case newer than the base runs on the base too. Each
-arm's `aggregate-result.json`, `report.html` and log stay under `.tmp/guidance-ab/`.
+arm's `aggregate-result.json`, `report.html` and log stay under `.tmp/guidance-eval/`.
 """
 
 import fnmatch
@@ -21,7 +21,7 @@ import click
 from leaf_dev import ROOT
 from leaf_dev.harness import base_ref, build_arm, copy_working, environment
 
-OUT = ROOT / ".tmp" / "guidance-ab"
+OUT = ROOT / ".tmp" / "guidance-eval"
 ARMS = ("base", "candidate")
 # `/developing-leaf`, "Score a guidance change", says why each is needed.
 FLAGS = (
@@ -60,11 +60,11 @@ def of(runs: list[dict]) -> str:
     return f"{count} ({errored} errored)" if errored else count
 
 
-@click.command("guidance-ab")
+@click.command("guidance-eval")
 @click.argument("case_globs", metavar="[CASE]...", nargs=-1)
 @click.option("--base", help="The base ref; the merge base with main.")
 @click.option("--runs", type=int, help="Runs per case; each case's own, or 3.")
-def guidance_ab(case_globs: tuple[str, ...], base: str | None, runs: int | None):
+def guidance_eval(case_globs: tuple[str, ...], base: str | None, runs: int | None):
     """Score the guidance cases, base vs the working tree.
 
     Runs the cases in evals/ matching the CASE globs, or all of them, on the guidance
@@ -74,7 +74,7 @@ def guidance_ab(case_globs: tuple[str, ...], base: str | None, runs: int | None)
     started = datetime.now().astimezone()
     OUT.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix=f"{started:%Y%m%d-%H%M%S}-", dir=OUT))
-    with tempfile.TemporaryDirectory(prefix="leaf-guidance-ab-") as built:
+    with tempfile.TemporaryDirectory(prefix="leaf-guidance-eval-") as built:
         arms = {arm: Path(built) / arm for arm in ARMS}
         commits = {
             "base": build_arm(base_ref(base), arms["base"]),

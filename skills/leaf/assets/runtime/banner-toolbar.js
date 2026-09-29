@@ -1,4 +1,4 @@
-/* The banner shelf owns the complete generated control run.
+/* The banner toolbar owns the complete generated control run.
  *
  * Contributors register one stable control with an explicit rank and seat.
  * A compound control also names its retained focus target.
@@ -43,7 +43,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   versions: 90,
   approval: 100,
   threads: 110,
-  // The way out of the mode or chooser the user stands in, under a finger.
+  // The way out of the mode or picker the user stands in, under a finger.
   steps: 120,
   commentSelection: 130,
 });
@@ -278,11 +278,23 @@ overflowMenu.addEventListener("lf-reveal", () => {
 // itself while it stands on the row, and otherwise the More door holding it. A menu
 // control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
 // no-op, so a caller that hands the user somewhere has to ask this rather than the
-// control. Null means the shelf offers no way in, which happens only off the banner.
+// control. Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control) {
   if (control.isConnected && control.checkVisibility()) return control;
   const menu = control.closest(".lf-banner-menu");
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
+}
+
+// Escape from a layer that opens from a banner control lands on that control, its parent
+// (runtime/keyboard/AGENTS.md, "Escape unwinds the hierarchy"). A control behind More is
+// reached as its door reaches it: More opens from the door, so More's own Escape then
+// hands the user back to the door, and the user stands on the control.
+export function returnToBannerControl(control) {
+  if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
+    overflowBtn.focus({ preventScroll: true });
+    overflowMenu.showPopover();
+  }
+  control.focus({ preventScroll: true });
 }
 
 export function dismissBannerControls() {

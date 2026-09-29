@@ -67,6 +67,7 @@ from .codex import (
     stream_reply_target,
     write_record,
 )
+from .codex_titles import name_untitled_threads
 from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
@@ -442,6 +443,11 @@ def accept_offered_delivery(session_id: str, delivery_id: str, turn_id: str) -> 
         accept_codex_delivery(session_id, turn_id)
 
 
+def _log_record(event: str, **fields) -> None:
+    """One structured line in the adapter's log."""
+    print(json.dumps({"event": event, **fields}), file=sys.stderr, flush=True)
+
+
 def start_delivery_turn(
     observer: "TaskObserver",
     session_id: str,
@@ -496,6 +502,9 @@ def start_delivery_turn(
         # turn the moment it says anything; every other failure has given it back.
         socket.close()
         raise
+    # On the task's configured model: a user's App Server offers no model this
+    # process could name for every account.
+    name_untitled_threads(observer.endpoint, payload, session_id, None, _log_record)
     return DeliveryTurn(
         observer,
         session_id,

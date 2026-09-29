@@ -1,4 +1,4 @@
-/* This module owns the target chooser and whole-page text search. Its transient hints,
+/* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { bindings } from "../keyboard/bindings.js";
@@ -18,7 +18,7 @@ import {
 import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { handBack } from "../focus.js";
+import { handBack, releaseFocus } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -41,11 +41,12 @@ import {
   pageScope,
 } from "../keyboard/register.js";
 
-// The target chooser and page search have separate faces. Hints and the active search result are paint only;
-// the search box is a real control, kept beside them so its focus and accessible name are
-// the platform's rather than a keyboard interaction's imitation of one.
-export const targetChooserHintLayer = el("div", "lf-ui lf-target-chooser-hints");
-targetChooserHintLayer.setAttribute("aria-hidden", "true");
+// The target picker and page search have separate faces. Hints and the active search
+// result are paint only; the search box is a real control, kept beside them so its focus
+// and accessible name are the platform's rather than a keyboard interaction's imitation
+// of one.
+export const targetPickerHintLayer = el("div", "lf-ui lf-target-picker-hints");
+targetPickerHintLayer.setAttribute("aria-hidden", "true");
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
@@ -65,7 +66,7 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
-// Select element opens this same chooser, and its Cancel selection closes it. While it
+// Select element opens this same picker, and its Cancel selection closes it. While it
 // stands on a touch device, presses use aim's capture boundary to choose the innermost target
 // without activating authored controls.
 //
@@ -88,7 +89,7 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // the page after a direct `/`, or the visible hints after `s` then `/`. The interaction keeps
 // `?` available and claims the rest of the page's keyboard while it stands.
 
-export function createTargetChooser({
+export function createTargetPicker({
   scrollToRange,
   hintChrome,
   commentOnTarget,
@@ -100,7 +101,7 @@ export function createTargetChooser({
   const canChoose = () =>
     anchoringIsReady() && !coveringAuxiliarySurface() && !pointerModeActive();
 
-  let chooserOpen = false;
+  let pickerOpen = false;
   let pageSearchOpen = false;
   let matches = [];
   let active = -1;
@@ -199,11 +200,11 @@ export function createTargetChooser({
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
-  function setTargetChooser(on, restore = false, withHints = true) {
+  function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
     if (on) opener = focused();
     const returnTo = !on && restore ? opener : null;
-    chooserOpen = on;
+    pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
     matches = [];
@@ -236,7 +237,7 @@ export function createTargetChooser({
       pageSearchInput.value = "";
       matches = [];
       active = -1;
-      document.body.focus({ preventScroll: true });
+      releaseFocus();
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
@@ -246,8 +247,8 @@ export function createTargetChooser({
   }
 
   function openPageSearch() {
-    const fromHints = chooserOpen;
-    if (!chooserOpen) setTargetChooser(true, false, false);
+    const fromHints = pickerOpen;
+    if (!pickerOpen) setTargetPicker(true, false, false);
     searchReturnsToHints = fromHints;
     setPageSearch(true);
   }
@@ -394,8 +395,8 @@ export function createTargetChooser({
   }
 
   function chooseTarget(target) {
-    setTargetChooser(false);
-    document.body.focus({ preventScroll: true });
+    setTargetPicker(false);
+    releaseFocus();
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
   }
@@ -405,7 +406,7 @@ export function createTargetChooser({
     if (!segments) return;
     const quote = quoteFrom(matches[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
-    setTargetChooser(false);
+    setTargetPicker(false);
     selectMatch(segments);
     announce(
       `Selected match: ${quote}. ${
@@ -417,7 +418,7 @@ export function createTargetChooser({
   }
 
   function selectMatch(segments) {
-    document.body.focus({ preventScroll: true });
+    releaseFocus();
     const selection = getSelection();
     selection.removeAllRanges();
     selection.addRange(rangeOf(segments));
@@ -447,13 +448,13 @@ export function createTargetChooser({
   function back() {
     if (pageSearchOpen) {
       if (searchReturnsToHints) return setPageSearch(false);
-      setTargetChooser(false, true);
+      setTargetPicker(false, true);
       announce("Page search closed.");
       return;
     }
     if (hints.backOneLetter()) return;
-    setTargetChooser(false, true);
-    announce("Target chooser closed.");
+    setTargetPicker(false, true);
+    announce("Target picker closed.");
   }
 
   const hintTemplate = (model) =>
@@ -461,11 +462,11 @@ export function createTargetChooser({
       >${keySequenceTemplate(model.sequence)}</span
     >`;
 
-  // The chooser's hints and the open search's marks are two faces in one layer, and only
+  // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
   const hints = createHintSession({
-    layer: targetChooserHintLayer,
-    walk: "target-chooser",
+    layer: targetPickerHintLayer,
+    walk: "target-picker",
     read: visibleTargets,
     identity: (target) => target.element,
     scene: room,
@@ -484,7 +485,7 @@ export function createTargetChooser({
           candidate: target,
           model: Object.freeze({
             key: hintRenderKey(target.element),
-            className: `lf-key-badge lf-key-hint lf-target-chooser-hint${
+            className: `lf-key-badge lf-key-hint lf-target-picker-hint${
               target === current ? " lf-current" : ""
             }${rect.clippedTop || rect.top < top ? " lf-in" : ""}`,
             hintCode: target.code,
@@ -534,10 +535,10 @@ export function createTargetChooser({
         ({ key }) => key,
         () => html`<span class="lf-page-search-match"></span>`,
       )}`,
-      targetChooserHintLayer,
+      targetPickerHintLayer,
     );
     for (const [index, { rect }] of plans.entries()) {
-      const mark = targetChooserHintLayer.children[index];
+      const mark = targetPickerHintLayer.children[index];
       mark.style.left = `${rect.left}px`;
       mark.style.top = `${rect.top}px`;
       mark.style.width = `${rect.width}px`;
@@ -545,8 +546,8 @@ export function createTargetChooser({
     }
   }
 
-  function paintTargetChooserHints() {
-    if (chooserOpen && pageSearchOpen) return paintSearchMatches();
+  function paintTargetPickerHints() {
+    if (pickerOpen && pageSearchOpen) return paintSearchMatches();
     hints.paint();
   }
 
@@ -600,7 +601,7 @@ export function createTargetChooser({
           : "Close page search"
         : hints.prefix()
           ? "Remove the last hint letter"
-          : "Close the target chooser",
+          : "Close the target picker",
     line: () =>
       pageSearchOpen
         ? searchReturnsToHints
@@ -608,7 +609,7 @@ export function createTargetChooser({
           : "close search"
         : hints.prefix()
           ? "back one letter"
-          : "close chooser",
+          : "close picker",
     touch: () =>
       pageSearchOpen
         ? searchReturnsToHints
@@ -623,17 +624,17 @@ export function createTargetChooser({
   const targetingClaims = (binding) =>
     allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
 
-  const TARGET_CHOOSER_SCOPE = {
-    title: "In the target chooser",
+  const TARGET_PICKER_SCOPE = {
+    title: "In the target picker",
     escape: "inner",
-    at: () => chooserOpen && !pageSearchOpen,
+    at: () => pickerOpen && !pageSearchOpen,
     // The page owns search, even when target hints are standing over it. Exempt the
     // binding read from that row so one declaration drives both entry routes and every
     // keyboard projection.
     claims: targetingClaims,
     rows: [
       {
-        id: "target.chooser.hint.type",
+        id: "target.picker.hint.type",
         keys: HINT_KEYS,
         label: "a–z",
         does: "Type the hint for a target",
@@ -642,16 +643,16 @@ export function createTargetChooser({
         run: hints.type,
       },
       {
-        id: "target.chooser.hint.walk",
+        id: "target.picker.hint.walk",
         keys: ["Tab", "Shift+Tab"],
         routes: [
           {
-            id: "target.chooser.hint.next",
+            id: "target.picker.hint.next",
             binding: "Tab",
             does: "Hear the next visible target",
           },
           {
-            id: "target.chooser.hint.previous",
+            id: "target.picker.hint.previous",
             binding: "Shift+Tab",
             does: "Hear the previous visible target",
           },
@@ -663,7 +664,7 @@ export function createTargetChooser({
         run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
       },
       {
-        id: "target.chooser.target.choose",
+        id: "target.picker.target.choose",
         keys: ["Enter"],
         does: "Choose the target just announced",
         line: "choose target",
@@ -716,9 +717,9 @@ export function createTargetChooser({
     ],
   };
 
-  const targetChooserOpen = () => chooserOpen;
-  const openTargetChooser = () => setTargetChooser(true);
-  const closeTargetChooser = () => setTargetChooser(false);
+  const targetPickerOpen = () => pickerOpen;
+  const openTargetPicker = () => setTargetPicker(true);
+  const closeTargetPicker = () => setTargetPicker(false);
 
   function mount() {
     pageSearchInput.addEventListener("input", search);
@@ -736,11 +737,11 @@ export function createTargetChooser({
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
   pageScope("page search", PAGE_SEARCH_SCOPE);
-  pageScope("target chooser", TARGET_CHOOSER_SCOPE);
+  pageScope("target picker", TARGET_PICKER_SCOPE);
   // The page itself is already a Comment target; `s` plus a hint names a more particular
   // one. Either route opens Comment, while reactions wait for a target.
   pageCommand({
-    id: "target.chooser.open",
+    id: "target.picker.open",
     keys: ["s"],
     does: "Select an element to comment by tapping it or typing its hint",
     line: "comment on target",
@@ -749,20 +750,21 @@ export function createTargetChooser({
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
-    run: (...args) => openTargetChooser(...args),
+    run: (...args) => openTargetPicker(...args),
   });
-  // Search remains one press from the shelf and named in full by the reference.
+  // Search remains one press from the expanded shortcut bar and named in full by the
+  // reference.
   pageCommand(PAGE_SEARCH);
   pageCommand(REPEAT_PAGE_SEARCH);
 
   return {
     visibleTargets,
     chooseTarget,
-    pointerChoosing: () => coarsePointer.matches && chooserOpen && !pageSearchOpen,
-    paintTargetChooserHints,
-    targetChooserOpen,
-    openTargetChooser,
-    closeTargetChooser,
+    pointerChoosing: () => coarsePointer.matches && pickerOpen && !pageSearchOpen,
+    paintTargetPickerHints,
+    targetPickerOpen,
+    openTargetPicker,
+    closeTargetPicker,
     mount,
   };
 }

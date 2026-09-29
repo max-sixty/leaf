@@ -35,13 +35,13 @@ const COMMAND_REFERENCE = "command.reference.open";
 
 const STACK = [
   "command reference",
-  "shortcut shelf",
+  "expanded shortcut bar",
   "page map",
   "go to",
   "response options",
   "reactions",
   "page search",
-  "target chooser",
+  "target picker",
   ELEMENTS,
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
@@ -71,7 +71,7 @@ const STACK = [
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "margin options", // the margin entry cluster the user unfolded
-  "tray", // the tray that holds the edge
+  "drawer", // the drawer that holds the edge
   "narrowing", // the narrowing the user put on the thread list
   "panel", // the thread panel
   "draw mode", // the drawing surface over the page
@@ -82,7 +82,7 @@ const RUNG_LADDER = [
 const PAGE_COMMANDS = [
   "ask.activate-nth",
   "comment.create",
-  "target.chooser.open",
+  "target.picker.open",
   "reaction.open",
   "page.search.open",
   "page.search.repeat",
@@ -225,7 +225,7 @@ function assemble() {
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
     // Rooted at the surface the live step is inside, so a step off a covering panel or
-    // tray survives the floor that surface establishes while the page below it does not.
+    // drawer survives the floor that surface establishes while the page below it does not.
     if (name === RUNGS)
       return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
     if (name === COVERING)

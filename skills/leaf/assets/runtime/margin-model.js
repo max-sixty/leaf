@@ -175,6 +175,16 @@ export const secondaryCount = (entry, primary) =>
 export const optionsOffered = (entry, primary) =>
   secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
+// The words a reading's control shows: its kind's word, plural for several items, or
+// the one item's own label where it has one (an Ask's question). Accessible names keep
+// the kind's word and say the subject beside it.
+export function readingLabel(choice) {
+  const face = readingFace(choice);
+  const items = choice?.items ?? [];
+  if (items.length > 1) return `${face.label}s`;
+  return items[0]?.label || face.label;
+}
+
 export function markerFace(entry) {
   const kinds = kindsIn(entry, { markerOnly: true });
   const choice = primaryReading(entry);
@@ -183,7 +193,7 @@ export function markerFace(entry) {
   return {
     kinds,
     face,
-    label: faceCount > 1 ? `${face.label}s` : face.label,
+    label: readingLabel(choice),
     // The badge describes this margin entry's result. Other readings live behind `…`
     // and must not make a thread margin entry appear to open more threadList than it does.
     count: faceCount,

@@ -75,20 +75,35 @@
   .layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
   .layout-sidebar > aside { flex: 1 1 18rem; }
   .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
-  /* Tiles: equal cells, as many to a row as fit at 9rem each. */
+  /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row
+   * as tall as the row. Three or four tiles never break into a lone orphan: where one
+   * row cannot hold them all, three stack and four go two by two. --lf-tiles-row is the
+   * width that one row needs, and the huge factor makes the track's floor a switch on
+   * whether the box is narrower than that: under it the floor is the fallback track,
+   * over it the ordinary 9rem. Four tiles at 9rem otherwise split 3 + 1 across a 492 to
+   * 644px box, as a 1024px window gives live-progress's main column. */
   .layout-tiles {
+    --lf-tile-min: 9rem;
     display: grid;
     gap: var(--sp-4);
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
-    align-items: start;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--lf-tile-min),
+      min(var(--lf-tiles-fallback, 0px), (var(--lf-tiles-row, 0px) - 100%) * 1000))), 1fr));
+  }
+  .layout-tiles:has(> :nth-child(3):last-child) {
+    --lf-tiles-row: calc(3 * var(--lf-tile-min) + 2 * var(--sp-4));
+    --lf-tiles-fallback: 100%;
+  }
+  .layout-tiles:has(> :nth-child(4):last-child) {
+    --lf-tiles-row: calc(4 * var(--lf-tile-min) + 3 * var(--sp-4));
+    --lf-tiles-fallback: calc(50% - var(--sp-4) / 2);
   }
   .layout-tiles > * { margin: 0; }
-  /* Workspace: the page fills the window below the banner and above the band, its header
-   * and footer take their content's height, and the body between them takes the rest,
+  /* Workspace: a full-height page, filling the window between the banner and the bottom
+   * bar: its header and footer take their content's height, the body takes the rest,
    * arranged as the body itself says: a page's grid of panes, a pane, or a widget that
    * composes its own regions. Each pane's body scrolls on its own, a widget's generated
-   * panes included, and `--lf-held` on main tells a widget the body has a definite height
-   * to fill (a style query). Where the window is too small to hold the regions, the
+   * panes included, and `--lf-full-height` on main tells a widget the body has a definite
+   * height to fill (a style query). Where the window is too small to hold the regions, the
    * workspace flows and the page scrolls.
    *
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
@@ -121,7 +136,7 @@
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {
-      --lf-held: 1;
+      --lf-full-height: 1;
       display: flex;
       flex-direction: column;
       block-size: var(--lf-view-height);
@@ -138,14 +153,21 @@
     /* The body takes the window's height to pass on to its panes. A pane it does not
      * pass the height to, one inside a section of the body, takes its content's height
      * instead, so the body scrolls as a whole rather than run past the window's foot. A
-     * body that is a pane scrolls its own body already. */
+     * body that is a pane scrolls its own body already.
+     *
+     * Each box that scrolls here also says where a box sticking inside it stops
+     * (`--lf-top`, theme.css): at its own top edge. The theme's answer, the banner's
+     * height, is the window's, whose scroller the banner covers; a pane's scrollport
+     * starts below the banner already, so that offset pinned a diff's file name 42px
+     * down while the rows it names scrolled past above it. */
     main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
+      --lf-top: 0px;
     }
     /* A pane is already a grid of header, body and footer (theme.css), whose body row
      * takes what a definite height leaves and its content's height otherwise; here it
      * may shrink below its content, and scrolls. That holds for a pane something gives a
-     * height: an authored pane the workspace holds, which is the body itself or a cell of
+     * height: an authored pane the workspace sizes, which is the body itself or a cell of
      * it, and a generated pane at any depth, which its widget sizes. An authored pane
      * inside a section of the body, or inside another pane's body, is content there and
      * scrolls with what holds it. */
@@ -160,6 +182,9 @@
       > :not(header, footer) {
       min-block-size: 0;
       overflow: auto;
+      /* A sticking box stops at its scroller's padding edge, so the body's own top
+       * inset is taken back to put the stop at the scrollport's top (theme.css). */
+      --lf-top: calc(-1 * var(--lf-pane-top, 0px));
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
     }

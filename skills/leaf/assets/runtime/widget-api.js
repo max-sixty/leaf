@@ -17,12 +17,7 @@ export async function mountSample(frame, options) {
 }
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export {
-  ADDRESSABLE,
-  addressableName,
-  addressableSays,
-  addressableWord,
-} from "./anchor-resolution.js";
+export { ADDRESSABLE, addressableLabel, addressableWord } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
@@ -31,7 +26,7 @@ export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
 export {
-  declareCoverRoom,
+  declareStickyHeaders,
   landingInsets,
   shownBand,
   shownBox,

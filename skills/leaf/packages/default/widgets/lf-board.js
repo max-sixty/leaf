@@ -81,17 +81,16 @@ customElements.define(
       }
       // The room a card's text keeps clear of its grip, measured off the grip's own
       // box rather than stated as a number (the pick column's answer): the theme
-      // spends it (--lf-grip-room), and only a board that grew grips states it, so
-      // paper, copies and quoted boards hold no dead column.
+      // spends it (--lf-grip-room across, --lf-grip-block down), and only a board
+      // that grew grips states it, so paper, copies and quoted boards hold no room.
       // Off the grip's own box, so it waits for one (`measure`): a board quoted into
       // a reply is built into the thread panel, which may not be open yet.
       measure(this, () => {
         const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
-        if (grip)
-          this.style.setProperty(
-            "--lf-grip-room",
-            Math.ceil(grip.getBoundingClientRect().width) + "px",
-          );
+        if (!grip) return;
+        const box = grip.getBoundingClientRect();
+        this.style.setProperty("--lf-grip-room", Math.ceil(box.width) + "px");
+        this.style.setProperty("--lf-grip-block", Math.ceil(box.height) + "px");
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);

@@ -71,12 +71,14 @@ from render_cases_widgets import (
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
+    PANE_DIFF_PAGE,
     SQUEEZED_BOARD_PAGE,
 )
 from render_harness import (
     BOARD_PAGE,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     CutOff,
     ask_actions_hint,
@@ -85,9 +87,10 @@ from render_harness import (
     displayed,
     expect_banner_control_offered,
     expect_comment_notes,
+    fills_the_window,
     holding,
-    holds_the_window,
     leaf_page,
+    margins_laid_out,
     open_page,
     pane_posture,
     panel_settled,
@@ -193,7 +196,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     detail = page.locator("#detail > :not(header, footer)")
 
     pane_posture(page, queue_pane, "bounded")
-    holds_the_window(page, workspace, True)
+    fills_the_window(page, workspace, True)
     assert page.evaluate(frame) == wide
     assert wide[1] > 1080, wide
     header = page.evaluate(
@@ -259,7 +262,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     # placement.
     resized(page, 1280, 420)
     pane_posture(page, queue_pane, "flow")
-    holds_the_window(page, workspace, False)
+    fills_the_window(page, workspace, False)
     flow = page.evaluate(
         """() => {
           const queue = document.querySelector('#queue').getBoundingClientRect();
@@ -274,7 +277,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     # The posture is the window's, not the one the user came from.
     resized(page, 1280, 720)
     pane_posture(page, queue_pane, "bounded")
-    holds_the_window(page, workspace, True)
+    fills_the_window(page, workspace, True)
 
 
 PANE_BAND_PAGE = leaf_page(
@@ -778,7 +781,7 @@ def test_root_tab_targets_remain_global(browser, serve):
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     """An Ask in a document is prose and a control, not a workspace's region.
 
-    The control is the same Ask as a held workspace's body, which hands its height to
+    The control is the same Ask as a full-height workspace's body, which hands its height to
     the answer."""
     source = SWIPE_PAGE.replace(
         "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
@@ -827,7 +830,7 @@ def clear_of_the_bottom_chrome(page, selector):
     )
 
 
-LONG_PANE = """<lf-pane id="held-pane" label="Long reading"><div>
+LONG_PANE = """<lf-pane id="workspace-pane" label="Long reading"><div>
   <p>Start</p><div style="height: 900px"></div><p id="pane-end">End</p>
 </div></lf-pane>"""
 
@@ -844,12 +847,12 @@ SECTIONED_PANE_PAGE = leaf_page(
 THREE_PART_ASK_PAGE = leaf_page(
     "a three-part Ask as the workspace",
     """
-  <lf-ask id="held-ask">
+  <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
     <div id="ask-context" style="height: 900px">The context the user weighs.</div>
-    <lf-options id="held-options" choose>
-      <lf-option id="held-ship">Ship it</lf-option>
-      <lf-option id="held-hold">Hold it</lf-option>
+    <lf-options id="workspace-options" choose>
+      <lf-option id="workspace-ship">Ship it</lf-option>
+      <lf-option id="workspace-hold">Hold it</lf-option>
     </lf-options>
   </lf-ask>
 """,
@@ -860,11 +863,11 @@ THREE_PART_ASK_PAGE = leaf_page(
 def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     """Only a box that passes the height on holds what it contains. A section in the
     body's grid is a grouping, so a pane in one takes its natural height and the body,
-    which the window holds, scrolls it. The control is the same pane as the workspace's
-    body, which the window holds."""
+    which fills the window, scrolls it. The control is the same pane as the workspace's
+    body, which fills the window."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
-    pane = page.locator("#held-pane")
+    pane = page.locator("#workspace-pane")
     pane_posture(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
@@ -878,8 +881,8 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(direct))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#held-pane"), "bounded")
-    holds_the_window(page, page.locator("main"), True)
+    pane_posture(page, page.locator("#workspace-pane"), "bounded")
+    fills_the_window(page, page.locator("main"), True)
 
 
 ZONE_PACKAGE = {
@@ -914,7 +917,7 @@ NESTED_PANES_PAGE = leaf_page(
 
 
 def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
-    """Which panes a held workspace scrolls is read from the pane role, whichever
+    """Which panes a full-height workspace scrolls is read from the pane role, whichever
     package names the tag. A package's pane that is a cell of the body scrolls its own
     body, and one written inside that pane's body is content there and scrolls with it,
     exactly as lf-panes nested the same way do. The role arrives with the document, so
@@ -955,12 +958,12 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     geometry = page.evaluate(
         """() => ({
           context: document.querySelector('#ask-context').getBoundingClientRect().bottom,
-          options: document.querySelector('#held-options').getBoundingClientRect(),
+          options: document.querySelector('#workspace-options').getBoundingClientRect(),
         })"""
     )
     assert geometry["options"]["top"] >= geometry["context"] - 1, geometry
     assert geometry["options"]["height"] > 40, geometry
-    end = clear_of_the_bottom_chrome(page, "#held-options")
+    end = clear_of_the_bottom_chrome(page, "#workspace-options")
     assert end["clear"], end
     page.close()
 
@@ -971,18 +974,18 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     resized(page, 1280, 720)
     expect(page.locator("#card-playground-ask")).to_have_css("display", "flex")
     pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
-    holds_the_window(page, page.locator("main"), True)
+    fills_the_window(page, page.locator("main"), True)
 
 
-def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band(
+def test_a_full_height_workspace_that_overflows_scrolls_its_end_clear_of_the_bottom_bar(
     browser, serve
 ):
-    """Whatever the user scrolls to in a held workspace clears the shortcut band, as a
+    """Whatever the user scrolls to in a full-height workspace clears the bottom bar, as a
     document's last line does. A pane inside a section of the body takes its content's
     height, so the body scrolls as a whole and its end stands above the band."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
-    holds_the_window(page, page.locator("main"), True)
+    fills_the_window(page, page.locator("main"), True)
     # Every reader asks one owner which box scrolls a node, so the body that now scrolls
     # is the answer for the pane it carries: page steps and reading-place recovery move
     # the box the user sees move.
@@ -1000,7 +1003,7 @@ def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band(
 
 def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
     """A document keeps its end room with a pane inside it; a workspace that flows gives
-    its last block that room, and one the window holds does not scroll."""
+    its last block that room, and a full-height one does not scroll."""
     document = leaf_page(
         "a pane mid-document",
         f"""
@@ -1013,11 +1016,11 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     )
     page = open_page(browser, serve(document))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#held-pane"), "flow")
+    pane_posture(page, page.locator("#workspace-pane"), "flow")
     room = page.evaluate(
         """() => {
           const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-band-h)';
+          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-bottom-bar-h)';
           document.body.append(probe);
           const band = probe.getBoundingClientRect().height;
           probe.remove();
@@ -1037,13 +1040,13 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     root = leaf_page("a workspace", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(root))
     resized(page, 1280, 420)
-    pane_posture(page, page.locator("#held-pane"), "flow")
+    pane_posture(page, page.locator("#workspace-pane"), "flow")
     end = clear_of_the_bottom_chrome(page, "#pane-end")
     assert end["clear"], end
 
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#held-pane"), "bounded")
-    holds_the_window(page, page.locator("main"), True)
+    pane_posture(page, page.locator("#workspace-pane"), "bounded")
+    fills_the_window(page, page.locator("main"), True)
 
 
 def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
@@ -1053,7 +1056,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     source = leaf_page(
         "a comment in a pane",
         """
-  <lf-pane id="held-pane" label="Only a paragraph">
+  <lf-pane id="workspace-pane" label="Only a paragraph">
     <p id="only">A paragraph that is the whole body of its pane.</p>
   </lf-pane>
 """,
@@ -1061,7 +1064,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 720)
-    pane_posture(page, page.locator("#held-pane"), "bounded")
+    pane_posture(page, page.locator("#workspace-pane"), "bounded")
     page.locator("#only").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.keyboard.type("A thread on the paragraph.")
@@ -1072,9 +1075,9 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     row = page.locator('.lf-margin-lane > [data-lf-margin-for="only"]')
     expect(row).to_have_count(1)
     expect(row).to_have_attribute("data-lf-place", "pin")
-    expect(page.locator("#held-pane .lf-margin-cluster")).to_have_count(0)
-    expect(page.locator("#held-pane > *")).to_have_count(1)
-    pane_posture(page, page.locator("#held-pane"), "bounded")
+    expect(page.locator("#workspace-pane .lf-margin-cluster")).to_have_count(0)
+    expect(page.locator("#workspace-pane > *")).to_have_count(1)
+    pane_posture(page, page.locator("#workspace-pane"), "bounded")
 
 
 def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
@@ -1083,7 +1086,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     """A pane written inside a bounded pane's body is that body's content, loose or in a
     section: it takes its natural height and the outer body scrolls it, so reading keys
     and continuity name the box that actually moves. The control is the outer pane,
-    which the same window holds."""
+    which fills the same window."""
     source = leaf_page(
         "regions inside a pane body",
         """
@@ -1952,6 +1955,34 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     )
 
 
+def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
+    """The open outline stacks its links with no gap between them, so each link's box
+    is all there is to land on. Under a finger they stood 24px tall where the layer's
+    floor is 44; a mouse keeps its compact rows."""
+    source = leaf_page(
+        "contents",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<section><h2 id="prepare">Prepare</h2><p>Take a snapshot.</p></section>
+<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section>
+""",
+    )
+    url = serve(source)
+    heights = "links => links.map(link => link.getBoundingClientRect().height)"
+    touch = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=touch)
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    assert all(h >= 44 for h in links.evaluate_all(heights))
+    mouse = open_page(browser, url)
+    links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    assert all(24 <= h < 30 for h in links.evaluate_all(heights))
+
+
 def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serve):
     """The author decides which semantic levels belong in the page route.
 
@@ -2343,7 +2374,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
     assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
-    # The map ends where the bottom band starts.
+    # The map ends where the bottom bar starts.
     assert toc_box["y"] + toc_box["height"] == pytest.approx(
         page.locator(".lf-shortcut-bar").bounding_box()["y"], abs=1
     )
@@ -2369,12 +2400,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         {"x": nav_box["x"] + 100, "y": toc_box["y"] - 2},
     )
     expect(prepare).to_have_css("opacity", "0")
-    # The bottom band is attached to the window's foot, so the map ends above it with its
+    # The bottom bar is attached to the window's foot, so the map ends above it with its
     # last entry in view, as every region does.
     line_box = page.locator(".lf-shortcut-bar").bounding_box()
     assert line_box is not None, "the fixture drew no shortcut bar"
     assert nav_box["y"] + nav_box["height"] <= line_box["y"] + 1, (
-        f"the bottom band stands over the map's foot: map {nav_box}, band {line_box}"
+        f"the bottom bar stands over the map's foot: map {nav_box}, band {line_box}"
     )
     assert nav_box["width"] == pytest.approx(320, abs=1)
 
@@ -2686,41 +2717,29 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         current_alignment["label"], abs=2
     ), f"the viewport lens parted from the current title: {current_alignment}"
 
-    # The lens is the viewport's position, not a destination travelling toward it.
-    # Capture the first style turn after the scroll: a transition can finish at the
-    # right place while still trailing every intermediate reading.
-    page.evaluate(
-        """() => {
-          const rows = document.querySelector('.lf-toc-rows');
-          const lens = document.querySelector('.lf-toc-window');
-          window.lfTocLensFrame = null;
-          new MutationObserver((records, observer) => {
-            if (!records.some(record => record.attributeName === 'style')) return;
-            const rowBox = rows.getBoundingClientRect();
-            const start =
-              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start'));
-            window.lfTocLensFrame = {
-              actual: lens.getBoundingClientRect().top,
-              expected: rowBox.top + start,
-            };
-            observer.disconnect();
-          }).observe(rows, {attributes: true, attributeFilter: ['style']});
-        }"""
+    # The lens is the viewport's position, not a destination travelling toward it: the
+    # scroll itself moves it, so the first frame after the scroll finds it beside the
+    # title it scrolled to.
+    lens_frame = verify.evaluate(
+        """node => new Promise((resolve) => {
+          document.querySelector('#verify')
+            .scrollIntoView({block: 'start', behavior: 'instant'});
+          requestAnimationFrame(() => resolve({
+            lens: node.closest('nav').querySelector('.lf-toc-window')
+              .getBoundingClientRect().top,
+            label: node.getBoundingClientRect().top,
+          }));
+        })"""
     )
-    page.locator("#verify").evaluate(
-        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
-    )
+    assert lens_frame["lens"] == pytest.approx(lens_frame["label"], abs=2), lens_frame
     expect(verify).to_have_attribute("aria-current", "location")
-    page.wait_for_function("() => window.lfTocLensFrame !== null")
-    lens_frame = page.evaluate("window.lfTocLensFrame")
-    assert lens_frame["actual"] == pytest.approx(lens_frame["expected"], abs=1)
     lens_after = lens.bounding_box()
     assert lens_after is not None
     assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08
 
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     # Twice: the layer's skip link is the document's first stop, and the map is what the
     # page itself opens with.
     page.keyboard.press("Tab")
@@ -2731,8 +2750,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-width", "2px")
     expect(start).to_have_css("outline-offset", "-2px")
 
-    # The Asks tray stands over the map and changes nothing about it.
-    page.locator("body").focus()
+    # The Asks drawer stands over the map and changes nothing about it.
+    page.evaluate(RELEASE_FOCUS)
     toggle_asks(page)
     expect(toc).to_have_css("position", "fixed")
     expect(prepare).to_have_css("opacity", "0")
@@ -3188,7 +3207,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
 
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     # Twice: the layer's skip link is the document's first stop, and the mark is the
     # first thing the page itself offers.
     page.keyboard.press("Tab")
@@ -3237,7 +3256,7 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     expect(bubble).to_be_visible()
     control.click()
     page.mouse.move(0, 0)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     expect(bubble).to_be_hidden()
 
 
@@ -3387,6 +3406,45 @@ def test_a_keyboard_move_keeps_the_card_in_view(
     expect(grip).to_be_focused()
 
 
+def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
+    """The browser scrolls a sideways board only far enough to show the focused 30px
+    grip, which at a narrow width left the card's words cut off at the board's edge."""
+    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    resized(page, 390, 500)
+    # A restored focus is not an arrival: it leaves the board where the user put it.
+    assert page.evaluate(
+        """() => {
+          const board = document.querySelector('#crowd');
+          const before = board.scrollLeft;
+          document.querySelector('#sq-card-5 .lf-grip').focus({preventScroll: true});
+          return board.scrollLeft === before;
+        }"""
+    )
+    page.locator("#sq-card-0 .lf-grip").focus()
+    whole = """() => {
+      const card = document.activeElement.closest('lf-card');
+      const outer = card.closest('lf-board').getBoundingClientRect();
+      const inner = card.getBoundingClientRect();
+      return inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+    }"""
+    for i in range(1, 4):
+        page.keyboard.press("Tab")
+        expect(page.locator(f"#sq-card-{i} .lf-grip")).to_be_focused()
+        page.wait_for_function(whole)
+    # Grabbing it says so with the card's contour, not a shadow the dark paper hides.
+    page.keyboard.press("Enter")
+    card = page.locator("#sq-card-3")
+    expect(card).to_have_class(re.compile(r"\blf-lift\b"))
+    accent, border = card.evaluate(
+        """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
+                  getComputedStyle(el).borderTopColor]"""
+    )
+    rest = page.locator("#sq-card-2").evaluate(
+        "el => getComputedStyle(el).borderTopColor"
+    )
+    assert border != rest, (border, rest, accent)
+
+
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     """Escape supersedes a reveal still travelling toward the abandoned placement."""
     page = open_page(browser, serve(TALL_BOARD_PAGE))
@@ -3504,6 +3562,109 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
         f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
         f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
     )
+
+
+GRIPPED_CARD_PAGE = leaf_page(
+    "Gripped card",
+    """
+<h1 id="t">Release triage</h1>
+<lf-board id="gripped">
+  <lf-column id="col-a" label="Fix in 2.4.1">
+    <lf-card id="card-a"><strong>Webhook retries ignore the Retry-After header</strong>
+      Three partners rate limit us during their own deploys, and we back off on a fixed
+      schedule that ignores what they asked for.</lf-card>
+  </lf-column>
+  <lf-column id="col-b" label="Defer"></lf-column>
+  <lf-column id="col-c" label="Repro"></lf-column>
+</lf-board>
+""",
+    # Justified, so each full line ends where the card lets it rather than at a word.
+    head="<style>#card-a { text-align: justify; }</style>",
+)
+
+
+def test_only_a_card_s_title_clears_its_grip(browser, serve):
+    """The grip stands at the card's top corner and the lines beside it, the title's,
+    stop short of it; the prose below runs the card's whole width, where it used to be
+    set in a column that kept clear of the grip down the card's full height. No line
+    stands under the grip's box, so a press there is always the grip's."""
+    page = open_page(browser, serve(GRIPPED_CARD_PAGE))
+    measured = page.locator("#card-a").evaluate(
+        """(card) => {
+        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const range = document.createRange(), lines = [];
+        const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (node.parentElement.closest('.lf-grip') || !node.textContent.trim()) continue;
+            range.selectNodeContents(node);
+            for (const r of range.getClientRects())
+                lines.push({title: node.parentElement.localName === 'strong',
+                            top: r.top, bottom: r.bottom, right: r.right});
+        }
+        const beside = (l) => l.top < grip.bottom && l.bottom > grip.top;
+        return {
+            under: lines.filter((l) => beside(l) && l.right > grip.left).length,
+            titleBeside: lines.some((l) => l.title && beside(l)),
+            // Past the grip's left edge is the room the column held back.
+            prose: lines.filter((l) => !l.title && !beside(l)).slice(0, -1)
+                .map((l) => Math.round(l.right - grip.left)),
+        };
+    }"""
+    )
+    assert measured["titleBeside"], measured
+    assert measured["under"] == 0, measured
+    # Every full line of prose below the grip runs into the room beneath it.
+    assert measured["prose"] and all(d > 0 for d in measured["prose"]), measured
+
+
+GRIPPED_BLOCK_CARD_PAGE = leaf_page(
+    "Gripped block card",
+    """
+<h1 id="t">Release triage</h1>
+<lf-board id="gripped">
+  <lf-column id="col-a" label="Fix in 2.4.1">
+    <lf-card id="card-a"><strong>Retries ignore Retry-After</strong>
+      <pre id="card-a-code">retry(after=fixed(30))</pre>
+      <p id="card-a-note">Three partners rate limit us during their own deploys.</p>
+    </lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
+    browser, serve
+):
+    """Under a finger the grip is the aim floor tall, so it reaches past a one-line
+    title. A block after the title that lays itself out on its own (a pre) was set
+    beside the grip's room for its whole height, 30px narrower than the card; a block
+    after the title now clears the grip and takes the card's width, and nothing stands
+    under the grip's box."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(GRIPPED_BLOCK_CARD_PAGE), context=context)
+    measured = page.locator("#card-a").evaluate(
+        """(card) => {
+        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const s = getComputedStyle(card), box = card.getBoundingClientRect();
+        const content = box.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
+            - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
+        const title = card.querySelector('strong').getBoundingClientRect();
+        const blocks = ['#card-a-code', '#card-a-note'].map((id) =>
+            card.querySelector(id).getBoundingClientRect());
+        const under = (b) => b.top < grip.bottom && b.bottom > grip.top
+            && b.right > grip.left;
+        return {grip: Math.round(grip.height), title: Math.round(title.height),
+                widths: blocks.map((b) => Math.round(content - b.width)),
+                under: blocks.filter(under).length};
+    }"""
+    )
+    # The premise: the grip reaches past the title's one line.
+    assert measured["grip"] == 44 and measured["title"] < 30, measured
+    assert measured["widths"] == [0, 0], measured
+    assert measured["under"] == 0, measured
 
 
 def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
@@ -3656,12 +3817,12 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     assert playground.evaluate("root => root.values")["compact"] is False
 
 
-def test_notification_playground_sets_regions_side_by_side_while_its_workspace_holds_the_window(
+def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
     browser, serve
 ):
     """A playground is a workspace with its relationship declared: the preview is the
     stage, with the controls and the instruction they write in a rail beside it. While
-    the root workspace holds the window each region scrolls on its own, the controls
+    the root workspace fills the window each region scrolls on its own, the controls
     under their fixed presets and the instruction above its fixed actions; where it
     doesn't, the page scrolls, and a narrow one stacks the regions. Either way each is a
     named reading region."""
@@ -4405,7 +4566,7 @@ body { font-family: system-ui, sans-serif; }
         ".notification-demo-card-banner .notification-demo-detail"
     ).first
     expect(receipt_copy).to_be_visible()
-    # The preview is its own scroller while the workspace holds the window, and a
+    # The preview is its own scroller while the workspace fills the window, and a
     # user selects the receipt where that pane shows it.
     receipt_copy.scroll_into_view_if_needed()
     receipt_copy.select_text()
@@ -6101,13 +6262,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: a window with no rail stands each row as a pin
-    inside the top-right corner of the change it decides, over the change and never
-    beside it."""
+    measurement no lint can make: where a row stands as a pin, it stands by the change
+    it decides, level with the line the change ends on, over none of the change's
+    words, and on the change's own card."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    room = page.evaluate("() => document.body.getBoundingClientRect().right")
     box = "el => el.getBoundingClientRect()"
 
     margin_rows = page.locator(
@@ -6122,24 +6282,45 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     first, second = (margin_rows.nth(i).evaluate(box) for i in range(2))
     assert first["bottom"] <= second["top"], "control rows must not stack on each other"
 
-    # The card is positioned and the change is three elements down inside it, and
-    # the row still stands on the line that change starts — which is what the anchor
-    # buys, and what a static position never could. The board it sits in grows past
-    # the rail, so the row stands on the board as a pin in the change's top-right
-    # corner.
+    # The board grows past the rail, so the row pins near the change. Its seat can
+    # move off the card when that is the nearest room that covers no words.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
-    in_card = in_card_row.evaluate(box)
-    change = page.locator("#sug-in-card").evaluate(box)
-    assert change["right"] - 12 <= in_card["right"] <= change["right"] <= room, (
-        "a change inside a board is decided inside its own top-right corner"
-    )
-    assert (
-        abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
-        <= 5
-    ), "the row must hang on the change's own line, not on the block it follows"
+    stands_by = """row => {
+      const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+      const change = row.lfTarget;
+      const words = [];
+      for (const node of [change, ...change.querySelectorAll('*')])
+        for (const text of node.childNodes)
+          if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            words.push(...[...range.getClientRects()]
+              .filter((b) => b.width > 2 && b.height > 2).map(edges));
+          }
+      const entries = [...row.querySelectorAll('.lf-margin-entry')]
+        .filter((entry) => entry.checkVisibility())
+        .map((entry) => edges(entry.getBoundingClientRect()));
+      const hit = (a, b) => a.left < b.right && b.left < a.right
+        && a.top < b.bottom && b.top < a.bottom;
+      const last = edges([...change.getClientRects()].at(-1));
+      const r = row.getBoundingClientRect();
+      return {
+        covers: entries.filter((e) => words.some((w) => hit(e, w))).length,
+        near: Math.hypot(
+          Math.max(0, r.left - last.right, last.left - r.right),
+          Math.max(0, r.top - last.bottom, last.top - r.bottom)) <= 12,
+        inPage: r.right <= document.body.getBoundingClientRect().right,
+      };
+    }"""
+    placed = in_card_row.evaluate(stands_by)
+    assert placed == {
+        "covers": 0,
+        "near": True,
+        "inPage": True,
+    }, f"a change inside a board is decided near its words: {placed}"
 
-    # No rail: every row is a pin on its own change, and nothing spills sideways.
+    # No rail: every row is a pin by its own change, and nothing spills sideways.
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
@@ -6147,17 +6328,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     )
     assert root_overflow(page) == 0
     for widget in ("sug-refill", "sug-in-card"):
-        stands = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
-            """row => {
-              const r = row.getBoundingClientRect();
-              const t = row.lfTarget.getBoundingClientRect();
-              return {top: r.top - t.top,
-                      inCorner: r.right <= t.right && r.right >= t.right - 12};
-            }"""
-        )
-        assert stands["inCorner"] and stands["top"] >= -1, (
-            f"a pin belongs inside the top-right corner of the change it decides: {stands}"
-        )
+        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
+        assert placed == {
+            "covers": 0,
+            "near": True,
+            "inPage": True,
+        }, f"a pin stands near the change it decides, over none of its words: {placed}"
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):
@@ -6225,6 +6401,8 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#col-done #card-heater")).to_be_visible()
+    page.locator("#col-done #card-heater").scroll_into_view_if_needed()
+    margins_laid_out(page)
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
@@ -7216,13 +7394,16 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
+          // Below the banner, and the room the Ask's ring takes above it.
+          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(document.getElementById('storage-decision'))
+              .scrollMarginTop);
           return {ask: ask.top, options: options.top, clear};
         }"""
     )
     assert abs(landed["ask"] - landed["clear"]) <= 2, (
-        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner at "
-        f"{landed['clear']:.1f}px"
+        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner and its "
+        f"ring's room at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["ask"] + 100, (
         "the arrival did not leave the Ask's context above its options"
@@ -7806,7 +7987,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
               '.lf-ask-binding-badges > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
-            )].map(read),
+            )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
           };
         }"""
     )
@@ -7895,13 +8076,13 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
 
-def test_an_arrival_region_fits_above_the_foot_band(browser, serve):
+def test_an_arrival_region_fits_above_the_bottom_bar(browser, serve):
     """The region an arrival takes in is measured against the landing band.
 
     The shortcut bar stands over the window's foot, so a region measured against the
     window below the banner put the heading at the top of the screen and the change it
     was chosen for under the bar. The window is sized so the heading's region fits below
-    the banner but not above the foot band: the arrival takes a narrower region, and the
+    the banner but not above the bottom bar: the arrival takes a narrower region, and the
     change stays where the user can read it.
     """
     page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
@@ -7918,7 +8099,7 @@ def test_an_arrival_region_fits_above_the_foot_band(browser, serve):
       };
     }"""
     before = page.evaluate(measure)
-    assert before["bottom"] > 0, "the fixture has no foot band to land clear of"
+    assert before["bottom"] > 0, "the fixture has no bottom bar to land clear of"
     resized(page, 900, round(before["span"] + before["top"] + before["bottom"] / 2))
 
     page.keyboard.press("a")
@@ -8108,7 +8289,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
 
     Two readings of where they are are left in turn: what they are reading, and where
     the walk itself last left off. The banner's button is no place — pressing it opens
-    the tray and leaves the focus on itself, so a walk measured from the focus after it
+    the drawer and leaves the focus on itself, so a walk measured from the focus after it
     would restart on every press, and the ring is gone from the page by then, the user
     being in the banner. A selected passage now enters its comment field immediately;
     while that field stands, letters are text rather than page-navigation keys."""
@@ -8125,7 +8306,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
 
-    # The banner's press opens the tray and keeps the focus, so the walk after it
+    # The banner's press opens the drawer and keeps the focus, so the walk after it
     # measures from where the user stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     #
@@ -8139,14 +8320,14 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
-def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
-    """A decision carried by a reply is a decision, and the tray has to name it in its words.
+def test_the_asks_drawer_names_an_ask_a_message_carries(browser, serve):
+    """A decision carried by a reply is a decision, and the drawer has to name it in its words.
 
     The page holds none of its own, so the one row here is the question Claude put in
     the thread — the AskUserQuestion shape, which reaches a user through the
-    panel and through this tray and nowhere else. It is read here exactly as a group
+    panel and through this drawer and nowhere else. It is read here exactly as a group
     on the page is read: the decision's own words, its label first, run together and cut at
-    the row's cap. `startswith` for that reason — the cut is the tray's business and
+    the row's cap. `startswith` for that reason — the cut is the drawer's business and
     this is about which words reach it, which is the whole of what the row asserts for
     a page-borne ask two tests below.
 
@@ -8520,7 +8701,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     Design mode lets a user comment on anything the layer draws, so a thread can be
     anchored on a widget that arrived in a reply. Two things were then said about it and
     both were wrong. The panel filed it under "The page's own layer", which groups the
-    agent's question with the composer and the version chooser — the layer's parts wear
+    agent's question with the composer and the version picker — the layer's parts wear
     the runtime's id namespace, which authored markup may not take, and that is what
     tells one from the other. And the thread's label read `§ ps-decision`, the bare id.
 
@@ -8588,12 +8769,12 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
     """A row names its ask by kind and then by the decision's own opening words, and for a
     change those opening words are whichever half comes first — the current text, where
-    there is one. So a deletion arrived on the tray under the words it was proposing to
+    there is one. So a deletion arrived on the drawer under the words it was proposing to
     remove, with nothing to tell it from the insertion above it, which was proposing to
     add its own. Three shapes, one tag, one word for all of them.
 
     The tag is the right word wherever one tag is one kind of thing, which is every
-    other widget here, so the fix is not to teach the tray about suggestions: the entry
+    other widget here, so the fix is not to teach the drawer about suggestions: the entry
     declares that this tag's word comes from its module (x-word), and the module reads
     it off the slots it holds. The group below is in this page to hold the other half of
     that — a widget declaring nothing still gets its tag, and would go on getting it if
@@ -8623,26 +8804,26 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     """The banner control shows every active Ask, so the user can review and revise.
 
     The rows are allAsks() — open and answered — in document order, and a twelfth
-    widget joins the tray by declaring x-awaits. Each says what kind of thing is asking,
+    widget joins the drawer by declaring x-awaits. Each says what kind of thing is asking,
     the Ask's authored heading, and its current answer when it has one.
 
-    A closed tray holds no rows at all. That is not tidiness: they are the open
-    tray's rendering, the banner's count is the closed tray's, and a hidden list of
+    A closed drawer holds no rows at all. That is not tidiness: they are the open
+    drawer's rendering, the banner's count is the closed drawer's, and a hidden list of
     buttons is a set of controls no user can press — which the press sweep sees as
     the page's control set changing under it."""
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
-    tray = page.locator(".lf-asks-panel")
-    expect(tray).to_be_hidden()
-    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray holds no rows"
+    drawer = page.locator(".lf-asks-panel")
+    expect(drawer).to_be_hidden()
+    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed drawer holds no rows"
 
     decisions_control = banner_control(page, ".lf-asks")
     decisions_control.focus()
     page.keyboard.press("Enter")
-    expect(tray).to_be_visible()
+    expect(drawer).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert [r["at"] for r in rows] == ALL_ASKS_IN_ORDER, (
-        "the tray is allAsks() in document order"
+        "the drawer is allAsks() in document order"
     )
     for row in rows:
         assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
@@ -8677,12 +8858,12 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     )
     assert (suggestion["state"], suggestion["answer"]) == ("answered", "Accepted")
 
-    # And closing takes the rest with it, for the reason the docstring gives: a tray
+    # And closing takes the rest with it, for the reason the docstring gives: a drawer
     # that is down is not a list, so it holds nothing to reach and nothing to press.
     banner_control(page, ".lf-asks").focus()
     page.keyboard.press("Enter")
-    expect(tray).to_be_hidden()
-    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
+    expect(drawer).to_be_hidden()
+    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed drawer keeps its rows"
 
 
 def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
@@ -8764,7 +8945,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
             await window.__lfRuntimeImport('/runtime/semantic-state.js');
           window.__lfReadAskApplication = readApplication;
           window.__lfReadAskPresentation = readApplicationPresentation;
-          const list = document.querySelector('lf-asks-tray-list');
+          const list = document.querySelector('lf-asks-drawer-list');
           const schedule = list.scheduleUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });
@@ -8865,7 +9046,7 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
           const {readApplicationPresentation, whenApplicationPresented} =
             await window.__lfRuntimeImport('/runtime/semantic-state.js');
           window.__lfReadAskPresentation = readApplicationPresentation;
-          const list = document.querySelector('lf-asks-tray-list');
+          const list = document.querySelector('lf-asks-drawer-list');
           window.__lfAskRows = [...list.querySelectorAll('button.lf-asks-row')];
           const render = list.render.bind(list);
           list.render = () => {
@@ -9061,7 +9242,7 @@ def test_an_ask_rejects_two_answer_users_even_when_their_words_match(browser, se
 def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     browser, serve
 ):
-    """A tray-row arrival preserves Ask semantics when its source has no box to focus."""
+    """A drawer-row arrival preserves Ask semantics when its source has no box to focus."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 560, 620)
     progress = page.locator(".lf-asks")
@@ -9087,31 +9268,31 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(progress).to_have_text("Asks 0/4")
 
 
-def test_a_tray_the_user_left_standing_comes_back_standing(browser, serve):
-    """Reloading is not resetting: a tray someone stood up to watch stays stood, the
+def test_a_drawer_the_user_left_standing_comes_back_standing(browser, serve):
+    """Reloading is not resetting: a drawer someone stood up to watch stays stood, the
     rule the thread panel already keeps. Which makes the reload the one moment a
-    tray is put up by something other than a press, and that is where it broke — the
-    restore ran while the module was still evaluating and filled the tray from a
+    drawer is put up by something other than a press, and that is where it broke — the
+    restore ran while the module was still evaluating and filled the drawer from a
     reading of the page's active Asks declared further down the file, so the user who
     had left it open got a ReferenceError instead of a page.
 
     Nothing static could have caught it and neither could the render gate, which
-    presses no keys and so never has a tray to restore. It took a user with the
-    tray open pressing reload, which is what this now is."""
+    presses no keys and so never has a drawer to restore. It took a user with the
+    drawer open pressing reload, which is what this now is."""
     page = open_page(browser, serve(ASKS_PAGE))
     banner_control(page, ".lf-asks").click()
-    tray = page.locator(".lf-asks-panel")
-    expect(tray).to_be_visible()
+    drawer = page.locator(".lf-asks-panel")
+    expect(drawer).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
 
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect(tray).to_be_visible()
+    expect(drawer).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
 
 
-def test_a_tray_sliding_out_takes_no_focus(browser, serve):
-    """A tray on its way out is already gone to the user: switching to Threads leaves
+def test_a_drawer_sliding_out_takes_no_focus(browser, serve):
+    """A drawer on its way out is already gone to the user: switching to Threads leaves
     none of its rows reachable while it slides away, and reopening it brings them back."""
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
@@ -9120,10 +9301,10 @@ def test_a_tray_sliding_out_takes_no_focus(browser, serve):
     leaving = page.evaluate(
         """() => {
           document.querySelector('.lf-threads-toggle').click();
-          const tray = document.querySelector('.lf-asks-panel');
-          const row = tray.querySelector('button.lf-asks-row');
+          const drawer = document.querySelector('.lf-asks-panel');
+          const row = drawer.querySelector('button.lf-asks-row');
           row.focus();
-          return { shown: tray.checkVisibility(), inert: tray.inert,
+          return { shown: drawer.checkVisibility(), inert: drawer.inert,
                    focused: document.activeElement === row };
         }"""
     )
@@ -9136,33 +9317,33 @@ def test_a_tray_sliding_out_takes_no_focus(browser, serve):
     expect(row).to_be_focused()
 
 
-def test_a_tray_standing_over_most_of_an_ask_clears_for_it(browser, serve):
-    """The tray stands over the page, so an Ask its row sends the user to may be under it.
-    Drawn wide but still leaving a usable page, the tray stays live and stands over most of
-    the column; pressing a row then clears the tray, as travel clears any surface hiding
+def test_a_drawer_standing_over_most_of_an_ask_clears_for_it(browser, serve):
+    """The drawer stands over the page, so an Ask its row sends the user to may be under it.
+    Drawn wide but still leaving a usable page, the drawer stays live and stands over most of
+    the column; pressing a row then clears the drawer, as travel clears any surface hiding
     its destination, rather than landing the user on a decision they cannot see. Beside
-    a tray at its default width the same press keeps the tray up."""
+    a drawer at its default width the same press keeps the drawer up."""
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1440, 900)
-    tray = page.locator(".lf-asks-panel")
+    drawer = page.locator(".lf-asks-panel")
     row = page.locator("button.lf-asks-row[data-lf-at='t-bath-decision']")
-    covering = page.locator("body[data-lf-covering-surface]")
+    covering = page.locator("html[data-lf-covering-surface]")
 
     banner_control(page, ".lf-asks").click()
-    expect(tray).to_be_visible()
+    expect(drawer).to_be_visible()
     row.click()
     expect(page.locator("#t-bath-decision")).to_be_focused()
-    expect(tray).to_be_visible()
+    expect(drawer).to_be_visible()
 
     edge = page.locator(".lf-asks-panel > .lf-edge")
     edge.focus()
     for _ in range(21):
         page.keyboard.press("ArrowRight")
-    width = tray.evaluate("el => el.getBoundingClientRect().width")
+    width = drawer.evaluate("el => el.getBoundingClientRect().width")
     assert 1440 - width >= 320 and width > 360 + 360, width
     expect(covering).to_have_count(0)
     row.click()
-    expect(tray).to_be_hidden()
+    expect(drawer).to_be_hidden()
     expect(page.locator("#t-bath-decision")).to_be_focused()
 
 
@@ -9172,10 +9353,10 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     stops, while the numeric action map is already available for direct revision.
 
     The ring lands in two places for one reason: the decision on the page and its row on the
-    tray are two surfaces showing where the user is standing, painted from the one
+    drawer are two surfaces showing where the user is standing, painted from the one
     reading of it (markHere), so neither can say something the other doesn't."""
     page = open_page(browser, serve(ASKS_PAGE))
-    # Narrow enough that the tray covers the page. A destination selected from a covering
+    # Narrow enough that the drawer covers the page. A destination selected from a covering
     # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
     # correctly behind an opaque surface.
     resized(page, 560, 620)
@@ -9198,8 +9379,8 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("Tab")
     expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
-    # The covering tray has gone, so its projected rows go with it. The page carries the
-    # one standing mark rather than leaving a second, hidden authority in the closed tray.
+    # The covering drawer has gone, so its projected rows go with it. The page carries the
+    # one standing mark rather than leaving a second, hidden authority in the closed drawer.
     marked = page.evaluate(
         """() => [...document.querySelectorAll('[data-lf-ask]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""
@@ -9207,20 +9388,20 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     assert sorted(set(marked)) == ["t-bath-decision"], marked
 
 
-def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
+def test_the_asks_drawer_covers_the_page_only_where_it_leaves_no_usable_page(
     browser, serve
 ):
     """An Ask's row is a way around this page, so pressing one sends the user into the
-    document, and the page beside the tray stays live for it. Where the tray would leave
+    document, and the page beside the drawer stays live for it. Where the drawer would leave
     less than a usable page beside it, it covers instead — the rule the panel follows,
-    asked of the room the tray leaves rather than of the window, so a narrow window and a
-    tray drawn wide on a wide one come to the same answer, and a user who has learned one
-    edge has learned the other. Either way the tray stands over the page and moves none
+    asked of the room the drawer leaves rather than of the window, so a narrow window and a
+    drawer drawn wide on a wide one come to the same answer, and a user who has learned one
+    edge has learned the other. Either way the drawer stands over the page and moves none
     of it."""
     page = open_page(browser, serve(ASKS_PAGE))
     geometry = """() => ({
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
-      tray: Math.round(
+      drawer: Math.round(
         document.querySelector('.lf-asks-panel').getBoundingClientRect().right),
     })"""
 
@@ -9228,13 +9409,13 @@ def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
     closed = page.evaluate(geometry)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
-    covering = page.locator("body[data-lf-covering-surface='lf-asks']")
+    covering = page.locator("html[data-lf-covering-surface='lf-asks']")
     expect(covering).to_have_count(0)
     wide = page.evaluate(geometry)
-    assert wide["column"] == closed["column"], "the tray moved the column"
-    assert root_overflow(page) == 0, "the page scrolls sideways with the tray up"
+    assert wide["column"] == closed["column"], "the drawer moved the column"
+    assert root_overflow(page) == 0, "the page scrolls sideways with the drawer up"
 
-    # At 610 the default 300px tray would leave 310, short of a usable page.
+    # At 610 the default 300px drawer would leave 310, short of a usable page.
     resized(page, 610, 800)
     expect(covering).to_have_count(1)
     assert root_overflow(page) == 0
@@ -9242,7 +9423,7 @@ def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
     expect(covering).to_have_count(0)
 
     # Drawn wide enough on a wide window, the strip is more than the page can give,
-    # so the tray covers. One step back and the page has its usable width again.
+    # so the drawer covers. One step back and the page has its usable width again.
     edge = page.locator(".lf-asks-panel > .lf-edge")
     edge.focus()
     for _ in range(40):
@@ -9254,24 +9435,24 @@ def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
         """() => innerWidth
              - document.querySelector('.lf-asks-panel').getBoundingClientRect().width"""
     )
-    assert left < 320, f"the tray covered with {left}px of page beside it"
+    assert left < 320, f"the drawer covered with {left}px of page beside it"
     page.keyboard.press("ArrowLeft")
     expect(covering).to_have_count(0)
     assert page.evaluate(geometry)["column"] == closed["column"]
 
 
-def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
-    """Both trays want the edge, so opening either closes the other. Which one is up
-    is one fact in one place: a boolean per tray would be one guarantee written twice,
+def test_one_drawer_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
+    """Both drawers want the edge, so opening either closes the other. Which one is up
+    is one fact in one place: a boolean per drawer would be one guarantee written twice,
     and the two would first disagree the day a third surface opened one without closing
-    the other — leaving two trays over one edge with the lower unreachable.
+    the other — leaving two drawers over one edge with the lower unreachable.
 
-    Escape names whichever is up rather than saying "close the tray" over two of
+    Escape names whichever is up rather than saying "close the drawer" over two of
     them, which is the rung the user is actually holding.
 
-    The `other_leaf` fixture is the whole reason the leaves tray has anything to show:
-    a tray of one — the page the user is already on — is not worth a control, so
-    without a neighbour `g L` is unavailable and there is no second tray to be exclusive
+    The `other_leaf` fixture is the whole reason the leaves drawer has anything to show:
+    a drawer of one — the page the user is already on — is not worth a control, so
+    without a neighbour `g L` is unavailable and there is no second drawer to be exclusive
     with."""
     page = open_page(browser, serve(ASKS_PAGE))
     decisions, leaves = (
@@ -9289,14 +9470,14 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(decisions).to_be_hidden()
 
     # Leaves is a modal covering workspace, so its scrim correctly makes the page and
-    # banner inert. The global destination remains the route from one tray to the other.
+    # banner inert. The global destination remains the route from one drawer to the other.
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
-    # Exchanging one covering tray for another is lateral, so one Escape closes the
-    # tray standing and lands the user on the page; the tray it replaced is not put
+    # Exchanging one covering drawer for another is lateral, so one Escape closes the
+    # drawer standing and lands the user on the page; the drawer it replaced is not put
     # back, and they reach it the way they reached it the first time.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
@@ -9848,6 +10029,56 @@ def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
     assert any("Jun" in tick for tick in ticks), ticks
 
 
+def test_a_column_of_moments_is_time_only_where_each_states_its_zone(browser, serve):
+    """A moment that states its zone is one instant for every reader, so a column of them
+    is a time axis, and twelve hours of them are ticked by the hour rather than held to a
+    day. Without a zone the browser would read the moment in the viewer's own zone, so
+    that column stays the words the body wrote. Two labels naming one instant would draw
+    two rows at one x on a line, and are refused like two rows sharing a label; a bar
+    chart keeps a slot per label, so there they are two bars."""
+    hours = "".join(f"2026-06-01T{h:02}:00Z, {h}\n" for h in range(12))
+    source = leaf_page(
+        "moments",
+        f"""
+<h1 id="t">Moments</h1>
+<lf-chart id="c-zoned" kind="line" y="queue depth"><pre>
+hour, depth
+{hours}</pre></lf-chart>
+<lf-chart id="c-bare" kind="line" y="queue depth"><pre>
+hour, depth
+2026-06-01T09:00, 4
+2026-06-01T10:00, 7
+</pre></lf-chart>
+<lf-chart id="c-same" kind="line" y="queue depth"><pre>
+day, depth
+2026-06, 4
+2026-06-01, 7
+</pre></lf-chart>
+<lf-chart id="c-bars" kind="bars" y="queue depth"><pre>
+day, depth
+2026-06, 4
+2026-06-01, 7
+</pre></lf-chart>
+""",
+    )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, timezone_id="America/Anchorage"
+    )
+    page = open_page(browser, serve(source), context=context)
+    ticks = """(id) => [...document.querySelectorAll(
+        `#${id} [data-lf-part="x-axis tick label"] text`)].map((t) => t.textContent)"""
+    zoned = page.evaluate(ticks, "c-zoned")
+    assert len(zoned) >= 4, zoned
+    assert not any("T" in tick for tick in zoned), zoned
+    # UTC, whatever the reader's zone: the first hour is 12 AM, not the day before.
+    assert "May" not in " ".join(zoned), zoned
+    assert page.evaluate(ticks, "c-bare") == ["2026-06-01T09:00", "2026-06-01T10:00"]
+    expect(page.locator("#c-same .lf-error")).to_contain_text(
+        "2026-06-01 is the same x as another row"
+    )
+    assert page.evaluate(ticks, "c-bars") == ["2026-06", "2026-06-01"]
+
+
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     """A chart redraws for a new width, and the runtime writes inside widgets.
 
@@ -10271,6 +10502,114 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
 
 
+def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
+    browser, serve
+):
+    """The same two halves inside a full-height workspace pane, whose body is the box that
+    scrolls the rows. The header used to stop the banner's height below the pane's top,
+    because the offset it pinned at was the window's: rows scrolled past in the 42px
+    above the name that headed them, and a `]` landing, which aligns to the pane's own
+    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolling pane body declares it as its own top edge.
+
+    Short enough a window that the patch overflows the pane, and still tall enough that
+    the workspace holds it."""
+    url = serve(PANE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1024, "height": 560})
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    page.emulate_media(reduced_motion="reduce")
+    scrollport = """() => {
+        const body = document.querySelector('lf-diff');
+        return { top: Math.round(body.getBoundingClientRect().top),
+                 scrolls: body.scrollHeight > body.clientHeight,
+                 window: document.scrollingElement.scrollTop };
+    }"""
+    pane = page.evaluate(scrollport)
+    assert pane["scrolls"], f"the patch fits its pane, so nothing can pin: {pane}"
+
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 200; }")
+    pinned = page.evaluate(DIFF_LANDING)
+    assert pinned["headTop"] == pane["top"], (
+        f"the file's name is not at the top of the pane that scrolls it: {pinned}, {pane}"
+    )
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 0; }")
+
+    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.keyboard.press("]")
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
+    landed = page.evaluate(DIFF_LANDING)
+    assert landed["line"] == "40", landed
+    assert landed["headTop"] == pane["top"], (
+        f"the header is not pinned where the landing was measured against: {landed}"
+    )
+    assert landed["top"] >= landed["headBottom"], (
+        f"the row it landed on is above or behind its file's pinned header: {landed}"
+    )
+    assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
+    # The landed row wears the band where it can be seen: inside the code box that clips
+    # it and below the header pinned over the row above. Drawn outset, its sides fell
+    # outside that box and its upper run under the header, and the row showed no ring.
+    row_ring = page.evaluate(f"""() => {{
+        const at = document.querySelector('lf-diff').shadowRoot.activeElement;
+        return ({_RING_WITHIN})(at, at.closest('code'));
+    }}""")
+    # Its right run is the row's end, as far off as the file's longest line, which the
+    # code box scrolls sideways to reach; the other three are on screen.
+    inside = row_ring["inside"]
+    assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
+    # And the code box has not moved sideways. The row runs past the box, so a landing
+    # that let the browser bring it "nearest" scrolled the box to the row's start, the
+    # width of the line numbers over it, hiding every line's marker and first characters.
+    assert row_ring["sideways"] == 0 and inside["left"], (
+        f"the landing scrolled the file's lines sideways under their numbers: {row_ring}"
+    )
+    assert row_ring["top"] >= landed["headBottom"], (
+        f"the landed row's ring runs under its file's pinned header: {row_ring}"
+    )
+    # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
+    # band stays inside the pane: the pane draws it inset over the body's cell
+    # (theme.css), where outset on the body the workspace body clipped its right and
+    # lower runs.
+    page.evaluate("() => document.querySelector('lf-diff').focus()")
+    host_ring = page.evaluate(
+        """() => {
+          const host = document.querySelector('lf-diff');
+          const pane = host.closest('[data-lf-reading-role="pane"]');
+          const band = getComputedStyle(pane, '::after');
+          return { focus: host.matches(':focus-visible'),
+                   own: getComputedStyle(host).outlineStyle,
+                   band: [band.outlineStyle, band.outlineWidth,
+                          parseFloat(band.outlineOffset) + parseFloat(band.outlineWidth)] };
+        }"""
+    )
+    assert host_ring["focus"] and host_ring["own"] == "none", host_ring
+    assert host_ring["band"][:2] == ["solid", "2px"] and host_ring["band"][2] <= 0, (
+        host_ring
+    )
+
+
+# Where an element's focus band falls, from its computed outline, and whether that box
+# stays inside `frame`'s border box, which is what clips it or covers its edge.
+_RING_WITHIN = """(el, frame) => {
+    const s = getComputedStyle(el);
+    const out = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth);
+    const box = el.getBoundingClientRect(), edge = frame.getBoundingClientRect();
+    const ring = { top: box.top - out, left: box.left - out,
+                   right: box.right + out, bottom: box.bottom + out };
+    return { drawn: s.outlineStyle === 'solid' && s.outlineWidth === '2px',
+             focus: el.matches(':focus-visible'), top: Math.round(ring.top),
+             sideways: frame.scrollLeft,
+             inside: { top: ring.top >= edge.top, left: ring.left >= edge.left,
+                       right: ring.right <= edge.right,
+                       bottom: ring.bottom <= edge.bottom } };
+}"""
+
+
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):
@@ -10520,11 +10859,11 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
                           ?? document.activeElement;
              const cs = getComputedStyle(on);
              return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--here-ring-w').trim(),
-                     cs.getPropertyValue('--lf-here-ring').trim()]; }"""
+                     cs.getPropertyValue('--focus-ring-w').trim(),
+                     cs.getPropertyValue('--lf-focus-ring').trim()]; }"""
     )
     assert ring[0] == "solid" and ring[1] == ring[2] and ring[3] != "none", (
-        f"nothing draws a named here ring where the keyboard is standing: {ring}"
+        f"nothing draws a named focus ring where the keyboard is standing: {ring}"
     )
 
 
@@ -10552,6 +10891,74 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     assert line.bounding_box()["height"] > before
     label.tap()
     expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
+    iphone, serve
+):
+    """A file's header on a phone, with the review press beside it. The triangle stood
+    alone on the first line and the path wrapped below it, back to the header's left
+    edge, because the triangle was the line's first word and the path had no break in
+    it but the ones `overflow-wrap` forces; and a padding held the press's column open
+    down the whole header, so those forced breaks cut names mid-word
+    ("skills/wor|ktrunk"). The path now starts on the triangle's line, every line of
+    it starts at one left edge, and each break falls after a slash."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone header",
+                '<h1>Review</h1><lf-diff id="patch" review><pre>'
+                + patch
+                + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    lines = page.evaluate(
+        """() => {
+        const head = document.querySelector('lf-diff').shadowRoot
+            .querySelector('summary');
+        const text = head.querySelector('.lf-diff-path');
+        const range = document.createRange();
+        const lines = [];
+        for (const node of text.childNodes) {
+            if (node.nodeType !== Node.TEXT_NODE) continue;
+            for (let i = 0; i < node.length; i++) {
+                range.setStart(node, i);
+                range.setEnd(node, i + 1);
+                const box = range.getBoundingClientRect();
+                const last = lines.at(-1);
+                if (last && Math.abs(box.top - last.top) < 2) last.text += node.data[i];
+                else lines.push({ top: box.top, left: Math.round(box.left),
+                                  text: node.data[i] });
+            }
+        }
+        const s = getComputedStyle(head);
+        return { lines, contentTop: head.getBoundingClientRect().top
+                   + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) };
+    }"""
+    )
+    rows = lines["lines"]
+    assert len(rows) > 1, f"the path fits one line, so nothing wrapped: {rows}"
+    assert rows[0]["top"] - lines["contentTop"] < 8, (
+        f"the path did not start on the triangle's line: {lines}"
+    )
+    # To a pixel: the first line is drawn back by the triangle's width, which the
+    # engine's font sets.
+    lefts = [row["left"] for row in rows]
+    assert max(lefts) - min(lefts) <= 1, (
+        f"a wrapped line of the path does not start where its first line does: {rows}"
+    )
+    assert all(row["text"].endswith("/") for row in rows[:-1]), (
+        f"the path broke inside a name: {[row['text'] for row in rows]}"
+    )
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

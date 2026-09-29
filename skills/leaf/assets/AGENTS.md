@@ -19,8 +19,9 @@ bands, the reading measure as typography, and each widget's contract to fill the
 it is given, declare the minimum it needs, and never let its content size its holder.
 
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
-free room measured beside its target, in a rail the page declares, or as a pin
-inside its target's corner.
+free room measured beside its target, in a rail the page declares, or as a pin by
+its target: in room found where it covers no words (`pinSpot`), and otherwise inside
+its target's corner.
 
 The rail and a pin are different kinds. The rail is room: a strip beside the column,
 which the column may move over to leave (`settleResidency`) but never narrows or
@@ -33,8 +34,8 @@ which markers stand and where, which is what the overlay exists to avoid. Where 
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
 
-The auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
-never change its geometry; the Asks tray and panel leave the page live beside
+The auxiliary surfaces (Asks drawer, thread panel, Leaves drawer) stand over the page and
+never change its geometry; the Asks drawer and panel leave the page live beside
 them, and cover it where they would leave less than a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
@@ -54,8 +55,9 @@ inspection layer.
 ### Stability
 
 The page holds still under the user's aim. A state change may repaint any box but
-must not move controls next to the gesture that caused it, and news arriving
-without a gesture moves no chrome control. A change the user requested may reflow
+must not move controls next to the gesture that caused it. News causes no layout
+shift: when a box's content changes without a gesture, that box may grow or shrink
+into free room, but no other element moves. A change the user requested may reflow
 the content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings.
 
@@ -70,9 +72,12 @@ A gesture whose result the page can draw shows that result in the gesture (root
 `AGENTS.md`, "The document starts state; the log changes it"); `standGesture`
 owns both the send and the refusal that returns words to their box. The content
 and its Undo are the confirmation, so success needs no notice beyond the
-announcement for a listener. A result only the log can supply waits with
-`aria-busy`, painted on a delay so a fast answer shows nothing. Persistent status
-text is for a state the user must return to, such as failure.
+announcement for a listener. A gesture that moves the user, as settling a thread
+does, owns the move back, and both ways it can stop standing run it: the log
+refusing it and the user taking it back (`thread/folding.js`). A result only the
+log can supply waits with `aria-busy`, painted on a delay so a fast answer shows
+nothing. Persistent status text is for a state the user must return to, such as
+failure.
 
 ### Visual grammar
 
@@ -125,7 +130,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
-| Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
+| Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js`, `floating.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
@@ -138,7 +143,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
-| Trays and neighboring pages | `trays.js`, `live-leaves*.js` |
+| Drawers and neighboring pages | `drawers.js`, `live-leaves*.js` |
 | Activity and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
@@ -151,6 +156,14 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 `runtime/rendering.js` runs every rendering callback in one pass per frame; schedule
 through its `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`, since
 lint refuses the browser's own.
+
+The browser moves what a scroll moves. A box that follows page content stands where
+CSS puts it, by an anchor, a sticky offset, or a scroll timeline, and no scroll handler
+writes its position, which would trail the scroll by a frame. Code that runs on a
+scroll, a frame, or a repeated reading writes only what changed (`widget-elements.js`,
+above `keeps`): while a highlight holds a range, Chrome repaints the whole document for
+any write, so a write per scroll event makes every page with a quoted comment judder.
+`test_a_scroll_writes_only_what_it_changes` holds both over the corpus.
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
@@ -168,9 +181,9 @@ the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
-its owner writes. A `:has()` on the chrome root is read again on every write inside the
-chrome and restyles all of it (`test_no_has_rule_stands_on_the_chrome_root`), so the
-owner of such a condition states it as an attribute on the root.
+its owner writes. A `:has()` on the chrome root, `body` or `html` is read again on
+every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
+owner of such a condition states it as an attribute on the element the rule styles.
 
 ### One writer for each fact
 
@@ -190,7 +203,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`, `seenRect`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, sticky-header room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareStickyHeaders`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,
@@ -225,7 +238,7 @@ Startup order is load-bearing:
     wait the page presents offline and applies the answer when it lands.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
-banner and shortcut band so mounting the runtime moves nothing. Prose, links, and
+banner and bottom bar so mounting the runtime moves nothing. Prose, links, and
 scrolling work while widgets upgrade. Page keys wait, because a command reads
 state the first answer brings: the bootstrap holds printed keys pressed before
 presentation and the keyboard controller replays them in order once the page

@@ -2,17 +2,20 @@
    Native card roots are retained by stable thread identity. Only their ThreadView
    owns generated descendants; retention re-renders values, never captured DOM.
    Count and narrowing paint share the rows' checkpoint and update boundary.
-   The list owns the one expanded visible thread; native named details enforce the
-   same choice in the DOM while cards retain their message and editor nodes. This
-   mechanical state never publishes a new application epoch. Narrowing keeps the
+   The list owns the one expanded visible thread and writes every shown card's
+   disclosure from that choice, while cards retain their message and editor nodes; a
+   card the browser opens itself, as find-in-page does, becomes the choice. The cards
+   carry no native `name`: its exclusivity closes a card the moment it is named beside
+   an open one, which the list's own choice then opens again. This mechanical state
+   never publishes a new application epoch. Narrowing keeps the
    selected card when visible and otherwise selects the first visible card. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { layoutChanged } from "../widget-elements.js";
+import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
-import { keeps } from "../keeps.js";
 
 const TAG = "leaf-thread-list";
 const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
@@ -26,6 +29,8 @@ class ThreadListView extends RetainedFace {
   #retaining = false;
   #rollbackFocus = null;
   #expandedKey = null;
+  #draftViews = new Set();
+  #draftFrame = 0;
 
   #visibleRows() {
     const eligible = new Set(
@@ -44,7 +49,7 @@ class ThreadListView extends RetainedFace {
     if (!visible.length) return;
     const chosen = visible.find((row) => row.key === this.#expandedKey) ?? visible[0];
     this.#expandedKey = chosen.key;
-    chosen.node.toggleAttribute("open", true);
+    for (const row of visible) row.node.toggleAttribute("open", row === chosen);
   }
 
   #chooseFromSummary(card, event) {
@@ -145,7 +150,13 @@ class ThreadListView extends RetainedFace {
       let view = this.#views.get(row.key);
       if (!view) {
         this.#views.set(row.key, (view = new ThreadView("panel", this.#commands.card)));
-        view.node.addEventListener("toggle", () => layoutChanged(this));
+        view.node.addEventListener("toggle", () => {
+          layoutChanged(this);
+          const row = this.#visibleRows().find((row) => row.node === view.node);
+          if (!view.node.open || !row || row.key === this.#expandedKey) return;
+          this.#expandedKey = row.key;
+          this.#showExpanded();
+        });
         view.node.addEventListener("click", (event) => {
           if (event.target.closest(".lf-thread-summary")?.parentElement === view.node)
             this.#chooseFromSummary(view.node, event);
@@ -175,16 +186,25 @@ class ThreadListView extends RetainedFace {
         });
         if (view.node.contains(focused())) this.focus({ preventScroll: true });
       }
-      if (folding) view.node.removeAttribute("name");
-      else keeps(view.node, "name", this.#commands.card.detailsGroup);
-      view.setNavigation({
-        draftChanged: () => view.present(view.model),
-      });
+      view.setNavigation({ draftChanged: () => this.#draftChanged(view) });
       view.present(descriptor);
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
     this.#rows = rows;
+  }
+
+  // A folded row says whether its reply holds a draft. A send empties the box in the
+  // same turn that publishes the message it sent, so the row repaints from what that
+  // turn ends on rather than once for the emptied box and again for the message.
+  #draftChanged(view) {
+    this.#draftViews.add(view);
+    this.#draftFrame ||= nextRender(() => {
+      this.#draftFrame = 0;
+      for (const changed of this.#draftViews)
+        if ([...this.#views.values()].includes(changed)) changed.present(changed.model);
+      this.#draftViews.clear();
+    });
   }
 
   updated() {

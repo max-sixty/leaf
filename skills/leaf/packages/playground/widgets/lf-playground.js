@@ -737,7 +737,9 @@ customElements.define(
       const previous = this.#copy;
       const restoreFocus = holdFocus(previous);
       this.#copy = previous.cloneNode(true);
-      this.#copy.value = instruction;
+      // As an attribute, so the replacement says what it copies where the one it
+      // replaces said something else.
+      this.#copy.setAttribute("value", instruction);
       previous.replaceWith(this.#copy);
       const copy = this.#copy;
       copy.updateComplete.then(() => {

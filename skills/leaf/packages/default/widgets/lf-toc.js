@@ -224,7 +224,7 @@ customElements.define(
       this.#renamed = new MutationObserver(() =>
         this.#sections.forEach(({ destination, link }, position) => {
           if (!destination.id) this.#targetFor(destination, position);
-          link.href = `#${destination.id}`;
+          keeps(link, "href", `#${destination.id}`);
         }),
       );
       for (const { destination } of this.#sections)

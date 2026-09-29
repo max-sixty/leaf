@@ -13,6 +13,7 @@ import {
   commands,
   failSoft,
   keepsHidden,
+  keepsText,
   layoutChanged,
   notice,
   offer,
@@ -577,7 +578,7 @@ customElements.define(
             const targetOption = select.querySelector(
               `wa-option[value="${CSS.escape(target.key)}"]`,
             );
-            if (targetOption) targetOption.textContent = value;
+            keepsText(targetOption, value);
           }
           this.#beginDraft();
           this.#paintAvailability();

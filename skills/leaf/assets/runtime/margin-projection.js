@@ -517,6 +517,7 @@ export function createMarginProjection({
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
+  let highlightFrame = 0;
   let rovingFrame = 0;
   // A modal or contextual thread surface temporarily owns focus without ending the
   // document interaction beneath it. Preserve that context so its commands remain
@@ -2272,11 +2273,22 @@ export function createMarginProjection({
     return node;
   }
 
+  // One gesture can move the trace's source more than once: a close that clears it and
+  // the focus it hands back that names the same target again. The trace paints what the
+  // gesture ends on, once, in the frame that follows it.
   function highlight(target) {
     if (highlighted === target) return;
     highlighted = target;
-    const part = target ? visualAt(target, { unclaimed: false })?.part : null;
-    paintTrace(target, part?.element === target ? part.surface : target);
+    highlightFrame ||= nextRender(() => {
+      highlightFrame = 0;
+      const part = highlighted
+        ? visualAt(highlighted, { unclaimed: false })?.part
+        : null;
+      paintTrace(
+        highlighted,
+        part?.element === highlighted ? part.surface : highlighted,
+      );
+    });
   }
 
   function refreshHighlight() {

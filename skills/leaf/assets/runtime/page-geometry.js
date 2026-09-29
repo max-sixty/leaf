@@ -11,7 +11,6 @@
  */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
 import { coarsePointer } from "./pointer.js";
@@ -107,11 +106,6 @@ export function createPageGeometry({
     if (activeActionAnchor()) queueActionPlacement();
   }
 
-  function traceTarget(target) {
-    const part = target ? visualAt(target, { unclaimed: false })?.part : null;
-    targetPaint.paintTrace(target, part?.element === target ? part.surface : target);
-  }
-
   const invalidate = () => targetPaint.geometryChanged();
 
   const onResize = () => {
@@ -150,6 +144,5 @@ export function createPageGeometry({
     refreshAim,
     invalidate,
     pageShifted,
-    traceTarget,
   };
 }

@@ -5852,13 +5852,13 @@ customElements.define("lf-owner", class extends HTMLElement {
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("pinned", state.move.value); }
+  renderState(state) { keeps(this, "pinned", state.move.value); }
 });
 """
     )
@@ -6640,13 +6640,13 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { once, widgetController } from "/runtime/widget-api.js";
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("decision", state.decide.value); }
+  renderState(state) { keeps(this, "decision", state.decide.value); }
 });
 """
     )
@@ -6774,7 +6774,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
         """\
-import {once, widgetController} from "/runtime/widget-api.js";
+import {keeps, once, widgetController} from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   #controller;
   #presented;
@@ -6800,14 +6800,14 @@ customElements.define("lf-trial", class extends HTMLElement {
   #markAfterPresentation(reading) {
     if (!reading.state) return;
     if (document.body.dataset.lfPresented === "1") {
-      this.setAttribute("data-lf-state", "shelve");
+      keeps(this, "data-lf-state", "shelve");
       return;
     }
     this.#presented ??= new MutationObserver(() => {
       if (document.body.dataset.lfPresented !== "1") return;
       this.#presented.disconnect();
       this.#presented = undefined;
-      if (this.isConnected) this.setAttribute("data-lf-state", "shelve");
+      if (this.isConnected) keeps(this, "data-lf-state", "shelve");
     });
     this.#presented.observe(document.body, {
       attributes: true, attributeFilter: ["data-lf-presented"],
@@ -8778,8 +8778,8 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     page.evaluate(
         """() => {
           document.querySelector('#goal-parser').removeAttribute('data-lf-open');
-          document.querySelector('#goal-parser > .lf-task-meta .lf-task-crew')
-            .setAttribute('aria-expanded', 'false');
+          const crew = document.querySelector('#goal-parser > .lf-task-meta .lf-task-crew');
+          if (crew.ariaExpanded !== 'false') crew.ariaExpanded = 'false';
           document.querySelector('#tree-w-1').removeAttribute('data-lf-open');
         }"""
     )
@@ -9347,7 +9347,10 @@ def test_datum_travel_resolves_the_destination_after_reveal(
             if (replacement === 'removed' || revealed) {
               row.remove();
             } else {
+              // Marked, so the rebuild is a different row and not the same one
+              // written again.
               const next = row.cloneNode(true);
+              next.dataset.rebuilt = '';
               row.replaceWith(next);
               revealed = true;
             }

@@ -1212,7 +1212,7 @@ RELATIVE_WIDGET_PAGE = leaf_page(
 )
 
 RELATIVE_WIDGET_MODULE = """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",
@@ -1225,7 +1225,7 @@ customElements.define(
     }
     disconnectedCallback() { this.#stop?.(); this.#stop = null; }
     renderState(state) {
-      this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.step.value));
+      keeps(this, "count", Number(this.getAttribute("count")) + Number(state.step.value));
       this.querySelector("pre").append(state.caption.value);
     }
   },

@@ -294,7 +294,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           ...commands.card,
           openThreads,
           listRoot: threadsBox,
-          detailsGroup: panel.id,
         },
         repaintThread: commands.repaintThread,
         presentSummary: (model) => postPaint(model, commands),

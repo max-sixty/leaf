@@ -9,9 +9,12 @@ const PAGE_FORMAT = "leaf.page/v1";
 const SNAPSHOT_FORMAT = "leaf.snapshot/v1";
 const PAGE_READY_EVENT = "leaf:mcp-page-ready";
 const PAGE_READY_TIMEOUT_MS = 5000;
+// The app reports its own size (`reportSize`): the SDK's reading sets the root's height to
+// max-content and back on every resize.
 const app = new App(
   { name: "Leaf presentation", version: "0.2.0" },
   { availableDisplayModes: ["inline", "fullscreen"] },
+  { autoResize: false },
 );
 const shell = document.querySelector("#app");
 const frame = document.querySelector("#leaf-page");
@@ -330,15 +333,19 @@ function renderPage(state) {
   keepsText(browser, "Open in browser");
   keeps(browser, "title", "Open the complete Leaf page outside this attachment");
   browser.toggleAttribute("disabled", !(state.browser_url || state.inline_url));
-  pageHost.toggleAttribute("hidden", true);
-  pageLoading.toggleAttribute("hidden", false);
-  keepsText(pageLoading, "Opening the complete page…");
-  frame.toggleAttribute("hidden", true);
-  shadow.replaceChildren();
-  resetComposer();
   const next = safePageUrl(state.inline_url);
   hostCapabilities = app.getHostCapabilities() || hostCapabilities;
-  if (!frameOriginApproved(next)) {
+  const approved = frameOriginApproved(next);
+  // A frame that already said it is ready at this address shows at once; each place is
+  // written once, to what this payload ends on.
+  const ready = approved && readyUrl === next;
+  pageHost.toggleAttribute("hidden", true);
+  pageLoading.toggleAttribute("hidden", ready);
+  if (!ready) keepsText(pageLoading, "Opening the complete page…");
+  frame.toggleAttribute("hidden", !ready);
+  shadow.replaceChildren();
+  resetComposer();
+  if (!approved) {
     blankPageFrame();
     showStatus(
       "This host did not approve the complete page frame. Opening the comments-only snapshot…",
@@ -351,10 +358,8 @@ function renderPage(state) {
     return;
   }
   if (frame.src !== next) frame.src = next;
-  if (readyUrl === next) {
+  if (ready) {
     clearReadyTimer();
-    pageLoading.toggleAttribute("hidden", true);
-    frame.toggleAttribute("hidden", false);
     showStatus("Complete Leaf page ready.");
   } else {
     showStatus(
@@ -400,12 +405,15 @@ function renderSnapshot(state) {
   });
   const containment = document.createElement("style");
   containment.textContent = pageCss();
-  shadow.replaceChildren(
-    theme,
-    ...authored,
-    containment,
-    cleanDocument(state.document),
-  );
+  const content = [theme, ...authored, containment, cleanDocument(state.document)];
+  // A snapshot delivered again unchanged leaves the tree it already drew, and the
+  // selection the user may be holding in it.
+  const held = shadow.childNodes;
+  if (
+    content.length !== held.length ||
+    content.some((node, index) => !node.isEqualNode(held[index]))
+  )
+    shadow.replaceChildren(...content);
   containSnapshotHost();
   resetComposer();
   showStatus(
@@ -723,12 +731,36 @@ fullscreen.addEventListener("click", async () => {
   }
 });
 
+// The host sizes its frame to this document. Nothing here sets the root's height, so
+// the root's box is the height its content takes, read where it stands.
+function reportSize() {
+  let reported = "";
+  let frameId = 0;
+  const report = () => {
+    frameId = 0;
+    const size = {
+      width: Math.ceil(window.innerWidth),
+      height: Math.ceil(document.documentElement.getBoundingClientRect().height),
+    };
+    const said = `${size.width}x${size.height}`;
+    if (said === reported) return;
+    reported = said;
+    void app.sendSizeChanged(size);
+  };
+  const observer = new ResizeObserver(() => {
+    frameId ||= requestAnimationFrame(report);
+  });
+  observer.observe(document.documentElement);
+  observer.observe(document.body);
+}
+
 app
   .connect()
   .then(() => {
     hostCapabilities = app.getHostCapabilities() || {};
     applyHostContext(app.getHostContext());
     syncControls();
+    reportSize();
   })
   .catch((error) => {
     showStatus(`This host did not initialize the Leaf app: ${errorText(error)}`, {

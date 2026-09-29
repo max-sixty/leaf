@@ -1035,7 +1035,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
           const band = probe.getBoundingClientRect().height;
           probe.remove();
           return {
-            padding: parseFloat(getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom),
+            padding: parseFloat(getComputedStyle(document.body).paddingBottom),
             band,
             line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
           };

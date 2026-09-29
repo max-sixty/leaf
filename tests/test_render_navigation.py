@@ -9734,11 +9734,10 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     room = page.evaluate(
         """() => {
               const line = document.querySelector('.lf-shortcut-bar');
-              const chrome = document.querySelector('.lf-chrome');
               return {
                 display: getComputedStyle(line).display,
                 height: line.getBoundingClientRect().height,
-                reserved: getComputedStyle(chrome).paddingBottom,
+                reserved: getComputedStyle(document.body).paddingBottom,
                 moreShown: document.querySelector('.lf-shortcut-more').checkVisibility(),
               };
             }"""
@@ -9759,7 +9758,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     expect(page.locator(".lf-notice")).to_be_visible()
     assert (
         page.evaluate(
-            "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
+            "() => getComputedStyle(document.body).paddingBottom"
         )
         == "0px"
     ), "a transient notice reserved document space"
@@ -9788,8 +9787,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
                 height: document.querySelector('.lf-walk-position')
                   .getBoundingClientRect().height,
                 top: chip.top, bottom: chip.bottom, viewport: innerHeight,
-                reserved: parseFloat(getComputedStyle(
-                  document.querySelector('.lf-chrome')).paddingBottom),
+                reserved: parseFloat(getComputedStyle(document.body).paddingBottom),
               };
             }"""
     )
@@ -9804,16 +9802,14 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     page.locator("#h").click()
     expect(line).to_be_hidden()
     page.close()
-    # The control the reading above needs, because `paddingBottom` computes to "0px" on a
-    # chrome root syncLayout never wrote to: the same page at the same size under a fine
+    # The control the reading above needs, because `paddingBottom` computes to "0px"
+    # wherever the theme reserves nothing: the same page at the same size under a fine
     # pointer has to reserve a band, or "reserved nothing" and "reserved nowhere" are the
     # same green.
     fine = open_page(browser, serve(NOTED_PAGE))
     resized(fine, 390, 844)
     rendered(fine)
-    reserved = fine.evaluate(
-        "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
-    )
+    reserved = fine.evaluate("() => getComputedStyle(document.body).paddingBottom")
     assert reserved != "0px" and float(reserved.removesuffix("px")) > 20, reserved
 
 
@@ -9829,17 +9825,17 @@ FOOT_CONTROL_PAGE = NOTED_PAGE.replace(
 
 # The band the line stands in, and the room the document keeps for it. `footprint` is the
 # whole of what the line takes at the foot of the window — its height plus every inset
-# holding it off that foot — and `reserved` is what syncLayout gives up for it.
+# holding it off that foot — and `reserved` is the room the theme keeps for it at the
+# body's end.
 FOOT_ROOM = """() => {
   const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
   const box = document.getElementById('foot-change').getBoundingClientRect();
-  const chrome = document.querySelector('.lf-chrome');
   const s = document.scrollingElement;
   return {
     atEnd: s.scrollTop + s.clientHeight >= s.scrollHeight - 1,
     lineHeight: line.height,
     footprint: document.documentElement.clientHeight - line.top,
-    reserved: parseFloat(getComputedStyle(chrome).paddingBottom),
+    reserved: parseFloat(getComputedStyle(document.body).paddingBottom),
     clearance: line.top - box.bottom,
   };
 }"""

@@ -58,6 +58,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
 ROOT = Path(__file__).parent.parent
+TYPING_WATCH_SOURCE = Path(__file__).with_name("typing_watch.js")
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -1079,7 +1080,9 @@ def watched(page):
 
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses. Call before navigation so the init script takes effect.
+    the render gate uses, and by typing that moves its own field or what stands
+    before it (`typing_watch.js`). Call before navigation so the init scripts take
+    effect.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1098,6 +1101,7 @@ def watched(page):
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
+    page.add_init_script(path=TYPING_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {

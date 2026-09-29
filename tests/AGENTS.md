@@ -153,6 +153,12 @@ its report arrives in parts. For a recurring fault, close the page first and the
 consume. Otherwise close a page only when closing is part of the journey. Filtering
 the collector is not an assertion.
 
+Typing that moves its own field, or anything standing before it, is one of those
+problems (`typing_watch.js`), so a test that types checks the "Stability" rule in
+`skills/leaf/assets/AGENTS.md` without asking. Playwright's `fill`, `insert_text`
+and `press` all type; a `value` written by script does not. Fix what moved rather
+than consuming the report.
+
 ## A page is ready when it says what has finished
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)

@@ -6156,7 +6156,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     assert placed["top"] == pytest.approx(
         float(placed["placedTop"].removesuffix("px")), abs=0.5
     ), placed
-    expect(thread.locator(".lf-page-thread-body")).to_have_text(PARAGRAPH_ON_ASK["text"])
+    expect(thread.locator(".lf-page-thread-body")).to_have_text(
+        PARAGRAPH_ON_ASK["text"]
+    )
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-page-thread-open")).to_have_count(0)
     geometry = page.evaluate(

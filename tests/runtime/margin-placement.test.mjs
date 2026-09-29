@@ -364,6 +364,10 @@ test("a folded pin stands only where its opened actions stay inside its bounds",
   const narrow = seatOf([{ ...edge, folds: { ...edge.folds, open: 44 } }]);
   assert.equal(narrow.folded, true);
   assert.ok(narrow.rect.bottom <= 717, narrow);
+  // Bounds narrower than the opened pin, as in a thin pane, keep the toggle inside them.
+  const thin = seatOf([{ ...edge, folds: { ...edge.folds, open: 600 } }]);
+  assert.equal(thin.folded, true);
+  assert.ok(thin.rect.right <= edge.bounds.right, thin);
 });
 
 test("a folded pin held open keeps its fold, and the others keep to its toggle", () => {

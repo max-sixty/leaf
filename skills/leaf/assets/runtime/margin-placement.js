@@ -93,12 +93,14 @@ const inSeatingOrder = (rows) =>
 // and every other pin keeps to its toggle, so opening it moves nothing the user sees but
 // the pin itself. So that every action it opens to lands inside `bounds`, the toggle is
 // seated only where the open width fits to its left: the search's bounds give up that
-// width on the left, and a home too near that edge moves right until it fits.
+// width on the left, and a home too near that edge moves right until it fits, though
+// never past the bounds' right edge, where the toggle at least stays reachable.
 //
 // Each pin is `{ key, rect, priority, held, seat, parts, cover, walls, neighbours, line,
 // bounds, folds, folded }`, `rect` its home, `held` the rect it holds or null, `folds`
 // the same pin folded, `{ rect, seat, open }` with `open` its width opened, where it can
-// fold, and `folded` whether it stands folded now, which a held pin keeps. A pin seated first is a wall to the next, and every
+// fold, and `folded` whether it stands folded now, which a held pin keeps. A pin seated
+// first is a wall to the next, and every
 // other pin's target is one a pin reaching further out must not stand nearer to, unless
 // the two targets meet, as a passage in a commented block does. The answer maps each key
 // to its seat, `{ rect, folded }`.
@@ -137,7 +139,11 @@ export function seatRows(pins, { reach, gap }) {
           ...pin.bounds,
           left: pin.bounds.left + open - (home.right - home.left),
         };
-        const left = Math.max(home.left, bounds.left);
+        // Bounds narrower than the opened pin keep at least the toggle inside them.
+        const left = Math.min(
+          Math.max(home.left, bounds.left),
+          pin.bounds.right - (home.right - home.left),
+        );
         rect = spot(pin.folds, bounds) ?? {
           ...home,
           left,

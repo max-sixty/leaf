@@ -249,10 +249,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const disabled = sending || uploading || busy() || !hasContent(draftValue());
       keeps(sendBtn, "aria-disabled", disabled);
       if (altBtn) keeps(altBtn, "aria-disabled", disabled);
-      paintOwn();
     };
     inputPaints.set(ta, paint);
     const refresh = () => {
+      // A button whose visibility follows the draft must join the tab order before
+      // the next key. The rest of its dressing can wait for the shared paint.
+      paintOwn();
       stale.add(ta);
       repaint();
     };

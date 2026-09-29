@@ -29,7 +29,7 @@ import {
   watchDraft,
 } from "../drafts.js";
 
-import { pageSelection } from "./capture.js";
+import { pageSelection, rangeAnchor } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -41,6 +41,7 @@ import { elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
+import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 
@@ -118,6 +119,15 @@ fabBar.prepend(composer);
 export let pendingAnchor = null;
 export let pendingAbout = null;
 export let pendingDrawing = null;
+
+// The words of the element a comment was pointed at, as the passage that finds them
+// again once a re-render has replaced the element (pointed-place.js); null for none.
+function wordsOf(element) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const words = rangeAnchor(range);
+  return words.quote?.trim() ? words : null;
+}
 export let composerOpen = false;
 
 export function createSelectionComposer({
@@ -131,6 +141,7 @@ export function createSelectionComposer({
   anchorTargetAt,
   bringForward,
   fabAnchorAt,
+  fabPointAt,
   fabPositioned,
   beginFabFocus,
   endFabFocus,
@@ -398,7 +409,9 @@ export function createSelectionComposer({
   // user text stays with its passage unless an explicit Comment gesture carries it.
   let seededQuote = "";
   // `about` defaults to the mode standing at the open — a composer opened in design mode
-  // is about design — and a restored draft passes the word it was saved with.
+  // is about design — and a restored draft passes the word it was saved with. A pointing
+  // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
+  // or null; a route that names no point leaves the bar where it stands on this anchor.
   function openComposer(
     anchor,
     text,
@@ -408,6 +421,7 @@ export function createSelectionComposer({
       drawing = undefined,
       carry = false,
       focus = true,
+      point = undefined,
     } = {},
   ) {
     closeReactions();
@@ -463,7 +477,7 @@ export function createSelectionComposer({
     if (focus) handoff = beginFabFocus();
     else endFabFocus();
     showComposer(true);
-    showFab(anchor);
+    showFab(anchor, null, { point });
     // The suggest mode renders against the bar once it stands on this anchor with the box
     // open: rendered before, its response choices would follow the bar's previous
     // anchor and flip as the bar arrived.
@@ -616,14 +630,19 @@ export function createSelectionComposer({
         const about = pendingAbout;
         const drawing = structuredClone(pendingDrawing);
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
-        // Threads is open. Carry the submitted field's geometry into the new card.
+        // Threads is open. Carry the submitted field's geometry into the new card, which
+        // stands where the field did: by the row a pointing gesture named.
         const transition = threadTransitionOrigin(composerInput, visible);
+        const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
         const sent = sendMessage(
           ctx,
           () => composerCtx(pendingAnchor) === ctx && owns(),
           (attempt) => {
+            // Kept under the attempt, which names the thread before and after the log
+            // answers (`threadKey`), with the words that find the row again.
+            if (point) commitPoint(attempt, point, wordsOf(point));
             const event = { anchor, attempt };
             if (raw) event.text = raw;
             if (suggestion) event.suggestion = true;

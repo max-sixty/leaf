@@ -11,7 +11,8 @@ Tend uses `merge: yolo`. Merge a pull request that fixes tests, without waiting
 for maintainer approval, once each test it claims to fix failed before the change
 and passes after it (a skipped or deleted test has not passed), and `monitor-ci`'s
 poll exits 0 on the exact head. Pull requests don't run nightly tests, so run the
-claimed ones yourself. `test` outlasts one poll; poll again until it finishes.
+claimed ones yourself. `test` outlasts one poll, so poll up to twice more; a check
+still pending after that leaves the fix unverified.
 
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions

@@ -104,11 +104,12 @@ and its chrome coordinate.
 - **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
   target that covers no words (`pinSpot`), which clears single markers on most pages,
   but under a finger Accept and Reject together are a 96×44px pair: that needs a line
-  ending 100px short on the run's last line and 44px from that line to the next block.
-  At 390px, 5 of the 7 shipped suggestions find no such room and stay over their words;
-  one 44px marker would find room for 3 of those 5. Folding the pair into one marker
-  that opens Accept and Reject, only where the pair has no room, is the nearest design;
-  it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
+  ending 100px short on the run's last line, 44px from that line to the next block, or
+  the empty end of a neighbouring block's line within reach, such as a short heading
+  just above. At 390px, 3 of the 7 shipped suggestions find no such room and stay over
+  their words (the feature gallery's replace and insert, release-notes' API
+  deletion). Folding the pair into one marker that opens Accept and Reject, only where
+  the pair has no room, is the nearest design; it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
   a finger) stays the escape.
 - **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass

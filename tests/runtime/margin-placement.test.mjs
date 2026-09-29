@@ -118,13 +118,14 @@ test("a pin level with a control of the page goes below it", () => {
 // next block starts 30px below.
 const box = (left, top, right, bottom) => ({ left, top, right, bottom });
 const words = [box(24, 100, 366, 121), box(24, 127, 280, 148)];
-const spot = (cover) =>
+const spot = (cover, neighbours = []) =>
   pinSpot({
     // A 44px marker level with the run's last line, just after its end.
     seat: box(284, 115.5, 328, 159.5),
     home: box(318, 100, 362, 144),
     parts: [box(160, 100, 366, 121), box(24, 127, 280, 148)],
     cover,
+    neighbours,
     bounds: box(4, -Infinity, 386, Infinity),
     reach: 12,
     gap: 4,
@@ -143,17 +144,53 @@ test("a pin whose seat covers words takes the nearest room beside its target", (
   assert.deepEqual(spot([...words, box(24, 178, 366, 260)]), box(284, 125, 328, 169));
 });
 
-test("another block counts whole, so a pin with no room of its own stays home", () => {
-  // Brought up to the paragraph, the next block leaves the last line too little room
-  // below, though nothing is drawn in its top 20px; the pin stands in the leading above
-  // the run instead.
+test("a box in cover counts whole, so a pin with no room of its own stays home", () => {
+  // Brought up to the paragraph, a block that paints its box (`coverIn`) leaves the
+  // last line too little room below, though no word stands in its top 20px; the pin
+  // stands in the leading above the run instead.
   const below = box(24, 152, 366, 260);
   assert.deepEqual(spot([...words, below]), box(284, 52, 328, 96));
-  // With a heading 10px above the paragraph, that room is the heading's.
+  // With a painted heading 10px above the paragraph, that room is the heading's.
   assert.deepEqual(
     spot([...words, below, box(24, 40, 366, 90)]),
     box(318, 100, 362, 144),
   );
+});
+
+test("where its target has no room, a pin takes a neighbour's empty end", () => {
+  // The same heading painting nothing is a neighbour: its words end at 111px, and the
+  // pin stands past them, within reach of the run, rather than over the run's words.
+  const below = box(24, 152, 366, 260);
+  assert.deepEqual(
+    spot([...words, below, box(24, 50, 111, 80)], [box(24, 40, 366, 90)]),
+    box(284, 52, 328, 96),
+  );
+});
+
+test("a pin keeps to its target's own room before a neighbour's empty end", () => {
+  // A block whose heading line fills the corner seat: room below that line is its own,
+  // though the empty end of the paragraph above is nearer the seat, and a pin there
+  // would read as the paragraph's.
+  const corner = box(340, 100, 366, 126);
+  const place = (neighbours) =>
+    pinSpot({
+      seat: corner,
+      home: corner,
+      parts: [box(24, 100, 366, 300)],
+      cover: [
+        box(24, 100, 366, 130),
+        box(24, 180, 200, 200),
+        box(24, 20, 366, 41),
+        box(24, 69, 100, 90),
+      ],
+      neighbours,
+      bounds: box(4, -Infinity, 386, Infinity),
+      reach: 12,
+      gap: 4,
+    });
+  assert.deepEqual(place([box(24, 20, 366, 90)]), box(340, 134, 366, 160));
+  // Were the paragraph above not a neighbour, its empty end would be the nearer room.
+  assert.deepEqual(place([]), box(340, 70, 366, 96));
 });
 
 // Two pins by the same run: `first` the more important, `second` below it in packing.
@@ -166,6 +203,7 @@ const pin = (key, priority, held = null) => ({
   seat,
   parts: [box(160, 100, 366, 121), box(24, 127, 280, 148)],
   cover: [words[1], box(24, 178, 366, 260)],
+  neighbours: [],
   bounds: box(4, -Infinity, 386, Infinity),
 });
 const overlap = (a, b) =>

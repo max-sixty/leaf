@@ -94,13 +94,18 @@ def viewport(value: str) -> tuple[int, int]:
     help="The colour scheme the page is shown in.",
 )
 @click.option(
+    "--touch",
+    is_flag=True,
+    help="Show the page under a finger: a coarse pointer and a mobile viewport.",
+)
+@click.option(
     "--base",
     is_flag=False,
     flag_value="",
     default=None,
     help="Also probe the merge base with main, or the ref given.",
 )
-def probe(source, steps, expression, shot, size, scheme, base) -> None:
+def probe(source, steps, expression, shot, size, scheme, touch, base) -> None:
     """Open SOURCE in Chrome, run each --do step, and print what --js returns.
 
     SOURCE is an example or fixture name, or an authored .html path, built fresh
@@ -135,7 +140,7 @@ def probe(source, steps, expression, shot, size, scheme, base) -> None:
                 try:
                     with (
                         serving_source(arm_dir, source, scratch / arm) as address,
-                        tab(browser, size, scheme) as page,
+                        tab(browser, size, scheme, touch) as page,
                     ):
                         reading["errors"] = console_errors(page)
                         doing = "load"

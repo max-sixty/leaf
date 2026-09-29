@@ -382,12 +382,18 @@ function blockOf(target) {
   return el;
 }
 
-// What a pin may not stand on across a band of the page: every run of words in its
-// target's block, each box that paints what no text node says (an image, a drawing, a
-// widget's shadow tree, the target's own if it is one), every control, and every other
-// block whole. A box that holds the target is not one to avoid, since the pin stands on
-// it. The walk leaves any subtree whose box misses the band, so a long page costs what
-// lies near the target.
+// What a pin may not stand on across a band of the page (`cover`): every run of words,
+// each box that paints what no text node says (an image, a drawing, a widget's shadow
+// tree, the target's own if it is one), every control, and, whole, every other box that
+// paints its own extent (`paintsItsBox`). A box that draws a fill, a rule or a shadow
+// reads as one thing, so a pin anywhere on it, even over its empty end, reads as that
+// box's: a card, a callout, a framed table or code block. Every other block that paints
+// nothing is a `neighbour`: it covers only by its words, so the empty end of a short
+// heading or line beside the target is room, but a pin there can read as that block's,
+// and `pinSpot` takes it only where the target has no room of its own. Inside the
+// target's own block nothing counts whole, since that is the pin's own. A box that holds
+// the target is not one to avoid, since the pin stands on it. The walk leaves any
+// subtree whose box misses the band, so a long page costs what lies near the target.
 //
 // The controls come back apart as well, since packing keeps the pin off them, a pin left
 // at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
@@ -397,8 +403,30 @@ function blockOf(target) {
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
 // pin counts whole, so the pane's scroll never moves the pin's seat.
 const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
+
+// Whether an element draws its own extent: a fill, a rule on any side, or a shadow. An
+// inline box paints along its lines of words, which count already, and a `display:
+// contents` element has no box to paint.
+const SIDES = ["Top", "Right", "Bottom", "Left"];
+const unseen = (color) =>
+  color === "transparent" || /^rgba\(.*,\s*0\)$|\/\s*0\)$/.test(color);
+function paintsItsBox(style) {
+  if (style.display === "inline" || style.display === "contents") return false;
+  return (
+    style.backgroundImage !== "none" ||
+    style.boxShadow !== "none" ||
+    !unseen(style.backgroundColor) ||
+    SIDES.some(
+      (side) =>
+        parseFloat(style[`border${side}Width`]) > 0 &&
+        !unseen(style[`border${side}Color`]),
+    )
+  );
+}
+
 function coverIn(root, band, target, block, bands, stop) {
   const cover = [];
+  const neighbours = [];
   const controls = [];
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
@@ -431,11 +459,13 @@ function coverIn(root, band, target, block, bands, stop) {
       }
       if (node instanceof SVGElement) continue;
       if (!boxless && !holds && !block.contains(node)) {
-        const display = getComputedStyle(node).display;
-        if (!display.startsWith("inline") && display !== "contents") {
+        const style = getComputedStyle(node);
+        if (paintsItsBox(style)) {
           cover.push(edges(box));
           continue;
         }
+        if (!style.display.startsWith("inline") && style.display !== "contents")
+          neighbours.push(edges(box));
       }
       // A closed disclosure draws only its summary; reading the rest would force its
       // skipped content's layout (`skipped`).
@@ -448,7 +478,7 @@ function coverIn(root, band, target, block, bands, stop) {
     }
   };
   visit(root);
-  return { cover, controls };
+  return { cover, neighbours, controls };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -507,7 +537,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
-    const { cover, controls } = coverIn(
+    const { cover, neighbours, controls } = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
@@ -535,6 +565,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
       held: entry.held,
       parts,
       cover,
+      neighbours,
       seat: inline
         ? {
             left: end.right + GAP,

@@ -713,6 +713,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     expect(far_child.locator(".lf-first-unread")).to_be_hidden()
     page.evaluate("() => window.lfShiftsJudged?.()")
     import json as diag_json
+
     print("DIAG", diag_json.dumps(page.evaluate("window.__probe")))
 
 

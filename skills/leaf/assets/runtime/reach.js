@@ -4,7 +4,7 @@ import { TAB_STOP, TEXT_BOX, wearsLentStop } from "./focus.js";
 import { skipped } from "./geometry.js";
 import { afterScript, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { shadowRootsIn } from "./shadow.js";
+import { shadowRootsIn, upFrom } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
@@ -67,8 +67,9 @@ const overflows = (el) =>
 const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:
-// a box that stops scrolling is the box it was before, not one a click can now focus,
-// and a `-1` another owner lends it for an arrival (focus.js) stays that owner's.
+// a box that stops scrolling is the box it was before, not one a click can now focus.
+// A box focus.js has lent a `-1` for an arrival goes back to that `-1`, which focus.js
+// takes back on the blur.
 const mayScroll = new Map();
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was
@@ -248,7 +249,7 @@ function unwatchReach(el) {
 }
 const depth = (el) => {
   let levels = 0;
-  for (let node = el; node; node = node.parentNode ?? node.host) levels++;
+  for (let node = el; node; node = upFrom(node)) levels++;
   return levels;
 };
 const watched = (el) =>
@@ -293,10 +294,14 @@ function paintReach() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
   // A box holding a scroller that takes a stop holds a stop, so an outer box's answer
   // waits on its inner boxes': the deepest are asked first, and each box is written once.
-  for (const [el, authored] of [...mayScroll].sort(([a], [b]) => depth(b) - depth(a))) {
+  const levels = new Map([...mayScroll.keys()].map((el) => [el, depth(el)]));
+  for (const [el, authored] of [...mayScroll].sort(
+    ([a], [b]) => levels.get(b) - levels.get(a),
+  )) {
     if (unpainted(el)) continue;
     if (overflows(el) && !holdsOwnStop(el)) keeps(el, "tabindex", 0);
-    else if (el.getAttribute("tabindex") === "0") keeps(el, "tabindex", authored);
+    else if (el.getAttribute("tabindex") === "0")
+      keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
   }
   for (const el of sideways) if (!unpainted(el)) paintSidewaysReach(el);
   for (const el of downwards) if (!unpainted(el)) paintReadingReach(el);

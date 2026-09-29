@@ -290,7 +290,8 @@ or `live_counts` climb on every trip; and a resize fails where a width says some
 other than it said on the way out. The last three read a `still_page`, whose reduced
 motion and stopped clock leave only what the test did. All of them run on every
 corpus page, so a new widget or page joins without a case of its own; a new surface
-joins the round trips by its keys. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
+joins the round trips by its keys. Run generated-markup probes (`undeclaredAttrs`,
+`relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
 ### An absence needs a control and a settled frame

@@ -172,11 +172,12 @@ nothing in any test (`tests/write_watch.js`), and
 What a page says follows from where it stands now, not from how it got there. A page
 nobody touches writes nothing, asks for no frame, and moves no focus; a surface opened
 and closed again leaves the page as the last time did, holding no more nodes or
-listeners; a page resized says at each width what it said there before. So whatever sets a state also clears it, when the width or the gesture
-that called for it ends, and "none" has one spelling, the attribute's absence, which
-`keeps` writes for a null value. The corpus holds each rule:
-`test_a_page_at_rest_does_nothing`, `test_a_closed_surface_leaves_the_page_as_it_found_it`
-and `test_a_resized_page_comes_back_as_it_was`.
+listeners; a page resized says at each width what it said there before. So whatever
+sets a state also clears it, when the width or the gesture that called for it ends,
+and "none" has one spelling, the attribute's absence, which `keeps` writes for a null
+value. The corpus holds each rule: `test_a_page_at_rest_does_nothing`,
+`test_a_closed_surface_leaves_the_page_as_it_found_it` and
+`test_a_resized_page_comes_back_as_it_was`.
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow

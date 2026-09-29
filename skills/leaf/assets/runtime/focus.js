@@ -63,9 +63,12 @@ export const wearsLentStop = (element) => lent.has(element);
 
 function lendStop(destination) {
   if (destination.hasAttribute("tabindex")) return;
+  // Only the `-1` lent here is taken back: a box that came to scroll meanwhile wears
+  // the reach pass's stop (reach.js), which is that pass's to take.
   const giveBack = () => {
     lent.delete(destination);
-    destination.removeAttribute("tabindex");
+    if (destination.getAttribute("tabindex") === "-1")
+      destination.removeAttribute("tabindex");
   };
   lent.add(destination);
   destination.tabIndex = -1;

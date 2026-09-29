@@ -710,6 +710,7 @@ export function layoutMarginRows() {
   const main = marginColumn();
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
+  const columnHeight = main.scrollHeight;
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
@@ -944,7 +945,13 @@ export function layoutMarginRows() {
       clips.set(lane, clip);
     }
   }
-  document.dispatchEvent(new CustomEvent("lf-margin-layout"));
+  // With the column's box and height as the pass read them, so a listener measuring
+  // against the column need not read it again.
+  document.dispatchEvent(
+    new CustomEvent("lf-margin-layout", {
+      detail: { column: columnRect, height: columnHeight },
+    }),
+  );
 }
 
 export { scheduleMarginLayout };

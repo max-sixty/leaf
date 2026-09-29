@@ -315,8 +315,7 @@ customElements.define(
         )
           replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
-          if (panel === active) panel.removeAttribute("hidden");
-          else keeps(panel, "hidden", HIDDEN);
+          keeps(panel, "hidden", panel === active ? null : HIDDEN);
           keeps(btn, "aria-selected", panel === active);
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }

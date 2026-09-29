@@ -42,6 +42,7 @@ import { deepFocus, tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 import { keeps, keepsHidden } from "./keeps.js";
+import { nextRender } from "./rendering.js";
 
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
 let selectedKey = null;
@@ -122,15 +123,18 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
   // focus at all, the user is in another one — the page around a sample, a sibling
   // sample, another window — and moving it in would pull them back into this frame: four
   // samples with open panels did so to each other on every frame. The boundary takes the
-  // focus when the document does instead.
+  // focus when the document does instead, once the press or key that brought the user
+  // back has put them somewhere. The band a surface stands under stays live beside it.
   const outside = (controller) =>
-    document.hasFocus() && !controller.surface.contains(document.activeElement);
+    document.hasFocus() &&
+    !controller.surface.contains(document.activeElement) &&
+    !(controller.underBand && band.contains(document.activeElement));
   const recover = () => {
     if (active && outside(active) && !nativeLayerContains(document.activeElement))
       place(active.focus() ?? active.surface);
   };
   const focusMutations = new MutationObserver(recover);
-  addEventListener("focus", recover);
+  addEventListener("focus", () => nextRender(recover));
 
   // The covering boundary moves in one step, from the surface holding it to `next` or to
   // none. What both boundaries say — the inert background they share, the scrim, the

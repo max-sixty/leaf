@@ -14,11 +14,14 @@ const cluster = (left, top) => new DOMRect(left, top, 37, 32);
 const words = (at) => new DOMRect(at.left - 586, at.top, 540, at.height);
 // A card of `natural` height, rendered as the browser renders it under the cap.
 // `transcript` is the height of the thread's turns, which a turn joining it changes.
+// `content` is the card's width with no line wrapped, a paragraph's unless a case says,
+// which the stylesheet fits between the minimum and the room.
+const fit = (content) => (minimum, room) => Math.max(minimum, Math.min(content, room));
 const place = (
   width,
   at,
   natural,
-  { target = words(at), hold = null, drafting, transcript = 100 } = {},
+  { target = words(at), hold = null, drafting, transcript = 100, content = 2000 } = {},
 ) =>
   threadCardGeometry({
     cluster: at,
@@ -27,6 +30,7 @@ const place = (
     gap: 8,
     minWidth: 320,
     preferredWidth: 460,
+    widthAt: fit(content),
     heightAt: (_width, cap) => Math.min(natural, cap),
     transcriptAt: () => transcript,
     hold,
@@ -54,6 +58,40 @@ test("the card takes the room right of its words, over its cluster if it must", 
   // A thread with no target has only its cluster to stand clear of.
   const alone = ask(1440, cluster(1000, 100), 500, null);
   assert.deepEqual([alone.x, alone.width], [1045, 387]);
+});
+
+test("the card is as wide as its thread, between its minimum and its measure", () => {
+  // A one-word question takes the minimum, which leaves room to clear the cluster.
+  const short = place(2000, cluster(1400, 100), 150, { content: 180 });
+  assert.deepEqual([short.placement, short.x, short.width], ["right", 1445, 320]);
+  // Two short lines take their own width.
+  const lines = place(2000, cluster(1400, 100), 150, { content: 380 });
+  assert.deepEqual([lines.x, lines.width], [1445, 380]);
+  // A wider thread covers its cluster only as far as its own width needs.
+  const over = place(1440, cluster(1000, 100), 150, { content: 440 });
+  assert.deepEqual([over.x, over.width], [992, 440]);
+  // Where the room is narrower than the thread wants, the room decides as before.
+  const tight = place(1440, cluster(1126, 100), 150, { content: 380 });
+  assert.deepEqual([tight.x, tight.width], [1088, 344]);
+  // Under the cluster, the card takes its minimum whatever the thread wants.
+  const under = place(1024, cluster(871, 100), 150, { content: 180 });
+  assert.deepEqual([under.placement, under.width], ["below", 320]);
+});
+
+test("a turn that widens the card keeps its hold", () => {
+  // The user sends a long reply from a card sized to a short question: the card widens
+  // to the measure and holds its foot, with the reply row on it, as at one width.
+  const short = place(2000, cluster(1400, 300), 150, { content: 180 });
+  const sent = place(2000, cluster(1400, 300), 190, {
+    hold: short.hold,
+    drafting: true,
+    transcript: 140,
+    content: 2000,
+  });
+  assert.deepEqual(
+    [sent.placement, sent.width, sent.y + sent.height],
+    ["right", 460, short.y + short.height],
+  );
 });
 
 test("too little room right of its words puts the card under or over its cluster", () => {
@@ -86,7 +124,7 @@ test("a drafting card keeps its side and its top as its reply grows", () => {
   const rail = ask(1920, cluster(934, 160), 160);
   assert.deepEqual(rail.hold, {
     placement: "right",
-    width: 460,
+    room: 460,
     top: 0,
     foot: 160,
     height: 160,
@@ -251,6 +289,7 @@ test("a keyboard hiding the cluster keeps the card in what the user sees", () =>
     gap: 8,
     minWidth: 320,
     preferredWidth: 460,
+    widthAt: fit(2000),
     heightAt: (_width, cap) => Math.min(300, cap),
     transcriptAt: () => 100,
     hold: open.hold,
@@ -259,7 +298,7 @@ test("a keyboard hiding the cluster keeps the card in what the user sees", () =>
   assert.deepEqual([typing.y, typing.y + typing.height], [100, 400]);
 });
 
-test("a hold whose side or width the room no longer gives yields to a fresh choice", () => {
+test("a hold whose side or room the boundary no longer gives yields to a fresh choice", () => {
   const rail = ask(1920, cluster(934, 160), 160);
   const narrowed = place(1024, cluster(871, 160), 160, {
     hold: rail.hold,

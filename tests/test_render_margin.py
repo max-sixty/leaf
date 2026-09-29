@@ -113,6 +113,14 @@ COMMENT_ON_ASK = {
     "text": "Check whether these jobs can share one visit.",
     "anchor": {"section": "bracket"},
 }
+# A comment whose lines take the card's whole measure, for a case about the room a
+# placement gives the card rather than the width a short thread takes inside it.
+PARAGRAPH_ON_ASK = {
+    **COMMENT_ON_ASK,
+    "text": "Check whether these jobs can share one visit: the mounts, the bracket and "
+    "the cable run all need the same ladder and the same afternoon, and one visit would "
+    "halve the call-out charge.",
+}
 ACTION_ON_ASK = {
     "kind": "action",
     "author": "user",
@@ -6093,7 +6101,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width
 ):
     """The anchored thread is a complete thread clear of its source controls."""
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -6148,7 +6156,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     assert placed["top"] == pytest.approx(
         float(placed["placedTop"].removesuffix("px")), abs=0.5
     ), placed
-    expect(thread.locator(".lf-page-thread-body")).to_have_text(COMMENT_ON_ASK["text"])
+    expect(thread.locator(".lf-page-thread-body")).to_have_text(PARAGRAPH_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-page-thread-open")).to_have_count(0)
     geometry = page.evaluate(
@@ -6916,9 +6924,11 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
         "textbox", name="Reply", exact=True
     ).click()
 
+    # With room to spare, the card takes only the width its short thread needs.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] >= 379, wide
-    assert wide["cardLeft"] >= wide["wordsRight"] + 7.5, wide
+    assert wide["cardWidth"] == pytest.approx(wide["minimum"], abs=0.5), wide
+    assert wide["replyWidth"] >= 160, wide
+    assert wide["cardLeft"] >= wide["controlsRight"] + 7.5, wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
@@ -8064,7 +8074,7 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     the fixed card, so a spot or a length written as a client one would be moved or
     scaled by the transform; carried across, the card stays where and as wide as the
     rule put it."""
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -8096,6 +8106,13 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     rendered(page)
     after = page.evaluate(offset)
+    if transform == "scale(0.25)":
+        # The thread's words shrink with the transform, so the card takes its minimum,
+        # a client length too, which leaves room to stand clear of its cluster.
+        controls = marker.evaluate(
+            "node => node.closest('[data-lf-margin-for]').getBoundingClientRect().width"
+        )
+        before = {"left": controls + 8, "top": 0, "width": 320}
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 

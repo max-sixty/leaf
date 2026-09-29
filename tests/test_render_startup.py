@@ -1066,9 +1066,9 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
             posture: leaf.readingPosture(previewId),
           };
 
+          // Hidden until it is removed below.
           previewHost.hidden = true;
           const hiddenBounds = leaf.shownRegionBounds(previewId);
-          previewHost.hidden = false;
 
           let refused;
           try {
@@ -4971,10 +4971,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
             currentRevision = snapshot?.revision ?? null;
           });
           stopCurrent();
-          widget.removeAttribute('source');
-          let unbound = 'not-called';
-          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
-          stopUnbound();
           widget.setAttribute('source', 'constructor');
           let absent = 'not-called';
           const stop = watchData(widget, 'rows', snapshot => { absent = snapshot; });
@@ -4999,6 +4995,10 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           next.sources.deployments.revision = 'next-revision';
           acceptData(next, runtime.state.taken);
           stopCaptured();
+          widget.removeAttribute('source');
+          let unbound = 'not-called';
+          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
+          stopUnbound();
           return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )

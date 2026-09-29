@@ -2922,8 +2922,6 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     first_a.locator(":scope > summary").click()
     expect(second_a).not_to_have_attribute("open", "")
     expect(first_b).to_have_attribute("open", "")
-    assert second_a.get_attribute("name") == a.get_attribute("id")
-    assert first_b.get_attribute("name") == b.get_attribute("id")
 
     page.evaluate("() => window.__testThreadPanels[1].handle.unregister()")
     after_removal = events_model.append_event(

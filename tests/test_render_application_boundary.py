@@ -66,7 +66,7 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+import {keepsText, openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
@@ -87,16 +87,21 @@ customElements.define('lf-thread-filter', class extends HTMLElement {
   paint() {
     if (!this.reading) return;
     const query = this.input.value.toLowerCase();
-    this.list.replaceChildren(...this.reading.threads
-      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query))
-      .map(thread => {
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.textContent = threadSummary(thread).topic;
-        button.onclick = () => openThread(thread.id);
-        item.append(button);
-        return item;
-      }));
+    const shown = this.reading.threads
+      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query));
+    // Each row is kept and says only what changed.
+    const items = [...this.list.children];
+    shown.forEach((thread, index) => {
+      let item = items[index];
+      if (!item) {
+        item = document.createElement('li');
+        item.append(document.createElement('button'));
+        this.list.append(item);
+      }
+      keepsText(item.firstChild, threadSummary(thread).topic);
+      item.firstChild.onclick = () => openThread(thread.id);
+    });
+    for (const item of items.slice(shown.length)) item.remove();
   }
   disconnectedCallback() {
     this.stop?.();
@@ -1127,7 +1132,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         """() => {
           pageLocal.id = 'drifted-local';
           const reading = pageLocal.controller.read();
-          pageLocal.id = 'page-local';
           return {
             available: reading.actions.choose.available,
             undo: reading.actions.choose.undo.length,
@@ -1135,6 +1139,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         }"""
     )
     assert drifted == {"available": False, "undo": 0}
+    page.evaluate("pageLocal.id = 'page-local'")
 
     undo = []
     page.route("**/api/event", lambda route: undo.append(route))

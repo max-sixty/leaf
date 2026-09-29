@@ -143,6 +143,10 @@ export const langForPath = (path) =>
 // without the file's reading of the same page needing to know it happened.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
+// Blocks whose tokens are on their way. A pass that reaches one again before they land,
+// as a message that renders twice in a turn does, would tokenize the same text and
+// write the same spans over the ones the first pass wrote.
+const tokenizing = new WeakSet();
 export async function highlightBlocks(root) {
   const blocks = [];
   // The root counts, like every other dressing pass: a revision that rewrote a block's
@@ -154,8 +158,14 @@ export async function highlightBlocks(root) {
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    if (registry.$languages.names.includes(lang) && code.dataset.lfSyntax !== lang)
+    if (
+      registry.$languages.names.includes(lang) &&
+      code.dataset.lfSyntax !== lang &&
+      !tokenizing.has(code)
+    ) {
+      tokenizing.add(code);
       blocks.push([code, lang]);
+    }
   }
   if (!blocks.length) return;
   for (const [code, lang] of blocks) {
@@ -169,6 +179,8 @@ export async function highlightBlocks(root) {
         `leaf: <pre><code class="language-${lang}"> failed to highlight`,
         err,
       );
+    } finally {
+      tokenizing.delete(code);
     }
   }
 }

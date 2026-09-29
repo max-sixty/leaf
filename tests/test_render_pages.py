@@ -211,6 +211,8 @@ def test_sort_film_readout_and_narration(browser, serve):
           const tail = film.querySelector('.sort-moment-tail');
           const widths = [];
           for (const index of [0, 1, 8, 9, 98, 99, 198, 199]) {
+            // Each position its own task, as each move of a user's scrub is.
+            await new Promise(resolve => setTimeout(resolve));
             scrub.value = steps[index].start + steps[index].dur - 0.01;
             scrub.dispatchEvent(new Event('input', {bubbles: true}));
             widths.push([
@@ -3185,13 +3187,15 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
               const sidebar = document.querySelector('aside.sidebar');
               const next = sidebar.nextElementSibling;
               const kept = next.getBoundingClientRect().top;
+              const float = getComputedStyle(sidebar).float;
+              const toc = getComputedStyle(sidebar.querySelector('lf-toc')).position;
               sidebar.style.display = 'none';
               const gone = next.getBoundingClientRect().top;
-              sidebar.style.display = '';
-              return {kept, gone, float: getComputedStyle(sidebar).float,
-                      toc: getComputedStyle(sidebar.querySelector('lf-toc')).position};
+              return {kept, gone, float, toc};
             }"""
         )
+        # Shown again in a task of its own, so the reading is not a write taken back.
+        page.evaluate("document.querySelector('aside.sidebar').style.display = ''")
         assert band["toc"] == "fixed" and band["float"] == "none", (width, band)
         assert band["kept"] == band["gone"], (
             f"at {width}px the sidebar the map left opened a gap in the flow: {band}"

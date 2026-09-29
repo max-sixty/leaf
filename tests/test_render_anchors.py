@@ -146,7 +146,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const fab = document.querySelector('.lf-fab-input');
         // A user reaches everything eventually — opens the details, clicks through to
         // the other tab — so everything is in scope, not just what the page opens on.
-        document.querySelectorAll('details').forEach(d => (d.open = true));
+        document.querySelectorAll('details').forEach(d => d.toggleAttribute('open', true));
         document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');

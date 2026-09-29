@@ -1959,20 +1959,26 @@ def scroll_followers(writes):
 
 # The page as its DOM states it: `<html>`'s attributes, then each element in the body and
 # in every open shadow tree by where it stands, with its attributes sorted, and the words
-# of each text node. Comments are Lit's markers, which `live_nodes` counts instead.
-# `data-lf-traffic` is the runtime's request ledger, which the page's clock moves.
+# of each text node. Comments are Lit's markers, which `live_counts` counts instead.
+# `data-lf-traffic` is the runtime's request ledger, which the page's clock moves. An
+# inline style is a set of declarations, read sorted: a property taken off and set again
+# stands last in the attribute's text and says the same.
 PAGE_STATE = """() => {
+  const said = (node) => (a) => a.name === "style"
+    ? `style=${JSON.stringify([...node.style].map((property) =>
+        `${property}: ${node.style.getPropertyValue(property)}` +
+        (node.style.getPropertyPriority(property) ? " !important" : "")).sort().join("; "))}`
+    : `${a.name}=${JSON.stringify(a.value)}`;
   const lines = [[...document.documentElement.attributes]
     .filter((a) => a.name !== "data-lf-traffic")
-    .map((a) => `${a.name}=${JSON.stringify(a.value)}`).sort().join(" ")];
+    .map(said(document.documentElement)).sort().join(" ")];
   const walk = (parent, path) => {
     for (const node of parent.childNodes) {
       if (node.nodeType === Node.TEXT_NODE && node.data.trim())
         lines.push(`${path} ${JSON.stringify(node.data.trim())}`);
       if (node.nodeType !== Node.ELEMENT_NODE) continue;
       const here = `${path} > ${node.localName}${node.id ? "#" + node.id : ""}`;
-      lines.push(`${here} ${[...node.attributes]
-        .map((a) => `${a.name}=${JSON.stringify(a.value)}`).sort().join(" ")}`);
+      lines.push(`${here} ${[...node.attributes].map(said(node)).sort().join(" ")}`);
       if (node.shadowRoot) walk(node.shadowRoot, `${here} ::shadow`);
       walk(node, here);
     }

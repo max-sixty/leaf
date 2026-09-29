@@ -15,13 +15,16 @@
    controls in the band and the words just above it beside it. Every box a thread or a
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
-   page, and the box that scrolls a thread is the reading region's (`scrollerFor`). */
+   page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
+   thread in a surface fixed over the page, the margin card, is shown by bringing that
+   surface back first (`off-flow.js`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent } from "../shadow.js";
+import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { SAYS_IN } from "./selectors.js";
 
@@ -77,6 +80,7 @@ export function scrollThreadIntoView(
   behavior = scrollBehavior(),
   block = "nearest",
 ) {
+  bringBackSurfaceOf(held, behavior);
   const target = landingTarget(held, control);
   target.node?.scrollIntoView({ behavior, block: target.block ?? block });
 }

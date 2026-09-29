@@ -65,6 +65,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import { bringBackSurfaceOf, declareOffFlowSurface } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
   dismissBannerControls,
@@ -952,6 +953,7 @@ export function createResponseSurface({
       return;
     }
     const anchor = structuredClone(fabAnchor);
+    bringBackSurfaceOf(fabBar);
     landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor));
   }
   const fabOptionsAvailable = () =>
@@ -1267,6 +1269,18 @@ export function createResponseSurface({
   const fabAnchorAt = () => fabAnchor;
 
   function mount() {
+    // Floating, the box is carried away with its passage and comes back with it, by the
+    // passage's first line, which a block taller than the window would not bring back;
+    // inline, it is in flow and the browser's own reveals reach it.
+    declareOffFlowSurface(fabBar, {
+      floats: () => Boolean(fabAnchor && fabFloating),
+      bringBack: (behavior) => {
+        const found = resolveAnchor(fabAnchor, pageText());
+        const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;
+        const line = start?.parentElement ?? fabTargetAt();
+        if (line) scrollToElement(line, behavior, "nearest");
+      },
+    });
     // Keep the native selection through the button's press; focusing the actual
     // comment field performs the handoff after the passage has been captured.
     selectionComment.addEventListener("mousedown", (event) => event.preventDefault());

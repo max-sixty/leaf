@@ -141,6 +141,7 @@ import {
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
+import { declareOffFlowSurface } from "./off-flow.js";
 import {
   annotationsHidden,
   setAnnotationsHidden,
@@ -2901,28 +2902,15 @@ export function createMarginProjection({
       )
         scheduleThreadPreviewPosition();
     });
-    // The user still stands in a card a scroll carried away with its cluster, and a key
-    // that acts in it first brings the cluster back, as a browser brings a focused field
-    // back into view for typing. A shortcut the browser or the system takes, a modifier
-    // on its own, and Escape, which puts the card away, leave the page where it is.
-    preview.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          previewAway &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !event.altKey &&
-          !["Control", "Meta", "Alt", "Shift", "Escape"].includes(event.key)
-        )
-          scrollToElement(
-            targetFor(previewEntry) ?? previewMarginEntry,
-            scrollBehavior(),
-            "nearest",
-          );
-      },
-      { capture: true },
-    );
+    // Carried away with its cluster, the card comes back with it.
+    declareOffFlowSurface(preview, {
+      bringBack: (behavior) =>
+        scrollToElement(
+          targetFor(previewEntry) ?? previewMarginEntry,
+          behavior,
+          "nearest",
+        ),
+    });
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
     watchProjection(document.body, renderMargin);

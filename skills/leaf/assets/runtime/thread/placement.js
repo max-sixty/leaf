@@ -1,6 +1,6 @@
 /* Placement for threads: the page's order, which every reading of the threads
    shares, the panel's Recent order, and the page part each thread stands in. */
-import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
+import { addressableLabel, addressableWord, sectionOf } from "../anchor-resolution.js";
 import { pageParts } from "../passages.js";
 import { inChrome } from "../passages.js";
 import { serverNow } from "../presence.js";
@@ -78,7 +78,7 @@ export function inPageOrder(threads, placedAt) {
 // of the page's outline.
 export const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
 
-const subjectLabel = (target) => addressableSays(target) || addressableWord(target);
+const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
 // distinguishable after a route leaves the page. Unique subjects keep the author's own

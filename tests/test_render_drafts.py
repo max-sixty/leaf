@@ -42,6 +42,7 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_MEDIA,
     LONG_PAGE,
+    RELEASE_FOCUS,
     CutOff,
     _traffic,
     _until,
@@ -2540,7 +2541,10 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     # Nothing written, nothing to return to: the sequence does not offer the destination.
     page.keyboard.press("g")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Threads panel")
-    assert "your draft" not in shortcut_bar_text(page)
+    draft_route = page.locator(
+        '.lf-shortcut[data-lf-command-ids~="composer.kept-draft"]'
+    )
+    expect(draft_route).to_have_count(0)
     page.keyboard.press("Escape")
 
     compose(page, "#p3", kept)
@@ -2555,7 +2559,9 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     assert notice.inner_text() == "Draft kept — g D returns to it"
 
     page.keyboard.press("g")
-    assert "your draft" in shortcut_bar_text(page)
+    shortcut_bar_text(page)
+    # The one-row line can trim this destination while leaving it in the register.
+    expect(draft_route).to_have_count(1)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -2603,7 +2609,10 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     notice = page.locator(".lf-notice")
     assert notice.inner_text() == "Draft kept — g D returns to it"
     page.keyboard.press("g")
-    assert "your draft" in shortcut_bar_text(page)
+    shortcut_bar_text(page)
+    expect(
+        page.locator('.lf-shortcut[data-lf-command-ids~="composer.kept-draft"]')
+    ).to_have_count(1)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
@@ -3228,7 +3237,7 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     contract here is simply that the document moves down and then back up without the
     runtime canceling either key."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
 
     def press_and_settle(key):
         page.evaluate("""() => {
@@ -3460,7 +3469,7 @@ def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, se
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Put the user on the page before asking which reading region the page gesture chooses.
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"
@@ -3522,7 +3531,7 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"

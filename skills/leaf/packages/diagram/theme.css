@@ -37,37 +37,24 @@ lf-diagram[data-lf-space="available"]:not(.lf-rendered) {
 lf-diagram.lf-rendered { font: inherit; color: inherit; display: flex;
                          justify-content: safe center; overflow-x: auto; }
 lf-diagram.lf-rendered::before,
-lf-diagram.lf-rendered::after { content: ""; flex: 0 1 auto; width: 0;
-                                position: sticky; }
-lf-diagram.lf-rendered::before { inset-inline-start: 0; }
-lf-diagram.lf-rendered::after { inset-inline-end: 0; }
+lf-diagram.lf-rendered::after { content: ""; flex: 0 1 auto; width: 0; }
 lf-diagram.lf-rendered[data-lf-space="available"]::before {
   width: calc(2 * var(--lf-grow-l)); }
 lf-diagram.lf-rendered[data-lf-space="available"]::after {
   width: calc(2 * var(--lf-grow-r)); }
 lf-diagram.lf-rendered > * { flex: none; }
 /* The layer marks each edge a scrolled box has more beyond (shadow.css, at
- * [data-lf-more-before/after]), and its default paint fades the content there. A
- * drawing is the case that paint fails: the edge often falls on blank canvas, where a
- * fade draws nothing, and a node faded at the edge reads as the drawing's end. Three
- * agent-written plans drawn `flowchart LR` showed two and a half of five steps at
- * 1440px, the third fading out, and every reader took the plan for three steps.
- *
- * So the diagram draws the mark as a shadow cast over the drawing at that edge: the
- * look of content passing under the box's side, whatever lies beneath it. The spacers
- * carry it because they are the diagram's own boxes at its two inline ends; once the
- * drawing overflows they have shrunk to nothing, and sticky holds each at its edge of
- * the scrollport. The mark's attributes still decide which edges show, so the shadow
- * follows the scroll — the end edge at the start, both in the middle, the start edge at
- * the end — and a drawing that fits shows none. The drawing itself is never scaled or
- * re-laid out. Screen only, like the fade it replaces. */
-@media screen {
-  lf-diagram.lf-rendered:is([data-lf-more-before], [data-lf-more-after]) {
-    -webkit-mask-image: none; mask-image: none; }
-  lf-diagram.lf-rendered[data-lf-more-before]::before,
-  lf-diagram.lf-rendered[data-lf-more-after]::after {
-    box-shadow: 0 0 24px 12px var(--shade); }
-}
+ * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
+ * a drawing takes that fade with two settings of its own. A fade all the way to the
+ * ground reads as the drawing's end: three agent-written plans drawn `flowchart LR`
+ * showed two and a half of five steps at 1440px, the third fading out, and every reader
+ * took the plan for three steps. What says "cut" is the drawing touching the edge: a
+ * node's fill and rules, or an arrow's line, running into the scrollport's side rather
+ * than stopping short of it. So the fade stops at 30% of the drawing, and is 32px wide,
+ * a few letters of a label, so the cut node's words stay readable up to where they are
+ * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
+ * The drawing itself is never scaled or re-laid out. */
+lf-diagram.lf-rendered { --lf-more-fade: 32px; --lf-more-fade-to: rgb(0 0 0 / .3); }
 /* The authored body, before the module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    that dresses a <pre> as evidence the page is showing — a box, a rule, a mono face, an

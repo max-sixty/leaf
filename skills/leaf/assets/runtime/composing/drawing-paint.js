@@ -3,12 +3,20 @@
  * Gesture capture supplies the active and draft drawings. Thread presentation
  * supplies threads and readonly anchor placement. This module owns only SVG paint,
  * retained node identity, resize observation, and its scheduled geometry refresh.
+ *
+ * Each mark is fixed and anchored (CSS anchor positioning) to the box its target
+ * anchors through, or to `main` for a drawing on the page as a whole, with its frame
+ * written as insets from that anchor. The browser carries it through every scroll that
+ * moves the anchor, a fixed box adds nothing to the document's scrollable overflow
+ * however far a stroke reaches, and a repaint after a scroll finds every mark's
+ * description unchanged and keeps the node it has.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
 import { el } from "../widget-elements.js";
+import { anchorElement, anchorName } from "../anchor-names.js";
 import { validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -31,6 +39,9 @@ function drawingFrame(drawing) {
     height,
   };
 }
+
+// Insets at the browser's layout precision, so a mark described twice reads the same.
+const px = (value) => Math.round(value * 64) / 64;
 
 // One path, one subpath per stroke: each stroke lifts the pen with its own move.
 const pathData = (drawing) =>
@@ -70,12 +81,18 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     const frame = drawingFrame(drawing);
     const { width, height } = frame;
     if (!width || !height) return null;
-    const left = box.left + frame.x;
-    const top = box.top + frame.y;
+    const holder = target
+      ? anchorElement(target)
+      : (document.querySelector("main") ?? document.body);
+    const at = holder.getBoundingClientRect();
+    const anchor = anchorName(holder);
+    const left = px(box.left + frame.x - at.left);
+    const top = px(box.top + frame.y - at.top);
     const data = pathData(drawing);
     const described = JSON.stringify([
       className,
       id,
+      anchor,
       left,
       top,
       width,
@@ -98,8 +115,9 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
     Object.assign(svg.style, {
-      left: `${left}px`,
-      top: `${top}px`,
+      positionAnchor: anchor,
+      left: `calc(anchor(left) + ${left}px)`,
+      top: `calc(anchor(top) + ${top}px)`,
       width: `${width}px`,
       height: `${height}px`,
     });

@@ -28,6 +28,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     FEATURE_GALLERY,
+    RELEASE_FOCUS,
     ROOT,
     accessible_details,
     holding,
@@ -274,7 +275,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(receipt_item).to_have_attribute("data-lf-place", "rail")
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
@@ -344,7 +345,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
     select_paragraph(page, "#bg-react-ok")
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
 
     surface = page.locator(".lf-fab-bar")
@@ -561,7 +562,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     page.keyboard.press("Escape")
     page.evaluate("() => getSelection().removeAllRanges()")
     page.mouse.move(0, 0)
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="reaction.open"]')
     ).to_have_count(0)
@@ -778,6 +779,77 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
         "sug-thistle",
         "accept",
     )
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
+    """The response bar casts its focus ring as a shadow, and cast it at a quarter of
+    the accent: a faint 2px halo, all but invisible in dark, where every other control
+    the keyboard stands on wears the solid band. The shadow is the band's own token,
+    ink and all, so the two carriers cannot drift apart."""
+    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
+    select_paragraph(page, "#how-cap")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    suggest = (
+        page.locator(".lf-fab-bar")
+        .get_by_role("button", name="Suggest", exact=True)
+        .last
+    )
+    expect(suggest).to_be_focused()
+    ring = suggest.evaluate("""node => {
+      const ink = document.createElement('span');
+      ink.style.color = 'var(--accent)';
+      node.append(ink);
+      const accent = getComputedStyle(ink).color;
+      ink.remove();
+      const band = getComputedStyle(document.documentElement)
+        .getPropertyValue('--focus-ring-w').trim();
+      return {shadow: getComputedStyle(node).boxShadow, accent, band};
+    }""")
+    assert ring["shadow"].startswith(f"{ring['accent']} 0px 0px 0px {ring['band']}"), (
+        ring
+    )
+
+
+def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
+    """A side is chosen for the field and its More press, narrower than Suggest and six
+    reactions at rest. Beside the open Threads panel at 1024px the bar had 256px for
+    that 288px row and the reactions dropped whole beneath Suggest. They give up spare
+    padding before the row breaks, so the row holds and stays inside the bar."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1024, 768)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    select_paragraph(page, "#how-cap")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
+    expect(choices).to_have_count(7)
+    rendered(page)
+    row = bar.evaluate("""bar => {
+      const box = bar.getBoundingClientRect();
+      const choices = [...bar.querySelectorAll(
+        ':scope > .lf-response-options .lf-response-action')]
+        .filter((choice) => choice.checkVisibility())
+        .map((choice) => choice.getBoundingClientRect());
+      return {
+        bar: [box.left, box.right],
+        rows: new Set(choices.map((choice) => Math.round(choice.top))).size,
+        left: Math.min(...choices.map((choice) => choice.left)),
+        right: Math.max(...choices.map((choice) => choice.right)),
+        narrowest: Math.min(...choices.map((choice) => choice.width)),
+      };
+    }""")
+    assert row["bar"][1] - row["bar"][0] < 288, (
+        f"the bar has room for the resting row, so this proves nothing: {row}"
+    )
+    assert row["rows"] == 1, row
+    assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
+    assert row["narrowest"] >= 30, row
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -1470,7 +1542,8 @@ graph LR
     )
     page = open_page(browser, serve(page_markup))
 
-    for name in ("tabbed", "Start request", "Handle request"):
+    # The figure has no name of its own, so the tab holding it names it.
+    for name in ("figure · First", "Start request", "Handle request"):
         expect(page.get_by_role("button", name=f"Respond to {name}")).to_have_count(1)
 
 
@@ -1604,7 +1677,8 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
         page.locator("#caption").evaluate("p => getComputedStyle(p).marginTop")
         == "40px"
     )
-    assert accessible_details(page, "#pic") == ["Responses to pic"]
+    # An unnamed drawing takes the name of the section holding it (addressableLabel).
+    assert accessible_details(page, "#pic") == ["Responses to svg · Gallery"]
     assert control.evaluate(
         "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )
@@ -2165,6 +2239,164 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
 
+def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
+    browser, serve
+):
+    """The add-reaction trigger was a fixed 26x26 under a finger, where every other aim
+    stands at the 44px floor, and it stands on every reply for good once there is no
+    hover to reveal it. At the floor's size hung over the reply's corner it covered the
+    end of the first line, so the head row holds the trigger's height instead."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Step three now requires the supervisor to reap every process "
+            "under the sandbox user and verify none remain before export.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").tap()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.tap()
+    message = page.locator(f'.lf-msg[data-mid="{reply}"]')
+    trigger = message.get_by_role("button", name="Add reaction", exact=True)
+    expect(trigger).to_be_visible()
+    reading = trigger.evaluate("""trigger => {
+      const box = trigger.getBoundingClientRect();
+      const text = trigger.closest('.lf-msg').querySelector('.lf-msg-text');
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const covered = [...range.getClientRects()].filter((line) =>
+        line.right > box.left && line.left < box.right &&
+        line.bottom > box.top && line.top < box.bottom);
+      return {width: box.width, height: box.height, covered: covered.length,
+        opacity: getComputedStyle(trigger).opacity};
+    }""")
+    assert reading == {"width": 44, "height": 44, "covered": 0, "opacity": "1"}
+
+
+def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
+    """A finger learns what a reaction means by pressing and holding it: the choice
+    under the finger shows its word for as long as the press lasts, sliding onto its
+    neighbour reads that one, and the release reacts with the choice it ends on. A
+    release off the list reacts with nothing, so a finger that read the wrong word
+    slides away first. The keyboard reads the same word by standing on a choice, and
+    its press still reacts."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Step three now reaps every process under the sandbox user.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").tap()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.tap()
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    strip.get_by_role("button", name="Add reaction", exact=True).tap()
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    cdp = context.new_cdp_session(page)
+
+    def centre(token):
+        box = strip.locator(f'.lf-react[data-token="{token}"]').bounding_box()
+        return {
+            "x": round(box["x"] + box["width"] / 2),
+            "y": round(box["y"] + box["height"] / 2),
+        }
+
+    def touch(kind, point=None):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [point] if point else []},
+        )
+
+    # What the choices read once the input so far has been delivered: Chromium hands
+    # touch moves over on a later frame, so a reading taken at once can be a move behind.
+    def reading():
+        rendered(page)
+        return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
+            .filter((chip) => chip.hasAttribute('data-lf-held-word'))
+            .map((chip) => [chip.dataset.token,
+                            getComputedStyle(chip, '::after').content])""")
+
+    # What the log holds once everything the page has sent has come back, so a read that
+    # expects no reaction is not merely early.
+    def tokens():
+        round_trip(page)
+        return [
+            e.get("token")
+            for e in events_model.read_events(serve.page_dir)
+            if e.get("token")
+        ]
+
+    touch("touchStart", centre("keep"))
+    assert reading() == [["keep", '"keep"']]
+    touch("touchMove", centre("change"))
+    assert reading() == [["change", '"change"']]
+    off = centre("change")
+    touch("touchMove", {"x": off["x"], "y": off["y"] - 120})
+    assert reading() == []
+    touch("touchEnd")
+    assert reading() == []
+    assert tokens() == [], "a release off the list reacted"
+
+    # A press with a modifier held is the platform's (ctrl-click is the Mac's context
+    # menu): it reads no word, and a release on another choice reacts with nothing.
+    page.keyboard.down("Control")
+    page.mouse.move(**centre("keep"))
+    page.mouse.down()
+    assert reading() == []
+    page.mouse.move(**centre("change"))
+    page.mouse.up()
+    page.keyboard.up("Control")
+    assert reading() == []
+    assert tokens() == [], "a modified press reacted on its release"
+
+    # The page draws a reaction before its POST lands, so the log is read once the
+    # gesture's own send has come back.
+    with sending(page, "the clarify reaction"):
+        touch("touchStart", centre("clarify"))
+        touch("touchEnd")
+    expect(strip.locator('.lf-react[data-token="clarify"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    assert reading() == []
+    assert tokens() == ["clarify"]
+
+    # The keyboard reads the word by standing on the choice: the list opened from its
+    # trigger stands on its first choice, whose word shows, and Enter reacts, once.
+    trigger = strip.get_by_role("button", name="Add reaction", exact=True)
+    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    trigger.focus()
+    page.keyboard.press("Enter")
+    keep = strip.locator('.lf-react[data-token="keep"]')
+    expect(keep).to_be_focused()
+    assert keep.evaluate(
+        "c => [c.matches(':focus-visible'), getComputedStyle(c, '::after').content]"
+    ) == [True, '"keep"']
+    with sending(page, "the keep reaction"):
+        page.keyboard.press("Enter")
+    expect(keep).to_have_attribute("aria-pressed", "true")
+    assert tokens() == ["clarify", "keep"]
+
+
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 @pytest.mark.parametrize("placement", ["panel", "inline"])
 def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
@@ -2428,3 +2660,34 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
     assert not bar.is_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
+
+
+def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
+    browser, serve
+):
+    """At a phone's width the Threads panel covers the page, and the keyboard answers only
+    what stands inside it. The reaction mode stood nowhere, so every one of its rows fell
+    below the panel's floor: an arrow reached no row, read as a stray key, and closed the
+    list the user was walking. The open list is where the mode stands."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 390, 844)
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    # The reply strip that shows is in the panel; the page's own strips stand under it.
+    page.evaluate(
+        """() => [...document.querySelectorAll('.lf-react-strip.lf-open')]
+          .findLast((strip) => strip.checkVisibility())
+          .setAttribute('data-test-strip', '')"""
+    )
+    strip = page.locator(".lf-react-strip[data-test-strip]")
+    strip.locator(".lf-react-trigger").click()
+    choices = strip.locator(".lf-react-palette > .lf-react")
+    expect(choices.nth(0)).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(choices.nth(1)).to_be_focused()
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    page.keyboard.press("ArrowLeft")
+    expect(choices.nth(0)).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(strip).not_to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-trigger")).to_be_focused()

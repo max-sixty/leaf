@@ -12434,6 +12434,141 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
+def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
+    tmp_path, page_dir
+):
+    """An untouched session can end before this plugin copy has run any Leaf code.
+
+    The host gives SessionEnd three seconds; syncing a fresh environment can exceed
+    that on a network home. A session with no shared claim needs no CLI.
+    """
+    project = tmp_path / "plugin"
+    guard = project / "hooks" / "scripts" / "loop-guard.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_bytes(
+        (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
+    )
+    package = project / "skills" / "leaf" / "scripts" / "leaf"
+    package.parent.mkdir(parents=True)
+    package.symlink_to(
+        PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True
+    )
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    uv = tools / "uv"
+    uv.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n')
+    uv.chmod(0o755)
+    called = tmp_path / "uv-called"
+    env = {k: v for k, v in os.environ.items() if k != "UV_PROJECT_ENVIRONMENT"} | {
+        "PATH": f"{tools}:{os.environ['PATH']}",
+        "UV_CALLED": str(called),
+    }
+    payload = json.dumps({"hook_event_name": "SessionEnd", "session_id": "unused"})
+
+    cold = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (cold.returncode, cold.stdout, cold.stderr) == (0, "", "")
+    assert not called.exists()
+
+    custom = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env | {"UV_PROJECT_ENVIRONMENT": str(tmp_path / "another-environment")},
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (custom.returncode, custom.stdout, custom.stderr) == (0, "", "")
+    assert not called.exists()
+
+    record_claim(page_dir, id="another-session")
+    unrelated = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (unrelated.returncode, unrelated.stdout, unrelated.stderr) == (0, "", "")
+    assert not called.exists()
+
+    # A different Leaf checkout can claim a page in the shared state home while
+    # this plugin copy's environment is still cold. SessionEnd releases it
+    # without starting uv.
+    record_claim(page_dir, id="unused")
+    cross_copy = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (cross_copy.returncode, cross_copy.stdout, cross_copy.stderr) == (
+        0,
+        "",
+        "",
+    )
+    assert not called.exists()
+    assert service_model.page_claim(page_dir)["released"] is not None
+
+    installed = project / ".venv" / "bin" / "leaf"
+    installed.parent.mkdir(parents=True)
+    installed.touch()
+    warm = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (warm.returncode, warm.stdout, warm.stderr) == (0, "", "")
+    assert not called.exists()
+
+
+def test_cold_session_end_releases_a_claim_from_another_checkout(tmp_path, page_dir):
+    project = tmp_path / "cold-plugin"
+    guard = project / "hooks" / "scripts" / "loop-guard.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_bytes(
+        (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
+    )
+    package = project / "skills" / "leaf" / "scripts" / "leaf"
+    package.parent.mkdir(parents=True)
+    package.symlink_to(
+        PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True
+    )
+    record_claim(page_dir, id="cross-checkout")
+
+    ended = subprocess.run(
+        [sys.executable, str(guard)],
+        input=json.dumps(
+            {"hook_event_name": "SessionEnd", "session_id": "cross-checkout"}
+        ),
+        env=os.environ | {"PATH": str(tmp_path / "no-uv")},
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+
+    assert (ended.returncode, ended.stdout, ended.stderr) == (0, "", "")
+    assert service_model.page_claim(page_dir)["released"] is not None
+
+
 def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server():
     """A host runs Leaf's hooks at every turn of every session the plugin is
     installed in, and most hold no page. Each waits on `import leaf.hooks`, so

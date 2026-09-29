@@ -46,6 +46,7 @@ from .structure import (
     SourceDocument,
     element_attrs,
     rel_tokens,
+    review_mode,
     rewrite_attribute_references,
     source_index,
 )
@@ -462,7 +463,10 @@ def compose_document(
     right after the head's start tag, ahead of any authored executable content: the
     prelude, the policy, the import map, the runtime script, the theme, the adopted
     sheets, the host's metadata, the runtime entry, and the canonical address, each
-    where the host has one. The import map precedes every script, since a browser
+    where the host has one. The root carries the host's attributes and the page's
+    declared review (`data-lf-review`), which the render-blocking theme reads to
+    reserve the banner a sign-off page will draw before the runtime draws it. The
+    import map precedes every script, since a browser
     reads no map once a module has begun to load. With a policy, one nonce per
     document marks delivery's scripts and every inline script the source arrived
     with, placed after addressing so its offsets are the ones the browser reads. A
@@ -519,8 +523,11 @@ def compose_document(
         insertions += [
             (script["start_tag_end"] - 1, marked) for script in document.inline_scripts
         ]
-    if delivery.html_attributes:
-        attributes = _attributes(delivery.html_attributes)
+    root = dict(delivery.html_attributes)
+    if (review := review_mode(document)) is not None:
+        root["data-lf-review"] = review
+    if root:
+        attributes = _attributes(root)
         insertions.append(
             (document.wrapper_tags["html"][1] - 1, attributes)
             if "html" in document.wrapper_tags

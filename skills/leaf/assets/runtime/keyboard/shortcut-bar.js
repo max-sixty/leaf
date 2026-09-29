@@ -11,7 +11,7 @@
    actions replace selection on the short line. Search and reading-page movement remain
    ordinary rows named by the expanded bar and the reference; scrolling is the one
    capability no page has to advertise. Ranking is a row's place in its scope, so moving
-   the row is how the line's order changes. An active sequence instead shows every live
+   the row is how the line's order changes. An active sequence instead offers every live
    row in its scope, so computed bindings, ranges, and capability filtering are the same
    ones dispatch and the reference use. Each destination row keeps its complete sequence:
    its leading steps that match accepted presses take the accent face, while a branch the
@@ -22,22 +22,23 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
-   The line wraps when its rows need more room than one row holds, the short line on a
-   window too narrow for it as much as a sequence's whole menu, so nothing, More included,
-   is dropped to fit. Only the expanded bar, which holds the rest of the register, yields
-   rows to stay within two.
+   The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
+   narrow window keeps the leading hint and a sequence too long for the window keeps its
+   leading destinations. More and the current way out never leave, and the reference
+   behind More lists every row the line had no room for. The expanded bar, which the user
+   unfolds to read the rest of the register, holds two rows under the same trim.
 
    The line is the bottom bar: one row at the stated `--lf-bottom-bar-h` (theme.css),
    which the document, a full-height workspace, the drawers' lists and the contents map
-   all end above, so no reservation is measured off it. A wrapped line grows upward over
-   the page as an overlay and leaves that reservation alone. A covering thread panel makes
-   the line inert background. A coarse pointer is drawn no hint line at all — there is no
-   keyboard to advertise, and every hint would name a key the user cannot press — and
-   states no bar height. The status stands at the bar's far end, over the line's tail
-   where the two meet. The line, status, and chips take no pointer events; the More
-   control does, because it is the pointer route to the reference. Brief user feedback
-   replaces an ordinal and then restores its live reading; background arrivals queue
-   behind user feedback and persistent command context.
+   all end above, so no reservation is measured off it. The expanded bar's second row
+   grows upward over the page as an overlay and leaves that reservation alone. A covering
+   thread panel makes the line inert background. A coarse pointer is drawn no hint line
+   at all — there is no keyboard to advertise, and every hint would name a key the user
+   cannot press — and states no bar height. The status stands at the bar's far end, and
+   the line's row ends short of a standing one. The line, status, and chips take no
+   pointer events; the More control does, because it is the pointer route to the
+   reference. Brief user feedback replaces an ordinal and then restores its live reading;
+   background arrivals queue behind user feedback and persistent command context.
 
    The accessible More control and its `?` binding share one progressive route. The first
    activation unfolds additional current-scene rows into an expanded bar capped at two
@@ -64,7 +65,7 @@ import {
   progressStates,
   rowSteps,
 } from "./presentation.js";
-import { el } from "../widget-elements.js";
+import { el, keeps, keepsHidden } from "../widget-elements.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
 import {
@@ -97,7 +98,7 @@ const EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
 const EMPTY_BAR = Object.freeze({
   items: Object.freeze([]),
   more: Object.freeze({
-    hidden: false,
+    hidden: true,
     binding: null,
     line: "more",
     title: "More keyboard shortcuts",
@@ -150,8 +151,7 @@ const shortcutBarTemplate = (model) =>
       ?hidden=${model.more.hidden}
       @click=${() => activateShortcutMore?.()}
     >
-      <kbd class="lf-key-badge" ?hidden=${!model.more.binding}
-        >${model.more.binding ?? nothing}</kbd
+      <kbd class="lf-key-badge">${model.more.binding}</kbd
       ><span>${model.more.line}</span></button
     >${
       model.tail
@@ -369,11 +369,12 @@ export function renderShortcutBar(goToStatus) {
   // font must not push More onto a lower row beside a page or panel control, where two
   // compact targets would no longer have the 24px separation either one owes.
   const ordered = [...projectedRows, ...referenceRows];
-  // More is a permanent pointer and Tab route, but its key face is the same contextual
-  // projection as every other key on the line. In a text box the typing scope claims `?`,
-  // so the row is absent here and the button keeps only its non-keyboard route. Reading
-  // the surviving row also keeps the face, accessible shortcut, label, and dispatch from
-  // becoming four independent claims about the binding.
+  // More's key face is the same contextual projection as every other key on the line, and
+  // the line shows only what works from where the user is. In a text box the typing scope
+  // claims `?`, so the row is absent and More stands down with it: a bare "more" read as
+  // a hint that had lost its key. Reading the surviving row also keeps the face,
+  // accessible shortcut, label, and dispatch from becoming four independent claims about
+  // the binding.
   const referenceBinding = reference ? bindings(reference)[0] : null;
   const referenceDoes = word(SHORTCUT_HELP.does);
   const referenceLine = word(SHORTCUT_HELP.line);
@@ -400,13 +401,14 @@ export function renderShortcutBar(goToStatus) {
       hidden: sourceRow(row) === SHORTCUT_HELP || (!expanded && !shown.has(row)),
     });
   });
-  // The door is not useful behind the room it opens. While the reference stands, its
-  // own Escape row is the short line and More remains retained but leaves layout and the
-  // focus order. The reference takes focus before this state is painted.
+  // The door is not useful behind the room it opens, nor where its key does not work.
+  // While the reference stands, its own Escape row is the short line; in either case More
+  // remains retained but leaves layout and the focus order. The reference takes focus
+  // before this state is painted.
   const model = Object.freeze({
     items: Object.freeze(presentations),
     more: Object.freeze({
-      hidden: commandReferenceOpen(),
+      hidden: commandReferenceOpen() || !referenceBinding,
       binding: referenceBinding ? spell(referenceBinding) : null,
       line: referenceLine,
       title: referenceDoes,
@@ -425,7 +427,7 @@ export function renderShortcutBar(goToStatus) {
         : null,
     expanded,
   });
-  shortcutBarEl.dataset.lfExpanded = String(model.expanded);
+  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
   render(shortcutBarTemplate(model), shortcutBarEl);
   const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
   const drawn = model.items.map((presentation, index) => ({
@@ -433,11 +435,18 @@ export function renderShortcutBar(goToStatus) {
     span: rowSpans[index],
   }));
   // Lit leaves `hidden` alone, so every paint first restores each row's semantic
-  // eligibility; the expanded bar's trim below is then the one measurement that may hide
-  // more.
-  for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
-  if (!expanded) return;
-
+  // eligibility; the trim below is then the one measurement that may hide more.
+  for (const { presentation, span } of drawn) keepsHidden(span, presentation.hidden);
+  // The status stands at the bar's far end, level with the one row, so a standing status
+  // pads the row's end and More and the way out stop short of it. A transient notice
+  // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
+  // the line for the seconds it shows. The expanded bar's upper row is not level with the
+  // status, so it reserves nothing.
+  const [status] = expanded ? [] : standingStatusBoxes();
+  const room = status
+    ? status.width + parseFloat(getComputedStyle(shortcutBarEl).columnGap)
+    : 0;
+  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
   const rowsUsed = () => {
     const items = [...shortcutBarEl.children].filter(
       (node) => !node.hidden && node.checkVisibility(),
@@ -449,17 +458,22 @@ export function renderShortcutBar(goToStatus) {
         tops.push(node.offsetTop);
     return tops.length;
   };
-  // The expanded bar has a two-row ceiling rather than permission to clip. It yields its
-  // lowest-ranked current commands until both disclosure controls fit; hidden rows remain
+  // A row ceiling rather than permission to clip: one row, or two in the expanded bar.
+  // The line yields its lowest-ranked current commands until More fits; hidden rows remain
   // available to inspection and the reference. The way out is the one row the trim may
-  // not spend. An expanded bar covering the page at a narrow width is exactly where the
-  // user needs it: the way out sits last in the register's order, so a trim that only
-  // counted from the end would drop it first of all.
+  // not spend. A line covering the page at a narrow width is exactly where the user needs
+  // it: the way out sits last in the register's order, so a trim that only counted from
+  // the end would drop it first of all.
+  const ceiling = expanded ? 2 : 1;
   const removable = drawn
     .filter(({ span, presentation }) => !span.hidden && !presentation.wayOut)
     .map(({ span }) => span)
     .toReversed();
-  while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
+  while (rowsUsed() > ceiling && removable.length) removable.shift().hidden = true;
+  // A status too wide to leave More and the way out their row gives the room back and
+  // stands over them, since it takes no pointer events and the row is the promise.
+  if (room && rowsUsed() > ceiling)
+    shortcutBarEl.style.setProperty("--lf-status-room", "0px");
 }
 
 const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
@@ -472,9 +486,8 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
     setReact(false);
     advanceShortcutHelp();
   };
-  // A narrower window changes which rows the expanded bar fits even without another user
-  // input.
-  addEventListener("resize", repaint);
+  // Which rows fit follows the line's width, which the window and a panel beside the page
+  // both set; chrome layout's observer of the line repaints on any change to its box.
   repaint();
 }
 

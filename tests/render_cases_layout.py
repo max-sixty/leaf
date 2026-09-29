@@ -792,7 +792,8 @@ BANNER_WATCH = f"""(sel) => {{
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
-# differently.
+# differently. The words ride along so `displaced` can tell a box whose own content
+# changed from one that was pushed.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => {
       if (!window.__lfOnScreen(n)) return null;
@@ -800,7 +801,7 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
       const origin = window.__lfOrigin?.getBoundingClientRect();
       return [Math.round(box.left - (origin?.left || 0)),
               Math.round(box.top - (origin?.top || 0)),
-              n.offsetWidth, n.offsetHeight];
+              n.offsetWidth, n.offsetHeight, (n.textContent || '').trim()];
     }); }"""
 
 
@@ -846,16 +847,32 @@ def page_at_rest(page):
     rendered(page)
 
 
-def displaced(before, boxes):
+def displaced(before, boxes, news=False):
     """Which of the watched controls are somewhere else, in the failure's own words.
 
     A control that has gone off screen reads None and is left out: it was put away
-    rather than moved, which is a thing both sweeps below deliberately allow."""
+    rather than moved, which is a thing both sweeps below deliberately allow.
+
+    `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
+    "Stability"): a box whose own words changed may grow or shrink into free room, so its
+    width is its own, but its place is not, and no other box may move or resize. A box
+    that grew by pushing its neighbours still fails, as they do."""
+
+    def moved(was, now):
+        if now is None:
+            return False
+        grew = news and was[4] != now[4]
+        return any(
+            a != b
+            for i, (a, b) in enumerate(zip(was[:4], now[:4]))
+            if not (grew and i == 2)
+        )
+
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now, was)]} (left, top, width, height)"
+        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4])]} (left, top, width, height)"
         for name, was, now in zip(before["names"], before["boxes"], boxes)
-        if now is not None and was != now
+        if moved(was, now)
     ]
 
 

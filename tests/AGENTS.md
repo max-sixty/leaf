@@ -94,7 +94,8 @@ Focus evidence starts in keyboard modality: press `Tab` to the exact stop and re
 `:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
 delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
 is not that evidence.
-`document.body.focus()` resets the sequential starting point; `blur()` keeps it. Read
+`RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
+it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
 linked carrier may draw it.
 
@@ -272,10 +273,12 @@ nothing moved straddles a transition that would move without the rule. Check wha
 lower layer already guarantees: a send queue that drops a second POST hides whether
 the widget refused it.
 
-The corpus has two matrices. Return state is anchored on a first visit
+The corpus has three matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence.
-Both stay declaration-driven so a new widget or verb joins through the registry. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
+standing actions or reports twice and checking the visible state and idempotence; and a
+scroll's writes (`scroll_writes`, read by `restless_writes`) fail where a place is
+rewritten with the value it held or written on every step. All three stay
+declaration-driven, so a new widget, verb, or page joins without a case of its own. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
 ### An absence needs a control and a settled frame

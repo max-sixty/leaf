@@ -22,6 +22,13 @@
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
 
+   A surface that stands under the bottom bar, as a drawer does (its list ends above the
+   band's stated height), keeps that band over it in the covering posture too: the band
+   is the one always-visible guide to the keys the surface answers, and its More control
+   stays live, so this owner leaves it out of the inert background and marks it
+   `data-lf-over-covering` for the stylesheet to raise it over the scrim and the
+   surface. The thread panel carries its own foot, and the band yields to it instead.
+
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer surface still needs.
    Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
@@ -45,7 +52,7 @@ export const standsBeside = () =>
     getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
   ) > 0;
 
-export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange }) {
+export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterChange }) {
   const controllers = new Map();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
@@ -66,19 +73,25 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
   };
   const nativeLayerContains = (node) => node?.closest?.("dialog:modal, :popover-open");
   const overlay = (node) => node.matches?.("dialog:not(.lf-thread-panel), [popover]");
-  const background = (surface) => {
+  const background = ({ surface, underBand }) => {
     const nodes = [];
     for (const child of document.body.children) {
       if (child !== chromeRoot) nodes.push(child);
     }
     for (const child of chromeRoot.children) {
-      if (child !== surface && child !== scrim && !overlay(child)) nodes.push(child);
+      if (
+        child !== surface &&
+        child !== scrim &&
+        !overlay(child) &&
+        !(underBand && child === band)
+      )
+        nodes.push(child);
     }
     return nodes;
   };
 
   const syncBackground = (controller) => {
-    const next = new Set(background(controller.surface));
+    const next = new Set(background(controller));
     for (const [node, inert] of controller.suspended) {
       if (next.has(node)) continue;
       node.inert = inert;
@@ -116,6 +129,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
     controller.surface.setAttribute("role", "dialog");
     controller.surface.setAttribute("aria-modal", "true");
     document.documentElement.dataset.lfCoveringSurface = controller.surface.id;
+    band.toggleAttribute("data-lf-over-covering", controller.underBand);
     scrim.hidden = false;
     backgroundMutations.observe(document.body, { childList: true });
     backgroundMutations.observe(chromeRoot, { childList: true });
@@ -135,6 +149,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
     else controller.surface.setAttribute("role", controller.role);
     controller.surface.removeAttribute("aria-modal");
     delete document.documentElement.dataset.lfCoveringSurface;
+    band.removeAttribute("data-lf-over-covering");
     scrim.hidden = true;
     active = null;
   }
@@ -144,6 +159,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
     surface,
     scroller,
     beside = false,
+    underBand = false,
     focus,
     show,
     hide,
@@ -160,6 +176,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
       surface,
       scroller,
       covers: () => !beside || !standsBeside(),
+      underBand,
       focus,
       show,
       hide,

@@ -16,8 +16,9 @@ Stop hooks as its carrier, through the one import below."""
 import json
 
 from .files import next_reading
-from .leases import hooks_path, mark_hooks, name_wait_start, titles_log
-from .service import PageTransaction, owned_pages
+from .leases import mark_hooks, name_wait_start
+from .service import owned_pages
+from .state_paths import end_session
 
 # How long a tool hook looks for a wait to start. The hook fires as soon as the host
 # has spawned a background command, and a `leaf wait` takes its lease about 0.3s
@@ -78,20 +79,7 @@ def cmd_hook(payload: dict) -> None:
             )
         return
     if event == "SessionEnd":
-        hooks_path(sid).unlink(missing_ok=True)
-        titles_log(sid).unlink(missing_ok=True)
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    claim = page.claim
-                    # A successor that arrived after discovery remains current.
-                    # SessionEnd releases only ownership provenance: status is
-                    # authored work state, while service.json and the service
-                    # reaper own process lifetime.
-                    if claim and claim["released"] is None and claim["id"] == sid:
-                        page.release_claim()
-            except FileNotFoundError:
-                continue
+        end_session(sid)
         return
     # A session holding no page has no turn to open or close on one, no input to
     # carry, and nothing owed, so its prompt and Stop hooks end here.

@@ -1,0 +1,35 @@
+# Added with the stacked-panes rule. Base at 01665ed97, whose workspace snippet stacked
+# its panes below 900px, 1 of 3; the change 3 of 3.
+schema_version: '1.0'
+name: workspace-stacks-where-the-layout-flows
+description: "Writing a workspace of panes: the page's own grid stacks them where the Layout stops holding the window, never in a wider window where stacked panes share its height."
+tags:
+- layout
+execution:
+  prompt: |
+    Write a Leaf page for the user as a workspace for reviewing a pull request that
+    adds a retry to the payments client. It has three regions: a short summary of what
+    the change does with the two questions you need the user to answer, the CI checks
+    (eleven pass, one flaky integration test failed once), and the diff of
+    `payments/client.py` and its test. The user reviews on a laptop, and often with the
+    browser window at about 800 pixels wide beside their editor.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if `main` has class `layout-workspace` and the page's own
+    stylesheet never puts all of its panes into one column at a window width of 720px
+    or more: any media or container query that stacks the panes applies only below
+    720px (for example `@media (width < 720px)` or `max-width: 719px`). Fail if a query
+    stacks the panes at a wider threshold such as 900px, 960px or 1024px.

@@ -8,8 +8,8 @@
  * resize, source replacement, or target change rebuilds it. */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import { clippedRect, documentPoint, shownBox } from "./geometry.js";
-import { el } from "./widget-elements.js";
+import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
+import { el, keeps } from "./widget-elements.js";
 import { inChrome } from "./passages.js";
 
 // Persistent pointer-inert projections for every element target. A semantic visual
@@ -151,7 +151,7 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
 function placement(surface, shaped) {
   const box = shownBox(surface);
   const pad = shaped ? SHAPE_STROKE_ROOM : 0;
-  const rect = clippedRect(
+  const rect = pagePlaneRect(
     {
       left: box.left - pad,
       top: box.top - pad,
@@ -192,7 +192,7 @@ let geometryDirty = false;
 
 export function clearAim() {
   aimBox.style.display = "none";
-  aimBox.classList.remove("lf-shaped");
+  aimBox.classList.toggle("lf-shaped", false);
   aimShape.replaceChildren();
   aimBox.removeAttribute("data-for");
   delete aimBox.dataset.lfPaintPlane;
@@ -212,8 +212,8 @@ export function paintAim(element, surface = null) {
   });
   aimBox.classList.toggle("lf-shaped", shaped);
   if (!shaped) aimShape.replaceChildren();
-  aimBox.setAttribute("data-for", element.id);
-  aimBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+  keeps(aimBox, "data-for", element.id);
+  keeps(aimBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
   const at = documentPoint(rect.left, rect.top);
   Object.assign(aimBox.style, {
     display: "block",
@@ -232,7 +232,7 @@ function clearTrace() {
   traceGeometry = null;
   traceShapeKey = "";
   targetTraceBox.style.display = "none";
-  targetTraceBox.classList.remove("lf-shaped");
+  targetTraceBox.classList.toggle("lf-shaped", false);
   targetTraceShape.replaceChildren();
   targetTraceBox.removeAttribute("data-for");
   delete targetTraceBox.dataset.lfPaintPlane;
@@ -269,9 +269,9 @@ function drawTrace(
   if (!shaped) targetTraceShape.replaceChildren();
   traceShapeKey = shaped ? shapeKey : "";
   targetTraceBox.classList.toggle("lf-shaped", shaped);
-  if (element.id) targetTraceBox.setAttribute("data-for", element.id);
+  if (element.id) keeps(targetTraceBox, "data-for", element.id);
   else targetTraceBox.removeAttribute("data-for");
-  targetTraceBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+  keeps(targetTraceBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
   const at = documentPoint(rect.left, rect.top);
   Object.assign(targetTraceBox.style, {
     display: "block",
@@ -313,7 +313,7 @@ function paintTargets(rebuildGeometry = true) {
       rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
     const placed = placement(target.surface, Boolean(geometry));
     if (!placed) {
-      element.classList.remove(PROJECTED);
+      element.classList.toggle(PROJECTED, false);
       if (record) {
         record.geometry = geometry;
         record.shapeKey = "";
@@ -332,8 +332,8 @@ function paintTargets(rebuildGeometry = true) {
     }
     const { overlay, shape } = record;
     const { rect, shapeKey } = placed;
-    element.classList.add(PROJECTED);
-    if (element.id) overlay.setAttribute("data-for", element.id);
+    element.classList.toggle(PROJECTED, true);
+    if (element.id) keeps(overlay, "data-for", element.id);
     else overlay.removeAttribute("data-for");
     overlay.classList.toggle("lf-shaped", Boolean(geometry));
     if (
@@ -346,7 +346,7 @@ function paintTargets(rebuildGeometry = true) {
       record.geometry = geometry;
       record.shapeKey = shapeKey;
     }
-    overlay.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+    keeps(overlay, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
     const at = documentPoint(rect.left, rect.top);
     Object.assign(overlay.style, {
       display: "block",

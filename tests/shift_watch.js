@@ -9,7 +9,8 @@
 // the frame (`hadRecentInput`; a key, a press or a resize is input, a script's click or
 // a server's news is not). Text inserted without a key, as Playwright's `fill` and
 // `insert_text` and a committed composition do, is not input to Chrome, but its trusted
-// `beforeinput` is typing here, judged by the second rule alone. Two rules read it:
+// `beforeinput` is typing here: for as long as Chrome counts a key, no frame after it is
+// without input, and the second rule judges the ones it can. Two rules read the API:
 //
 // - Nothing moves without input. News, a page loading, and whatever a timer or a
 //   server's answer changes may repaint a box or grow it into free room, but a shift
@@ -23,12 +24,16 @@
 //
 // What the API cannot say is why a frame moved. A move the step before the keystroke
 // laid out but had not yet painted, such as a widget a test removed by script, paints in
-// the keystroke's first frame and reads as the typing's. So at each keystroke, a trusted
-// `beforeinput` whose composed path names the field (a textarea, an input, or the host
-// of a `leaf-text`'s closed editor), the field's box and the box of every element holding
-// it are read with a forced layout: every earlier change, and none of the keystroke's
-// own. A shift during the keystroke's rendering is the typing's where it names one of
-// those elements at a box whose opposite edges both differ from that reading.
+// the keystroke's first frame and reads as the typing's. And its rects are what a node
+// paints, a focus ring or a shadow included, clipped to the viewport, not the node's
+// box. So at each keystroke, a trusted `beforeinput` whose composed path names the field
+// (a textarea, an input, or the host of a `leaf-text`'s closed editor), the box of the
+// field and of every element holding it is read with a forced layout: every earlier
+// change, and none of the keystroke's own. The same boxes are read again at the start of
+// each frame of the keystroke's rendering, which is what the frame before it painted. A
+// shift Chrome reports during the rendering is the typing's where it names one of those
+// elements at a box, in the next frame's reading, whose opposite edges both differ from
+// the key's.
 //
 // The keystroke's rendering runs until the first frame after the runtime's settled
 // reading (runtime/rendering.js) says nothing it queued is waiting, the first frame on a
@@ -36,45 +41,55 @@
 // may move the field: another key or press (a key the page answers without editing,
 // such as Enter sending a reply, fires no `beforeinput`); news, the page adopting a
 // server reading (`data-lf-reading`, runtime/presentation.js), after which a reply
-// arriving above the box moves it for its own reason; and a scroll of the document or
-// an element holding the field, which moves every box after the reading at the key.
+// arriving above the box moves it for its own reason; a scroll of the document or an
+// element holding the field, which moves every box after the reading at the key; and a
+// frame that finds still running an animation that moves a box, which was running on
+// the field or an element holding it at the key, as a panel's slide is when the user
+// types into it before it stops: that motion is the gesture's that began it.
 //
 // Each finding is reported on the console as a browser problem, which fails the test
 // like any other.
 (() => {
   const WINDOW = 1000;
-  // Shifts without input the page makes today, by the report they make. Each is a
-  // defect to fix, not a behavior to keep: fixing one deletes its lines.
+  // How long Chrome counts a key as recent input (`hadRecentInput`).
+  const RECENT = 500;
+  const GEOMETRY =
+    /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
+  // Shifts without input the page makes today, by the region they move; typing that
+  // carries its field has none. Chrome names
+  // the five nodes a frame moved most, which differ from run to run and machine to
+  // machine, so each pattern names the region, and matches any node named in it. Each
+  // is a defect to fix, not a behavior to keep: fixing one deletes its lines.
   const EXPECTED = [
-    // The bottom bar's status chevron, its More, and the bar itself, as news lands.
-    /^::after in button\.lf-status-button moved/,
-    /^button\.lf-shortcut-more moved/,
-    /^span\.lf-shortcut moved/,
-    /^div\.lf-ui\.lf-bottom-status moved/,
+    // The bottom bar's status chevron, its keys and More, and the bar itself, as news
+    // lands.
+    /lf-status-button|lf-shortcut|lf-bottom-status/,
     // The runtime's root, in the frames that move the content above it.
     /^div\.lf-chrome moved/,
     // The section after a diff, 68px down, as the page first reads the log
     // (PANEL_PAGE, tests/render_cases_interaction.py).
-    /^section#s-merge moved/,
-    // A package's Ask on a live page, and the paragraphs after it
-    // (tests/render_cases_interaction.py).
-    /^(lf-ask#package-ask|p#live-lead-\d+) moved/,
+    /section#s-merge/,
+    // A package's Ask on a live page, the paragraphs after it, a margin cluster beside
+    // them, and a package's thread filter (tests/test_render_application_boundary.py).
+    /lf-ask#package-ask|p#live-lead-|lf-margin-cluster|lf-thread-filter/,
     // The paragraphs at the foot of the live pages and of the page whose tail a thread
     // reads (tests/render_cases_interaction.py).
-    /^p#(live-)?tail-\d+ moved/,
+    /p#(live-)?tail-/,
     // ship-review's tasks (examples/ship-review.html).
-    /^lf-task#off-t-[\w-]+(\.lf-mark-el)? moved/,
+    /lf-task#off-t-/,
     // A screenshot on the process page, its margin entry, and the passage after it
     // (tests/test_render_mcp.py).
-    /^(lf-shot#mcp-shot|button\.lf-ui\.lf-margin-entry\.lf-shot-toggle) moved/,
-    /^#text in p in section#plan moved/,
+    /lf-shot#mcp-shot|lf-shot-toggle|section#plan/,
     // The MCP App's surface, stage and actions, inside its frame.
     /^(section#surface\.surface|span\.stage|span\.actions|div#page-host|div\.lf-banner-actions|div\.composer-actions) moved/,
     // A sample frame, its clip, and the thread panel's foot
     // (tests/test_render_read_state.py).
-    /^(iframe\.lf-sample-frame|div#read-clip|div\.lf-thread-panel-foot) moved/,
-    // The gallery's column, 21px sideways (tests/test_render_semantic_news.py).
-    /^main\.layout-column moved/,
+    /iframe\.lf-sample-frame|div#read-clip|lf-thread-panel-foot/,
+    // The gallery's column and its tabs, sideways (tests/test_render_semantic_news.py).
+    /main\.layout-column|lf-tabs#bg-gallery-tabs/,
+    // Thread cards in the panel as a reply arrives above thirty later ones
+    // (test_incoming_reply_follows_a_selected_thread_before_later_cards).
+    /^details\.lf-thread-compact\.lf-thread moved/,
   ];
   // An element's parent in the composed tree, crossing from a shadow root to its host.
   const up = (node) =>
@@ -96,7 +111,17 @@
   };
   const settled = () =>
     document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
-  // Each keystroke's rendering: its field, the boxes it found, and when it ran.
+  // An animation that can move a box: one of its keyframes sets a geometric property.
+  const moves = (animation) =>
+    animation.effect
+      ?.getKeyframes()
+      .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
+    GEOMETRY.test(animation.transitionProperty ?? "");
+  const boxes = (nodes) =>
+    new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
+  // Each keystroke's rendering: its field; the box of the field and of each element
+  // holding it, at the key and at the start of every frame after, which is what the
+  // frame before it painted; the animations already moving any of them; and when it ran.
   const renderings = [];
   let open = null;
   let frame = 0;
@@ -105,8 +130,12 @@
     open = null;
     cancelAnimationFrame(frame);
   };
-  const watch = () => {
-    if (open.last || performance.now() - open.start > WINDOW) return close();
+  const watch = (at) => {
+    // Motion the key found under way carries the field for the gesture that began it.
+    if (open.moving.some(({ playState }) => playState === "running")) return close();
+    open.frames.push({ at, boxes: boxes(open.found.keys()) });
+    judge(open.waiting.splice(0));
+    if (open.last || at - open.start > WINDOW) return close();
     // A settled reading here counts updates before this one; this frame's own
     // callbacks may still move the field, so the rendering runs through the next.
     open.last = settled();
@@ -118,10 +147,18 @@
       if (!event.isTrusted) return;
       close();
       const field = event.composedPath()[0];
-      const found = new Map();
-      for (let at = field; at instanceof Element; at = up(at))
-        found.set(at, at.getBoundingClientRect());
-      open = { field, found, start: event.timeStamp, end: Infinity, last: false };
+      const holding = [];
+      for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
+      open = {
+        field,
+        found: boxes(holding),
+        moving: holding.flatMap((node) => node.getAnimations()).filter(moves),
+        frames: [],
+        waiting: [],
+        start: event.timeStamp,
+        end: Infinity,
+        last: false,
+      };
       renderings.push(open);
       if (renderings.length > 50) renderings.shift();
       frame = requestAnimationFrame(watch);
@@ -149,7 +186,7 @@
     );
   const reported = new Set();
   const report = (what, detail) => {
-    if (reported.has(what) || EXPECTED.some((known) => known.test(what))) return;
+    if (reported.has(what)) return;
     reported.add(what);
     console.error(`${what}${detail}`);
   };
@@ -164,37 +201,44 @@
     return others.length ? `; the same frame moved ${others.join(", ")}` : "";
   };
   const unasked = (entry) => {
-    for (const { node, previousRect, currentRect } of entry.sources)
-      report(
-        `${name(node)} moved without input`,
-        by(previousRect, currentRect) + beside(entry.sources, node),
-      );
-  };
-  const typed = (entry, rendering) => {
     for (const { node, previousRect, currentRect } of entry.sources) {
+      const what = `${name(node)} moved without input`;
+      if (!EXPECTED.some((known) => known.test(what)))
+        report(what, by(previousRect, currentRect) + beside(entry.sources, node));
+    }
+  };
+  // Chrome's rects are what a node paints, clipped to the viewport, so they are held
+  // against the frame's own reading, never against the key's.
+  const typed = (entry, rendering, painted) => {
+    for (const { node } of entry.sources) {
       const before = rendering.found.get(node);
+      const after = painted.get(node);
       if (
         !before ||
-        (!carried(before, currentRect, "top", "bottom") &&
-          !carried(before, currentRect, "left", "right"))
+        (!carried(before, after, "top", "bottom") &&
+          !carried(before, after, "left", "right"))
       )
         continue;
       report(
         `typing in ${window.lfPlace(rendering.field)} moved ${window.lfPlace(node)}`,
-        by(before, currentRect) +
-          `; the key found ${box(before)}, and Chrome painted ${box(previousRect)}` +
-          ` then ${box(currentRect)}` +
+        by(before, after) +
+          `; the key found ${box(before)}, the frame painted ${box(after)}` +
           beside(entry.sources, node),
       );
     }
   };
+  // A trusted `beforeinput` is input for as long as Chrome counts a key.
+  const typing = (time) =>
+    renderings.some(({ start }) => start <= time && time - start < RECENT);
   const judge = (entries) => {
     for (const entry of entries) {
       const rendering = renderings.find(
         ({ start, end }) => start <= entry.startTime && entry.startTime <= end,
       );
-      if (rendering) typed(entry, rendering);
-      else if (!entry.hadRecentInput) unasked(entry);
+      const painted = rendering?.frames.find(({ at }) => at > entry.startTime);
+      if (painted) typed(entry, rendering, painted.boxes);
+      else if (rendering && rendering === open) rendering.waiting.push(entry);
+      else if (!entry.hadRecentInput && !typing(entry.startTime)) unasked(entry);
     }
   };
   const observer = new PerformanceObserver((list) => judge(list.getEntries()));

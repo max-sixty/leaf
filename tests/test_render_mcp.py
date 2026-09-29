@@ -523,6 +523,34 @@ window.authoredModulePattern = (/api/);
     expect(app.locator("#page-host")).to_be_visible()
 
 
+def test_a_failure_on_a_complete_page_leaves_its_frame_where_it_is(
+    browser, page_dir, page_server
+):
+    """A failure the app reports stands over the complete page's foot. Taking a row from
+    the page would resize its frame under the reader, and move the page's own chrome."""
+    _, private = page_state(str(page_dir), page_server)
+    page = browser.new_page(viewport={"width": 1100, "height": 900})
+    page.set_content(HOST)
+    page.evaluate("leaf => window.currentLeaf = leaf", private)
+    page.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = next(frame for frame in page.frames if frame.parent_frame == page.main_frame)
+    expect(app.locator("#leaf-page")).to_be_visible()
+    nested = next(frame for frame in page.frames if frame.parent_frame == app)
+    nested.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+    before = app.locator("#leaf-page").bounding_box()
+
+    page.evaluate("() => window.toolError = 'The page server went away.'")
+    # Pressed by script, so no input covers what follows, as none covers a host's error.
+    app.evaluate("() => document.querySelector('#refresh').click()")
+    expect(app.locator("#status")).to_have_class("status show error")
+    app.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    assert app.locator("#leaf-page").bounding_box() == before
+
+
 def test_adaptive_app_skips_a_frame_the_host_did_not_approve(
     browser, page_dir, page_server
 ):

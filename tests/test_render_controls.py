@@ -1986,15 +1986,24 @@ def test_the_banner_wraps_by_what_it_holds(
     # Before the runtime reports its rows, the render-blocking theme reserves the head
     # from what delivery wrote on the root. It reserved one row for a sign-off page at
     # 600px, so the page shown first moved down a row when the banner arrived.
-    guessed = page.evaluate(
+    # The runtime's word is taken off in one task and put back in the next, so the
+    # reading is a change the page sees rather than a write that restates it.
+    drawn = page.evaluate(
         """() => {
           const root = document.documentElement;
           const drawn = root.dataset.lfBannerRows;
           delete root.dataset.lfBannerRows;
+          return drawn;
+        }"""
+    )
+    guessed = page.evaluate(
+        """drawn => {
+          const root = document.documentElement;
           const guess = getComputedStyle(root).getPropertyValue('--lf-banner-rows').trim();
           root.dataset.lfBannerRows = drawn;
           return guess;
-        }"""
+        }""",
+        drawn,
     )
     assert guessed == read["rows"], (width, touch, signoff, guessed, read["rows"])
 

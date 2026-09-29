@@ -2,7 +2,7 @@
 
 import { TAB_STOP, TEXT_BOX } from "./focus.js";
 import { skipped } from "./geometry.js";
-import { sizeObserver } from "./rendering.js";
+import { atTaskEnd, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
@@ -118,7 +118,7 @@ export function reachReadingScroller(el) {
     downwards.delete(el);
     if (!watched(el)) reachSizes.unobserve(el);
     el.removeEventListener("scroll", readingScrolled);
-    queueMicrotask(() => {
+    atTaskEnd(() => {
       if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
     });
   };

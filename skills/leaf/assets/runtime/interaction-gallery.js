@@ -21,7 +21,7 @@
  * transition while still reaching complete state when the caller ignores it. The swipe
  * package's deck module is the worked example. */
 
-import { nextFrame } from "./rendering.js";
+import { atTaskEnd, nextFrame } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
@@ -559,9 +559,11 @@ export function installInteractionGallery() {
   let active = null;
   let onScreen = false;
 
-  const demos = new Map(
-    panels.map((panel) => [panel, new Demo(panel, () => renderControls())]),
-  );
+  // A step through the demonstration can pass through states in one task (a switch
+  // deactivates one demo, readies the next and starts it), so the controls are painted
+  // once, from where the task leaves them.
+  const paintControls = () => atTaskEnd(renderControls);
+  const demos = new Map(panels.map((panel) => [panel, new Demo(panel, paintControls)]));
 
   function selectedPanel() {
     return panels.find((panel) => !panel.hasAttribute("hidden"));
@@ -614,7 +616,7 @@ export function installInteractionGallery() {
       active = next;
     }
     if (active.loadState === "ready" && active.state === "idle") active.activate();
-    renderControls();
+    paintControls();
     maybePlay();
   }
 
@@ -665,7 +667,7 @@ export function installInteractionGallery() {
   const stopMotionPreference = onMotionPreferenceChange((reduced) => {
     if (reduced) active?.pause();
     else maybePlay();
-    renderControls();
+    paintControls();
   });
 
   uninstallGallery = () => {

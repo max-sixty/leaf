@@ -22,6 +22,14 @@
    next callback reads the page; a longer asynchronous tail, which the browser would
    drain between its own frame callbacks, lands after it.
 
+   `atTaskEnd` is for a paint that must land before the task that asked for it ends, but
+   only once, from where the task's steps leave things: a render that one step of a task
+   invalidates and a later step invalidates again, such as a control replaced and the
+   focus landing on its successor, would otherwise paint the moment between them and
+   then put back what it took off, a write that changes nothing. A callback asked for
+   again before it runs runs once, and one that throws is reported as a frame
+   callback's failure is while the others still run.
+
    `nextFrame` is for a step that must not run in the pass that asked for it: an
    animation tick, a loop that follows the page frame by frame, a pause for one frame.
    Asked for inside a pass, it runs in the next frame's; asked for outside one, it is
@@ -110,6 +118,24 @@ async function pass(time) {
   for (const entry of afterPaint) queued.set(...entry);
   afterPaint = new Map();
   if (queued.size) frame = requestAnimationFrame(pass);
+}
+
+const owedThisTask = new Set();
+function settleTask() {
+  // A callback asked for while the others run is visited too: a Set's iteration reaches
+  // what joins it before the end.
+  for (const callback of owedThisTask) {
+    owedThisTask.delete(callback);
+    try {
+      callback();
+    } catch (error) {
+      reportError(error);
+    }
+  }
+}
+export function atTaskEnd(callback) {
+  if (!owedThisTask.size) queueMicrotask(settleTask);
+  owedThisTask.add(callback);
 }
 
 /** A `ResizeObserver` whose deliveries the settled reading counts. */

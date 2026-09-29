@@ -10,6 +10,7 @@
 import { nothing, render } from "../vendor/browser-runtime.js";
 
 import { el } from "./widget-elements.js";
+import { atTaskEnd } from "./rendering.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -37,23 +38,17 @@ export const noticeVisible = () => noticePresentation.visible;
 // a notice down acknowledges nothing, so it is drawn at the end of the turn's script,
 // still before paint: a gesture that takes one notice down and puts the next up (a walk
 // beginning, then its acknowledgement) writes the notice once, to the one it put up.
-let takedownQueued = false;
 export function registerNoticePresentation(invalidate) {
   if (invalidateNoticePresentation)
     throw new Error("The notice presentation already has an owner");
   invalidateNoticePresentation = invalidate;
 }
 
+const presentTakedown = () => invalidateNoticePresentation?.();
 const presentNotice = (message, visible) => {
   noticePresentation = Object.freeze({ message, visible });
   if (visible) invalidateNoticePresentation?.();
-  else if (!takedownQueued) {
-    takedownQueued = true;
-    queueMicrotask(() => {
-      takedownQueued = false;
-      invalidateNoticePresentation?.();
-    });
-  }
+  else atTaskEnd(presentTakedown);
 };
 
 export function announce(msg) {

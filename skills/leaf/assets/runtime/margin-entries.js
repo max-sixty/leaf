@@ -23,6 +23,7 @@
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
+import { atTaskEnd } from "./rendering.js";
 import { iconElement } from "./icons.js";
 import { offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -95,9 +96,8 @@ const contributorClasses = new WeakMap();
 
 let owed = false;
 const changed = () => {
-  if (owed) return;
   owed = true;
-  queueMicrotask(settle);
+  atTaskEnd(settle);
 };
 function settle() {
   if (!owed) return;
@@ -431,6 +431,12 @@ export function registerMarginContribution({
     }
     return null;
   };
+  let owedFocus = null;
+  const landFocus = () => {
+    const key = owedFocus;
+    owedFocus = null;
+    if (key != null) registration.focus(key);
+  };
   const registration = Object.freeze({
     entry(entryKey) {
       return entry(text(entryKey));
@@ -476,6 +482,9 @@ export function registerMarginContribution({
       destination.focus({ preventScroll: true });
       return true;
     },
+    // A focus asked for with an update lands when the task's render does, on the
+    // control that render leaves: two updates in one task (an undo shown pending, then
+    // its publication) render once rather than painting the step between them.
     update({ immediate = false, focus = null } = {}) {
       publishReading(offered);
       changed();
@@ -483,7 +492,10 @@ export function registerMarginContribution({
         settle();
         layoutMarginRows();
       }
-      if (focus != null) registration.focus(focus);
+      if (focus != null) {
+        owedFocus = focus;
+        atTaskEnd(landFocus);
+      }
     },
     unregister() {
       if (!contributions.delete(offered)) return;

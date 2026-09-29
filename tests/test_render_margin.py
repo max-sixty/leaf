@@ -8466,6 +8466,53 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
     assert stands == {False: True, True: False}, stands
 
 
+def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve):
+    """A choice is the group's, so its receipt pins to the options as a whole. The
+    group's top-right corner lies on its first option's card, and a card reads as one
+    thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
+    the "Close" card, just below its radio. A painted box inside the target counts
+    whole as one outside it does, so the pin stands beside the group instead."""
+    body = (
+        '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
+        '<lf-options id="o" choose>'
+        '<lf-option id="o-close"><strong>Close</strong> Point at the decline.</lf-option>'
+        '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
+    page.locator("#o-leave lf-option-control").click()
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    margins_laid_out(page)
+    reading = page.evaluate(
+        """() => {
+          const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+          return {
+            cards: [...document.querySelectorAll('lf-option')]
+              .map((card) => edges(card.getBoundingClientRect())),
+            entries: [...document.querySelectorAll(
+              '[data-lf-margin-for="o"] .lf-margin-entry')]
+              .filter((entry) => entry.checkVisibility())
+              .map((entry) => edges(entry.getBoundingClientRect())),
+            group: edges(document.getElementById('o').getBoundingClientRect()),
+          };
+        }"""
+    )
+    assert reading["entries"], reading
+    for entry in reading["entries"]:
+        assert not any(_meets(entry, card) for card in reading["cards"]), reading
+        group = reading["group"]
+        apart = max(
+            0,
+            group["left"] - entry["right"],
+            entry["left"] - group["right"],
+            group["top"] - entry["bottom"],
+            entry["top"] - group["bottom"],
+        )
+        # Within the 12px `pinSpot` reaches from its target.
+        assert apart <= 12, reading
+
+
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     """A `display: contents` target anchors through its first shown part, but its pin
     stands at the corner of every part together, and shows while they do."""

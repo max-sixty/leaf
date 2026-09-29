@@ -103,8 +103,8 @@ from render_harness import (
     plant_quiet_word,
     primed,
     resized,
-    restless_writes,
     root_overflow,
+    scroll_followers,
     scroll_writes,
     take_browser_errors,
     write,
@@ -2570,8 +2570,9 @@ SCROLL_PASS = (30,) * 8 + (-30,) * 8
 def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
     """Scrolling a page writes to its DOM only where the scroll changed a state: which
     section is current, which row a key reaches. Nothing is rewritten with the value it
-    already held, and nothing is placed from scroll events, since what follows the
-    scroll is laid out by the browser, which carries it with the scroll itself.
+    already held (the browser fixture fails that on any page), and nothing is placed
+    from scroll events, since what follows the scroll is laid out by the browser, which
+    carries it with the scroll itself.
 
     Every write costs Chrome a repaint of the whole document while a highlight holds a
     range, which every page with a quoted comment does, so a write on every scroll event
@@ -2590,8 +2591,8 @@ def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
     )
     rendered(page)
     scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
-    restless = restless_writes(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
-    assert restless == [], "\n".join(restless)
+    following = scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
+    assert following == [], "\n".join(following)
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

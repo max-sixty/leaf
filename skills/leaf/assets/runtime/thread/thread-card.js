@@ -223,8 +223,7 @@ export class ThreadView {
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
-    // A panel card's details group is the thread list's to write, since it withdraws
-    // the name from a card that folds.
+    // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
       this.node.classList.add("lf-page-thread", "lf-ui");

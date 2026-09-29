@@ -163,7 +163,9 @@ writes its position, which would trail the scroll by a frame. Every write says o
 what changed (`runtime/keeps.js`): while a highlight holds a range, Chrome repaints the
 whole document for any write, so a write per scroll event makes every page with a
 quoted comment judder. One place has one writer: two owners that each set it in turn
-rewrite it every time either paints. The browser fixture fails a write that changes
+rewrite it every time either paints. A paint that more than one step of a script asks
+for waits for the script to end (`rendering.js`, `afterScript`), rather than painting
+the step between. The browser fixture fails a write that changes
 nothing in any test (`tests/write_watch.js`), and
 `test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 

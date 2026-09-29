@@ -150,12 +150,19 @@ class ThreadListView extends RetainedFace {
       let view = this.#views.get(row.key);
       if (!view) {
         this.#views.set(row.key, (view = new ThreadView("panel", this.#commands.card)));
-        view.node.addEventListener("toggle", () => {
-          layoutChanged(this);
+        // A card opened by something other than the list becomes the choice: a reveal
+        // says so in the task that opens it, so the card it replaces closes in the same
+        // task; the browser's own opening (find-in-page) is heard on its toggle.
+        const opened = () => {
           const row = this.#visibleRows().find((row) => row.node === view.node);
           if (!view.node.open || !row || row.key === this.#expandedKey) return;
           this.#expandedKey = row.key;
           this.#showExpanded();
+        };
+        view.node.addEventListener("lf-reveal", opened);
+        view.node.addEventListener("toggle", () => {
+          layoutChanged(this);
+          opened();
         });
         view.node.addEventListener("click", (event) => {
           if (event.target.closest(".lf-thread-summary")?.parentElement === view.node)
@@ -194,9 +201,10 @@ class ThreadListView extends RetainedFace {
     this.#rows = rows;
   }
 
-  // A folded row says whether its reply holds a draft. A send empties the box in the
-  // same turn that publishes the message it sent, so the row repaints from what that
-  // turn ends on rather than once for the emptied box and again for the message.
+  // A folded row says whether its reply holds a draft. A send empties the box and
+  // publishes the message it sent as two steps, so the row repaints in the next frame,
+  // from where both leave it, rather than once for the emptied box and again for the
+  // message.
   #draftChanged(view) {
     this.#draftViews.add(view);
     this.#draftFrame ||= nextRender(() => {

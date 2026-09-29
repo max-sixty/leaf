@@ -13,7 +13,7 @@
    interaction state, then rank, contribution key, and entry key. Registration and DOM
    order never decide which unrelated action becomes primary.
 
-   The changes one task makes reach the projections once, when its synchronous work is
+   The changes one script makes reach the projections once, when its synchronous work is
    done: a publication that updates several contributions, or a widget moved from one
    parent to another, would otherwise paint every state it passes through. A render the
    task asked for anyway takes the change (`presentingMarginContributions`) and leaves
@@ -23,7 +23,7 @@
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
-import { atTaskEnd } from "./rendering.js";
+import { afterScript } from "./rendering.js";
 import { iconElement } from "./icons.js";
 import { offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -97,7 +97,7 @@ const contributorClasses = new WeakMap();
 let owed = false;
 const changed = () => {
   owed = true;
-  atTaskEnd(settle);
+  afterScript(settle);
 };
 function settle() {
   if (!owed) return;
@@ -482,8 +482,8 @@ export function registerMarginContribution({
       destination.focus({ preventScroll: true });
       return true;
     },
-    // A focus asked for with an update lands when the task's render does, on the
-    // control that render leaves: two updates in one task (an undo shown pending, then
+    // A focus asked for with an update lands when the script's render does, on the
+    // control that render leaves: two updates in one script (an undo shown pending, then
     // its publication) render once rather than painting the step between them.
     update({ immediate = false, focus = null } = {}) {
       publishReading(offered);
@@ -494,7 +494,7 @@ export function registerMarginContribution({
       }
       if (focus != null) {
         owedFocus = focus;
-        atTaskEnd(landFocus);
+        afterScript(landFocus);
       }
     },
     unregister() {

@@ -2,7 +2,7 @@
 
 import { TAB_STOP, TEXT_BOX } from "./focus.js";
 import { skipped } from "./geometry.js";
-import { atTaskEnd, sizeObserver } from "./rendering.js";
+import { afterScript, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
@@ -111,14 +111,14 @@ export function reachReadingScroller(el) {
   reachSizes.observe(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
-  // A host moved in one task lets go of its body and registers it again before the task
-  // ends, so the cue leaves at the end of the task, and only a body nobody reached again
+  // A host moved in one script lets go of its body and registers it again before the
+  // script ends, so the cue leaves when the script does, and only a body nobody reached again
   // by then loses it.
   return () => {
     downwards.delete(el);
     if (!watched(el)) reachSizes.unobserve(el);
     el.removeEventListener("scroll", readingScrolled);
-    atTaskEnd(() => {
+    afterScript(() => {
       if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
     });
   };

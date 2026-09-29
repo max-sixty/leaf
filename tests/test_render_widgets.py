@@ -10778,58 +10778,43 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     the shared rule is what draws it, and that case is asserted on a request press in
     test_render_projection.py, which is where the layer has a control no widget rings."""
     page = open_page(browser, serve(CHIP_PAGE))
-    # Whatever a control spends on saying it is live: the layer's wash, its own ink and
-    # ground, and the disc a compose submit paints in its ::before.
-    face = """(el) => [getComputedStyle(el), getComputedStyle(el, '::before')]
+    state = """() => lfUnwatched(() => {
+      // Whatever a control spends on saying it is live: the layer's wash, its own ink
+      // and ground, and the disc a compose submit paints in its ::before.
+      const face = (el) => [getComputedStyle(el), getComputedStyle(el, '::before')]
         .map((cs) => [cs.opacity, cs.color, cs.backgroundColor, cs.borderTopColor,
                       cs.filter].join(' '))
-        .join(' / ')"""
-    state = f"""() => {{
-      const face = {face};
-      const kind = (el) => {{
+        .join(' / ');
+      // The same control with the fact of being spent lifted off it, and put straight
+      // back: the comparison is against what this control would wear with something
+      // left to do, not against a number. The lift is the test's own write, outside
+      // what the page is held to (`lfUnwatched`).
+      const armed = (el) => {
+        const native = el.disabled;
+        const declared = el.getAttribute('aria-disabled');
+        if (native) el.disabled = false;
+        if (declared !== null) el.removeAttribute('aria-disabled');
+        const reading = face(el);
+        if (native) el.disabled = true;
+        if (declared !== null) el.setAttribute('aria-disabled', declared);
+        return reading;
+      };
+      const kind = (el) => {
         const cs = getComputedStyle(el);
         const off = el.matches('[aria-disabled="true"], :disabled');
-        return {{cursor: cs.cursor, opacity: cs.opacity, off, face: face(el)}};
-      }};
+        return {cursor: cs.cursor, opacity: cs.opacity, off,
+                face: face(el), armed: off ? armed(el) : null};
+      };
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '');
       const said = [document.querySelector('#intro > .tag'),
                     document.querySelector('#t-camera .lf-chips > span')];
-      const reading = {{
+      return {
         presses: presses.map(kind), said: said.map(kind),
         saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),
-      }};
-      // Each spent control with the fact of being spent lifted off it, to be read and
-      // put back in the next task: the comparison is against what this control would
-      // wear with something left to do, not against a number. Lifted and put back in
-      // one task, the probe would be a write that changes nothing.
-      window.__lfLifted = presses
-        .filter((el) => el.matches('[aria-disabled="true"], :disabled'))
-        .map((el) => {{
-          const native = el.disabled;
-          const declared = el.getAttribute('aria-disabled');
-          if (native) el.disabled = false;
-          if (declared !== null) el.removeAttribute('aria-disabled');
-          return {{el, native, declared}};
-        }});
-      return reading;
-    }}"""
+      };
+    })"""
     rest = page.evaluate(state)
-    armed = page.evaluate(
-        f"""() => {{
-          const face = {face};
-          return window.__lfLifted.map(({{el, native, declared}}) => {{
-            const reading = face(el);
-            if (native) el.disabled = true;
-            if (declared !== null) el.setAttribute('aria-disabled', declared);
-            return reading;
-          }});
-        }}"""
-    )
-    for press, reading in zip(
-        (p for p in rest["presses"] if p["off"]), armed, strict=True
-    ):
-        press["armed"] = reading
     live = [p for p in rest["presses"] if not p["off"]]
     spent = [p for p in rest["presses"] if p["off"]]
     assert live and spent and len(rest["said"]) == 2, (

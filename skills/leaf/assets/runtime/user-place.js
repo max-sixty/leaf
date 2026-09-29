@@ -36,7 +36,9 @@
    Nothing but reflow moves a scroller inside one task: the browser's own anchoring, which
    a forced layout applies, or a clamp. So its correction pays for every movement since
    the reading and lands the reference where it stood, whatever the browser did first,
-   and the scroller's style is never written and taken back in the one task. */
+   and the scroller's style is never written and taken back in the one task. So `mutate`
+   moves no scroller itself: a `focus()` without `preventScroll` or a `scrollIntoView`
+   inside it would be read as reflow and undone. */
 import { nextFrame } from "./rendering.js";
 import { visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";

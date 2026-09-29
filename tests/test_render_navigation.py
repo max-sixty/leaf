@@ -3063,25 +3063,21 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         if event["kind"] == "comment"
     ]
 
-    # The readout takes no pointer, so the probe lends it one to hit-test it, in a task of
-    # its own: lent and taken back in one, the probe would be a write that changes nothing.
+    # The readout takes no pointer, so the probe lends it one to hit-test it and takes it
+    # back: the test's own write, outside what the page is held to (`lfUnwatched`).
     def position_is_front():
-        page.evaluate(
-            """() => {
-              document.querySelector('.lf-walk-position').style.pointerEvents = 'auto';
-            }"""
-        )
         return page.evaluate(
-            """() => {
+            """() => lfUnwatched(() => {
               const readout = document.querySelector('.lf-walk-position');
               const box = readout.getBoundingClientRect();
+              readout.style.pointerEvents = 'auto';
               const front = document.elementFromPoint(
                 (box.left + box.right) / 2,
                 (box.top + box.bottom) / 2,
               ) === readout;
               readout.style.removeProperty('pointer-events');
               return front;
-            }"""
+            })"""
         )
 
     # A panel search belongs to the panel. Closing it keeps that search for the next

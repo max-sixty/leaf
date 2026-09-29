@@ -3,13 +3,15 @@
 // opens (render_harness.watched).
 //
 // A write that changes nothing is reported on the console as a browser problem, which
-// fails the test like any other. "Nothing" is judged per task: the writes one task makes
-// to one place (an attribute, a text node's data) change nothing when the place ends the
-// task holding the value it started with, whether the task restated it or took it away
-// and put it back, and a child-list write changes nothing when it puts back nodes that
-// serialize as the ones it took out. Such a write still costs a style pass and a
-// repaint, of the whole document while a CSS highlight holds a range, so code writes
-// only what changed (skills/leaf/assets/AGENTS.md).
+// fails the test like any other. "Nothing" is judged per script, up to the microtask
+// checkpoint that ends it (an event listener, a frame callback, a task), which is when
+// the observer delivers: the writes one script makes to one place (an attribute, a text
+// node's data) change nothing when the place ends the script holding the value it
+// started with, whether the script restated it or took it away and put it back, and a
+// child-list write changes nothing when it puts back nodes equal to the ones it took
+// out. Such a write still costs a style pass and a repaint, of the whole document while
+// a CSS highlight holds a range, so code writes only what changed
+// (skills/leaf/assets/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.
@@ -28,10 +30,15 @@
     if (!node.id && !node.classList.length && node.parentElement)
       return `${named} in ${place(node.parentElement)}`;
     const root = node.getRootNode();
-    return root instanceof ShadowRoot ? `${named} in ${place(root.host)}` : named;
+    return root instanceof ShadowRoot
+      ? `${named} in shadow of ${place(root.host)}`
+      : named;
   };
-  const serial = (nodes) =>
-    [...nodes].map((node) => node.outerHTML ?? node.data ?? "").join("");
+  // Nodes put back as the ones taken out: the same count, each equal to its twin.
+  const restored = ({ removedNodes, addedNodes }) =>
+    removedNodes.length > 0 &&
+    removedNodes.length === addedNodes.length &&
+    [...removedNodes].every((node, at) => node.isEqualNode(addedNodes[at]));
   let count = 0;
   const numbered = new WeakMap();
   const number = (node) => {
@@ -46,14 +53,14 @@
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,
-    /^(children of|[\w-]+ on) .* in wa-[\w-]+/,
+    / in shadow of wa-[\w-]+/,
     // The contents map decides which face it needs, roomy, compact or an open outline,
     // by measuring its labels in each; a label's height is where it wraps in that face.
     /^data-lf-(compact|outline) on lf-toc/,
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     /^class on .*\.lf-ghost/,
-    // TODO(2026-09-28): a comment's visual mark is placed twice in one task where the
+    // TODO(2026-09-28): a comment's visual mark is placed twice in one script where the
     // part it marks moves (target-paint.js, `paintTargets`); seen on diagram parts and
     // a visual action following its scroller. Not yet traced to the second placement.
     /^style on div\.lf-ui\.lf-visual-mark/,
@@ -82,13 +89,14 @@
       record.oldValue === null &&
       through.every((value) => value === "-1")) ||
     (record.attributeName === "class" &&
+      record.target.matches(".lf-margin-cluster") &&
       through.every((value) => sameTokens(tokens(value), tokens(record.oldValue))));
   // An element reference set through reflection (`ariaDetailsElements`, and the rest of
   // the aria-*Elements family) writes an empty attribute whatever the elements are, so
   // an empty value that stays empty says nothing about whether the relation changed.
   const reflected = (record) =>
     record.attributeName?.startsWith("aria-") && record.oldValue === "";
-  // The first write to each place in this task, with each value the place passed
+  // The first write to each place in this script, with each value the place passed
   // through after it.
   const started = new Map();
   const judge = () => {
@@ -107,9 +115,7 @@
     for (const record of records) {
       const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
       if (record.type === "childList") {
-        const removed = serial(record.removedNodes);
-        if (removed !== "" && removed === serial(record.addedNodes))
-          report(`children of ${place(record.target)}`);
+        if (restored(record)) report(`children of ${place(record.target)}`);
       } else if (started.has(key)) started.get(key).through.push(record.oldValue);
       else {
         started.set(key, { record, through: [] });
@@ -135,23 +141,27 @@
     characterDataOldValue: true,
   };
   observer.observe(document, options);
-  // The render gate's probes read a page by changing it and putting it back: a paint
-  // resolved through a custom property set on the element, a widget rendered at its
-  // authored baseline and restored. Those are the instrument's writes, not the page's,
-  // so what a probe call writes is dropped. Probes are synchronous (render-checks/
-  // driver.js), so everything it wrote is still pending when it returns.
+  // An instrument reads a page by changing it and putting it back: the render gate
+  // resolves a paint through a custom property set on the element and renders a widget
+  // at its authored baseline before restoring it, and a test lifts a state off a control
+  // to read what it would wear without it. Those are the instrument's writes, not the
+  // page's, so what a synchronous reading inside `lfUnwatched` writes is dropped: it is
+  // all still pending when the reading returns. The gate's probes are synchronous
+  // (render-checks/driver.js), so each probe call is one such reading.
+  const unwatched = (read) => {
+    watch(observer.takeRecords());
+    try {
+      return read();
+    } finally {
+      observer.takeRecords();
+    }
+  };
+  window.lfUnwatched = unwatched;
   const probing = (driver) =>
     driver &&
     Object.freeze({
       ...driver,
-      call(request) {
-        watch(observer.takeRecords());
-        try {
-          return driver.call(request);
-        } finally {
-          observer.takeRecords();
-        }
-      },
+      call: (request) => unwatched(() => driver.call(request)),
     });
   // The driver may be installed before this script or after it.
   let driver = probing(globalThis.__leafRenderDriver);

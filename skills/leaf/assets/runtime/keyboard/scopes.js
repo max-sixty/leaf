@@ -29,7 +29,7 @@ import {
 import { deepFocus } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
-import { atTaskEnd } from "../rendering.js";
+import { afterScript } from "../rendering.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -350,7 +350,7 @@ export function reflectFirstScopes() {
     reflectElementShortcuts(scope.el);
   }
 }
-// The keys are painted once per task, when its synchronous work is done (`atTaskEnd`).
+// The keys are painted once per script, when its synchronous work is done (`afterScript`).
 // A render that replaces the control the user stood on and the focus that lands on its
 // successor each ask for a paint; painted at once, the first would reflect the moment
 // between them, when the user stands nowhere, and the second put back what it took off.
@@ -368,7 +368,7 @@ function reflectKeys() {
   }
 }
 export const paintKeys = () => {
-  atTaskEnd(reflectKeys);
+  afterScript(reflectKeys);
   repaint();
 };
 /** What a scope answers right now, as a listener hears it read out — key names rather than

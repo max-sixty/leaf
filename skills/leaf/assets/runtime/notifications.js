@@ -10,7 +10,7 @@
 import { nothing, render } from "../vendor/browser-runtime.js";
 
 import { el } from "./widget-elements.js";
-import { atTaskEnd } from "./rendering.js";
+import { afterScript } from "./rendering.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -48,7 +48,7 @@ const presentTakedown = () => invalidateNoticePresentation?.();
 const presentNotice = (message, visible) => {
   noticePresentation = Object.freeze({ message, visible });
   if (visible) invalidateNoticePresentation?.();
-  else atTaskEnd(presentTakedown);
+  else afterScript(presentTakedown);
 };
 
 export function announce(msg) {

@@ -3183,19 +3183,17 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         resized(page, width, 900)
         margins_laid_out(page)
         band = page.evaluate(
-            """() => {
+            """() => lfUnwatched(() => {
               const sidebar = document.querySelector('aside.sidebar');
               const next = sidebar.nextElementSibling;
               const kept = next.getBoundingClientRect().top;
-              const float = getComputedStyle(sidebar).float;
-              const toc = getComputedStyle(sidebar.querySelector('lf-toc')).position;
               sidebar.style.display = 'none';
               const gone = next.getBoundingClientRect().top;
-              return {kept, gone, float, toc};
-            }"""
+              sidebar.style.display = '';
+              return {kept, gone, float: getComputedStyle(sidebar).float,
+                      toc: getComputedStyle(sidebar.querySelector('lf-toc')).position};
+            })"""
         )
-        # Shown again in a task of its own, so the reading is not a write taken back.
-        page.evaluate("document.querySelector('aside.sidebar').style.display = ''")
         assert band["toc"] == "fixed" and band["float"] == "none", (width, band)
         assert band["kept"] == band["gone"], (
             f"at {width}px the sidebar the map left opened a gap in the flow: {band}"

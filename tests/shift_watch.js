@@ -82,8 +82,6 @@
     // A screenshot on the process page, its margin entry, and the passage after it
     // (tests/test_render_mcp.py).
     /lf-shot#mcp-shot|lf-shot-toggle|section#plan/,
-    // The MCP App's surface, stage and actions, inside its frame.
-    /^(section#surface\.surface|span\.stage|span\.actions|div#page-host|div\.lf-banner-actions|div\.composer-actions) moved/,
     // The feature gallery's sections as its tabs and options draw after the page first
     // paints (tests/test_render_semantic_news.py).
     /#bg-/,

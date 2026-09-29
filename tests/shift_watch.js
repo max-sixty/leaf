@@ -82,8 +82,6 @@
     // A screenshot on the process page, its margin entry, and the passage after it
     // (tests/test_render_mcp.py).
     /lf-shot#mcp-shot|lf-shot-toggle|section#plan/,
-    // The MCP App's surface, stage and actions, inside its frame.
-    /^(section#surface\.surface|span\.stage|span\.actions|div#page-host|div\.lf-banner-actions|div\.composer-actions) moved/,
     // A sample frame, its clip, and the thread panel's foot
     // (tests/test_render_read_state.py).
     /iframe\.lf-sample-frame|div#read-clip|lf-thread-panel-foot/,

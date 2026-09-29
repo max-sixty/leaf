@@ -60,9 +60,9 @@ from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
-from leaf import codex_titles
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
@@ -83,6 +83,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf import thread_context as thread_context_model
+from leaf import thread_titles
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
 from leaf.registry import contract as registry_contract
@@ -1407,11 +1408,10 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    codex_titles.name_untitled_threads(
-        endpoint,
+    thread_titles.name_untitled_threads(
+        thread_titles.app_server_title(endpoint, "light-model"),
         prepared.payload,
         "hosted-thread",
-        "light-model",
         lambda event, **fields: records.append((event, fields)),
     )
     wait_for(lambda: records, bool, failure="the title was never generated")
@@ -1460,18 +1460,18 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     )
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    codex_titles.name_untitled_threads(
-        endpoint,
+    thread_titles.name_untitled_threads(
+        thread_titles.app_server_title(endpoint, None),
         prepared.payload,
         "hosted-thread",
-        None,
         lambda event, **fields: records.append((event, fields)),
     )
     wait_for(lambda: records, bool, failure="the title was never generated")
 
     [turn] = [m for m in received if m.get("method") == "turn/start"]
     [text] = turn["params"]["input"]
-    assert text["text"] == "Why is the export slow?"
+    assert "Why is the export slow?" in text["text"]
+    assert "thanks" not in text["text"]
 
 
 def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_server):
@@ -1495,11 +1495,10 @@ def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_ser
     )
     endpoint, _ = titling_app_server(app_server, '{"title": "Shorter intro"}')
     records = []
-    codex_titles.name_untitled_threads(
-        endpoint,
+    thread_titles.name_untitled_threads(
+        thread_titles.app_server_title(endpoint, None),
         prepared.payload,
         "hosted-thread",
-        None,
         lambda event, **fields: records.append((event, fields)),
     )
     wait_for(lambda: records, bool, failure="the title was never generated")
@@ -1511,6 +1510,160 @@ def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_ser
         if e["kind"] == "thread_title"
     ]
     assert titles == ["Intro"]
+
+
+TITLING_CLAUDE = """\
+#!{python}
+import json, os, sys
+with open(os.environ["TITLING_RECORD"], "a") as record:
+    call = {{"argv": sys.argv[1:], "stdin": sys.stdin.read(), "env": dict(os.environ)}}
+    record.write(json.dumps(call) + "\\n")
+print(json.dumps({{
+    "structured_output": {{"title": " Export speed "}},
+    "usage": {{"input_tokens": 1100, "output_tokens": 60}},
+}}))
+"""
+
+
+def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
+    claimed, tmp_path, monkeypatch
+):
+    """Claude Code's agent names a thread only when it replies, which can be minutes
+    on; its page server asks Haiku for a title as the comment opening the thread
+    arrives, in the claimant's voice, with none of the user's customizations, tools
+    or session identity."""
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    claude = programs / "claude"
+    claude.write_text(TITLING_CLAUDE.format(python=sys.executable))
+    claude.chmod(0o755)
+    record = tmp_path / "claude-calls.jsonl"
+    monkeypatch.setenv("TITLING_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    assert stamp(claimed, "first").exit_code == 0
+
+    status, body = endpoint_model.accept_event(
+        claimed,
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why does the export take a minute?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    titles = wait_for(
+        lambda: [
+            e for e in events_model.read_events(claimed) if e["kind"] == "thread_title"
+        ],
+        bool,
+        failure="the thread was never named",
+    )
+    [comment] = [e for e in events_model.read_events(claimed) if e["kind"] == "comment"]
+    [title] = titles
+    assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
+    assert (title["agent"], title["session"]) == ("Claude", "s1")
+
+    [call] = [json.loads(line) for line in record.read_text().splitlines()]
+    assert "Why does the export take a minute?" in call["stdin"]
+    assert "CLAUDE_CODE_SESSION_ID" not in call["env"]
+    assert call["env"]["MAX_THINKING_TOKENS"] == "0"
+
+    # The page server's output goes nowhere, so the session's log says what the
+    # request did, until the session ends.
+    log = leases_model.titles_log("s1")
+    [line] = wait_for(
+        lambda: log.read_text().splitlines() if log.exists() else [],
+        bool,
+        failure="the request was never logged",
+    )
+    assert json.loads(line)["event"] == "thread_title_generated"
+    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    assert not log.exists()
+
+
+def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
+    """SessionEnd removes the session's titles log, and a request still waiting on
+    the model when it runs finishes after that; it writes neither the title nor a
+    new log."""
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
+    )
+    answered = threading.Event()
+
+    def generate(request: str, page_dir: Path) -> dict:
+        answered.wait(timeout=10)
+        return {"title": "Intro"}
+
+    thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
+    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    answered.set()
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=10)
+
+    assert not leases_model.titles_log("s1").exists()
+    kinds = [e["kind"] for e in events_model.read_events(claimed)]
+    assert "thread_title" not in kinds
+
+
+def test_both_hosts_are_asked_for_a_title_in_the_same_words(
+    page_dir, app_server, tmp_path, monkeypatch, snapshot
+):
+    """Claude Code's `claude -p` and an App Server carrier are sent the same system
+    prompt, request and answer schema; the snapshot is that request, verbatim."""
+    comment = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Why does the export take a minute?",
+            "anchor": {"section": None, "quote": "Export runs nightly"},
+        },
+    )
+    request = thread_titles.title_request(page_dir, comment["id"])
+
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    claude = programs / "claude"
+    claude.write_text(TITLING_CLAUDE.format(python=sys.executable))
+    claude.chmod(0o755)
+    record = tmp_path / "claude-calls.jsonl"
+    monkeypatch.setenv("TITLING_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    thread_titles.claude_code_title(request, page_dir)
+    [call] = [json.loads(line) for line in record.read_text().splitlines()]
+    argv = call["argv"]
+    system_prompt = argv[argv.index("--system-prompt") + 1]
+    schema = json.loads(argv[argv.index("--json-schema") + 1])
+
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    thread_titles.app_server_title(endpoint, None)(request, page_dir)
+    [start] = [m for m in received if m.get("method") == "thread/start"]
+    [turn] = [m for m in received if m.get("method") == "turn/start"]
+    assert start["params"]["baseInstructions"] == system_prompt
+    assert turn["params"]["input"] == [{"type": "text", "text": call["stdin"]}]
+    assert turn["params"]["outputSchema"] == schema
+
+    placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
+    snapshot.check(
+        yaml_document(
+            "What Claude Code's page server runs, what it and an App Server carrier "
+            "both send, and\nthe App Server's titling thread, for a thread opened "
+            "on a passage.",
+            {
+                "command": ["claude", *(placeholders.get(a, a) for a in argv)],
+                "system_prompt": Prose(system_prompt),
+                "request": Prose(call["stdin"]),
+                "schema": schema,
+                "app_server_thread": {
+                    key: start["params"][key]
+                    for key in ("ephemeral", "approvalPolicy", "sandbox", "config")
+                },
+                "app_server_effort": turn["params"]["effort"],
+            },
+        )
+    )
 
 
 @pytest.fixture

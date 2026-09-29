@@ -22,7 +22,9 @@ take the id of any message in the thread.
 Title a thread with `--title` on the command that first handles it: the `open` that
 starts it, or, for an untitled thread the user opened, the reply that answers it,
 which a delivered message in it asks for. Choose a few words that identify its
-subject in the thread panel.
+subject in the thread panel. A reply's `--title` names only a thread that is still
+untitled: Leaf may have named it from its opening words while you worked, and that
+name stands.
 
 ```bash
 leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
@@ -138,8 +140,8 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
 Every `leaf thread` write prints the records it appended, one JSON line each, as
-`leaf page events` prints them; a `--title` adds a `thread_title` record after the
-message. A refusal lists the ids it knows.
+`leaf page events` prints them; a `--title` that names the thread adds a
+`thread_title` record after the message. A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the

@@ -51,9 +51,8 @@ and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
 (`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
-candidates: a `choice` control naming them, the candidates in its preview, and
-an output saying what to build. Add presets and further controls only where the
-user tunes more than the choice.
+candidates: the controls and presets the user explores them with, the
+candidates in its preview, and an output saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
@@ -218,13 +217,17 @@ the skill and the references and every run answers with no guidance, while
 `loads-leaf` still passes on the attempt. So every case also grades that the child
 read the reference it tests, and a run that fails that check measured nothing.
 
-Grow the suite slowly, toward a modest set of cases that each tell two wordings
-apart. Measure with whatever scenarios and guardrails the change needs, then add a
-case only if it pins a clause no existing case pins and it separated two arms you ran:
-the base failed most runs and the change passed every run, or a blunter draft failed
-a guardrail the change passes. That is usually one case per problem, and rarely more
-than two. A case both arms passed goes in the commit message, not the suite. The
-comment above `schema_version` says where the case came from and what it measured;
+The suite is a library that grows with the guidance, so a later edit, whether a fix
+or a cut, is scored against the behaviors earlier edits had to produce. Add to it
+where a change's behavior gives the library breadth, a behavior or kind of situation
+no case yet covers. First try to extend an existing case, with a grader, a
+criterion, or context in its prompt, so coverage grows without the cases
+proliferating; add a new case only where no existing one can carry the behavior.
+Keep a case small: one prompt carrying only the context the behavior needs, and a
+few graders. Measure with whatever scenarios and guardrails the change needs, and
+keep what you add whether or not it separated the arms. The comment above
+`schema_version` says where the case came from and what it measured, so a reader can
+tell a case that told two wordings apart from one that has only guarded;
 `description` names the clause it pins, and `tags` its area.
 
 A prompt ends by asking for the HTML in the reply, since the child has no page

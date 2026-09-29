@@ -1,0 +1,61 @@
+# From session 623c25b5, whose focus-indication playground assembled each preset from
+# a treatment per surface; three of one preset's marks stacked in the same gutter and
+# the user called the presets "disastrous". Of the runs that could read author.md,
+# main at 35ab3ecac passed 0 of 5, every one with presets that left controls unset;
+# the presets paragraph on whole designs set every control in 2 of 2 and passed 1.
+# The other runs were refused the read and scored nothing.
+schema_version: '1.0'
+name: playground-presets-are-whole-designs
+description: "Playground: controls span every part the user may vary, and each preset is one composed design that sets every control, not a tuple of per-part picks."
+tags:
+- playground
+execution:
+  prompt: |
+    You are in a Leaf design session for a code-review tool. Its diff view marks a
+    changed line in four places at once: a `+`/`-` sign in the gutter, a tint on the
+    line, a 3px bar at the line's left edge, and a highlight on the changed words.
+    Reviewers say it looks noisy.
+
+    The user asked: "Do a full study of how the diff could mark changes, the whole
+    spectrum from small tweaks (colour, weight, which marks show, how the gutter sign
+    and bar sit together) to an overhaul. Put it in a playground I can play with."
+
+    The page was initialized with the `playground` package, whose author guidance
+    `page init` copied into the page; the same file is
+    `packages/playground/guidance/author.md` beside the leaf skill's `references/`.
+    Write its playground: the `lf-ask` with its `lf-playground`, and a `<style>`
+    element with the candidates' CSS. The preview can be a short static diff of about
+    six lines. The page directory is not reachable from here, so reply with the HTML
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-playground-guidance
+  type: tool_used
+  tool: Read
+  input_match: playground/guidance/author
+- name: has-presets
+  type: regex
+  pattern: <lf-playground-preset\b
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Read the playground's controls, its presets, and the CSS they switch. Pass only
+    if all of these hold:
+    1. There are at least three controls, and together they let the user vary at
+       least three of the diff's parts (gutter sign, line tint, left bar, word
+       highlight) independently.
+    2. There are at least three presets, and every preset has an
+       `lf-playground-setting` for every control the playground declares.
+    3. Apart from a preset that reproduces today's diff as the baseline, no preset
+       turns on two marks that the CSS draws in the same place for the same line,
+       such as the gutter sign and the left bar both at the line's left edge, or a
+       line tint and a word highlight in the same hue and strength, unless the CSS
+       gives that preset rules of its own that merge them into one mark or visibly
+       separate them.
+    4. The presets other than the baseline differ from each other in more than one
+       control's value, so none is a slight variant of another.
+    Fail if any one of these does not hold.

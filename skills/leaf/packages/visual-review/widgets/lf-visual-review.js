@@ -494,10 +494,14 @@ customElements.define(
         "data-label",
         compareLayout === "stack" ? "Base · Candidate below" : "Base",
       );
-      entry.shotHost.style.setProperty(
-        "--lf-vr-frame-width",
-        `${Math.max(1, width * scale)}px`,
-      );
+      // The frames take their width from here a pass after the host took its own, so
+      // the host keeps its box while what it holds resizes: say so, or a reading made
+      // of the host at its resize (reach.js) keeps the frames' old width.
+      const frameWidth = `${Math.max(1, width * scale)}px`;
+      if (entry.shotHost.style.getPropertyValue("--lf-vr-frame-width") !== frameWidth) {
+        entry.shotHost.style.setProperty("--lf-vr-frame-width", frameWidth);
+        layoutChanged(this);
+      }
     }
 
     #registerCommands() {

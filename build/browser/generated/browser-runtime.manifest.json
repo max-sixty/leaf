@@ -21,7 +21,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5fe106316e49d12a21d1046681c063944a8a2b820fb79aa268c2d923230ac815",
+  "lockfileSha256": "1fac8c9767d5a23c5bf23f9692eecc4674665051c207a86bf496e676978a05c5",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -54,6 +54,7 @@
     "happy-dom": "20.14.5",
     "highlight.js": "11.12.0",
     "lit": "3.3.3",
+    "lit-html": "3.3.0",
     "marked": "18.0.14",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
@@ -62,7 +63,7 @@
     "@lit/reactive-element": "2.1.2",
     "@preact/signals-core": "1.14.4",
     "lit-element": "4.2.2",
-    "lit-html": "3.3.3"
+    "lit-html": "3.3.0"
   },
   "internalModule": "/vendor/browser-runtime.js",
   "publicImport": "/runtime/widget-api.js",
@@ -169,16 +170,16 @@
       "sha256": "96c4eaa18ab617b3dacedea81987944b6bbce7b91f217b3df5e0bd61ce911241"
     },
     "skills/leaf/assets/vendor/lit.js": {
-      "bytes": 32020,
-      "sha256": "5a7a4e660fe0085f5e81ea8734bdd3468fbeb857f9a6427bddb55fbb6f3531a5"
+      "bytes": 32081,
+      "sha256": "8cb5658593f000150114b55a76dca639bff7d514095224cf8940f7aeeff948bd"
     },
     "build/browser/generated/lit.js.map": {
-      "bytes": 363756,
-      "sha256": "37c5dcefc083b37cbe938542a4aa7372275913a997a6fe257eadf472a27384d8"
+      "bytes": 362839,
+      "sha256": "5f0b4fc2f8add5a0ef43c5600d56f949626bd0fc3c5ca5412d6da6647b368395"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 5873,
-      "sha256": "40c140919f79f264242d69d71c537aa44ea822d553a69b2d51eb0a8bb410794c"
+      "sha256": "a354a25f57b61684e0ac1e048bca6a115795b3ea02338fd131eb1b3e03161416"
     }
   }
 }

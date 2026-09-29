@@ -91,13 +91,18 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     TOKEN,
     _traffic,
     _until,
+    at_rest,
     consume_browser_errors,
     leaf_page,
+    left_alone,
+    live_nodes,
     open_page,
+    page_state,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -106,6 +111,8 @@ from render_harness import (
     root_overflow,
     scroll_followers,
     scroll_writes,
+    state_changes,
+    still_page,
     take_browser_errors,
     write,
 )
@@ -2593,6 +2600,123 @@ def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
     scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
     following = scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
     assert following == [], "\n".join(following)
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_a_page_at_rest_does_nothing(browser, serve, source):
+    """A page nobody touches writes nothing, asks for no frame, and runs no animation
+    without end, for a reader who asked for reduced motion. Its clock still ticks, to
+    read the server and age what it shows, and a tick that changed nothing writes
+    nothing. A loop that keeps the page awake costs the reader's battery for as long as
+    the tab stays open, and with a quoted comment on the page each write repaints the
+    whole document."""
+    findings = at_rest(still_page(browser, serve(source)))
+    assert findings == [], "\n".join(findings)
+
+
+# Each surface a page-level key opens, by the keys that open it from the page, and for a
+# drawer the banner control that offers it, since a page with nothing to put in one has
+# none. Escape unwinds any of them to the page (keyboard/AGENTS.md); the ones Go-to opens
+# take the most presses.
+SURFACES = {
+    "composer": (["c"], None),
+    "target picker": (["s"], None),
+    "page search": (["/"], None),
+    "go-to": (["g"], None),
+    "threads panel": (["g", "Shift+t"], None),
+    "asks drawer": (["g", "Shift+a"], ".lf-btn.lf-asks"),
+    "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
+    "page map": (["g", "Shift+m"], None),
+    "versions menu": (["g", "Shift+v"], None),
+    "draw mode": (["w"], None),
+    "design mode": (["l"], None),
+    "shortcut bar": (["?"], None),
+    "command reference": (["?", "?"], None),
+}
+UNWIND = 3
+# Round trips after the first, which may build what the surface keeps for next time.
+AGAIN = 3
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_a_closed_surface_leaves_the_page_as_it_found_it(browser, serve, source):
+    """Opening a surface from the page and closing it again leaves the page as the first
+    time did, and a leak shows as a count of nodes that climbs on every round trip. The
+    first time may build what the surface keeps for next time; after that nothing it
+    leaves behind accumulates over a long session: no attribute left on the page, no
+    marker a list forgot, no node a closed surface still holds.
+
+    Each surface the page offers must open, so a key that stopped opening one fails
+    here rather than passing for having left nothing behind. The keys start from the
+    page, where a page's own script may have left the focus inside a sample."""
+    page = still_page(browser, serve(source))
+    left_alone(page)
+    page.evaluate(RELEASE_FOCUS)
+
+    def round_trip(keys):
+        before = page_state(page)
+        for key in keys:
+            page.keyboard.press(key)
+            rendered(page)
+        opened = page_state(page) != before
+        for _ in range(UNWIND):
+            page.keyboard.press("Escape")
+            rendered(page)
+        return opened, page_state(page), live_nodes(page)
+
+    findings = []
+    for surface, (keys, door) in SURFACES.items():
+        if door and not page.locator(door).is_visible():
+            continue
+        opened, first, nodes = round_trip(keys)
+        if not opened:
+            findings.append(f"{'+'.join(keys)} opened no {surface}")
+            continue
+        counts = [nodes]
+        for _ in range(AGAIN):
+            _, again, nodes = round_trip(keys)
+            counts.append(nodes)
+            if changes := state_changes(first, again):
+                findings.append(
+                    f"the {surface} closed leaving\n" + "\n".join(changes[:12])
+                )
+                break
+        if all(later > earlier for earlier, later in itertools.pairwise(counts)):
+            findings.append(
+                f"the {surface} leaks nodes: {counts} after each round trip"
+            )
+    assert findings == [], "\n".join(findings)
+
+
+# From the widest window the corpus is read at down to a phone's, and back.
+RESIZE_PATH = tuple(range(1200, 439, -80))
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
+    """A page taken through a resize and back to the width it opened at is the page it
+    was: what the page says at a width depends on the width, not on the widths it
+    passed through. Both ends are tried, since a state written on the way down and one
+    written on the way up are cleared by different widths.
+
+    What changes at each width is the browser's to lay out; a write that restates what
+    stood is already failed wherever it happens (`write_watch.js`)."""
+    url = serve(source)
+    findings = []
+    for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
+        page = still_page(browser, url, width=path[0])
+        left_alone(page)
+        opened = page_state(page)
+        for width in (*path[1:], *path[-2::-1]):
+            resized(page, width, 900)
+            rendered(page)
+        changes = state_changes(opened, page_state(page))
+        if changes:
+            findings.append(
+                f"opened at {path[0]}px and taken to {path[-1]}px and back:\n"
+                + "\n".join(changes[:12])
+            )
+    assert findings == [], "\n\n".join(findings)
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

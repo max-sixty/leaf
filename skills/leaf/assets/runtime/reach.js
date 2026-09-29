@@ -65,7 +65,10 @@ import { keeps } from "./keeps.js";
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
-const mayScroll = new Set();
+// Each candidate with the `tabindex` its author gave it, or null for none, which is what
+// it wears again once nothing in it is out of sight: a box that stops scrolling is the
+// box it was before, not one a click can now focus.
+const mayScroll = new Map();
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was
 // drawn, a board's columns, a line of code — and on a platform that draws overlay
@@ -213,8 +216,10 @@ function classify(el) {
   }
   // A box that already carries a stop of its own is somewhere the user can be put,
   // whoever put it there; this pass neither adds to it nor takes it away.
-  if (el.tabIndex >= 0 && !mayScroll.has(el)) return;
-  mayScroll.add(el);
+  if (!mayScroll.has(el)) {
+    if (el.tabIndex >= 0) return;
+    mayScroll.set(el, el.getAttribute("tabindex"));
+  }
   // The box itself, not the page's: a candidate's own resize is exactly the moment
   // its answer can change, and asking it there is one observation per candidate
   // rather than a sweep per layout pass. Watching body instead read the old width —
@@ -243,8 +248,7 @@ function paintSidewaysReach(el) {
   const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
   const raw = Math.abs(el.scrollLeft);
   const position = Math.min(maximum, Math.max(0, raw));
-  if (scrolls) keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
-  else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolls ? style.direction : null);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolls && position > 1);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreAfter, scrolls && position < maximum - 1);
 }
@@ -263,10 +267,9 @@ function gone(el) {
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
-  for (const el of mayScroll) {
+  for (const [el, authored] of mayScroll) {
     if (unpainted(el)) continue;
-    const wanted = overflows(el) && !holdsOwnStop(el) ? 0 : -1;
-    if (el.tabIndex !== wanted) el.tabIndex = wanted;
+    keeps(el, "tabindex", overflows(el) && !holdsOwnStop(el) ? 0 : authored);
   }
   for (const el of sideways) if (!unpainted(el)) paintSidewaysReach(el);
   for (const el of downwards) if (!unpainted(el)) paintReadingReach(el);

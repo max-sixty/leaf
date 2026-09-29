@@ -77,9 +77,11 @@ function paintSettlements(widgets) {
     const decision = owner && decisionFor(owner.localName);
     if (!decision) continue;
     const outcome = state[decision.verb]?.detail?.outcome ?? null;
-    if (decision.retires[outcome])
-      keeps(owner, PAGE_PAINT_ATTRIBUTE.settlement, outcome);
-    else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
+    keeps(
+      owner,
+      PAGE_PAINT_ATTRIBUTE.settlement,
+      decision.retires[outcome] ? outcome : null,
+    );
     renderRetired(owner, outcome);
   }
 }

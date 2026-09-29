@@ -282,8 +282,7 @@ customElements.define(
         ]
           .filter(Boolean)
           .join(". ");
-        if (description) keeps(btn, "aria-description", description);
-        else btn.removeAttribute("aria-description");
+        keeps(btn, "aria-description", description || null);
       }
     }
 

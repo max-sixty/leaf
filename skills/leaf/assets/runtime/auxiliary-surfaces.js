@@ -15,7 +15,7 @@
 
    In the covering posture this owner makes every sibling reading surface inert, dims that
    entire background, gives the surface modal semantics, and moves focus in only when it was
-   outside. It re-derives those siblings when the live version replaces the authored
+   elsewhere in this document. It re-derives those siblings when the live version replaces the authored
    page. Leaving that posture restores exactly the inert and role state it found; it
    does not rebuild, hide, or scroll either side.
 
@@ -118,12 +118,14 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (active) syncBackground(active);
   });
 
+  // Focus is moved in only from elsewhere in this document. Where the document holds no
+  // focus at all, the user is in another one — the page around a sample, a sibling
+  // sample, another window — and moving it in would pull them back into this frame: four
+  // samples with open panels did so to each other on every frame.
+  const outside = (controller) =>
+    document.hasFocus() && !controller.surface.contains(document.activeElement);
   const focusMutations = new MutationObserver(() => {
-    if (
-      active &&
-      !active.surface.contains(document.activeElement) &&
-      !nativeLayerContains(document.activeElement)
-    )
+    if (active && outside(active) && !nativeLayerContains(document.activeElement))
       place(active.focus() ?? active.surface);
   });
 
@@ -160,8 +162,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     backgroundMutations.observe(chromeRoot, { childList: true });
     focusMutations.observe(next.surface, { childList: true, subtree: true });
 
-    if (!next.surface.contains(document.activeElement))
-      place(next.focus() ?? next.surface);
+    if (outside(next)) place(next.focus() ?? next.surface);
   }
 
   function registerAuxiliarySurface({

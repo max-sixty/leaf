@@ -174,7 +174,7 @@ function settleResidency() {
   const changed =
     (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
   if (!changed) return false;
-  keeps(main, "data-lf-margin", tokens);
+  keeps(main, "data-lf-margin", tokens || null);
   setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
   return true;
 }

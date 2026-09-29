@@ -251,15 +251,13 @@ export function syncMarginEntrySelection(control, selected) {
 // user's turn is named, because that is the one a page has to point at; a thread with
 // the agent already says so through pickup and work.
 export function syncMarginTurn(control, awaitsUser) {
-  if (awaitsUser) keeps(control, "data-lf-turn", "user");
-  else control.removeAttribute("data-lf-turn");
+  keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
 }
 
 // Whether a reading carries agent content the user has not taken in: the same
 // Thread `unread` the panel and banner paint, as one attribute both surfaces share.
 export function syncMarginUnread(control, count) {
-  if (count) keeps(control, "data-lf-unread", "");
-  else control.removeAttribute("data-lf-unread");
+  control.toggleAttribute("data-lf-unread", Boolean(count));
 }
 
 function iconFor(control, icon) {
@@ -289,31 +287,31 @@ export function presentMarginEntryHost(
     throw new TypeError("A status margin entry needs a stable span host");
   records.set(control, record);
   keeps(control, "data-lf-margin-entry-key", record.key);
-  if (record.owner) keeps(control, "data-lf-margin-entry-owner", record.owner);
-  else control.removeAttribute("data-lf-margin-entry-owner");
+  keeps(control, "data-lf-margin-entry-owner", record.owner || null);
   keeps(control, "data-lf-behavior", record.behavior);
   keeps(control, "data-lf-tone", record.tone);
   keeps(control, "data-lf-rank", record.rank);
   keeps(control, "data-lf-state", record.state);
   keeps(control, "data-lf-offer", record.behavior === "status" ? "" : "button");
-  if (record.pressed == null) control.removeAttribute("aria-pressed");
-  else keeps(control, "aria-pressed", record.pressed);
-  if (record.state === "busy") {
-    keeps(control, "aria-busy", "true");
-  } else {
-    control.removeAttribute("aria-busy");
-  }
+  keeps(control, "aria-pressed", record.pressed);
+  keeps(control, "aria-busy", record.state === "busy" ? "true" : null);
   const relation = record.relation;
   if (writesRelation) {
-    if (record.behavior === "disclosure")
-      keeps(control, "aria-expanded", relation?.expanded ?? false);
-    else control.removeAttribute("aria-expanded");
-    if (relation?.kind === "element") keeps(control, "aria-controls", relation.id);
-    else if (relation?.kind === "entries" && relatedControlIds.length)
-      keeps(control, "aria-controls", relatedControlIds.join(" "));
-    else control.removeAttribute("aria-controls");
-    if (relation?.popup) keeps(control, "aria-haspopup", relation.popup);
-    else control.removeAttribute("aria-haspopup");
+    keeps(
+      control,
+      "aria-expanded",
+      record.behavior === "disclosure" ? (relation?.expanded ?? false) : null,
+    );
+    keeps(
+      control,
+      "aria-controls",
+      relation?.kind === "element"
+        ? relation.id
+        : relation?.kind === "entries" && relatedControlIds.length
+          ? relatedControlIds.join(" ")
+          : null,
+    );
+    keeps(control, "aria-haspopup", relation?.popup || null);
   }
   if (control instanceof HTMLButtonElement) {
     const wasStatus = control.getAttribute("role") === "status";

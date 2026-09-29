@@ -21,9 +21,17 @@
    so a boolean or a count compared raw is never equal to what already stands and
    rewrites on every pass. */
 
+// Null or undefined says the attribute is absent: one spelling for "none", where an
+// empty value beside a missing one would be two, and a caller would otherwise branch
+// between this and `removeAttribute` to say it.
 export function keeps(node, name, value) {
+  if (!node) return;
+  if (value == null) {
+    if (node.hasAttribute(name)) node.removeAttribute(name);
+    return;
+  }
   const said = String(value);
-  if (node && node.getAttribute(name) !== said) node.setAttribute(name, said);
+  if (node.getAttribute(name) !== said) node.setAttribute(name, said);
 }
 
 export function keepsHidden(node, hidden) {

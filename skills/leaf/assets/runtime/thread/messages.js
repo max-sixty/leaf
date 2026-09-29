@@ -204,12 +204,9 @@ export class MessageView {
     this.node.classList.toggle(model.author, true);
     keeps(this.node, panel ? "data-mid" : "data-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
-    if (model.attempt) keeps(this.node, "data-attempt", model.attempt);
-    else delete this.node.dataset.attempt;
-    if (model.pending) keeps(this.node, "aria-busy", "true");
-    else this.node.removeAttribute("aria-busy");
-    if (model.failure) keeps(this.node, "data-failure", model.failure);
-    else delete this.node.dataset.failure;
+    keeps(this.node, "data-attempt", model.attempt || null);
+    keeps(this.node, "aria-busy", model.pending ? "true" : null);
+    keeps(this.node, "data-failure", model.failure || null);
     if (model.nativeAuthored && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({
         id: model.id,

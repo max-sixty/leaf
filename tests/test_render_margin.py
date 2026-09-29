@@ -8461,7 +8461,7 @@ def test_a_finger_hides_the_annotations_from_the_banner(browser, serve):
     assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
 
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Show annotations')").tap()
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "shown")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_visible()
 
 

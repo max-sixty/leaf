@@ -280,12 +280,16 @@ nothing moved straddles a transition that would move without the rule. Check wha
 lower layer already guarantees: a send queue that drops a second POST hides whether
 the widget refused it.
 
-The corpus has three matrices. Return state is anchored on a first visit
+The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence; and a
+standing actions or reports twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
-written on every step. All three stay
-declaration-driven, so a new widget, verb, or page joins without a case of its own. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
+written on every step; a page left alone (`at_rest`) fails anything it does; and a
+surface's round trip and a resize's fail where the page does not come back to its
+`page_state`, or holds more `live_nodes` on every trip. The last three read a
+`still_page`, whose reduced motion and stopped clock leave only what the test did.
+All of them stay declaration-driven, so a new widget, verb, or page joins without a
+case of its own. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
 ### An absence needs a control and a settled frame

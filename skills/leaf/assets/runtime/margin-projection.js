@@ -630,6 +630,7 @@ export function createMarginProjection({
   // A card that stays open is placed afresh by forgetting where it stood: the next
   // placement rewrites only what moved. Taking it off the page is for a card that closes.
   function forgetThreadPreviewPlacement() {
+    previewPlacement.supersede();
     cancelRender(previewPositionFrame);
     previewPositionFrame = 0;
     previewHold = null;

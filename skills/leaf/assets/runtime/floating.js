@@ -119,6 +119,10 @@ export function floatingPlacement({ floating, update }) {
       return answer;
     },
     stand: (x, y) => stand(x, y),
+    // Discards any placement in flight, leaving the box where it stands.
+    supersede() {
+      epoch += 1;
+    },
     stop() {
       epoch += 1;
       stopWatching?.();

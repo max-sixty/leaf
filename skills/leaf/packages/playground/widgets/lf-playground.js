@@ -24,6 +24,7 @@ import {
   failSoft,
   holdFocus,
   keeps,
+  keepsText,
   layoutChanged,
   measure,
   notice,
@@ -501,7 +502,7 @@ customElements.define(
           ([name, value]) => Object.is(this.#values[name], value),
         );
         button.classList.toggle("on", active);
-        button.setAttribute("aria-pressed", String(active));
+        keeps(button, "aria-pressed", active);
       }
     }
 
@@ -645,12 +646,12 @@ customElements.define(
       if (!input) return;
       if (kind === "toggle") input.checked = value;
       else input.value = kind === "range" ? value : String(value);
-      input.setAttribute("value", String(value));
+      keeps(input, "value", value);
       if (kind === "toggle") input.toggleAttribute("checked", value);
       if (kind === "range") {
         const reading = control.querySelector(":scope > output");
-        keeps(reading, "value", String(value));
-        reading.textContent = this.#formatted(control, value);
+        keeps(reading, "value", value);
+        keepsText(reading, this.#formatted(control, value));
       }
     }
 
@@ -754,7 +755,9 @@ customElements.define(
       const previous = this.#copy;
       const restoreFocus = holdFocus(previous);
       this.#copy = previous.cloneNode(true);
-      this.#copy.value = instruction;
+      // As an attribute, so the replacement says what it copies where the one it
+      // replaces said something else.
+      this.#copy.setAttribute("value", instruction);
       previous.replaceWith(this.#copy);
       const copy = this.#copy;
       copy.updateComplete.then(() => {
@@ -785,7 +788,7 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.disabled = this.#choosing || !this.#available();
+      this.#submit.toggleAttribute("disabled", this.#choosing || !this.#available());
       paintKeys();
     }
 

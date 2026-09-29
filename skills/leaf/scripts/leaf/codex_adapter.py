@@ -67,7 +67,6 @@ from .codex import (
     stream_reply_target,
     write_record,
 )
-from .codex_titles import name_untitled_threads
 from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
@@ -91,6 +90,7 @@ from .session import Watch, read_watch_pass
 from .thread import (
     delivery_reply_reserved,
 )
+from .thread_titles import app_server_title, name_untitled_threads
 
 QUEUE_TIMEOUT = 20
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -504,7 +504,9 @@ def start_delivery_turn(
         raise
     # On the task's configured model: a user's App Server offers no model this
     # process could name for every account.
-    name_untitled_threads(observer.endpoint, payload, session_id, None, _log_record)
+    name_untitled_threads(
+        app_server_title(observer.endpoint, None), payload, session_id, _log_record
+    )
     return DeliveryTurn(
         observer,
         session_id,

@@ -31,6 +31,7 @@ import {
   renderRetired,
 } from "../passages.js";
 import { PAGE_PAINT_ATTRIBUTE, isPagePaint, renderQuiet } from "../presentation.js";
+import { keeps } from "../keeps.js";
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
 function paintStateOrigins(projection) {
@@ -58,7 +59,7 @@ function paintStateOrigins(projection) {
     }
     for (const target of wanted) {
       touched.add(target);
-      if (target.getAttribute(attr) !== "1") target.setAttribute(attr, "1");
+      keeps(target, attr, "1");
     }
   }
   return touched;
@@ -77,7 +78,7 @@ function paintSettlements(widgets) {
     if (!decision) continue;
     const outcome = state[decision.verb]?.detail?.outcome ?? null;
     if (decision.retires[outcome])
-      owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
+      keeps(owner, PAGE_PAINT_ATTRIBUTE.settlement, outcome);
     else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
     renderRetired(owner, outcome);
   }
@@ -210,7 +211,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
     setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
-        elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
+        keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
     for (const [widgetId, { entries }] of snapshot.effective.widgets) {
       const widget = elementById(widgetId);
       if (!widget) continue;
@@ -235,7 +236,8 @@ export function createProjectionPresentation({ onDeferredReady }) {
     paintSettlements(snapshot.effective.widgets);
     const originTargets = paintStateOrigins(projection);
     renderQuiet(document.body, originTargets);
-    document.body.setAttribute(
+    keeps(
+      document.body,
       PAGE_PAINT_ATTRIBUTE.applied,
       String(projectionCoverage(projection, snapshot.effective.view?.coverage)),
     );

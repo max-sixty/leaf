@@ -1738,18 +1738,84 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     expect(
         card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
     ).to_be_focused()
-    # A key pressed in a card scrolled away brings its cluster, and the card, back.
+    # A press the page answers leaves the window where the user put it: `g G` carries the
+    # card away, and `g` then opens Go-to over the page's foot rather than bringing the
+    # card back and mapping the window around it.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+g")
+    rendered(page)
+    foot = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert card.evaluate(
+        "node => node.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    # Every key is Go-to's while it stands, one it has no use for included: that key
+    # takes Go-to down and keeps the page where it is.
+    page.keyboard.press("F2")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    # A turn arriving in the card is news, not a move of the user's: it stays away.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "72e031c5bf0d485ba9054628e09869d4",
+            "revision": 1,
+            "text": "A turn arriving while the card is away.",
+        },
+    )
+    told(page)
+    expect(card).to_contain_text("A turn arriving while the card is away.")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    shown = """() => {
+      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+      const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+      return card.top >= head && card.bottom <= innerHeight;
+    }"""
+    # A page command that lands in a card scrolled away brings its cluster, and the
+    # card, back.
+    page.keyboard.press("c")
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
+    page.wait_for_function(shown)
+    # So does moving on from one of its controls to the next, as the browser reveals
+    # the control a Tab reaches.
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
     rendered(page)
-    page.keyboard.press("c")
-    expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
-    page.wait_for_function(
-        """() => {
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+    assert not page.evaluate(shown)
+    page.keyboard.press("Tab")
+    expect(reply).not_to_be_focused()
+    assert page.evaluate(
+        "() => document.activeElement.closest('.lf-margin-preview') !== null"
+    )
+    page.wait_for_function(shown)
+    # A card the page has carried half under the banner, Reply with it, is as unseen
+    # there as one scrolled off: a landing in it brings it back all the same.
+    reply.evaluate(
+        """async (box) => {
           const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
-          return card.top >= head && card.bottom <= innerHeight;
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= head) {
+            scrollBy(0, 10);
+            await frame();
+          }
         }"""
     )
+    rendered(page)
+    assert page.evaluate(
+        "() => document.querySelector('.lf-margin-preview').getBoundingClientRect().bottom"
+        " > document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.wait_for_function(shown)
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
@@ -2997,9 +3063,11 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         if event["kind"] == "comment"
     ]
 
+    # The readout takes no pointer, so the probe lends it one to hit-test it and takes it
+    # back: the test's own write, outside what the page is held to (`lfUnwatched`).
     def position_is_front():
         return page.evaluate(
-            """() => {
+            """() => lfUnwatched(() => {
               const readout = document.querySelector('.lf-walk-position');
               const box = readout.getBoundingClientRect();
               readout.style.pointerEvents = 'auto';
@@ -3009,7 +3077,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
               ) === readout;
               readout.style.removeProperty('pointer-events');
               return front;
-            }"""
+            })"""
         )
 
     # A panel search belongs to the panel. Closing it keeps that search for the next
@@ -5618,7 +5686,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert room["band"] > 0 and room["reserved"] == room["band"], room
         geometry = line.evaluate(
             """node => {
-              const visible = [...node.children].filter(el => el.checkVisibility());
+              const visible = [...node.children]
+                .filter(el => el.checkVisibility({visibilityProperty: true}));
               const tops = [];
               const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
               for (const el of visible)
@@ -8239,7 +8308,8 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Native focusing steps may synchronously open a newer modal. Recording the first
     # opening before those steps preserves that order, while an idempotent call on the
-    # older dialog does not move it back to the top.
+    # older dialog does not move it back to the top. The modals close in a later task:
+    # opened and closed in one, they would be a write that changes nothing.
     assert page.evaluate(
         """async () => {
           const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
@@ -8255,10 +8325,12 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           const nested = nativeLayers().at(-1)?.root === second;
           first.showModal();
           const idempotent = nativeLayers().at(-1)?.root === second;
-          second.close();
-          first.close();
+          window.__lfOrderedModals = [second, first];
           return nested && idempotent;
         }"""
+    )
+    page.evaluate(
+        "() => { for (const modal of window.__lfOrderedModals) modal.close(); }"
     )
 
     # Modal entry dismisses a light-DOM auto popover and pruning retires its stack entry.
@@ -8278,15 +8350,22 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     )
 
     # A closed inner layer is retired rather than mistaken for one covered by the older
-    # modal now visible beneath it, so the outer layer is the top of the stack again.
-    assert page.evaluate(
-        """async () => {
-          const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
+    # modal now visible beneath it, so the outer layer is the top of the stack again. The
+    # inner one closes in a later task than it opened in, as a user closes it.
+    page.evaluate(
+        """() => {
           const outer = document.createElement('dialog');
           const inner = document.createElement('dialog');
           document.body.append(outer, inner);
           outer.showModal();
           inner.showModal();
+          window.__lfNestedModals = {outer, inner};
+        }"""
+    )
+    assert page.evaluate(
+        """async () => {
+          const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
+          const {outer, inner} = window.__lfNestedModals;
           inner.close();
           const restored = nativeLayers().at(-1)?.root === outer;
           outer.close();
@@ -8335,7 +8414,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
-          const { paintKeys } = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+          const { elementScopes, paintKeys } =
+            await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
           const declare = (id, rows) => {
             const button = document.createElement('button');
             button.id = id;
@@ -8357,7 +8437,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               return error.message;
             }
           };
-          const firstPaint = (id, rows, when) => {
+          // A paint lands once the task's synchronous work is done, so each is read after
+          // a microtask; the second finds the refused scope gone rather than refusing it
+          // again.
+          const painted = async (button) => {
+            paintKeys();
+            await Promise.resolve();
+            return button.getAttribute('aria-keyshortcuts');
+          };
+          const firstPaint = async (id, rows, when) => {
             const button = document.createElement('button');
             button.id = id;
             document.querySelector('main').append(button);
@@ -8368,18 +8456,11 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               declaration = error.message;
             }
             const declared = button.getAttribute('aria-keyshortcuts');
-            const paints = [];
-            for (let i = 0; i < 2; i++) {
-              try {
-                paintKeys();
-                paints.push('painted');
-              } catch (error) {
-                paints.push(error.message);
-              }
-            }
-            const painted = button.getAttribute('aria-keyshortcuts');
+            const first = await painted(button);
+            const standing = Boolean(elementScopes.get(button));
+            const second = await painted(button);
             button.remove();
-            return {declaration, declared, paints, painted};
+            return {declaration, declared, first, standing, second};
           };
           const atTheFrame = async (id, rows) => {
             const button = document.createElement('button');
@@ -8411,15 +8492,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             return {framed, standing};
           };
           return {
-            ambiguous: firstPaint('ambiguous', [
+            ambiguous: await firstPaint('ambiguous', [
               {id: 'test.first', keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
               {id: 'test.second', keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
             ]),
-            gatedAmbiguous: firstPaint('gated-ambiguous', [
+            gatedAmbiguous: await firstPaint('gated-ambiguous', [
               {id: 'test.gated-first', keys: ['F4'], does: 'First gated meaning', line: 'first', run: () => {}},
               {id: 'test.gated-second', keys: ['F4'], does: 'Second gated meaning', line: 'second', run: () => {}},
             ], () => true),
-            exclusive: firstPaint('exclusive', [
+            exclusive: await firstPaint('exclusive', [
               {id: 'test.first-state', keys: ['F2'], does: 'First state', line: 'first',
                when: () => true, run: () => {}},
               {id: 'test.second-state', keys: ['F2'], does: 'Second state', line: 'second',
@@ -8513,18 +8594,23 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           };
         }"""
     )
-    for name, binding in (("ambiguous", "F2"), ("gatedAmbiguous", "F4")):
-        refused = answers[name]
-        assert refused["declaration"] == "declared", answers
-        assert refused["declared"] is None, answers
-        assert f"two live meanings for {binding}" in refused["paints"][0], answers
-        assert refused["paints"][1] == "painted", answers
-        assert refused["painted"] is None, answers
+    for name in ("ambiguous", "gatedAmbiguous"):
+        assert answers[name] == {
+            "declaration": "declared",
+            "declared": None,
+            "first": None,
+            "standing": False,
+            "second": None,
+        }, answers
+    refusals = consume_browser_errors(page, "two live meanings for")
+    for binding in ("F2", "F4"):
+        assert any(f"meanings for {binding}" in error for error in refusals), refusals
     assert answers["exclusive"] == {
         "declaration": "declared",
         "declared": None,
-        "paints": ["painted", "painted"],
-        "painted": "F2",
+        "first": "F2",
+        "standing": True,
+        "second": "F2",
     }, answers
     assert "has no stable command id" in answers["missingIdentity"], answers
     assert "is not a stable command id" in answers["malformedIdentity"], answers
@@ -8816,7 +8902,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     resized(page, 420, 800)
     compact = line.evaluate(
         """node => {
-          const visible = [...node.children].filter(el => el.checkVisibility());
+          const visible = [...node.children]
+            .filter(el => el.checkVisibility({visibilityProperty: true}));
           const tops = [];
           const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
           for (const el of visible)
@@ -9521,7 +9608,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert more_node.evaluate("button => button === window.__lfShortcutMore")
         geometry = line.evaluate(
             """node => {
-              const visible = [...node.children].filter(el => el.checkVisibility());
+              const visible = [...node.children]
+                .filter(el => el.checkVisibility({visibilityProperty: true}));
               const boxes = visible.map(el => el.getBoundingClientRect());
               const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
               const rows = [];

@@ -774,10 +774,14 @@ def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve
           window.__lfFlipped = true;
           window.__lfHadComparison = !!document.querySelector('lf-shot wa-comparison');
           box.click();
-          box.click();
-          window.__lfFallbackShown = [...document.querySelectorAll('.lf-shotframe')]
-            .filter(frame => getComputedStyle(frame).visibility === 'visible')
-            .map(frame => frame.dataset.lfState);
+          // The second press is a second gesture, in a task of its own as a user's is.
+          setTimeout(() => {
+            window.__lfHadComparison ||= !!document.querySelector('lf-shot wa-comparison');
+            box.click();
+            window.__lfFallbackShown = [...document.querySelectorAll('.lf-shotframe')]
+              .filter(frame => getComputedStyle(frame).visibility === 'visible')
+              .map(frame => frame.dataset.lfState);
+          });
         }).observe(document, {attributes: true, subtree: true});"""
     )
     page.goto(url)

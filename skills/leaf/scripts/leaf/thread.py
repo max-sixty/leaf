@@ -800,6 +800,31 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     return error and f"thread_title event is invalid: {error}"
 
 
+def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
+    """Append `thread`'s first title in the voice of `identity`, within the caller's
+    page transaction, or nothing where it has one: a name given once stands until
+    someone renames the thread on purpose (`cmd_title`)."""
+    if any(
+        event["kind"] == "thread_title" and event["thread"] == thread
+        for event in page.events
+    ):
+        return None
+    return append_admitted(page, title_event(thread, title, identity))
+
+
+@contract_writer
+def cmd_name(page_dir: Path, message: str, text: str) -> dict | None:
+    """Name the thread `message` reaches unless it has a name, as a message posted
+    with a title does; the record, or None where the thread was named already."""
+    with PageTransaction(page_dir) as page:
+        return name_untitled(
+            page,
+            thread_named(page_dir, page.events, message),
+            text,
+            message_identity(),
+        )
+
+
 @contract_writer
 def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
     """Name the thread `thread` reaches without adding a turn or changing its

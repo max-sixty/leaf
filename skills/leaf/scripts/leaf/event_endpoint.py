@@ -23,6 +23,7 @@ from .page_view import PageView
 from .presence import claimant_reading
 from .registry.contract import RegistryError
 from .service import PageTransaction, requires_agent_attention
+from .thread_titles import name_opened_thread
 
 EventAnswer = tuple[int, dict]
 StateReader = Callable[[], dict]
@@ -125,6 +126,7 @@ def _execute_event(
     through the write. In particular, two tabs cannot both validate an undo against
     the same standing target and append after either lock is gone.
     """
+    opened = None
     with PageTransaction(page_dir) as page:
         # Acceptance outranks mutable state validation. A retry for an accepted
         # attempt asks for its state; it does not repeat the gesture.
@@ -134,7 +136,7 @@ def _execute_event(
         if not accepted:
             event["author"] = "page" if event["kind"] == "error" else "user"
             try:
-                append_admitted(page, event, capture_anchors=capture_anchors)
+                admitted = append_admitted(page, event, capture_anchors=capture_anchors)
             except EventRefused as error:
                 return event_rejection(event, error.user)
             except RegistryError as error:
@@ -170,4 +172,11 @@ def _execute_event(
                     and claim_harness(claim).nudge(page_dir)
                 ):
                     page.note_messaged(mark)
+            if event["kind"] == "comment" and claim:
+                opened = admitted["id"], claim
+    # A comment opens a thread with no name, and the claimant's host names it from
+    # these words while the agent is still reading them. The request reads the
+    # thread under the page's lock, so it starts once the lock is given back.
+    if opened and (generate := claim_harness(opened[1]).title_generator()):
+        name_opened_thread(generate, page_dir, opened[0], opened[1]["id"])
     return 200, {"ok": True, "state": state()}

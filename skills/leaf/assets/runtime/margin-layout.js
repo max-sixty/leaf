@@ -41,6 +41,7 @@ import { packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
+import { keeps } from "./keeps.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -105,7 +106,10 @@ export function scheduleResidency() {
 
 function settleResidency() {
   const main = document.querySelector("main");
-  if (!main) return false;
+  if (!main) {
+    decidePins(false);
+    return false;
+  }
   const style = getComputedStyle(main);
   const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
   // The offset the column stands at, which is the written shift only where the Layout
@@ -166,12 +170,29 @@ function settleResidency() {
         : 0,
   );
   const tokens = standing.join(" ");
+  decidePins(standing.includes("rail"));
   const changed =
     (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
   if (!changed) return false;
-  main.setAttribute("data-lf-margin", tokens);
+  keeps(main, "data-lf-margin", tokens);
   setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
   return true;
+}
+
+const railStands = (main) =>
+  (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
+
+// Said on the chrome root where the margin's standing is decided: where the markers are
+// pins, the banner offers the Page Map in their place (chrome.css). Until the standing
+// is decided it says nothing, rather than one answer the decision then takes back.
+let railStood = null;
+function decidePins(stands) {
+  railStood = stands;
+  paintPins();
+}
+function paintPins() {
+  if (railStood !== null)
+    layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !railStood);
 }
 
 const labelRect = (name, left, top, label) => ({
@@ -227,7 +248,7 @@ function placeMarginEntryLabel(control) {
     ) ??
     candidates.find(fits) ??
     candidates[0];
-  control.dataset.lfLabelSide = choice.name;
+  keeps(control, "data-lf-label-side", choice.name);
   label.style.setProperty(
     "--lf-label-x",
     `${choice.rect.left - marginEntryBox.left}px`,
@@ -253,6 +274,7 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
+  paintPins();
   hearScrolls(document);
   // Opening or closing a disclosure shows or hides the residents inside it. `toggle`
   // does not bubble, so it is heard on the way down.
@@ -567,7 +589,7 @@ export function registerMarginRow(row, options = {}) {
 export function unregisterMarginRow(row) {
   rows.delete(row);
   if (row) {
-    row.classList.remove("lf-withheld");
+    row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
     row.removeAttribute("data-lf-parked");
     for (const property of [
@@ -588,12 +610,6 @@ export function unregisterMarginRow(row) {
     observedColumn = null;
   }
   scheduleMarginLayout();
-}
-
-// `add` and `remove` re-serialize the class attribute whether or not the token changes,
-// and this pass runs on the heartbeat, so ask before marking.
-function mark(row, name, on) {
-  if (row.classList.contains(name) !== on) row.classList.toggle(name, on);
 }
 
 function setStyle(row, property, value) {
@@ -695,12 +711,7 @@ export function layoutMarginRows() {
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
-  const stands = (main.getAttribute("data-lf-margin") ?? "")
-    .split(" ")
-    .includes("rail");
-  // Said once, on the chrome root: where the markers are pins, the banner offers the
-  // Page Map in their place (chrome.css).
-  layer.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !stands);
+  const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
@@ -833,7 +844,7 @@ export function layoutMarginRows() {
   // to show. Its insets are written once packing has said where it stands.
   const px = (length) => (length ? `${length}px` : null);
   for (const { row, naming, shown, place, box, extent } of reads) {
-    mark(row, "lf-withheld", !shown);
+    row.classList.toggle("lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
@@ -868,13 +879,13 @@ export function layoutMarginRows() {
         read,
       };
     });
-  for (const { key: row, stranded, read } of placed)
+  for (const { key: row, stranded, read } of placed) {
+    row.toggleAttribute("data-lf-parked", stranded);
     if (stranded) {
       parked.set(row, read.anchor);
-      row.setAttribute("data-lf-parked", "");
-      mark(row, "lf-withheld", true);
-    } else if (row.hasAttribute("data-lf-parked"))
-      row.removeAttribute("data-lf-parked");
+      row.classList.toggle("lf-withheld", true);
+    }
+  }
   const standing = placed.filter(({ stranded }) => !stranded);
   seatPins(standing, { bands, shell, pinInset });
   const packed = packRows(standing, GAP);
@@ -893,8 +904,7 @@ export function layoutMarginRows() {
     // A pin seated beside its target can stand outside what its pane shows though the
     // target is inside it, so a seated pin is withheld by where it stands.
     if (read.place === "pin")
-      mark(
-        row,
+      row.classList.toggle(
         "lf-withheld",
         !targetShown(
           read.target,

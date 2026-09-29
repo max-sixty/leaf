@@ -167,8 +167,6 @@ export {
   LAYOUT,
   dragging,
   el,
-  keeps,
-  keepsText,
   layoutChanged,
   measure,
   offer,
@@ -179,3 +177,4 @@ export {
   selectableOffer,
   worksInside,
 } from "./widget-elements.js";
+export { keeps, keepsHidden, keepsText } from "./keeps.js";

@@ -211,6 +211,8 @@ def test_sort_film_readout_and_narration(browser, serve):
           const tail = film.querySelector('.sort-moment-tail');
           const widths = [];
           for (const index of [0, 1, 8, 9, 98, 99, 198, 199]) {
+            // Each position its own task, as each move of a user's scrub is.
+            await new Promise(resolve => setTimeout(resolve));
             scrub.value = steps[index].start + steps[index].dur - 0.01;
             scrub.dispatchEvent(new Event('input', {bubbles: true}));
             widths.push([
@@ -3181,7 +3183,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         resized(page, width, 900)
         margins_laid_out(page)
         band = page.evaluate(
-            """() => {
+            """() => lfUnwatched(() => {
               const sidebar = document.querySelector('aside.sidebar');
               const next = sidebar.nextElementSibling;
               const kept = next.getBoundingClientRect().top;
@@ -3190,7 +3192,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
               sidebar.style.display = '';
               return {kept, gone, float: getComputedStyle(sidebar).float,
                       toc: getComputedStyle(sidebar.querySelector('lf-toc')).position};
-            }"""
+            })"""
         )
         assert band["toc"] == "fixed" and band["float"] == "none", (width, band)
         assert band["kept"] == band["gone"], (

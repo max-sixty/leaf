@@ -97,6 +97,7 @@ import { watchArrivals } from "./arrivals.js";
 import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
+import { keeps } from "./keeps.js";
 
 // Attributes the runtime may paint onto elements the page owns: the source each runtime
 // writer uses, and with the declared marks (`$marks`) the replay signature's exclusion
@@ -405,6 +406,7 @@ function renderExternalLink(link) {
     mark.setAttribute("viewBox", "0 0 16 16");
     mark.dataset.lfGen = "1";
     mark.setAttribute("aria-hidden", "true");
+    mark.setAttribute("aria-label", "opens in a new tab");
     const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
     line.setAttribute(
       "d",
@@ -415,8 +417,7 @@ function renderExternalLink(link) {
   }
   // Written on a mark found as well as on one made: a link cloned with its mark, ids
   // stripped, is a new link to this pass, and its description must name its own mark.
-  mark.id = state.markId;
-  mark.setAttribute("aria-label", "opens in a new tab");
+  keeps(mark, "id", state.markId);
   state.addedNoopener = !tokens(state.baseline.rel).some(
     (value) => value.toLowerCase() === "noopener",
   );
@@ -518,11 +519,11 @@ export function markDeclared(root) {
     for (const tag of tagsDeclaring((entry) => entry[key])) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
-        el.setAttribute(paint, declared === true ? "" : declared);
+        keeps(el, paint, declared === true ? "" : declared);
     }
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
-        el.setAttribute(paint, el.getAttribute(authored));
+        keeps(el, paint, el.getAttribute(authored));
   }
 }
 

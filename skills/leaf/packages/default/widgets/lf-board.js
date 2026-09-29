@@ -43,6 +43,8 @@ import {
   rankAt,
   reducedMotion,
   scrollBehavior,
+  keeps,
+  keepsHidden,
   keepsText,
 } from "/runtime/widget-api.js";
 
@@ -169,12 +171,11 @@ customElements.define(
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
-          if (grip && grip.getAttribute("aria-label") !== name)
-            grip.setAttribute("aria-label", name);
+          keeps(grip, "aria-label", name);
           for (const button of card.querySelectorAll(
             ":scope > .lf-board-destinations > .lf-board-destination",
           ))
-            button.hidden = button.dataset.lfBoardTarget === col.id;
+            keepsHidden(button, button.dataset.lfBoardTarget === col.id);
         }
       }
     }
@@ -214,13 +215,13 @@ customElements.define(
       for (const grip of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-grip",
       )) {
-        grip.setAttribute("aria-disabled", String(!available));
-        grip.tabIndex = available ? 0 : -1;
+        keeps(grip, "aria-disabled", !available);
+        keeps(grip, "tabindex", available ? 0 : -1);
       }
       for (const button of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-board-destinations button",
       ))
-        button.disabled = !available;
+        button.toggleAttribute("disabled", !available);
     };
 
     #available() {

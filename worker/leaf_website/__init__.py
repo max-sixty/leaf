@@ -41,7 +41,6 @@ from leaf.codex import (
     stop_app_server,
     stream_reply_target,
 )
-from leaf.codex_titles import name_untitled_threads
 from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
@@ -64,6 +63,7 @@ from leaf.thread import (
     fail_answer,
     release_delivery_reply,
 )
+from leaf.thread_titles import app_server_title, name_untitled_threads
 from starlette.responses import Response
 
 PORT = 8080
@@ -999,7 +999,10 @@ class WebsiteCodexHost:
             durationMs=round((time.monotonic() - started) * 1000),
         )
         name_untitled_threads(
-            self.endpoint, prepared.payload, thread_id, HOSTED_MODEL, log_agent
+            app_server_title(self.endpoint, HOSTED_MODEL),
+            prepared.payload,
+            thread_id,
+            log_agent,
         )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn

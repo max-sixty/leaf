@@ -1673,9 +1673,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
      out of the thread panel, which stands over the page's right edge. A covering
      thread panel makes it inert background; a covering drawer stands under it, as a
-     drawer always does. The line wraps so the runtime can see which hints spill past one row,
-     and hides them (two rows in the expanded bar): one row fills the bar's stated
-     height exactly, and the expanded bar's second grows the line upward. The rows pack
+     drawer always does. The line wraps, and the runtime works out from the hints' widths
+     which would spill past one row and hides them (two rows in the expanded bar): one row
+     fills the bar's stated height exactly, and the expanded bar's second grows the line
+     upward. The rows pack
      to the foot, and the foot's padding centres a row of key badges in the bar, so the
      last row stands where a one-row line does, level with the status. Overflow is the
      backstop for a single hint wider than the window. */
@@ -1748,8 +1749,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-banner-status, .lf-shortcut-bar { display: none; }
     .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
   }
+  /* A covering thread panel stands over the bar's right end, and its foot over the
+     status's seat; notices are live feedback, so the status rises clear of that foot,
+     whose height syncLayout states. */
+  :scope > .lf-thread-panel[aria-modal="true"] ~ .lf-bottom-status {
+    bottom: calc(var(--lf-panel-foot-h, 0px) + 14px + var(--lf-safe-bottom)); translate: none; }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
-  .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
+  /* A row off the line keeps its width, out of flow and unseen, so the trim reads every
+     row where it stands rather than showing one to see whether it wraps
+     (shortcut-bar.js). */
+  .lf-shortcut-bar .lf-shortcut[hidden] { position: absolute; inset-block-start: 0;
+    inset-inline-start: 0; visibility: hidden; }
   .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
   .lf-binding-sequence { display: inline-flex; align-items: center; gap: 1px;

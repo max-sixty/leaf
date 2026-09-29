@@ -23,12 +23,22 @@
    applied because content shrank is identified by the falling limit and the scroller
    standing exactly on it, and is not paid for twice.
 
-   A hold is the sole anchoring authority for its mutation: `overflow-anchor: none` is set
-   on the scroller for the hold's life and removed on release, so the browser and the hold
-   never compensate the same reflow. A hold taken while another stands on the same
+   A mutation that spans tasks takes its hold with `take` and ends it with `finish`, which
+   corrects once, then follows frame by frame while `following()` says the mutation is
+   still running. Such a hold is the sole anchoring authority for its mutation:
+   `overflow-anchor: none` stands on the scroller for the hold's life and leaves on
+   release, so the browser and the hold never compensate the same reflow, and a user's
+   scroll between frames stays theirs. A hold taken while another stands on the same
    scroller inherits its reference, because a mutation in flight (a fold) has already
-   moved whatever the pointer would now name. `finish` corrects once, then follows frame
-   by frame while `following()` says the mutation is still running. */
+   moved whatever the pointer would now name.
+
+   One synchronous mutation takes its hold with `around(mutate)`, which claims nothing.
+   Nothing but reflow moves a scroller inside one task: the browser's own anchoring, which
+   a forced layout applies, or a clamp. So its correction pays for every movement since
+   the reading and lands the reference where it stood, whatever the browser did first,
+   and the scroller's style is never written and taken back in the one task. So `mutate`
+   moves no scroller itself: a `focus()` without `preventScroll` or a `scrollIntoView`
+   inside it would be read as reflow and undone. */
 import { nextFrame } from "./rendering.js";
 import { visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";
@@ -48,14 +58,22 @@ export function placeCandidates({ inherited, named, visible }) {
 
 // How far to scroll so a reference whose content offset moved from `was` to `now` stands
 // where it stood. `scrollTop`/`limit` are the scroller now and `held` the reading the
-// hold last corrected at; a clamp is removed only where the limit fell below the held
-// scroll and the scroller stands exactly on it.
-export function placeCorrection({ was, now, scrollTop, limit, held }) {
-  const clamp =
-    limit < held.limit && held.scrollTop > limit && scrollTop === limit
+// hold last corrected at. Across tasks a clamp is removed only where the limit fell below
+// the held scroll and the scroller stands exactly on it, since any other movement may be
+// the user's; `withinTask`, every movement since the reading is reflow's.
+export function placeCorrection({
+  was,
+  now,
+  scrollTop,
+  limit,
+  held,
+  withinTask = false,
+}) {
+  const reflowed =
+    withinTask || (limit < held.limit && held.scrollTop > limit && scrollTop === limit)
       ? scrollTop - held.scrollTop
       : 0;
-  return now - was - clamp;
+  return now - was - reflowed;
 }
 
 export function placeKeeper(scroller, { items, identity, active = () => true }) {
@@ -89,10 +107,17 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     return replacement ?? null;
   };
 
+  // Native anchoring is off exactly while a hold that spans tasks stands. A same-value
+  // property set and the removal of an absent one write nothing.
+  function claim() {
+    if (standing?.spans) scroller.style.setProperty("overflow-anchor", "none");
+    else scroller.style.removeProperty("overflow-anchor");
+  }
+
   function release(hold) {
     if (standing !== hold) return;
     standing = null;
-    scroller.style.removeProperty("overflow-anchor");
+    claim();
   }
 
   function correct(hold) {
@@ -106,6 +131,7 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
       scrollTop: scroller.scrollTop,
       limit: limit(),
       held: hold.at,
+      withinTask: !hold.spans,
     });
     if (delta) scroller.scrollTop += delta;
     // Every candidate observed this reflow too; refresh their baselines after the
@@ -118,11 +144,16 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     return true;
   }
 
-  function take() {
+  function take({ spans = true } = {}) {
     const prior = standing;
     if (prior) correct(prior);
-    standing = null;
-    scroller.style.removeProperty("overflow-anchor");
+    standing = heldPlace(prior, spans);
+    claim();
+    return standing;
+  }
+
+  // The place as it stands now, carrying on from `prior` where one stood.
+  function heldPlace(prior, spans) {
     if (!active()) return null;
     const band = visibleBand(scroller);
     if (!band) return null;
@@ -162,13 +193,12 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
         contentTop: node.getBoundingClientRect().top + scroller.scrollTop,
       }));
     if (!references.length) return null;
-    standing = {
+    return {
       named: named[0] ?? null,
       references,
       at: { scrollTop: scroller.scrollTop, limit: limit() },
+      spans,
     };
-    scroller.style.setProperty("overflow-anchor", "none");
-    return standing;
   }
 
   function follow(hold, following) {
@@ -185,13 +215,13 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
 
   // One synchronous mutation under a hold.
   function around(mutate) {
-    const hold = take();
+    const held = take({ spans: false });
     try {
       return mutate();
     } finally {
-      finish(hold);
+      finish(held);
     }
   }
 
-  return { take, finish, around };
+  return { take: () => take(), finish, around };
 }

@@ -5266,9 +5266,11 @@ def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit
         "target-1": "detached"
     }
 
+    # Armed and reset in two tasks, as two gestures are: in one, arming would be a write
+    # the reset takes back.
+    workbench.evaluate("element => element.arm()")
     reset = workbench.evaluate(
         """element => {
-          element.arm();
           element.reset();
           return element.currentDraft();
         }"""
@@ -10841,7 +10843,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     the shared rule is what draws it, and that case is asserted on a request press in
     test_render_projection.py, which is where the layer has a control no widget rings."""
     page = open_page(browser, serve(CHIP_PAGE))
-    state = """() => {
+    state = """() => lfUnwatched(() => {
       // Whatever a control spends on saying it is live: the layer's wash, its own ink
       // and ground, and the disc a compose submit paints in its ::before.
       const face = (el) => [getComputedStyle(el), getComputedStyle(el, '::before')]
@@ -10850,7 +10852,8 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         .join(' / ');
       // The same control with the fact of being spent lifted off it, and put straight
       // back: the comparison is against what this control would wear with something
-      // left to do, not against a number.
+      // left to do, not against a number. The lift is the test's own write, outside
+      // what the page is held to (`lfUnwatched`).
       const armed = (el) => {
         const native = el.disabled;
         const declared = el.getAttribute('aria-disabled');
@@ -10875,7 +10878,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         presses: presses.map(kind), said: said.map(kind),
         saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),
       };
-    }"""
+    })"""
     rest = page.evaluate(state)
     live = [p for p in rest["presses"] if not p["off"]]
     spent = [p for p in rest["presses"] if p["off"]]

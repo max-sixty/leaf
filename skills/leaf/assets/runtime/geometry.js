@@ -107,6 +107,30 @@ export function documentPoint(left, top) {
   };
 }
 
+// A positioned chip stands on whole pixels. The inline style keeps a length to six
+// significant digits, so a fractional place reads back as a nearby one, and a pass that
+// computes from what it reads writes a value that differs from what stands while saying
+// the same thing. A whole pixel reads back as itself.
+export function placeChip(chip, left, top) {
+  chip.style.left = `${Math.round(left)}px`;
+  chip.style.top = `${Math.round(top)}px`;
+}
+
+// The box a positioned chip would take at `at`, a `left` and `top` in its own
+// coordinates, read off where it stands now. A placement pass measures a chip at its
+// anchor this way rather than moving it there to look, so the chip is written once, to
+// where the pass seats it; one not yet placed is put at `at` to be read.
+export function boxAt(chip, at) {
+  if (!chip.style.left || !chip.style.top) placeChip(chip, at.left, at.top);
+  const now = chip.getBoundingClientRect();
+  return new DOMRect(
+    now.left + at.left - parseFloat(chip.style.left),
+    now.top + at.top - parseFloat(chip.style.top),
+    now.width,
+    now.height,
+  );
+}
+
 // What a container lets the user see of what it holds, or null where it shows all of
 // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
 // content-visibility both clip while overflow computes `visible`, and a box under either

@@ -553,6 +553,16 @@ def test_adaptive_app_skips_a_frame_the_host_did_not_approve(
         if call["method"] == "tools/call"
     ] == ["leaf_snapshot_refresh"]
     assert "did not approve" in app.locator("#status").text_content()
+    # The host sizes its frame to the height the app's content takes.
+    height = app.evaluate(
+        "Math.ceil(document.documentElement.getBoundingClientRect().height)"
+    )
+    page.wait_for_function(
+        """height => window.calls
+              .filter(call => call.method === 'ui/notifications/size-changed')
+              .at(-1)?.params.height === height""",
+        arg=height,
+    )
 
 
 def test_adaptive_app_falls_back_when_the_complete_page_never_signals_ready(

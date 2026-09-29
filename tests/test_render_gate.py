@@ -103,8 +103,8 @@ from render_harness import (
     plant_quiet_word,
     primed,
     resized,
-    restless_writes,
     root_overflow,
+    scroll_followers,
     scroll_writes,
     take_browser_errors,
     write,
@@ -2148,7 +2148,7 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { once, widgetController } from "/runtime/widget-api.js";\n'
+        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
         "  controller = widgetController(this);\n"
         "  stop;\n"
@@ -2156,7 +2156,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
         '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
+        '      keepsText(this.querySelector("p"), "State replaced unrelated prose.");\n'
         "  }\n"
         "});\n"
     )
@@ -2283,7 +2283,7 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { once, widgetController } from "/runtime/widget-api.js";\n'
+        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
         "  controller = widgetController(this);\n"
         "  stop;\n"
@@ -2291,8 +2291,8 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
         '    if (state.change.value === "corrupt")\n'
-        '      this.closest("lf-shell").querySelector(":scope > p").textContent = '
-        '"Child state replaced wrapper prose.";\n'
+        '      keepsText(this.closest("lf-shell").querySelector(":scope > p"), '
+        '"Child state replaced wrapper prose.");\n'
         "  }\n"
         "});\n"
     )
@@ -2570,8 +2570,9 @@ SCROLL_PASS = (30,) * 8 + (-30,) * 8
 def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
     """Scrolling a page writes to its DOM only where the scroll changed a state: which
     section is current, which row a key reaches. Nothing is rewritten with the value it
-    already held, and nothing is placed from scroll events, since what follows the
-    scroll is laid out by the browser, which carries it with the scroll itself.
+    already held (the browser fixture fails that on any page), and nothing is placed
+    from scroll events, since what follows the scroll is laid out by the browser, which
+    carries it with the scroll itself.
 
     Every write costs Chrome a repaint of the whole document while a highlight holds a
     range, which every page with a quoted comment does, so a write on every scroll event
@@ -2590,8 +2591,8 @@ def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
     )
     rendered(page)
     scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
-    restless = restless_writes(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
-    assert restless == [], "\n".join(restless)
+    following = scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
+    assert following == [], "\n".join(following)
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

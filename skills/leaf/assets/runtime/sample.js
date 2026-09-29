@@ -84,7 +84,7 @@ export function mountSample(
   let operation = null;
   let closing = null;
   let loading = null;
-  frame.inert = passive;
+  frame.toggleAttribute("inert", passive);
   frame.toggleAttribute("data-lf-contained", true);
   frame.lfDressRoot = (root) => {
     root.toggleAttribute("data-lf-sample-block", !(passive || asWindow));
@@ -119,7 +119,7 @@ export function mountSample(
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");
       loading = new AbortController();
       const doc = await presented(frame, current, loading.signal);
-      if (!passive) doc.body.inert = false;
+      if (!passive) doc.body.toggleAttribute("inert", false);
       return doc;
     } catch (error) {
       await retire();

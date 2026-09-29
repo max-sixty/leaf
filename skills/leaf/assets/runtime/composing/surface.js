@@ -65,6 +65,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import { bringBackSurfaceOf, declareOffFlowSurface } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
   dismissBannerControls,
@@ -124,7 +125,7 @@ import {
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
-import { keeps } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
 // one. The destination box's placeholder names whichever of them dispatch would answer.
@@ -287,7 +288,7 @@ export function createResponseSurface({
       fabFloating = false;
       moveFab(outlet);
     }
-    fabBar.dataset.lfPresentation = "inline";
+    keeps(fabBar, "data-lf-presentation", "inline");
     fabBar.style.display = "inline-flex";
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
@@ -777,8 +778,8 @@ export function createResponseSurface({
     fab.style.display = fabAnchor ? "" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
-      fabBar.setAttribute("aria-label", label ? `Respond to ${label}` : "Respond");
-      fabInput.setAttribute("aria-label", label ? `Comment on ${label}` : "Comment");
+      keeps(fabBar, "aria-label", label ? `Respond to ${label}` : "Respond");
+      keeps(fabInput, "aria-label", label ? `Comment on ${label}` : "Comment");
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
@@ -952,6 +953,7 @@ export function createResponseSurface({
       return;
     }
     const anchor = structuredClone(fabAnchor);
+    bringBackSurfaceOf(fabBar);
     landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor));
   }
   const fabOptionsAvailable = () =>
@@ -1267,6 +1269,18 @@ export function createResponseSurface({
   const fabAnchorAt = () => fabAnchor;
 
   function mount() {
+    // Floating, the box is carried away with its passage and comes back with it, by the
+    // passage's first line, which a block taller than the window would not bring back;
+    // inline, it is in flow and the browser's own reveals reach it.
+    declareOffFlowSurface(fabBar, {
+      floats: () => Boolean(fabAnchor && fabFloating),
+      bringBack: (behavior) => {
+        const found = resolveAnchor(fabAnchor, pageText());
+        const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;
+        const line = start?.parentElement ?? fabTargetAt();
+        if (line) scrollToElement(line, behavior, "nearest");
+      },
+    });
     // Keep the native selection through the button's press; focusing the actual
     // comment field performs the handoff after the passage has been captured.
     selectionComment.addEventListener("mousedown", (event) => event.preventDefault());

@@ -166,6 +166,9 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
             nudges.append(page)
             return True
 
+        def title_generator(self):
+            return None
+
     monkeypatch.setattr(endpoint_model, "claim_harness", lambda claim: Harness())
     status, answer = endpoint_model.accept_event(
         page_dir,

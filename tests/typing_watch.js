@@ -9,7 +9,7 @@
 // a frame, net of scrolling; a shift within a second of a keystroke, with no other key
 // or press since, is that keystroke's. A shifted element that holds the field or stands
 // before it in tree order is reported on the console as a browser problem, which fails
-// the test like any other.
+// the test like any other; it is named by write_watch.js's `lfPlace`, installed first.
 //
 // A keystroke is a trusted `beforeinput`, whose composed path names the field: a
 // textarea, an input, or the host of a `leaf-text`'s closed editor. A key the page
@@ -17,15 +17,6 @@
 // is not typing's. Each finding is reported once per document.
 (() => {
   const WINDOW = 1000;
-  // An element by its tag, id and classes, one with neither by where it stands.
-  const place = (node) => {
-    const named =
-      `${node.localName}${node.id ? "#" + node.id : ""}` +
-      `${node.classList.length ? "." + [...node.classList].join(".") : ""}`;
-    return !node.id && !node.classList.length && node.parentElement
-      ? `${named} in ${place(node.parentElement)}`
-      : named;
-  };
   // The node's parent in the composed tree, crossing from a shadow root to its host.
   const up = (node) => (node instanceof ShadowRoot ? node.host : node.parentNode);
   const chain = (node) => {
@@ -69,7 +60,7 @@
       // A source whose element is gone, or is a pseudo-element, names no node to place.
       for (const { node, previousRect, currentRect } of entry.sources) {
         if (!(node instanceof Element) || !moves(node, field)) continue;
-        const what = `typing in ${place(field)} moved ${place(node)}`;
+        const what = `typing in ${window.lfPlace(field)} moved ${window.lfPlace(node)}`;
         if (reported.has(what)) continue;
         reported.add(what);
         const dx = Math.round(currentRect.x - previousRect.x);

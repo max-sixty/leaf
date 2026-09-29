@@ -11,6 +11,7 @@ import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
@@ -222,11 +223,18 @@ export class ThreadView {
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
-    if (surface === "panel") this.node.setAttribute("name", commands.detailsGroup);
-    else this.node.tabIndex = -1;
+    // A panel card's disclosure is the thread list's to write, from its one choice.
+    if (surface !== "panel") {
+      this.node.tabIndex = -1;
+      this.node.classList.add("lf-page-thread", "lf-ui");
+      this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
+      this.node.dataset.lfGen = "1";
+      this.node.dataset.lfOffer = "";
+    }
+    this.#metadataActions.className = "lf-thread-meta-actions";
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
-      this.node.classList.remove("grow");
+      this.node.classList.toggle("grow", false);
     });
     this.node.addEventListener("lf-reveal", (event) => {
       const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
@@ -280,24 +288,18 @@ export class ThreadView {
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
-    this.node.hidden = !model.visible && !model.folding;
+    keepsHidden(this.node, !model.visible && !model.folding);
     this.#growing ||= !prior && model.grow;
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
     this.node.classList.toggle("grow", this.#growing && !model.folding);
-    if (!panel) {
-      this.node.classList.add("lf-page-thread", "lf-ui");
-      this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-      this.node.dataset.lfGen = "1";
-      this.node.dataset.lfOffer = "";
-    }
-    this.node.inert = model.folding;
-    this.node.setAttribute(panel ? "data-id" : "data-thread", model.id);
-    this.node.dataset.resolved = String(model.resolved);
-    if (model.attempt) this.node.dataset.attempt = model.attempt;
+    this.node.toggleAttribute("inert", model.folding);
+    keeps(this.node, panel ? "data-id" : "data-thread", model.id);
+    keeps(this.node, "data-resolved", model.resolved);
+    if (model.attempt) keeps(this.node, "data-attempt", model.attempt);
     else delete this.node.dataset.attempt;
     if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
-      this.node.open = !model.resolved;
+      this.node.toggleAttribute("open", !model.resolved);
       this.#summaryResolved = model.resolved;
     }
     const wanted = new Set(model.messages.map((message) => message.key));
@@ -306,7 +308,6 @@ export class ThreadView {
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || model.folding || marginControls) {
-      this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement];
@@ -358,7 +359,7 @@ export class ThreadView {
       }
       const nodes = range.messages.map((message) => {
         const node = messageNodes.get(message.key);
-        node.dataset.lfSummary = range.summary.id;
+        keeps(node, "data-lf-summary", range.summary.id);
         return node;
       });
       return {
@@ -539,12 +540,12 @@ export class ThreadView {
       button.onclick = this.#settle;
       this.#settlements.set(state.kind, button);
     }
-    button.setAttribute("aria-disabled", String(state.pending || model.folding));
-    button.setAttribute("aria-busy", String(state.pending && !model.folding));
+    keeps(button, "aria-disabled", state.pending || model.folding);
+    keeps(button, "aria-busy", state.pending && !model.folding);
     if (!reopen) {
       const label = model.folding ? "Resolved" : state.label;
-      button.setAttribute("aria-label", label);
-      button.title = label;
+      keeps(button, "aria-label", label);
+      keeps(button, "title", label);
     }
     render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
     return button;

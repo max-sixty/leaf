@@ -815,14 +815,15 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "widgets" / "lf-feed.js"
     module.write_text(
         module.read_text()
+        .replace("{offer,", "{keeps, keepsText, offer,")
         .replace("({value}) => {", "({value}, prior) => {")
         .replace(
             "const row = document.createElement('p');\n"
             "      row.append(value, offer('button', 'inspect', 'Inspect'));",
             """const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      link.href = value === 'Ready' ? 'https://example.com/status' : '#title';
-      link.textContent = value;
+      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, value);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';
@@ -1065,9 +1066,9 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
             posture: leaf.readingPosture(previewId),
           };
 
+          // Hidden until it is removed below.
           previewHost.hidden = true;
           const hiddenBounds = leaf.shownRegionBounds(previewId);
-          previewHost.hidden = false;
 
           let refused;
           try {
@@ -4429,14 +4430,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so the margin's
-    # thread margin entry and each passage's comment count open the fallback card and Threads
-    # stays shut; a disconnected widget leaves no such destination and the panel answers.
+    # thread margin entry on each datum and each passage's comment count open the fallback
+    # card and Threads stays shut; a disconnected widget leaves no such destination and
+    # the panel answers.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.locator(".lf-threads-toggle").click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
-        expect(markers).to_have_count(1)
+        expect(markers).to_have_count(2)
         markers.first.click()
         expect(page.locator(".lf-margin-preview")).to_be_visible()
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
@@ -4970,10 +4972,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
             currentRevision = snapshot?.revision ?? null;
           });
           stopCurrent();
-          widget.removeAttribute('source');
-          let unbound = 'not-called';
-          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
-          stopUnbound();
           widget.setAttribute('source', 'constructor');
           let absent = 'not-called';
           const stop = watchData(widget, 'rows', snapshot => { absent = snapshot; });
@@ -4998,6 +4996,10 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           next.sources.deployments.revision = 'next-revision';
           acceptData(next, runtime.state.taken);
           stopCaptured();
+          widget.removeAttribute('source');
+          let unbound = 'not-called';
+          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
+          stopUnbound();
           return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )

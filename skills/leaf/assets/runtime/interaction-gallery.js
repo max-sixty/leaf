@@ -21,11 +21,12 @@
  * transition while still reaching complete state when the caller ignores it. The swipe
  * package's deck module is the worked example. */
 
-import { nextFrame } from "./rendering.js";
+import { afterScript, nextFrame } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
 import { offer, reserve } from "./widget-elements.js";
+import { keeps, keepsHidden, keepsText } from "./keeps.js";
 
 class StaleDemo extends Error {}
 
@@ -105,7 +106,7 @@ class Demo {
       throw new Error("the contained Leaf page did not expose its gallery adapter");
     this.frameApi = frameApi;
     this.frameApi.resetThreads();
-    this.frameElement.dataset.interactionReady = "";
+    this.frameElement.toggleAttribute("data-interaction-ready", true);
     const modulePath = this.figure.dataset.interactionModule;
     if (modulePath) {
       const loaded = await import(modulePath);
@@ -142,8 +143,8 @@ class Demo {
   // travels as an attribute and lives in the caption for as long as the caption stands.
   keypressCaption(shown) {
     if (!this.keypress) return;
-    this.keypress.textContent = shown ? this.keypress.dataset.interactionKeypress : "";
-    this.keypress.hidden = !shown;
+    keepsText(this.keypress, shown ? this.keypress.dataset.interactionKeypress : "");
+    keepsHidden(this.keypress, !shown);
   }
 
   setState(state) {
@@ -158,7 +159,7 @@ class Demo {
   reset() {
     this.generation += 1;
     this.stopAnimations();
-    this.pointer.hidden = true;
+    keepsHidden(this.pointer, true);
     this.keypressCaption(false);
     this.pointerPosition = null;
     this.pausedByView = false;
@@ -323,7 +324,7 @@ class Demo {
       y: this.stage.clientHeight * 0.82,
     };
     this.pointerPosition = from;
-    this.pointer.hidden = false;
+    keepsHidden(this.pointer, false);
     this.pointer.style.transform = `translate(${from.x}px, ${from.y}px)`;
     this.pointer.style.opacity = "1";
   }
@@ -387,7 +388,7 @@ class Demo {
       generation,
     );
     animation.cancel();
-    this.pointer.hidden = true;
+    keepsHidden(this.pointer, true);
   }
 }
 
@@ -558,9 +559,11 @@ export function installInteractionGallery() {
   let active = null;
   let onScreen = false;
 
-  const demos = new Map(
-    panels.map((panel) => [panel, new Demo(panel, () => renderControls())]),
-  );
+  // A step through the demonstration can pass through states in one script (a switch
+  // deactivates one demo, readies the next and starts it), so the controls are painted
+  // once, from where the script leaves them.
+  const paintControls = () => afterScript(renderControls);
+  const demos = new Map(panels.map((panel) => [panel, new Demo(panel, paintControls)]));
 
   function selectedPanel() {
     return panels.find((panel) => !panel.hasAttribute("hidden"));
@@ -569,8 +572,8 @@ export function installInteractionGallery() {
   function renderControls() {
     if (!active) return;
     const words = TOGGLE_WORDS;
-    toggle.textContent = words[active.state];
-    toggle.disabled = ["idle", "error"].includes(active.state);
+    keepsText(toggle, words[active.state]);
+    toggle.toggleAttribute("disabled", ["idle", "error"].includes(active.state));
     const label = active.panel.getAttribute("label");
     const states = {
       idle: "Loading",
@@ -582,8 +585,8 @@ export function installInteractionGallery() {
       finished: "Complete",
       error: "Could not play",
     };
-    status.textContent = states[active.state];
-    toggle.setAttribute("aria-label", `${words[active.state]} ${label} animation`);
+    keepsText(status, states[active.state]);
+    keeps(toggle, "aria-label", `${words[active.state]} ${label} animation`);
     if (active.state === "finished" && loop.checked && onScreen) {
       const completed = active;
       queueMicrotask(() => {
@@ -613,7 +616,7 @@ export function installInteractionGallery() {
       active = next;
     }
     if (active.loadState === "ready" && active.state === "idle") active.activate();
-    renderControls();
+    paintControls();
     maybePlay();
   }
 
@@ -664,7 +667,7 @@ export function installInteractionGallery() {
   const stopMotionPreference = onMotionPreferenceChange((reduced) => {
     if (reduced) active?.pause();
     else maybePlay();
-    renderControls();
+    paintControls();
   });
 
   uninstallGallery = () => {

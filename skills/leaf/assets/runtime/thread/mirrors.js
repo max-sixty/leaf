@@ -86,7 +86,7 @@ export function registerMirrorConsumer(owner, render, { commands }) {
         }
       outlets = new Set(selected.keys());
       for (const [outlet, threads] of selected) {
-        outlet.dataset.lfThreadSurface = "";
+        outlet.toggleAttribute("data-lf-thread-surface", true);
         renderThreadMirrors(outlet, threads, commands);
       }
     } catch (error) {

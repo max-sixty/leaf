@@ -202,10 +202,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
     (authored / "app.js").write_text(
         'import { value } from "./nested/value.js"; '
         'import { moduleUrl, prose } from "./widgets/lf-options.js"; '
+        "const say = (id, text) => { const out = document.getElementById(id); "
+        "if (out.textContent !== text) out.textContent = text; }; "
         'document.querySelector("#read").addEventListener("click", () => { '
-        'document.querySelector("#result").textContent = value; '
-        'document.querySelector("#module").textContent = '
-        "`${window.widgetLoads}: ${prose}: ${moduleUrl}`; });"
+        'say("result", value); '
+        'say("module", `${window.widgetLoads}: ${prose}: ${moduleUrl}`); });'
     )
     (authored / "nested" / "value.js").write_text('export const value = "Captured";')
     (authored / "style.css").write_text('@import "./nested/theme.css";')

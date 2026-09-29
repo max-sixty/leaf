@@ -93,7 +93,8 @@ import {
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
@@ -978,11 +979,12 @@ export function createVersionController({
       base.revision < runtime.currentRevision
     );
   };
-  // Whether the comparison is standing and what against — the only thing that decides
-  // it, the marks and the paint being renderings rather than a second copy.
-  function setDiff(on, base) {
+  // Whether the comparison is standing and what against, or which base a stopped one is
+  // waiting on — the only thing that decides it, the marks and the paint being renderings
+  // rather than a second copy.
+  function setDiff(on, base, pendingBase = null) {
     diffOn = on;
-    diffPendingBase = null;
+    diffPendingBase = pendingBase;
     if (on) diffBase = base;
     if (!on) {
       diffRequest++; // a stop outranks a comparison still on its way
@@ -1010,11 +1012,10 @@ export function createVersionController({
     // Selection is immediate even though its result needs two documents. Clear the prior
     // marks, move the menu's checked state to the requested base, and expose the wait as
     // busy. A fast walk then never leaves the last completed base highlighted under focus
-    // on a different row.
-    setDiff(false);
+    // on a different row. One presentation says both, so the picker never passes through
+    // an unlit state it is about to leave.
+    setDiff(false, null, base);
     const mine = ++diffRequest;
-    diffPendingBase = base;
-    presentPicker();
     const baseVersion = stamped(base);
     const baseRevision = baseVersion?.revision;
     if (baseRevision == null) {

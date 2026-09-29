@@ -10,6 +10,7 @@
 import { nothing, render } from "../vendor/browser-runtime.js";
 
 import { el } from "./widget-elements.js";
+import { afterScript } from "./rendering.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -33,16 +34,21 @@ export const noticeVisible = () => noticePresentation.visible;
 
 // The complete bottom-status renderer registers one synchronous invalidation door. A
 // notice acknowledges a gesture before its caller returns; routing this through the
-// shared frame repaint would turn that same-turn contract into eventual feedback.
+// shared frame repaint would turn that same-turn contract into eventual feedback. Taking
+// a notice down acknowledges nothing, so it is drawn at the end of the turn's script,
+// still before paint: a gesture that takes one notice down and puts the next up (a walk
+// beginning, then its acknowledgement) writes the notice once, to the one it put up.
 export function registerNoticePresentation(invalidate) {
   if (invalidateNoticePresentation)
     throw new Error("The notice presentation already has an owner");
   invalidateNoticePresentation = invalidate;
 }
 
+const presentTakedown = () => invalidateNoticePresentation?.();
 const presentNotice = (message, visible) => {
   noticePresentation = Object.freeze({ message, visible });
-  invalidateNoticePresentation?.();
+  if (visible) invalidateNoticePresentation?.();
+  else afterScript(presentTakedown);
 };
 
 export function announce(msg) {

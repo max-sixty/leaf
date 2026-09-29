@@ -29,6 +29,7 @@ import {
 import { deepFocus } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
+import { afterScript } from "../rendering.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -349,12 +350,25 @@ export function reflectFirstScopes() {
     reflectElementShortcuts(scope.el);
   }
 }
-export const paintKeys = () => {
+// The keys are painted once per script, when its synchronous work is done (`afterScript`).
+// A render that replaces the control the user stood on and the focus that lands on its
+// successor each ask for a paint; painted at once, the first would reflect the moment
+// between them, when the user stands nowhere, and the second put back what it took off.
+// A scope refused there is reported, and the elements after it still paint.
+function reflectKeys() {
   pruneScopedElements();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
-    if (scoped?.isConnected) reflectElementShortcuts(scoped);
+    if (!scoped?.isConnected) continue;
+    try {
+      reflectElementShortcuts(scoped);
+    } catch (error) {
+      reportError(error);
+    }
   }
+}
+export const paintKeys = () => {
+  afterScript(reflectKeys);
   repaint();
 };
 /** What a scope answers right now, as a listener hears it read out — key names rather than
@@ -389,22 +403,22 @@ const FOCUS_WITHIN = "lf-focus-within";
 // still select a label's authored words.
 let labelPress = null;
 const markLabelPress = (held, pointerId) => {
-  held.classList.add(FOCUS);
+  held.classList.toggle(FOCUS, true);
   const within = [];
   for (let node = held; node; node = upFrom(node)) {
-    node.classList.add(FOCUS_WITHIN);
+    node.classList.toggle(FOCUS_WITHIN, true);
     within.push(node);
   }
-  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
+  if (held.matches(":focus-visible")) held.classList.toggle(FOCUS_VISIBLE, true);
   labelPress = { held, pointerId, within };
 };
 const finishLabelPress = () => {
   const press = labelPress;
   if (!press) return null;
   labelPress = null;
-  press.held.classList.remove(FOCUS);
-  press.held.classList.remove(FOCUS_VISIBLE);
-  for (const node of press.within) node.classList.remove(FOCUS_WITHIN);
+  press.held.classList.toggle(FOCUS, false);
+  press.held.classList.toggle(FOCUS_VISIBLE, false);
+  for (const node of press.within) node.classList.toggle(FOCUS_WITHIN, false);
   repaint();
   return press;
 };

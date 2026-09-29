@@ -8,6 +8,7 @@
    together with preparation for frozen widgets newly joined to the panel. A mechanical
    repaint — a draft, a hover, a narrowing — claims the same region through `present`. */
 import { clocked } from "../presence.js";
+import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
@@ -27,14 +28,18 @@ import {
   readApplication,
 } from "../semantic-state.js";
 
+// Each held element names the thread holding it, decided whole before any is written, so
+// an element that stays held is not cleared and marked again.
 function renderHolds(threads) {
-  for (const node of document.querySelectorAll("[data-lf-held]"))
-    node.removeAttribute("data-lf-held");
+  const held = new Map();
   for (const thread of threads) {
     if (thread.resolved || !thread.root.holds || thread.root.pending) continue;
     const target = elementById(thread.root.holds);
-    if (target && !inChrome(target)) target.dataset.lfHeld = thread.id;
+    if (target && !inChrome(target)) held.set(target, thread.id);
   }
+  for (const node of document.querySelectorAll("[data-lf-held]"))
+    if (!held.has(node)) node.removeAttribute("data-lf-held");
+  for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
 
 export function createThreadPresentation({

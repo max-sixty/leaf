@@ -1,9 +1,10 @@
 /* The user's place in a scroller, and the band of it they can see.
 
    The folds (which candidate holds the place, how far a correction scrolls, what a cover
-   takes off a band) are asked directly. The hold itself is asked once over boxes this
-   file states, since happy-dom lays nothing out: a node the render replaced hands the
-   place to the node now rendered under its identity. */
+   takes off a band) are asked directly. The hold itself is asked over boxes this file
+   states, since happy-dom lays nothing out: a node the render replaced hands the place
+   to the node now rendered under its identity, and a synchronous hold lands its
+   reference whatever the browser's own anchoring did first. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -59,6 +60,18 @@ test("a correction follows reflow and pays for a limit clamp only once", () => {
   assert.equal(
     placeCorrection({ was: 1000, now: 1000, scrollTop: 650, limit: 700, held }),
     0,
+  );
+  // Within one task the same movement is the browser's anchoring, and is paid for.
+  assert.equal(
+    placeCorrection({
+      was: 1000,
+      now: 1000,
+      scrollTop: 650,
+      limit: 700,
+      held,
+      withinTask: true,
+    }),
+    250,
   );
 });
 
@@ -269,5 +282,27 @@ test("a node with no identity passes the place to the next candidate, not a stra
   place.finish(hold);
   assert.equal(scrolled(), 950);
   assert.equal(nodes[1].getBoundingClientRect().top, 150);
+  scroller.remove();
+});
+
+test("a synchronous hold claims no anchoring and absorbs the browser's", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const nodes = ["a", "b"].map((id, index) => item(id, 1000 + index * 150));
+  scroller.append(...nodes);
+  scrollTo(1000);
+  const place = placeKeeper(scroller, {
+    items: ".item",
+    identity: (node) => node.dataset.id,
+  });
+  place.around(() => {
+    // 100px lands above "a", and the browser's own anchoring, applied by a forced
+    // layout, followed only 60px of it.
+    at.set(nodes[0], 1100);
+    at.set(nodes[1], 1250);
+    scrollTo(1060);
+    assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "");
+  });
+  assert.equal(scrolled(), 1100);
+  assert.equal(nodes[0].getBoundingClientRect().top, 0);
   scroller.remove();
 });

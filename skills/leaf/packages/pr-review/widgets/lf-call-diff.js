@@ -5,6 +5,8 @@
 import {
   announce,
   el,
+  keeps,
+  keepsHidden,
   keepsText,
   navigateToDatum,
   offer,
@@ -82,7 +84,8 @@ function updateDisclosureControl(owner) {
   if (!button) return;
   const expand = groups.some((group) => !group.open);
   keepsText(button, `${expand ? "Expand" : "Collapse"} all`);
-  button.setAttribute(
+  keeps(
+    button,
     "aria-label",
     `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`,
   );
@@ -102,7 +105,7 @@ function buildToolbar(owner) {
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);
-    for (const group of groups) group.open = open;
+    for (const group of groups) group.toggleAttribute("open", open);
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
@@ -157,7 +160,7 @@ function renderLine(record, prior, owner) {
   const marker = line.querySelector(".lf-call-marker");
   const body = line.querySelector(".lf-call-body");
   const location = line.querySelector(".lf-call-location");
-  line.dataset.status = record.status;
+  keeps(line, "data-status", record.status);
   line.toggleAttribute("data-root", record.root);
   line.toggleAttribute("data-meta", record.meta);
   keepsText(
@@ -166,14 +169,14 @@ function renderLine(record, prior, owner) {
   );
   keepsText(body, record.body);
   keepsText(location, record.location);
-  location.hidden = !record.location;
+  keepsHidden(location, !record.location);
   // The header row names no location, so its anchor is hidden — and an `href` on a
   // hidden anchor is a way in that leads nowhere. Worse, `reachScrollers` reads a
   // candidate for a focusable descendant before granting the stop, and a hidden
   // `a[href]` is one: the header's own words run off the side, and the live page
   // answered "there is already a way in here" with a link nobody can reach.
   if (record.location) {
-    location.href = `#${owner.getAttribute("diff")}`;
+    keeps(location, "href", `#${owner.getAttribute("diff")}`);
     location.onclick = async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -187,8 +190,7 @@ function renderLine(record, prior, owner) {
 }
 
 function renderMessage(prior, message, className = "lf-call-missing") {
-  const line = prior ?? el("div", "lf-call-line lf-call-missing");
-  line.className = `lf-call-line ${className}`;
+  const line = prior ?? el("div", `lf-call-line ${className}`);
   keepsText(line, message);
   return line;
 }
@@ -221,7 +223,6 @@ customElements.define(
       try {
         records = snapshot?.value ? parse(snapshot.value) : [];
       } catch (error) {
-        this.replaceChildren();
         projectData(
           this,
           [{ key: "invalid", invalid: error.message }],
@@ -237,7 +238,6 @@ customElements.define(
         return;
       }
       if (!records.length) {
-        this.replaceChildren();
         projectData(
           this,
           [{ key: "unavailable", missing: true }],

@@ -39,6 +39,8 @@ import {
   openThread,
   relabel,
   watchHistory,
+  keeps,
+  keepsHidden,
   keepsText,
 } from "/runtime/widget-api.js";
 
@@ -198,7 +200,7 @@ function fill(item, row) {
     said.textContent = excerpt;
     item.append(said);
   }
-  item.dataset.lfActivityAuthor = row.author;
+  keeps(item, "data-lf-activity-author", row.author);
   item.toggleAttribute("data-lf-undone", row.undone);
 }
 
@@ -278,7 +280,7 @@ customElements.define(
           item.remove();
           this.#rows.delete(id);
         }
-      this.#empty.hidden = rows.length > 0;
+      keepsHidden(this.#empty, rows.length > 0);
     }
   },
 );

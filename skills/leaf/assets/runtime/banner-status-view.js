@@ -5,7 +5,8 @@
  * publication layouts; no outside code writes or reparents anything inside it.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { el, keeps } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
@@ -37,7 +38,7 @@ class BannerStatusView extends HTMLElement {
     this.#detail.lfInvoker = this.#button;
     this.#detail.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
-      this.#button.setAttribute("aria-expanded", String(open));
+      keeps(this.#button, "aria-expanded", open);
       // Focus the scrollable explanation so keyboard users can reach long details.
       if (open && document.activeElement === this.#button)
         this.#detail.focus({ preventScroll: true });

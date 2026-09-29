@@ -2737,13 +2737,15 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     """A local optimistic paint fault cannot turn an accepted send into a refusal."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     page.route("**/api/state*", refuse)
+    # The fault is raised by the first write the optimistic paint makes: the suggestion's
+    # settled state, which only that paint changes before the log answers.
     page.evaluate(
         """() => {
-          const body = document.body;
-          const setAttribute = body.setAttribute;
-          body.setAttribute = function(name, value) {
-            if (name === 'data-lf-applied') {
-              body.setAttribute = setAttribute;
+          const target = document.getElementById('sug-refill');
+          const setAttribute = target.setAttribute;
+          target.setAttribute = function(name, value) {
+            if (name === 'data-lf-state') {
+              target.setAttribute = setAttribute;
               throw new Error('injected optimistic presentation fault');
             }
             return setAttribute.call(this, name, value);
@@ -2773,7 +2775,10 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # accounts for it no second time.
     errors = take_browser_errors(page)
     assert errors == [
-        "leaf: Presentation failed: injected optimistic presentation fault"
+        (
+            "leaf: Presentation failed: <lf-suggestion> renderState threw: "
+            "injected optimistic presentation fault"
+        )
     ], errors
 
 

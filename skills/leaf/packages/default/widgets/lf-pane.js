@@ -3,7 +3,7 @@
    scrolls; this module names the region and registers its body, so reading keys, travel
    and continuity find the place whichever box scrolls it. A revision that replaces the
    body re-registers the region under the same id. */
-import { once, registerReadingRegion } from "/runtime/widget-api.js";
+import { keeps, once, registerReadingRegion } from "/runtime/widget-api.js";
 
 const bodyOf = (pane) =>
   [...pane.children].find((child) => !child.matches("header, footer")) ?? null;
@@ -16,8 +16,8 @@ customElements.define(
     #children = new MutationObserver(() => this.#register());
 
     connectedCallback() {
-      this.setAttribute("role", "region");
-      this.setAttribute("aria-label", this.getAttribute("label"));
+      keeps(this, "role", "region");
+      keeps(this, "aria-label", this.getAttribute("label"));
       this.#register();
       this.#children.observe(this, { childList: true });
       once(this);

@@ -19,7 +19,12 @@
    The comparison is against what the node would read back, not what the caller held:
    `getAttribute` and `textContent` answer with a string and their setters stringify,
    so a boolean or a count compared raw is never equal to what already stands and
-   rewrites on every pass. */
+   rewrites on every pass.
+
+   A length measured off the page goes through `atLayoutPrecision` before it is written.
+   Layout resolves lengths to 1/64px, and a measurement repeated on an unmoved box can
+   differ below that; the style serializer rounds to six significant digits, so such a
+   length rewrites the style attribute to the text it already held. */
 
 export function keeps(node, name, value) {
   const said = String(value);
@@ -35,3 +40,5 @@ export function keepsText(node, text) {
   const said = String(text ?? "");
   if (node && node.textContent !== said) node.textContent = said;
 }
+
+export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;

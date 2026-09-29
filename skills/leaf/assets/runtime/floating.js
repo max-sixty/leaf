@@ -30,12 +30,11 @@
    after a fetch. */
 
 import { afterPresentation } from "./presentation.js";
-import { keeps } from "./keeps.js";
+import { atLayoutPrecision, keeps } from "./keeps.js";
 import { anchorElement, anchorName } from "./anchor-names.js";
 import { shownWindow } from "./geometry.js";
 
-// Insets at the browser's layout precision, so one spot written twice reads the same.
-const px = (value) => `${Math.round(value * 64) / 64}px`;
+const px = (value) => `${atLayoutPrecision(value)}px`;
 
 let floatingUiModule = null;
 export const floatingUi = () =>

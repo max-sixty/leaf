@@ -37,6 +37,7 @@
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import {
+  atLayoutPrecision,
   cancelRender,
   inChrome,
   keeps,
@@ -54,7 +55,6 @@ import {
 const HEADING_SELECTOR = "h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
-const round = (value) => Math.round(value * 64) / 64;
 
 customElements.define(
   "lf-toc",
@@ -491,7 +491,7 @@ customElements.define(
         };
       };
       const transform = ({ start, size }) =>
-        `translateY(${round(start)}px) scaleY(${round(Math.max(floor, size))})`;
+        `translateY(${atLayoutPrecision(start)}px) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
       if (reach <= 0) {
         this.#lensMotion?.cancel();
         this.#lensMotion = null;

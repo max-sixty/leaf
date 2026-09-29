@@ -10,7 +10,7 @@
 import { cancelRender, nextRender } from "./rendering.js";
 import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { atLayoutPrecision, keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
 
 // Persistent pointer-inert projections for every element target. A semantic visual
@@ -155,6 +155,21 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
   return true;
 }
 
+// A paint box stands over `rect`, placed in the document at layout precision, so a
+// target that has not moved places it with the same words (keeps.js).
+function standOver(box, rect, borderRadius) {
+  const at = documentPoint(rect.left, rect.top);
+  const px = (length) => `${atLayoutPrecision(length)}px`;
+  Object.assign(box.style, {
+    display: "block",
+    left: px(at.left),
+    top: px(at.top),
+    width: px(rect.right - rect.left),
+    height: px(rect.bottom - rect.top),
+    borderRadius,
+  });
+}
+
 function placement(surface, shaped) {
   const box = shownBox(surface);
   const pad = shaped ? SHAPE_STROKE_ROOM : 0;
@@ -221,15 +236,7 @@ export function paintAim(element, surface = null) {
   if (!shaped) aimShape.replaceChildren();
   keeps(aimBox, "data-for", element.id);
   keeps(aimBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  const at = documentPoint(rect.left, rect.top);
-  Object.assign(aimBox.style, {
-    display: "block",
-    left: `${at.left}px`,
-    top: `${at.top}px`,
-    width: `${rect.right - rect.left}px`,
-    height: `${rect.bottom - rect.top}px`,
-    borderRadius: getComputedStyle(surface ?? element).borderRadius,
-  });
+  standOver(aimBox, rect, getComputedStyle(surface ?? element).borderRadius);
   return rect;
 }
 
@@ -279,15 +286,11 @@ function drawTrace(
   if (element.id) keeps(targetTraceBox, "data-for", element.id);
   else targetTraceBox.removeAttribute("data-for");
   keeps(targetTraceBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  const at = documentPoint(rect.left, rect.top);
-  Object.assign(targetTraceBox.style, {
-    display: "block",
-    left: `${at.left}px`,
-    top: `${at.top}px`,
-    width: `${rect.right - rect.left}px`,
-    height: `${rect.bottom - rect.top}px`,
-    borderRadius: shaped ? "0" : getComputedStyle(surface).borderRadius,
-  });
+  standOver(
+    targetTraceBox,
+    rect,
+    shaped ? "0" : getComputedStyle(surface).borderRadius,
+  );
 }
 
 export function paintTrace(element, surface = element) {
@@ -354,15 +357,11 @@ function paintTargets(rebuildGeometry = true) {
       record.shapeKey = shapeKey;
     }
     keeps(overlay, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-    const at = documentPoint(rect.left, rect.top);
-    Object.assign(overlay.style, {
-      display: "block",
-      left: `${at.left}px`,
-      top: `${at.top}px`,
-      width: `${rect.right - rect.left}px`,
-      height: `${rect.bottom - rect.top}px`,
-      borderRadius: geometry ? "0" : getComputedStyle(target.surface).borderRadius,
-    });
+    standOver(
+      overlay,
+      rect,
+      geometry ? "0" : getComputedStyle(target.surface).borderRadius,
+    );
   }
   syncStates();
 }

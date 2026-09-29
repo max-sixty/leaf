@@ -128,7 +128,7 @@ import {
   placeChrome,
 } from "./focus.js";
 import { closeControl, el, offer } from "./widget-elements.js";
-import { keeps, keepsHidden, keepsText } from "./keeps.js";
+import { atLayoutPrecision, keeps, keepsHidden, keepsText } from "./keeps.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -475,7 +475,7 @@ export function createMarginProjection({
           resolve(false);
           return;
         }
-        resetThreadPreviewPosition();
+        forgetThreadPreviewPlacement();
         resolve(placedThreadPreview());
       });
     }).then((positioned) => {
@@ -627,12 +627,17 @@ export function createMarginProjection({
     floating: preview,
     update: () => scheduleThreadPreviewPosition(),
   });
-  function resetThreadPreviewPosition() {
+  // A card that stays open is placed afresh by forgetting where it stood: the next
+  // placement rewrites only what moved. Taking it off the page is for a card that closes.
+  function forgetThreadPreviewPlacement() {
     cancelRender(previewPositionFrame);
     previewPositionFrame = 0;
-    previewPlacement.stop();
     previewHold = null;
     previewAway = false;
+  }
+  function resetThreadPreviewPosition() {
+    forgetThreadPreviewPlacement();
+    previewPlacement.stop();
     delete preview.dataset.lfThreadPlacement;
     delete preview.dataset.lfThreadHeld;
     preview.style.removeProperty("clip-path");
@@ -845,8 +850,7 @@ export function createMarginProjection({
             (geometry.y + geometry.height - region.bottom) / scale.y,
             (region.left - geometry.x) / scale.x,
           ];
-          // At the browser's layout precision, so the same cut reads the same each time.
-          const length = (side) => `${Math.round(side * 64) / 64}px`;
+          const length = (side) => `${atLayoutPrecision(side)}px`;
           preview.style.clipPath = `inset(${inset.map(length).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", geometry.placement);
@@ -1875,7 +1879,7 @@ export function createMarginProjection({
     { returnFocus = document.activeElement === previewMarginEntry } = {},
   ) {
     if (previewMarginEntry === button) return;
-    resetThreadPreviewPosition();
+    forgetThreadPreviewPlacement();
     previewMarginEntry = button;
     if (returnFocus) button.focus({ preventScroll: true });
   }

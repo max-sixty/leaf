@@ -181,7 +181,7 @@ function sweep(root) {
       // cannot reach, which the browser reports as a ResizeObserver loop.
       const waited = waiting.delete(el);
       classify(el);
-      if (waited && !watched(el)) reachSizes.unobserve(el);
+      if (waited) release(el);
       if (trees.has(el.shadowRoot)) walk(el.shadowRoot);
     }
   };
@@ -239,7 +239,7 @@ const childLists = new MutationObserver((records) => {
   for (const { target, addedNodes, removedNodes } of records) {
     if (!childrenWatched.has(target)) continue;
     for (const node of removedNodes)
-      if (node.nodeType === Node.ELEMENT_NODE) reachSizes.unobserve(node);
+      if (node.nodeType === Node.ELEMENT_NODE) release(node);
     for (const node of addedNodes)
       if (node.nodeType === Node.ELEMENT_NODE) reachSizes.observe(node);
   }
@@ -254,9 +254,16 @@ function watchReach(el) {
 // A MutationObserver lets go of no single target, so a box no longer watched is only
 // left out of what its deliveries do.
 function unwatchReach(el) {
-  reachSizes.unobserve(el);
-  if (!childrenWatched.delete(el)) return;
-  for (const child of el.children) reachSizes.unobserve(child);
+  const heldChildren = childrenWatched.delete(el);
+  release(el);
+  if (heldChildren) for (const child of el.children) release(child);
+}
+// One observation serves every reason to watch a box: a candidate in its own right,
+// and the child of one. It ends only when neither holds, so a nested scroller moved
+// out of its parent keeps the watch it has as a candidate.
+function release(node) {
+  if (!watched(node) && !childrenWatched.has(node.parentElement))
+    reachSizes.unobserve(node);
 }
 const depth = (el) => {
   let levels = 0;

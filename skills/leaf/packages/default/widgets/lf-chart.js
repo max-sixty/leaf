@@ -32,13 +32,11 @@ import {
   widgetController,
 } from "/runtime/widget-api.js";
 
-/* An x value that names a point in time: an ISO month (2026-06), day (2026-06-01), or a
- * moment on a day that states its zone (2026-06-01T14:00Z, 2026-06-01T14:00+02:00). Date
- * reads each as the instant it names, a month or a day as UTC midnight, which is how Plot
- * reads the ISO strings it is handed. A moment without a zone is left a category, because
- * Date reads it in the viewer's own zone and two readers would see two instants. */
-const ISO_TIME =
-  /^\d{4}-\d{2}(?:-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))?)?$/;
+/* A moment with no zone after it (2026-06-01T14:00). autoType reads it through Date, and
+ * Date reads this one ISO form in the viewer's own zone where it reads a month, a day, or
+ * a moment that states its zone as the instant it names. Plot labels a Date in UTC, so the
+ * axis would say 14:00 to a reader in London and 07:00 to one in Los Angeles. */
+const ZONELESS = /T[\d:.]+$/;
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
@@ -50,9 +48,9 @@ const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
  * series in one colour is worse than a drawing that says it will not draw. */
 const seriesCap = () => layerFact("$series").steps;
 
-/* The body → {xName, labels, series}. Every refusal here names the row or the cell,
+/* The body → {xName, labels, xs, series}. Every refusal here names the row or the cell,
  * because failSoft shows the author this message over their own source. */
-function readTable(text) {
+function readTable(text, autoType) {
   const rows = text
     .split("\n")
     .map((line) => line.trim())
@@ -90,14 +88,19 @@ function readTable(text) {
   const twice = labels.find((label, i) => labels.indexOf(label) !== i);
   if (twice) throw new Error(`two rows share the x value ${twice}`);
 
+  // Every cell is typed by d3's autoType, which is how Plot's own ecosystem reads CSV text
+  // into the values Plot draws: blank is null, a number a number, an ISO date or moment a
+  // Date, and anything else the text.
+  const cells = rows.slice(1).map((row) => autoType(row.slice()));
   const series = names.map((name, column) => ({
     name,
-    values: rows.slice(1).map((row, index) => {
-      const cell = row[column + 1];
-      if (!cell) return null; // a gap the author left, drawn as a gap
-      const value = Number(cell);
+    values: cells.map((row, index) => {
+      const value = row[column + 1];
+      if (value === null) return null; // a gap the author left, drawn as a gap
       if (!Number.isFinite(value))
-        throw new Error(`row ${index + 2}, ${name}: "${cell}" is not a number`);
+        throw new Error(
+          `row ${index + 2}, ${name}: "${rows[index + 1][column + 1]}" is not a number`,
+        );
       return value;
     }),
   }));
@@ -105,26 +108,26 @@ function readTable(text) {
   // a colour and a line in the key, so the chart claims a series it never shows.
   const empty = series.find((s) => s.values.every((v) => v === null));
   if (empty) throw new Error(`${empty.name} has no numbers in it`);
-  return { xName: rows[0][0], labels, series };
+  return { xName: rows[0][0], labels, xs: cells.map((row) => row[0]), series };
 }
 
-/* What the x column is, which the column itself answers: every value a point in time, or
- * every value a number, or neither — and neither is a category. Plot draws strings as
- * categories whatever they say, so the column is typed here and Plot is handed Dates. The
- * scale is UTC, which draws a day on the day the body wrote wherever the reader is (a
- * local scale puts UTC midnight under the day before, west of Greenwich), and labels a
- * moment in UTC.
+/* What the x column is, which autoType has already answered cell by cell: a column it
+ * read as all Dates or all numbers is handed to Plot as those, and Plot's own inference
+ * gives the first a UTC time scale and the second a linear one. Anything else is handed
+ * over as the text, a category. That covers a column autoType read two ways, which Plot
+ * would type by its first value and drop the rest of, and a label shaped like a month
+ * that names none, such as 2021-22 (a winter, on a chart of winters), which autoType
+ * reads as an Invalid Date. A zoneless moment stays text too (ZONELESS).
  *
  * Only a line and a scatter ask. A bar chart's x is one slot per row by construction, so
  * bars, rows and stack band the labels exactly as written, whatever they look like. */
-function readAxis(labels) {
-  const times = labels.map((label) => (ISO_TIME.test(label) ? new Date(label) : null));
-  // Date is also the check: a label shaped like a month that names none, such as 2021-22
-  // (a winter, on a chart of winters), is an Invalid Date and leaves the column a category.
-  if (times.every((time) => time && !Number.isNaN(+time)))
-    return { type: "utc", values: times };
-  const numbers = labels.map(Number);
-  if (numbers.every(Number.isFinite)) return { type: "linear", values: numbers };
+function readAxis({ labels, xs }) {
+  if (
+    xs.every((x) => x instanceof Date && !Number.isNaN(+x)) &&
+    !labels.some((label) => ZONELESS.test(label))
+  )
+    return { type: "utc", values: xs };
+  if (xs.every(Number.isFinite)) return { type: "linear", values: xs };
   return { type: "band", values: labels };
 }
 
@@ -408,7 +411,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
           ticks: bandTicks(labels, width - marginLeft - common.marginRight, font),
         }
       : {}),
-    ...(axis.type === "utc" ? { type: "utc", ticks: timeTicks(axis.values) } : {}),
+    ...(axis.type === "utc" ? { ticks: timeTicks(axis.values) } : {}),
   };
 
   if (kind === "line")
@@ -551,9 +554,9 @@ customElements.define(
       let source = "";
       try {
         source = bodyText(this);
-        const table = readTable(source);
-        const axis = readAxis(table.labels);
         const Plot = await loadPlot();
+        const table = readTable(source, Plot.autoType);
+        const axis = readAxis(table);
         // The widget's own children, built once: the key, then the box each drawing goes
         // in. A redraw replaces what is in that box and nothing else, because by then the
         // runtime may have hung its own words on the widget — the line saying a comment

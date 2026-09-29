@@ -10117,9 +10117,10 @@ def test_a_column_of_moments_is_time_only_where_each_states_its_zone(browser, se
     """A moment that states its zone is one instant for every reader, so a column of them
     is a time axis, and twelve hours of them are ticked by the hour rather than held to a
     day. Without a zone the browser would read the moment in the viewer's own zone, so
-    that column stays the words the body wrote. Two labels naming one instant would draw
-    two rows at one x on a line, and are refused like two rows sharing a label; a bar
-    chart keeps a slot per label, so there they are two bars."""
+    that column stays the words the body wrote, as does one shaped like months that names
+    none. Two labels naming one instant would draw two rows at one x on a line, and are
+    refused like two rows sharing a label; a bar chart keeps a slot per label, so there
+    they are two bars."""
     hours = "".join(f"2026-06-01T{h:02}:00Z, {h}\n" for h in range(12))
     source = leaf_page(
         "moments",
@@ -10132,6 +10133,11 @@ hour, depth
 hour, depth
 2026-06-01T09:00, 4
 2026-06-01T10:00, 7
+</pre></lf-chart>
+<lf-chart id="c-winters" kind="line" y="gas, kWh"><pre>
+winter, gas
+2021-22, 4
+2022-23, 7
 </pre></lf-chart>
 <lf-chart id="c-same" kind="line" y="queue depth"><pre>
 day, depth
@@ -10157,6 +10163,8 @@ day, depth
     # UTC, whatever the reader's zone: the first hour is 12 AM, not the day before.
     assert "May" not in " ".join(zoned), zoned
     assert page.evaluate(ticks, "c-bare") == ["2026-06-01T09:00", "2026-06-01T10:00"]
+    # Shaped like months, and naming none: autoType reads each as an Invalid Date.
+    assert page.evaluate(ticks, "c-winters") == ["2021-22", "2022-23"]
     expect(page.locator("#c-same .lf-error")).to_contain_text(
         "2026-06-01 is the same x as another row"
     )

@@ -1751,7 +1751,7 @@ RINGS_DRAWN = f"""async () => {{
      && cs.outlineWidth === cs.getPropertyValue('--focus-ring-w').trim()
      && cs.outlineColor === accent
      && (el === focused
-         || !el.matches(':is(.lf-mark-el, .lf-react-el)')
+         || !el.matches('.lf-mark-el')
          || Boolean(ringName(cs))))
     || hereShadow(cs) > 0;
   // Every box painting the ring, read off the composed page. Whether a ring is there is

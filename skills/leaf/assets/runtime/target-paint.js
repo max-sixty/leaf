@@ -1,11 +1,11 @@
 /* Element-target paint in Leaf's chrome layer.
  *
- * Every element annotation contributes its shown box. A declared visual widget, or a
- * registered visual part, can substitute its drawn surface and, for SVG, painted
- * geometry that Leaf clones into chrome. The projection keeps hollow contours above
- * package-owned descendants without changing document layout or painting over their
- * contents. The painter owns geometry caching: scroll only moves cached paint; a layout,
- * resize, source replacement, or target change rebuilds it. */
+ * Every element target a moment holds (anchor-paint.js) contributes its shown box. A
+ * declared visual widget, or a registered visual part, can substitute its drawn surface
+ * and, for SVG, painted geometry that Leaf clones into chrome. The projection keeps
+ * hollow contours above package-owned descendants without changing document layout or
+ * painting over their contents. The painter owns geometry caching: scroll only moves
+ * cached paint; a layout, resize, source replacement, or target change rebuilds it. */
 
 import { cancelRender, nextRender } from "./rendering.js";
 import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
@@ -13,8 +13,8 @@ import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
 
-// Persistent pointer-inert projections for every element target. A semantic visual
-// part can replace the ordinary box with its provider-owned drawing.
+// Pointer-inert projections for every element target a moment holds. A semantic
+// visual part can replace the ordinary box with its provider-owned drawing.
 export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
 export const targetTraceBox = el("div", "lf-ui lf-target-trace lf-target-paint");
@@ -26,8 +26,6 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
 const PROJECTED = "lf-projected-mark";
 const STATE_CLASSES = {
-  comment: "lf-visual-mark-comment",
-  reaction: "lf-visual-mark-reaction",
   pending: "lf-visual-mark-pending",
   action: "lf-visual-mark-action",
   hover: "lf-visual-mark-hover",

@@ -57,8 +57,7 @@ PAINTED = """() => ({
   glyphs: [...document.querySelectorAll('.lf-margin-cluster .lf-react-mark')]
     .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
                m.getAttribute('aria-label')]),
-  outlined: [...document.querySelectorAll('.lf-react-el')]
-    .map(el => el.id || el.dataset.id),
+  projected: [...document.querySelectorAll('.lf-visual-mark')].length,
 })"""
 
 # Interaction state never adds a second mark to a margin entry; durable agent workflow
@@ -244,7 +243,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     assert sent["anchor"]["section"] == "how-store"
     assert "holds every edit" in sent["anchor"]["quote"]
     expect(bar).to_be_hidden()  # the mark is the receipt
-    assert shown["outlined"] == []
+    assert shown["projected"] == 0
     # The receipt contributes to the target's one complete RHS item, which stands level
     # with the block's first line in the margin.
     level = page.evaluate(
@@ -330,7 +329,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
         remove.click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
-    assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
+    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
 def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
@@ -581,10 +580,10 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
 
 
-def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, serve):
+def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
     """Keyboard target choosing opens Comment. Choosing a token puts an
-    element anchor in the log, which paints as a solid hairline on the element's boxes
-    and a glyph seated at its first line."""
+    element anchor in the log, which paints a glyph seated at the element's first line
+    and nothing on the element itself: a contour is for a moment, not a standing fact."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
@@ -597,7 +596,8 @@ def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, s
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
-    assert shown["outlined"] and shown["washed"] == "", shown
+    assert shown["projected"] == 0 and shown["washed"] == "", shown
+    expect(page.locator("#prose")).to_have_css("outline-style", "none")
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -1203,10 +1203,10 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     expect(field).to_have_js_property("value", draft + " It is visible again.")
 
 
-def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, serve):
+def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     """A declared visual part is the same anchor for a reaction and a comment. The
-    send announcement names the part's declared label, while replay paints only the
-    part's resolved box rather than the diagram that owns its stable id."""
+    send announcement names the part's declared label, and replay seats the glyph
+    beside the diagram that owns its stable id without drawing on either."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -1238,12 +1238,9 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
         "visual": "node:S",
     }
     shown = painted(page, [["flow", "prioritize"]])
-    assert shown["outlined"] == [start.get_attribute("data-id")], shown
-    expect(start).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    expect(page.locator(".lf-visual-mark")).to_have_class(
-        re.compile(r"\blf-visual-mark-reaction\b")
-    )
-    expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
+    assert shown["projected"] == 0, shown
+    for drawn in (start, diagram):
+        expect(drawn).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -2645,7 +2642,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
     expect(thread.locator(".lf-react-said")).to_have_text("❌ change")
-    assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
+    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") > 0
 
     thread_model.cmd_resolve(serve.page_dir, reaction["id"])

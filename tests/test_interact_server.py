@@ -2312,6 +2312,43 @@ def test_undo_candidates_keep_only_standing_user_gestures():
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
+    # The user's newest gesture, rx2, is answered and cannot be taken back, so `z`
+    # takes nothing; the entries stay for the exact controls that name them.
+    assert not any(candidate.get("newest") for candidate in candidates)
+
+
+def test_undo_walk_ends_at_the_users_newest_gesture():
+    """`z` takes the head only while it is the user's newest gesture. Bookkeeping
+    and gestures already withdrawn do not end the walk; a sent reply does."""
+    events = [
+        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
+        {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
+        {"id": "read", "kind": "read", "author": "user", "messages": ["c1"]},
+        {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
+        {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
+        {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
+    ]
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
+
+    def walk(log):
+        candidates = served_document.browser_undo_candidates(
+            log,
+            document,
+            empty,
+            undo_reading=event_folds_model.UndoReading(
+                log, within={}, absorbed=frozenset()
+            ),
+            stamp=None,
+        )
+        return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
+
+    # c2 was said after r1 and r2 is withdrawn: the newest standing gesture is c2.
+    assert walk(events) == [("r1", False)]
+    # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
+    assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):

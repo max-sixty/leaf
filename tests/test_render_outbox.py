@@ -34,6 +34,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
     CutOff,
@@ -198,6 +199,37 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] in {"resolve", "undo"} and event["author"] == "user"
     ] == ["resolve", "resolve", "undo"]
+
+
+def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
+    """`z` takes back the user's newest gesture or nothing. A reply sent after a
+    resolve cannot be unsaid, so the resolve behind it is no longer the last change
+    the user made, and the press reopens nothing."""
+    page = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    first, second = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][:2]
+    page.locator(f'.lf-threads > .lf-thread[data-id="{first}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
+    )
+    told(page)
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    told(page)
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "undo"
+    ] == []
 
 
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
@@ -1862,7 +1894,7 @@ def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
 
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
@@ -2850,7 +2882,10 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    # The user's comment after the accept is their newest gesture, and a comment is not
+    # taken back, so `z` offers nothing; the suggestion's own Undo still reaches it.
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected wake candidate fault",

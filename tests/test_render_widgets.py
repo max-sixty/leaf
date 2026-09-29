@@ -71,12 +71,14 @@ from render_cases_widgets import (
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
+    PANE_DIFF_PAGE,
     SQUEEZED_BOARD_PAGE,
 )
 from render_harness import (
     BOARD_PAGE,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     CutOff,
     ask_actions_hint,
@@ -88,6 +90,7 @@ from render_harness import (
     fills_the_window,
     holding,
     leaf_page,
+    margins_laid_out,
     open_page,
     pane_posture,
     panel_settled,
@@ -1952,6 +1955,34 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     )
 
 
+def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
+    """The open outline stacks its links with no gap between them, so each link's box
+    is all there is to land on. Under a finger they stood 24px tall where the layer's
+    floor is 44; a mouse keeps its compact rows."""
+    source = leaf_page(
+        "contents",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<section><h2 id="prepare">Prepare</h2><p>Take a snapshot.</p></section>
+<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section>
+""",
+    )
+    url = serve(source)
+    heights = "links => links.map(link => link.getBoundingClientRect().height)"
+    touch = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=touch)
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    assert all(h >= 44 for h in links.evaluate_all(heights))
+    mouse = open_page(browser, url)
+    links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    assert all(24 <= h < 30 for h in links.evaluate_all(heights))
+
+
 def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serve):
     """The author decides which semantic levels belong in the page route.
 
@@ -2686,41 +2717,29 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         current_alignment["label"], abs=2
     ), f"the viewport lens parted from the current title: {current_alignment}"
 
-    # The lens is the viewport's position, not a destination travelling toward it.
-    # Capture the first style turn after the scroll: a transition can finish at the
-    # right place while still trailing every intermediate reading.
-    page.evaluate(
-        """() => {
-          const rows = document.querySelector('.lf-toc-rows');
-          const lens = document.querySelector('.lf-toc-window');
-          window.lfTocLensFrame = null;
-          new MutationObserver((records, observer) => {
-            if (!records.some(record => record.attributeName === 'style')) return;
-            const rowBox = rows.getBoundingClientRect();
-            const start =
-              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start'));
-            window.lfTocLensFrame = {
-              actual: lens.getBoundingClientRect().top,
-              expected: rowBox.top + start,
-            };
-            observer.disconnect();
-          }).observe(rows, {attributes: true, attributeFilter: ['style']});
-        }"""
+    # The lens is the viewport's position, not a destination travelling toward it: the
+    # scroll itself moves it, so the first frame after the scroll finds it beside the
+    # title it scrolled to.
+    lens_frame = verify.evaluate(
+        """node => new Promise((resolve) => {
+          document.querySelector('#verify')
+            .scrollIntoView({block: 'start', behavior: 'instant'});
+          requestAnimationFrame(() => resolve({
+            lens: node.closest('nav').querySelector('.lf-toc-window')
+              .getBoundingClientRect().top,
+            label: node.getBoundingClientRect().top,
+          }));
+        })"""
     )
-    page.locator("#verify").evaluate(
-        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
-    )
+    assert lens_frame["lens"] == pytest.approx(lens_frame["label"], abs=2), lens_frame
     expect(verify).to_have_attribute("aria-current", "location")
-    page.wait_for_function("() => window.lfTocLensFrame !== null")
-    lens_frame = page.evaluate("window.lfTocLensFrame")
-    assert lens_frame["actual"] == pytest.approx(lens_frame["expected"], abs=1)
     lens_after = lens.bounding_box()
     assert lens_after is not None
     assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08
 
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     # Twice: the layer's skip link is the document's first stop, and the map is what the
     # page itself opens with.
     page.keyboard.press("Tab")
@@ -2732,7 +2751,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-offset", "-2px")
 
     # The Asks drawer stands over the map and changes nothing about it.
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     toggle_asks(page)
     expect(toc).to_have_css("position", "fixed")
     expect(prepare).to_have_css("opacity", "0")
@@ -3188,7 +3207,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
 
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     # Twice: the layer's skip link is the document's first stop, and the mark is the
     # first thing the page itself offers.
     page.keyboard.press("Tab")
@@ -3237,7 +3256,7 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     expect(bubble).to_be_visible()
     control.click()
     page.mouse.move(0, 0)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     expect(bubble).to_be_hidden()
 
 
@@ -3387,6 +3406,45 @@ def test_a_keyboard_move_keeps_the_card_in_view(
     expect(grip).to_be_focused()
 
 
+def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
+    """The browser scrolls a sideways board only far enough to show the focused 30px
+    grip, which at a narrow width left the card's words cut off at the board's edge."""
+    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    resized(page, 390, 500)
+    # A restored focus is not an arrival: it leaves the board where the user put it.
+    assert page.evaluate(
+        """() => {
+          const board = document.querySelector('#crowd');
+          const before = board.scrollLeft;
+          document.querySelector('#sq-card-5 .lf-grip').focus({preventScroll: true});
+          return board.scrollLeft === before;
+        }"""
+    )
+    page.locator("#sq-card-0 .lf-grip").focus()
+    whole = """() => {
+      const card = document.activeElement.closest('lf-card');
+      const outer = card.closest('lf-board').getBoundingClientRect();
+      const inner = card.getBoundingClientRect();
+      return inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+    }"""
+    for i in range(1, 4):
+        page.keyboard.press("Tab")
+        expect(page.locator(f"#sq-card-{i} .lf-grip")).to_be_focused()
+        page.wait_for_function(whole)
+    # Grabbing it says so with the card's contour, not a shadow the dark paper hides.
+    page.keyboard.press("Enter")
+    card = page.locator("#sq-card-3")
+    expect(card).to_have_class(re.compile(r"\blf-lift\b"))
+    accent, border = card.evaluate(
+        """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
+                  getComputedStyle(el).borderTopColor]"""
+    )
+    rest = page.locator("#sq-card-2").evaluate(
+        "el => getComputedStyle(el).borderTopColor"
+    )
+    assert border != rest, (border, rest, accent)
+
+
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     """Escape supersedes a reveal still travelling toward the abandoned placement."""
     page = open_page(browser, serve(TALL_BOARD_PAGE))
@@ -3504,6 +3562,109 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
         f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
         f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
     )
+
+
+GRIPPED_CARD_PAGE = leaf_page(
+    "Gripped card",
+    """
+<h1 id="t">Release triage</h1>
+<lf-board id="gripped">
+  <lf-column id="col-a" label="Fix in 2.4.1">
+    <lf-card id="card-a"><strong>Webhook retries ignore the Retry-After header</strong>
+      Three partners rate limit us during their own deploys, and we back off on a fixed
+      schedule that ignores what they asked for.</lf-card>
+  </lf-column>
+  <lf-column id="col-b" label="Defer"></lf-column>
+  <lf-column id="col-c" label="Repro"></lf-column>
+</lf-board>
+""",
+    # Justified, so each full line ends where the card lets it rather than at a word.
+    head="<style>#card-a { text-align: justify; }</style>",
+)
+
+
+def test_only_a_card_s_title_clears_its_grip(browser, serve):
+    """The grip stands at the card's top corner and the lines beside it, the title's,
+    stop short of it; the prose below runs the card's whole width, where it used to be
+    set in a column that kept clear of the grip down the card's full height. No line
+    stands under the grip's box, so a press there is always the grip's."""
+    page = open_page(browser, serve(GRIPPED_CARD_PAGE))
+    measured = page.locator("#card-a").evaluate(
+        """(card) => {
+        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const range = document.createRange(), lines = [];
+        const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (node.parentElement.closest('.lf-grip') || !node.textContent.trim()) continue;
+            range.selectNodeContents(node);
+            for (const r of range.getClientRects())
+                lines.push({title: node.parentElement.localName === 'strong',
+                            top: r.top, bottom: r.bottom, right: r.right});
+        }
+        const beside = (l) => l.top < grip.bottom && l.bottom > grip.top;
+        return {
+            under: lines.filter((l) => beside(l) && l.right > grip.left).length,
+            titleBeside: lines.some((l) => l.title && beside(l)),
+            // Past the grip's left edge is the room the column held back.
+            prose: lines.filter((l) => !l.title && !beside(l)).slice(0, -1)
+                .map((l) => Math.round(l.right - grip.left)),
+        };
+    }"""
+    )
+    assert measured["titleBeside"], measured
+    assert measured["under"] == 0, measured
+    # Every full line of prose below the grip runs into the room beneath it.
+    assert measured["prose"] and all(d > 0 for d in measured["prose"]), measured
+
+
+GRIPPED_BLOCK_CARD_PAGE = leaf_page(
+    "Gripped block card",
+    """
+<h1 id="t">Release triage</h1>
+<lf-board id="gripped">
+  <lf-column id="col-a" label="Fix in 2.4.1">
+    <lf-card id="card-a"><strong>Retries ignore Retry-After</strong>
+      <pre id="card-a-code">retry(after=fixed(30))</pre>
+      <p id="card-a-note">Three partners rate limit us during their own deploys.</p>
+    </lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
+    browser, serve
+):
+    """Under a finger the grip is the aim floor tall, so it reaches past a one-line
+    title. A block after the title that lays itself out on its own (a pre) was set
+    beside the grip's room for its whole height, 30px narrower than the card; a block
+    after the title now clears the grip and takes the card's width, and nothing stands
+    under the grip's box."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(GRIPPED_BLOCK_CARD_PAGE), context=context)
+    measured = page.locator("#card-a").evaluate(
+        """(card) => {
+        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const s = getComputedStyle(card), box = card.getBoundingClientRect();
+        const content = box.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
+            - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
+        const title = card.querySelector('strong').getBoundingClientRect();
+        const blocks = ['#card-a-code', '#card-a-note'].map((id) =>
+            card.querySelector(id).getBoundingClientRect());
+        const under = (b) => b.top < grip.bottom && b.bottom > grip.top
+            && b.right > grip.left;
+        return {grip: Math.round(grip.height), title: Math.round(title.height),
+                widths: blocks.map((b) => Math.round(content - b.width)),
+                under: blocks.filter(under).length};
+    }"""
+    )
+    # The premise: the grip reaches past the title's one line.
+    assert measured["grip"] == 44 and measured["title"] < 30, measured
+    assert measured["widths"] == [0, 0], measured
+    assert measured["under"] == 0, measured
 
 
 def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
@@ -6166,13 +6327,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: a window with no rail stands each row as a pin
-    inside the top-right corner of the change it decides, over the change and never
-    beside it."""
+    measurement no lint can make: where a row stands as a pin, it stands by the change
+    it decides, level with the line the change ends on, over none of the change's
+    words, and on the change's own card."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    room = page.evaluate("() => document.body.getBoundingClientRect().right")
     box = "el => el.getBoundingClientRect()"
 
     margin_rows = page.locator(
@@ -6187,24 +6347,45 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     first, second = (margin_rows.nth(i).evaluate(box) for i in range(2))
     assert first["bottom"] <= second["top"], "control rows must not stack on each other"
 
-    # The card is positioned and the change is three elements down inside it, and
-    # the row still stands on the line that change starts — which is what the anchor
-    # buys, and what a static position never could. The board it sits in grows past
-    # the rail, so the row stands on the board as a pin in the change's top-right
-    # corner.
+    # The board grows past the rail, so the row pins near the change. Its seat can
+    # move off the card when that is the nearest room that covers no words.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
-    in_card = in_card_row.evaluate(box)
-    change = page.locator("#sug-in-card").evaluate(box)
-    assert change["right"] - 12 <= in_card["right"] <= change["right"] <= room, (
-        "a change inside a board is decided inside its own top-right corner"
-    )
-    assert (
-        abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
-        <= 5
-    ), "the row must hang on the change's own line, not on the block it follows"
+    stands_by = """row => {
+      const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+      const change = row.lfTarget;
+      const words = [];
+      for (const node of [change, ...change.querySelectorAll('*')])
+        for (const text of node.childNodes)
+          if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            words.push(...[...range.getClientRects()]
+              .filter((b) => b.width > 2 && b.height > 2).map(edges));
+          }
+      const entries = [...row.querySelectorAll('.lf-margin-entry')]
+        .filter((entry) => entry.checkVisibility())
+        .map((entry) => edges(entry.getBoundingClientRect()));
+      const hit = (a, b) => a.left < b.right && b.left < a.right
+        && a.top < b.bottom && b.top < a.bottom;
+      const last = edges([...change.getClientRects()].at(-1));
+      const r = row.getBoundingClientRect();
+      return {
+        covers: entries.filter((e) => words.some((w) => hit(e, w))).length,
+        near: Math.hypot(
+          Math.max(0, r.left - last.right, last.left - r.right),
+          Math.max(0, r.top - last.bottom, last.top - r.bottom)) <= 12,
+        inPage: r.right <= document.body.getBoundingClientRect().right,
+      };
+    }"""
+    placed = in_card_row.evaluate(stands_by)
+    assert placed == {
+        "covers": 0,
+        "near": True,
+        "inPage": True,
+    }, f"a change inside a board is decided near its words: {placed}"
 
-    # No rail: every row is a pin on its own change, and nothing spills sideways.
+    # No rail: every row is a pin by its own change, and nothing spills sideways.
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
@@ -6212,17 +6393,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     )
     assert root_overflow(page) == 0
     for widget in ("sug-refill", "sug-in-card"):
-        stands = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
-            """row => {
-              const r = row.getBoundingClientRect();
-              const t = row.lfTarget.getBoundingClientRect();
-              return {top: r.top - t.top,
-                      inCorner: r.right <= t.right && r.right >= t.right - 12};
-            }"""
-        )
-        assert stands["inCorner"] and stands["top"] >= -1, (
-            f"a pin belongs inside the top-right corner of the change it decides: {stands}"
-        )
+        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
+        assert placed == {
+            "covers": 0,
+            "near": True,
+            "inPage": True,
+        }, f"a pin stands near the change it decides, over none of its words: {placed}"
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):
@@ -6290,6 +6466,8 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#col-done #card-heater")).to_be_visible()
+    page.locator("#col-done #card-heater").scroll_into_view_if_needed()
+    margins_laid_out(page)
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
@@ -7281,13 +7459,16 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
+          // Below the banner, and the room the Ask's ring takes above it.
+          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(document.getElementById('storage-decision'))
+              .scrollMarginTop);
           return {ask: ask.top, options: options.top, clear};
         }"""
     )
     assert abs(landed["ask"] - landed["clear"]) <= 2, (
-        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner at "
-        f"{landed['clear']:.1f}px"
+        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner and its "
+        f"ring's room at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["ask"] + 100, (
         "the arrival did not leave the Ask's context above its options"
@@ -10386,6 +10567,114 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
 
 
+def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
+    browser, serve
+):
+    """The same two halves inside a full-height workspace pane, whose body is the box that
+    scrolls the rows. The header used to stop the banner's height below the pane's top,
+    because the offset it pinned at was the window's: rows scrolled past in the 42px
+    above the name that headed them, and a `]` landing, which aligns to the pane's own
+    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolling pane body declares it as its own top edge.
+
+    Short enough a window that the patch overflows the pane, and still tall enough that
+    the workspace holds it."""
+    url = serve(PANE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1024, "height": 560})
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    page.emulate_media(reduced_motion="reduce")
+    scrollport = """() => {
+        const body = document.querySelector('lf-diff');
+        return { top: Math.round(body.getBoundingClientRect().top),
+                 scrolls: body.scrollHeight > body.clientHeight,
+                 window: document.scrollingElement.scrollTop };
+    }"""
+    pane = page.evaluate(scrollport)
+    assert pane["scrolls"], f"the patch fits its pane, so nothing can pin: {pane}"
+
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 200; }")
+    pinned = page.evaluate(DIFF_LANDING)
+    assert pinned["headTop"] == pane["top"], (
+        f"the file's name is not at the top of the pane that scrolls it: {pinned}, {pane}"
+    )
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 0; }")
+
+    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.keyboard.press("]")
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
+    landed = page.evaluate(DIFF_LANDING)
+    assert landed["line"] == "40", landed
+    assert landed["headTop"] == pane["top"], (
+        f"the header is not pinned where the landing was measured against: {landed}"
+    )
+    assert landed["top"] >= landed["headBottom"], (
+        f"the row it landed on is above or behind its file's pinned header: {landed}"
+    )
+    assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
+    # The landed row wears the band where it can be seen: inside the code box that clips
+    # it and below the header pinned over the row above. Drawn outset, its sides fell
+    # outside that box and its upper run under the header, and the row showed no ring.
+    row_ring = page.evaluate(f"""() => {{
+        const at = document.querySelector('lf-diff').shadowRoot.activeElement;
+        return ({_RING_WITHIN})(at, at.closest('code'));
+    }}""")
+    # Its right run is the row's end, as far off as the file's longest line, which the
+    # code box scrolls sideways to reach; the other three are on screen.
+    inside = row_ring["inside"]
+    assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
+    # And the code box has not moved sideways. The row runs past the box, so a landing
+    # that let the browser bring it "nearest" scrolled the box to the row's start, the
+    # width of the line numbers over it, hiding every line's marker and first characters.
+    assert row_ring["sideways"] == 0 and inside["left"], (
+        f"the landing scrolled the file's lines sideways under their numbers: {row_ring}"
+    )
+    assert row_ring["top"] >= landed["headBottom"], (
+        f"the landed row's ring runs under its file's pinned header: {row_ring}"
+    )
+    # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
+    # band stays inside the pane: the pane draws it inset over the body's cell
+    # (theme.css), where outset on the body the workspace body clipped its right and
+    # lower runs.
+    page.evaluate("() => document.querySelector('lf-diff').focus()")
+    host_ring = page.evaluate(
+        """() => {
+          const host = document.querySelector('lf-diff');
+          const pane = host.closest('[data-lf-reading-role="pane"]');
+          const band = getComputedStyle(pane, '::after');
+          return { focus: host.matches(':focus-visible'),
+                   own: getComputedStyle(host).outlineStyle,
+                   band: [band.outlineStyle, band.outlineWidth,
+                          parseFloat(band.outlineOffset) + parseFloat(band.outlineWidth)] };
+        }"""
+    )
+    assert host_ring["focus"] and host_ring["own"] == "none", host_ring
+    assert host_ring["band"][:2] == ["solid", "2px"] and host_ring["band"][2] <= 0, (
+        host_ring
+    )
+
+
+# Where an element's focus band falls, from its computed outline, and whether that box
+# stays inside `frame`'s border box, which is what clips it or covers its edge.
+_RING_WITHIN = """(el, frame) => {
+    const s = getComputedStyle(el);
+    const out = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth);
+    const box = el.getBoundingClientRect(), edge = frame.getBoundingClientRect();
+    const ring = { top: box.top - out, left: box.left - out,
+                   right: box.right + out, bottom: box.bottom + out };
+    return { drawn: s.outlineStyle === 'solid' && s.outlineWidth === '2px',
+             focus: el.matches(':focus-visible'), top: Math.round(ring.top),
+             sideways: frame.scrollLeft,
+             inside: { top: ring.top >= edge.top, left: ring.left >= edge.left,
+                       right: ring.right <= edge.right,
+                       bottom: ring.bottom <= edge.bottom } };
+}"""
+
+
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):
@@ -10667,6 +10956,74 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     assert line.bounding_box()["height"] > before
     label.tap()
     expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
+    iphone, serve
+):
+    """A file's header on a phone, with the review press beside it. The triangle stood
+    alone on the first line and the path wrapped below it, back to the header's left
+    edge, because the triangle was the line's first word and the path had no break in
+    it but the ones `overflow-wrap` forces; and a padding held the press's column open
+    down the whole header, so those forced breaks cut names mid-word
+    ("skills/wor|ktrunk"). The path now starts on the triangle's line, every line of
+    it starts at one left edge, and each break falls after a slash."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone header",
+                '<h1>Review</h1><lf-diff id="patch" review><pre>'
+                + patch
+                + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    lines = page.evaluate(
+        """() => {
+        const head = document.querySelector('lf-diff').shadowRoot
+            .querySelector('summary');
+        const text = head.querySelector('.lf-diff-path');
+        const range = document.createRange();
+        const lines = [];
+        for (const node of text.childNodes) {
+            if (node.nodeType !== Node.TEXT_NODE) continue;
+            for (let i = 0; i < node.length; i++) {
+                range.setStart(node, i);
+                range.setEnd(node, i + 1);
+                const box = range.getBoundingClientRect();
+                const last = lines.at(-1);
+                if (last && Math.abs(box.top - last.top) < 2) last.text += node.data[i];
+                else lines.push({ top: box.top, left: Math.round(box.left),
+                                  text: node.data[i] });
+            }
+        }
+        const s = getComputedStyle(head);
+        return { lines, contentTop: head.getBoundingClientRect().top
+                   + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) };
+    }"""
+    )
+    rows = lines["lines"]
+    assert len(rows) > 1, f"the path fits one line, so nothing wrapped: {rows}"
+    assert rows[0]["top"] - lines["contentTop"] < 8, (
+        f"the path did not start on the triangle's line: {lines}"
+    )
+    # To a pixel: the first line is drawn back by the triangle's width, which the
+    # engine's font sets.
+    lefts = [row["left"] for row in rows]
+    assert max(lefts) - min(lefts) <= 1, (
+        f"a wrapped line of the path does not start where its first line does: {rows}"
+    )
+    assert all(row["text"].endswith("/") for row in rows[:-1]), (
+        f"the path broke inside a name: {[row['text'] for row in rows]}"
+    )
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

@@ -98,7 +98,7 @@ const EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
 const EMPTY_BAR = Object.freeze({
   items: Object.freeze([]),
   more: Object.freeze({
-    hidden: false,
+    hidden: true,
     binding: null,
     line: "more",
     title: "More keyboard shortcuts",
@@ -151,8 +151,7 @@ const shortcutBarTemplate = (model) =>
       ?hidden=${model.more.hidden}
       @click=${() => activateShortcutMore?.()}
     >
-      <kbd class="lf-key-badge" ?hidden=${!model.more.binding}
-        >${model.more.binding ?? nothing}</kbd
+      <kbd class="lf-key-badge">${model.more.binding}</kbd
       ><span>${model.more.line}</span></button
     >${
       model.tail
@@ -370,11 +369,12 @@ export function renderShortcutBar(goToStatus) {
   // font must not push More onto a lower row beside a page or panel control, where two
   // compact targets would no longer have the 24px separation either one owes.
   const ordered = [...projectedRows, ...referenceRows];
-  // More is a permanent pointer and Tab route, but its key face is the same contextual
-  // projection as every other key on the line. In a text box the typing scope claims `?`,
-  // so the row is absent here and the button keeps only its non-keyboard route. Reading
-  // the surviving row also keeps the face, accessible shortcut, label, and dispatch from
-  // becoming four independent claims about the binding.
+  // More's key face is the same contextual projection as every other key on the line, and
+  // the line shows only what works from where the user is. In a text box the typing scope
+  // claims `?`, so the row is absent and More stands down with it: a bare "more" read as
+  // a hint that had lost its key. Reading the surviving row also keeps the face,
+  // accessible shortcut, label, and dispatch from becoming four independent claims about
+  // the binding.
   const referenceBinding = reference ? bindings(reference)[0] : null;
   const referenceDoes = word(SHORTCUT_HELP.does);
   const referenceLine = word(SHORTCUT_HELP.line);
@@ -401,13 +401,14 @@ export function renderShortcutBar(goToStatus) {
       hidden: sourceRow(row) === SHORTCUT_HELP || (!expanded && !shown.has(row)),
     });
   });
-  // The door is not useful behind the room it opens. While the reference stands, its
-  // own Escape row is the short line and More remains retained but leaves layout and the
-  // focus order. The reference takes focus before this state is painted.
+  // The door is not useful behind the room it opens, nor where its key does not work.
+  // While the reference stands, its own Escape row is the short line; in either case More
+  // remains retained but leaves layout and the focus order. The reference takes focus
+  // before this state is painted.
   const model = Object.freeze({
     items: Object.freeze(presentations),
     more: Object.freeze({
-      hidden: commandReferenceOpen(),
+      hidden: commandReferenceOpen() || !referenceBinding,
       binding: referenceBinding ? spell(referenceBinding) : null,
       line: referenceLine,
       title: referenceDoes,

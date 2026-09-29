@@ -508,7 +508,7 @@ customElements.define(
       const actions = offer("footer", "lf-playground-actions");
       this.#reset = offer("button", "lf-btn lf-playground-reset", "Reset");
       this.#copy = offer("wa-copy-button", "lf-playground-copy");
-      const copyTrigger = offer("button", "lf-playground-copy-trigger");
+      const copyTrigger = offer("button", "lf-btn lf-playground-copy-trigger");
       if (this.id) copyTrigger.id = `${this.id}-copy`;
       for (const [className, text] of COPY_LABELS) {
         const label = document.createElement("span");

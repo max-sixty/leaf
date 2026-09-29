@@ -126,6 +126,13 @@ def code_focused(page: Page) -> None:
     )
 
 
+def pane_focused(page: Page) -> None:
+    """A workspace pane's body focused by keyboard: a pane standing flush with the
+    workspace's own scrollport, which clipped a ring drawn outside the body."""
+    page.keyboard.press("Tab")
+    page.locator("#sort-source").focus()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -144,6 +151,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_focused,
+        pane_focused,
         go_to,
     )
 }
@@ -178,6 +186,9 @@ STATES = (
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_focused),
     State("walkthrough-code-dark", "pr-walkthrough", code_focused, scheme="dark"),
+    State("sort", "rust-sort", at_rest),
+    State("sort-pane", "rust-sort", pane_focused),
+    State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
 )
 
 

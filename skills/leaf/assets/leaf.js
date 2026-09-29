@@ -175,7 +175,6 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
@@ -217,6 +216,7 @@ let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
+  band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();
@@ -358,10 +358,6 @@ const version = createVersionController({
   captureAskStanding: () => asks.captureStanding(),
   restoreAskStanding: (standing) => asks.restoreStanding(standing),
 });
-// Body is the stable programmatic destination when the user lets go of a control.
-// Register the stop after version.js snapshots source attributes, so later authored
-// revisions do not mistake it for source state and remove it.
-setRuntimeRootAttribute(document.body, "tabindex", "-1");
 
 const inputs = createCompositionInputs({
   uploadMedia,
@@ -589,6 +585,7 @@ responseSurface = createResponseSurface({
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
+  dismissThreadView: () => app.margin.inlineThreadView.dismiss(),
   responseHome: chromeRoot,
 });
 reactions = createReactionController({

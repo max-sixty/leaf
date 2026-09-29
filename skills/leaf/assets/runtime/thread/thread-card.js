@@ -577,12 +577,12 @@ export class ThreadView {
       source: this.node,
       available: () => this.node.isConnected,
     });
-    const land = () => {
-      if (!mayLand() || !this.node.contains(focused())) return false;
+    const land = (may = mayLand) => {
+      if (!may() || !this.node.contains(focused())) return false;
       scrollThreadIntoView(this.node, focused());
       return true;
     };
-    return { optimistic: land, refused: land };
+    return { optimistic: () => land(), reverse: land };
   };
 
   #returnToQuote = (event) => {
@@ -675,8 +675,8 @@ export class ThreadView {
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
-        refused: () => {
-          if (mayRestore()) {
+        reverse: (may = mayRestore) => {
+          if (may() && mayLand.available()) {
             const card = shownCard();
             if (card) focusThread(card, { preventScroll: true });
           }
@@ -694,8 +694,13 @@ export class ThreadView {
         if (destination) mayRestore = travel.retainPanelLanding(destination);
         return Boolean(destination);
       },
-      refused: async () => {
-        const restoreFocus = mayRestore();
+      // The filter the reopen cleared goes back with the thread, while Threads is open.
+      // An undo's intent governs the whole reversal, so a later input wins over both
+      // halves. A refusal has none: the narrowing's own guard decides the filter, and
+      // the landing's decides the focus.
+      reverse: async (may = null) => {
+        if (!mayLand.available() || (may && !may())) return;
+        const restoreFocus = (may ?? mayRestore)();
         await narrowing.restore(async () => {
           if (restoreFocus)
             await travel.showThread(this.#model.id, { focus: "thread" });

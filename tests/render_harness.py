@@ -1706,6 +1706,13 @@ SHELL_BOX = """(() => {
 # browser's own rendering frames.
 SCROLL_STILL_FRAMES = 3
 
+# Put the user nowhere, with the next Tab starting at the top of the document: the
+# runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
+# `document.body.focus()` moves nothing on a page whose root does not scroll.
+RELEASE_FOCUS = """async () =>
+  (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
+
+
 SCROLL_STILL = """([selector, axis, frames]) => {
   const box = selector ? document.querySelector(selector) : document.scrollingElement;
   if (!box) return false;
@@ -1761,10 +1768,10 @@ def panel_settled(page, open=True):
 
 def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
     """The page's own stylesheet setting a workspace body's panes side by side, as a
-    page writes it: a grid, which stacks in a narrow window."""
+    page writes it: a grid, which stacks where the workspace flows."""
     return f"""<style>
 #{regions} {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
-@media (width < 900px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
+@media (width < 720px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
 </style>"""
 
 
@@ -1900,3 +1907,114 @@ def compare_with(page, version=None):
         else page.locator(f'.lf-version-diff[data-lf-version="{version}"]')
     )
     press.click()
+
+
+# Every DOM write, in the document and each open shadow root, recorded with the value it
+# left, so a write that left the value it found reads as one. A write's value is the old
+# value of the next write to the same place, or what stands there when the batch arrives.
+_WATCH_WRITES = """() => {
+  window.lfWriteObserver?.disconnect();
+  window.lfWrites = [];
+  window.lfWriteStep = null;
+  const place = (node) =>
+    node.nodeType === 1
+      ? `${node.localName}${node.id ? "#" + node.id : ""}` +
+        `${node.classList.length ? "." + [...node.classList].join(".") : ""}`
+      : node.nodeName;
+  const serial = (nodes) =>
+    [...nodes].map((node) => node.outerHTML ?? node.data ?? "").join("");
+  let count = 0;
+  const numbered = new WeakMap();
+  const number = (node) => {
+    if (!numbered.has(node)) numbered.set(node, ++count);
+    return numbered.get(node);
+  };
+  const observer = new MutationObserver((records) => {
+    const next = new Map();
+    const written = [];
+    for (const record of [...records].reverse()) {
+      const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
+      const now =
+        record.type === "attributes"
+          ? record.target.getAttribute(record.attributeName)
+          : record.type === "characterData"
+            ? record.target.data
+            : null;
+      const left = next.has(key) ? next.get(key) : now;
+      next.set(key, record.oldValue);
+      written.unshift({
+        step: window.lfWriteStep,
+        key,
+        type: record.type,
+        attribute: record.attributeName,
+        target: place(record.target),
+        old: record.oldValue,
+        left,
+        unchanged:
+          record.type === "childList"
+            ? serial(record.removedNodes) !== "" &&
+              serial(record.removedNodes) === serial(record.addedNodes)
+            : left === record.oldValue,
+      });
+    }
+    window.lfWrites.push(...written);
+  });
+  window.lfWriteObserver = observer;
+  const options = {
+    subtree: true, attributes: true, childList: true, characterData: true,
+    attributeOldValue: true, characterDataOldValue: true,
+  };
+  const watch = (root) => {
+    observer.observe(root, options);
+    for (const node of root.querySelectorAll("*"))
+      if (node.shadowRoot) watch(node.shadowRoot);
+  };
+  watch(document);
+}"""
+
+
+def scroll_writes(page, steps, scroller="document.scrollingElement"):
+    """Scroll `scroller` (a page expression) by each of `steps`, waiting for every
+    repaint a step queues, and return each DOM write the scroll caused, numbered by
+    step. The pointer is moved off the page's controls first, so the scroll brings
+    nothing new under it."""
+    page.mouse.move(2, 300)
+    rendered(page)
+    page.evaluate(_WATCH_WRITES)
+    start = page.evaluate(f"() => {scroller}.scrollTop")
+    for index, step in enumerate(steps):
+        page.evaluate(
+            f"([index, step]) => {{ window.lfWriteStep = index; "
+            f"{scroller}.scrollBy(0, step); }}",
+            [index, step],
+        )
+        rendered(page)
+    assert page.evaluate(f"() => {scroller}.scrollTop") == start + sum(steps), (
+        "the scroll did not go where its steps lead"
+    )
+    return page.evaluate("() => window.lfWrites")
+
+
+def restless_writes(writes):
+    """The writes a page makes that no change asked for, as findings.
+
+    A write that leaves the value it found changes nothing and still costs a repaint,
+    of the whole document while a highlight holds a range. And a place written on more
+    than two steps of a scroll is following the scroll: a state the scroll changes
+    crosses a small pass at most once each way, while a position written from scroll
+    events is written on every step, a frame behind the browser, which carries a box
+    that CSS lays out (an anchor, a sticky offset, a scroll timeline) with the scroll
+    itself."""
+    places = {}
+    for w in writes:
+        places.setdefault(w["key"], []).append(w)
+    found = []
+    for written in places.values():
+        what = f"{written[0]['type']} {written[0]['attribute'] or ''} on {written[0]['target']}"
+        unchanged = {w["step"] for w in written if w["unchanged"]}
+        if unchanged:
+            found.append(f"{what} rewrote the value it held, on {len(unchanged)} steps")
+        steps = {w["step"] for w in written}
+        if len(steps) > 2:
+            found.append(f"{what} follows the scroll, written on {len(steps)} steps")
+    return found

@@ -18,6 +18,8 @@ from pathlib import Path
 
 import psutil
 
+from .state_paths import state_home_path
+
 # A process reading fails in two ways worth answering with None: the process is
 # gone (NoSuchProcess, and ZombieProcess under it), or it belongs to another user
 # and its command line is closed to us (AccessDenied). psutil's other errors come
@@ -100,10 +102,7 @@ def state_home() -> Path:
     and a log that outranks the document, and a 0644 file under a traversable
     path hands it to anyone on a shared machine. One writer for the mode, since
     every path into the state home resolves through this call."""
-    home = (
-        Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
-        / "leaf"
-    )
+    home = state_home_path()
     home.mkdir(mode=0o700, parents=True, exist_ok=True)
     return home
 

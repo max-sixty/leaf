@@ -163,6 +163,7 @@ export function createResponseSurface({
   openPageThread,
   drawModeActive,
   refreshThread,
+  dismissThreadView,
   responseHome,
 }) {
   const hideReference = () => closeCommandReference(false);
@@ -798,6 +799,11 @@ export function createResponseSurface({
         fab.style.display = "none";
       }
     }
+    // A bar raised on a new target takes the thread card down: the card stands above
+    // page-level chrome and may cover the bar, and the user has moved on from its thread
+    // to a new response, as opening a margin entry's options closes it.
+    if (fabAnchor && fabFloating && !sameAnchor(previous, fabAnchor))
+      dismissThreadView();
     if (!sameAnchor(previous, fabAnchor)) refreshThread();
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {

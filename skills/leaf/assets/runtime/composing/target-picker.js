@@ -18,7 +18,7 @@ import {
 import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { handBack } from "../focus.js";
+import { handBack, releaseFocus } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -237,7 +237,7 @@ export function createTargetPicker({
       pageSearchInput.value = "";
       matches = [];
       active = -1;
-      document.body.focus({ preventScroll: true });
+      releaseFocus();
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
@@ -396,7 +396,7 @@ export function createTargetPicker({
 
   function chooseTarget(target) {
     setTargetPicker(false);
-    document.body.focus({ preventScroll: true });
+    releaseFocus();
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
   }
@@ -418,7 +418,7 @@ export function createTargetPicker({
   }
 
   function selectMatch(segments) {
-    document.body.focus({ preventScroll: true });
+    releaseFocus();
     const selection = getSelection();
     selection.removeAllRanges();
     selection.addRange(rangeOf(segments));

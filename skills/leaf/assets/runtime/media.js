@@ -13,6 +13,7 @@
 import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
+import { closeControl } from "./widget-elements.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
 // takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
@@ -56,10 +57,15 @@ class MediaViewerFace extends LitElement {
     model: { attribute: false },
   };
 
+  #close = closeControl({
+    name: "Close image preview",
+    title: "Close image preview (Esc)",
+  });
+
   constructor() {
     super();
     this.model = null;
-    this.closeViewer = null;
+    this.#close.onclick = () => this.closeViewer();
   }
 
   createRenderRoot() {
@@ -72,16 +78,14 @@ class MediaViewerFace extends LitElement {
   }
 
   focusClose() {
-    this.querySelector(".lf-media-viewer-head > button").focus({
-      preventScroll: true,
-    });
+    this.#close.focus({ preventScroll: true });
   }
 
   render() {
     return html`
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
-        <button class="lf-btn" type="button" @click=${this.closeViewer}>Close</button>
+        ${this.#close}
       </div>
       <div class="lf-media-viewer-stage">
         ${this.model ? html`<img src=${this.model.url} alt=${this.model.alt} />` : null}

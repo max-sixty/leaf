@@ -1,7 +1,9 @@
 /* Shared visibility for addressable targets and placement for predictable numeric Ask
-   binding badges. The banner clips every target's usable box. An Ask face may move back inside
-   the viewport, but it yields wherever that move would cover fixed chrome or another
-   badge: its ordered choices make a missing digit inferable. Opaque generated target
+   binding badges. The banner clips every target's usable box. An Ask face hangs off its
+   control's upper-left corner, and off another of its corners where that one would cover
+   a different control: a digit laid over a neighbour's corner reads as that neighbour's.
+   It may move back inside the viewport, but it yields wherever that move would cover
+   fixed chrome or another badge: its ordered choices make a missing digit inferable. Opaque generated target
    hints instead use the no-drop placement in hints.js.
 
    One pass constructs this reading once and asks it for every member, so the clips over
@@ -17,7 +19,8 @@
    promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
-import { elementFromPointAcross, inChrome } from "../passages.js";
+import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
+import { PRESSES } from "../widget-elements.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
@@ -190,27 +193,68 @@ export function keyBadgePlacement() {
     return true;
   }
 
-  // Attach every Ask chip in one write, measure them before moving or hiding any, then
-  // adjust its authored CSS anchor by the clamp delta. A chip already standing stays
-  // where it is in the layer, and one with no room is hidden rather than removed, so a
-  // pass that changes nothing writes nothing.
-  function paint(layer, chips) {
-    setChildren(layer, chips);
+  // Whether a chip's box stands over a control other than the one it labels: asked of the
+  // rendered stack at its middle and just inside each corner, as `exposes` asks, since a
+  // box can stand over a control without the control's rectangle saying so.
+  function coversAnotherControl(box, owner) {
+    const inset = 1;
+    return [
+      [(box.left + box.right) / 2, (box.top + box.bottom) / 2],
+      [box.left + inset, box.top + inset],
+      [box.right - inset, box.top + inset],
+      [box.left + inset, box.bottom - inset],
+      [box.right - inset, box.bottom - inset],
+    ].some(([x, y]) => {
+      const press = closestAcross(elementFromPointAcross(x, y), PRESSES);
+      return press && !under(press, owner) && !under(owner, press);
+    });
+  }
+
+  // Attach every Ask chip in one write and measure them before moving or hiding any.
+  // Each seat names its chip, the control it labels, and the corner box the chip was
+  // anchored at; a chip moves to the first corner of that box whose place, pulled back
+  // inside the window, covers no other control and no chrome or badge, and failing every
+  // one keeps the first corner's place where that is free. The authored CSS anchor is
+  // adjusted by the move. A chip already standing stays where it is in the layer, and
+  // one with no room is hidden rather than removed, so a pass that changes nothing
+  // writes nothing.
+  function paint(layer, seats) {
+    setChildren(
+      layer,
+      seats.map(({ chip }) => chip),
+    );
     const right = document.documentElement.clientWidth;
     const bottom = document.documentElement.clientHeight;
-    const measured = chips.map((chip) => ({
+    const measured = seats.map(({ chip, owner, corner }) => ({
       chip,
+      owner,
+      corner,
       start: chip.getBoundingClientRect(),
       left: Number.parseFloat(chip.style.left),
       top: Number.parseFloat(chip.style.top),
     }));
-    for (const { chip, start, left, top } of measured) {
-      const box = new DOMRect(
-        clamp(start.left, 0, right - start.width),
-        clamp(start.top, covered, bottom - start.height),
-        start.width,
-        start.height,
+    const free = (box) =>
+      box.right > box.left &&
+      box.bottom > box.top &&
+      !kept.some((standing) => overlaps(box, standing));
+    for (const { chip, owner, corner, start, left, top } of measured) {
+      const places = [
+        [corner.left, corner.top],
+        [corner.right, corner.top],
+        [corner.left, corner.bottom],
+        [corner.right, corner.bottom],
+      ].map(
+        ([x, y]) =>
+          new DOMRect(
+            clamp(start.left + x - corner.left, 0, right - start.width),
+            clamp(start.top + y - corner.top, covered, bottom - start.height),
+            start.width,
+            start.height,
+          ),
       );
+      const box =
+        places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
+        places[0];
       if (!reserve(box)) {
         chip.style.visibility = "hidden";
         continue;

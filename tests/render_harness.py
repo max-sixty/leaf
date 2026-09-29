@@ -1076,6 +1076,19 @@ def clean_browser():
     assert problems == [], problems
 
 
+def judge_typing():
+    """Judge every layout shift each watched page has painted (`typing_watch.js`).
+
+    Chrome hands a frame's shifts to the observer a task or more after it paints, so a
+    test whose last act is a keystroke ends before the report. `conftest.py` calls this
+    as the test body returns, while the pages' servers still answer: a round trip to a
+    page whose server is gone lets its failed fetches reach the console."""
+    for page, _ in _BROWSER_PROBLEM_LISTS or ():
+        if not page.is_closed():
+            for frame in page.frames:
+                frame.evaluate("() => window.lfTypingJudged?.()")
+
+
 def watched(page):
     """Collect browser problems into one retained list per page.
 

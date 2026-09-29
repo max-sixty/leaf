@@ -6109,17 +6109,14 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     placed = preview.evaluate(
         """card => ({left: card.getBoundingClientRect().left,
                       top: card.getBoundingClientRect().top,
-                      height: card.getBoundingClientRect().height,
-                      held: 'lfThreadHeld' in card.dataset,
                       placedLeft: card.style.left, placedTop: card.style.top})"""
     )
     assert placed["left"] == pytest.approx(
         float(placed["placedLeft"].removesuffix("px")), abs=0.5
     ), placed
-    positioned_top = float(placed["placedTop"].removesuffix("px"))
-    if placed["held"]:
-        positioned_top -= placed["height"]
-    assert placed["top"] == pytest.approx(positioned_top, abs=0.5), placed
+    assert placed["top"] == pytest.approx(
+        float(placed["placedTop"].removesuffix("px")), abs=0.5
+    ), placed
     expect(thread.locator(".lf-page-thread-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-page-thread-open")).to_have_count(0)

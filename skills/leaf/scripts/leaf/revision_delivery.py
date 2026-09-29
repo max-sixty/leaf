@@ -48,6 +48,7 @@ from .structure import (
     rel_tokens,
     review_mode,
     rewrite_attribute_references,
+    script_kind,
     source_index,
 )
 
@@ -143,7 +144,7 @@ def rebase_document(
 ) -> str:
     """Re-address every reference an HTML document makes, and nothing else in it.
 
-    The references are an authored module's `src` and its literal imports, a
+    The references are an authored script's `src` and its literal imports, a
     stylesheet link, every URL `attribute_references` reads, and the URLs of each
     `style` element and attribute — in the document and in each declarative shadow
     root it serializes. Authored prose is also the anchorable record, so a
@@ -217,7 +218,9 @@ def rebase_document(
                 body = source[start:end]
                 if tag == "style":
                     delivered = rebase_css(body, "/index.html", address)
-                elif attrs.get("type") == "module" and not attrs.get("src"):
+                elif script_kind(attrs) in {"module", "classic"} and not attrs.get(
+                    "src"
+                ):
                     delivered = rebase_module(
                         body.encode("utf-8"), "/index.html", address
                     ).decode("utf-8")

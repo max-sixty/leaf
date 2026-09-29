@@ -206,9 +206,9 @@ def export_document(
     The import map is an address table, not another runtime: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
     URL. The normal application publisher, widgets, and presentation coordinator boot
-    against the embedded authoritative reading. CSP admits embedded bytes and the
-    external origins a page may name, so the file reaches no other network and opens
-    offline wherever the page itself loads nothing from a CDN.
+    against the embedded authoritative reading. The page policy admits embedded bytes
+    and the external URLs a page may name, so the file opens offline wherever the
+    page itself names none.
     """
     modules = _module_urls(
         artifact,

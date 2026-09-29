@@ -12,12 +12,14 @@ re-vendoring.
 `page check` starts with a deterministic check of the exact mutable `index.html`
 (no browser, near-free; activation and `page stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
-appears only in inline modules or literal local module graphs rooted below `/page/`,
-never classic scripts, network imports, event-handler attributes, or `javascript:` URLs;
-page-specific presentation appears inline or in captured `/page/` stylesheets. The
-encoding, CSP, runtime, theme, page identity, and canonical address belong to delivery
-and are rejected in source. Delivery inserts them at the start of `<head>`, before
-authored executable content, and marks each authored inline module with the nonce its
+runs after the runtime has read the page, as inline modules, deferred classic script
+files, or their literal local graphs rooted below `/page/`, with scripts from the page
+policy's CDNs; never parser-blocking or `async` scripts, event-handler attributes, or
+`javascript:` URLs; page-specific presentation appears inline or in captured `/page/`
+stylesheets, and what a page shows may come from any https: URL. The encoding, CSP,
+import map, script nonces, runtime, theme, page identity, and canonical address belong
+to delivery and are rejected in source. Delivery inserts them at the start of `<head>`,
+before authored executable content, and marks each authored script with the nonce its
 policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most

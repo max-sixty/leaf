@@ -15,7 +15,7 @@ from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, SourceDocument, links_with_rel
+from leaf.structure import LF_META, SourceDocument, links_with_rel, script_kind
 from leaf.styles import (
     css_syntax_errors,
     inline_presentation_override_errors,
@@ -100,35 +100,42 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     errors.extend(page_boundary_errors(parser))
     errors.extend(authored_allocation_errors(parser))
 
-    for script in parser.external_scripts:
-        if (
-            set(script["attrs"]) != {"type", "src"}
-            or script["attrs"].get("type") != "module"
-        ):
+    # A page's scripts are its author's, of any kind, so long as each runs after Leaf
+    # has read the page: the runtime holds the authored main as the page's baseline and
+    # listens for errors from the moment its module runs, and a deferred script or a
+    # module runs after it, in document order. A parser-blocking or async script can
+    # run first, changing what Leaf reads as authored and throwing where no check
+    # hears it. Delivery owns the nonce that authorizes scripts and the one import map,
+    # which it writes ahead of every script.
+    for script in [*parser.inline_scripts, *parser.external_scripts]:
+        attrs, where = script["attrs"], f"(line {script['line']})"
+        kind = script_kind(attrs)
+        if "nonce" in attrs:
+            errors.append(f"<script nonce> {where}: the nonce belongs to delivery")
+        if kind == "importmap":
             errors.append(
-                f"<script src> (line {script['line']}) must be an authored module "
-                'with exactly type="module" and src'
+                f'<script type="importmap"> {where} belongs to delivery; import a '
+                "module by its URL"
             )
-
-    for script in parser.inline_scripts:
-        if script["attrs"] != {"type": "module"}:
+        if kind not in {"module", "classic"}:
+            continue
+        if "async" in attrs:
             errors.append(
-                f"<script> (line {script['line']}) must be an authored module "
-                f'with exactly type="module"; found attributes {script["attrs"]}'
+                f"<script async> {where} runs whenever it arrives, which can be "
+                "before Leaf reads the page; leave async off"
+            )
+        elif kind == "classic" and not ("src" in attrs and "defer" in attrs):
+            errors.append(
+                f"<script> {where} runs while the page is still parsing, before Leaf "
+                'reads it; write inline JavaScript as <script type="module">, and '
+                "load a classic script file with <script defer src>"
             )
     for executable in parser.executable_attributes:
         errors.append(
             f"<{executable['tag']}> (line {executable['line']}) uses executable "
-            f"attribute {executable['name']}; put authored behavior in a "
-            '<script type="module"> block'
+            f"attribute {executable['name']}, which the page policy never runs; "
+            "attach the behavior from a script"
         )
-
-    stylesheets = links_with_rel(parser.links, "stylesheet")
-    for stylesheet in stylesheets:
-        if set(stylesheet["attrs"]) != {"rel", "href"}:
-            errors.append(
-                f"<link rel=stylesheet> (line {stylesheet['line']}) must have exactly rel and href"
-            )
 
     for link in links_with_rel(parser.links, "canonical"):
         errors.append(

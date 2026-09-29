@@ -1855,7 +1855,9 @@ const attempts = {
     canvas.width = canvas.height = 1;
     return image(URL.createObjectURL(await new Promise((r) => canvas.toBlob(r))));
   },
+  "classic script": () => window.classicRan,
   "remote image": () => image("https://outside.invalid/pixel.png"),
+  "remote fetch": async () => (await fetch("https://outside.invalid/data.json")).status,
   "unmarked script": () => new Promise((resolve) => {
     const script = document.createElement("script");
     script.src = "data:text/javascript,window.unmarkedRan=true";
@@ -1878,17 +1880,32 @@ window.policyOutcomes = (async () => {
 """
 
 
+# One transparent pixel, what another origin serves as an image.
+PIXEL = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c63000100000500010d0a2db40000000049454e44ae426082"
+)
+
+
 def test_served_and_exported_pages_run_under_one_policy(browser, serve, tmp_path):
-    """The page's own module, loaded from its own file, may compile at run time, run a
-    blob: worker, and draw a blob: image, in the served page and its export alike, so
-    a library that does any of them draws in both or neither. A data: script element
-    runs in neither, and neither loads an image from an origin the page may not use."""
+    """The page's own scripts, a deferred classic one and a module, each loaded from
+    its own file, run in the served page and its export alike, so a library draws in both or
+    neither. The module may compile at run time, run a blob: worker, draw a blob:
+    image, and show an image from any https: origin. A data: script element runs in
+    neither, and the page's code fetches nothing from an origin off the CDN list."""
     source = leaf_page(
         "One policy",
         "<h1>One policy</h1>",
-        head='<script type="module" src="/page/attempts.js"></script>',
+        head='<script defer src="/page/classic.js"></script>\n'
+        '<script type="module" src="/page/attempts.js"></script>',
     )
-    version = serve(source, page_files={"attempts.js": POLICY_ATTEMPTS})
+    version = serve(
+        source,
+        page_files={
+            "classic.js": "window.classicRan = 'ran';\n",
+            "attempts.js": POLICY_ATTEMPTS,
+        },
+    )
     out = tmp_path / "offline.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     expected = {
@@ -1896,13 +1913,25 @@ def test_served_and_exported_pages_run_under_one_policy(browser, serve, tmp_path
         "wasm": "ran",
         "blob worker": "ran",
         "blob image": "ran",
-        "remote image": "refused",
+        "classic script": "ran",
+        "remote image": "ran",
+        "remote fetch": "TypeError",
         "unmarked script": "refused",
     }
+    reached = []
+
+    def outside(route):
+        reached.append(route.request.url)
+        route.fulfill(body=PIXEL, content_type="image/png")
+
     for url in (live_url(version), out.as_uri()):
+        reached.clear()
+        context = browser.new_context(viewport={"width": 1200, "height": 900})
+        context.route("https://outside.invalid/**", outside)
         page = open_page(
             browser,
             url,
+            context=context,
             init_script="""
               window.refusedBy = [];
               document.addEventListener('securitypolicyviolation', (event) => {
@@ -1912,10 +1941,11 @@ def test_served_and_exported_pages_run_under_one_policy(browser, serve, tmp_path
         )
         assert page.evaluate("() => window.policyOutcomes") == expected, url
         assert sorted(page.evaluate("() => window.refusedBy")) == [
-            "img-src",
+            "connect-src",
             "script-src-elem",
         ], url
-        consume_browser_errors(page, "violates the following Content Security Policy")
+        assert reached == ["https://outside.invalid/pixel.png"], url
+        consume_browser_errors(page, "Content Security Policy")
 
 
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):

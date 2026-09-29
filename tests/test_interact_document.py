@@ -407,7 +407,6 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
-        ("import(window.modulePath);", "literal local module URL"),
         ('import "./data\\u002ejson";', "unescaped string literals"),
         ("export const = ;", "invalid JavaScript"),
     ]:
@@ -476,7 +475,7 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     )
     previous = files_model.latest_revision(page_dir)
     for css, diagnostic in [
-        ('@import "https://outside.example/style.css";', "local URL"),
+        ('@import "http://outside.example/style.css";', "https: URL"),
         ('@import "./data.json";', "CSS MIME"),
         ('@import url("./data.json");', "CSS MIME"),
         ('main { background: url("../../private.svg"); }', "escapes"),
@@ -488,24 +487,38 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         assert refused.revision == previous and not refused.created
 
 
-def test_an_image_loads_only_from_an_origin_the_policy_admits(page_dir):
+def test_an_image_loads_from_any_https_origin(page_dir):
     image = '<p><img src="{}" alt="logo"></p>\n</section>'
-    admitted = "https://cdn.jsdelivr.net/gh/twitter/twemoji/assets/svg/1f600.svg"
     (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", image.format(admitted), 1)
+        PAGE.replace(
+            "</section>", image.format("https://outside.example/a.png?s=40"), 1
+        )
     )
     assert revisioning_model.activate_source(page_dir).error is None
     (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", image.format("https://outside.example/a.png"), 1)
+        PAGE.replace("</section>", image.format("http://outside.example/a.png"), 1)
     )
     refused = revisioning_model.activate_source(page_dir).error
-    assert refused and "https://cdn.jsdelivr.net" in refused, refused
+    assert refused and "https: URL" in refused, refused
 
 
 @pytest.mark.parametrize(
     "authored, expected",
     [
-        ("<script>window.hiddenPath = true;</script>", "must be an authored module"),
+        (
+            '<script type="importmap">{"imports": {}}</script>',
+            "belongs to delivery",
+        ),
+        ('<script nonce="guess">window.x = 1;</script>', "nonce belongs to delivery"),
+        ("<script>window.x = 1;</script>", "still parsing"),
+        (
+            '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
+            "still parsing",
+        ),
+        (
+            '<script type="module" async src="https://unpkg.com/d3"></script>',
+            "runs whenever it arrives",
+        ),
         (
             '<button onclick="window.hiddenPath = true">Run</button>',
             "uses executable attribute onclick",
@@ -520,13 +533,21 @@ def test_an_image_loads_only_from_an_origin_the_policy_admits(page_dir):
         ),
     ],
     ids=[
-        "classic-script",
+        "import-map",
+        "nonce",
+        "inline-classic",
+        "blocking-classic",
+        "async-module",
         "event-handler",
         "javascript-url",
         "encoded-javascript-url",
     ],
 )
-def test_check_keeps_authored_code_in_module_blocks(page_dir, authored, expected):
+def test_check_leaves_delivery_its_script_boundary(page_dir, authored, expected):
+    """A page's scripts are its author's, classic or module, but each runs after Leaf
+    reads the page. Delivery owns the nonce that authorizes them and the import map
+    ahead of them, and an inline handler or javascript: URL would never run under the
+    page policy."""
     version = page_dir / "index.html"
     version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
 
@@ -2385,7 +2406,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            "must have exactly rel and href",
+            "escapes /page/ and /media/",
         ),
     ],
     ids=["runtime-module", "theme"],

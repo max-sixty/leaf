@@ -29,17 +29,17 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 from leaf.revision_artifact import RevisionArtifact
-from leaf.structure import SourceDocument
+from leaf.structure import SourceDocument, script_kind
 
 from .scheme import served
 
 
 def authors_code(document: SourceDocument, artifact: RevisionArtifact) -> bool:
-    """Whether this revision runs code its author wrote: a module script, or a page
-    widget the document uses. A module a script imports is reached through that
-    script, and a page widget the document never places never loads."""
+    """Whether this revision runs code its author wrote: a script, or a page widget
+    the document uses. A module a script imports is reached through that script, and
+    a page widget the document never places never loads."""
     scripts = [*document.inline_scripts, *document.external_scripts]
-    if any(script["attrs"].get("type") == "module" for script in scripts):
+    if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
     page_widgets = [
         tag

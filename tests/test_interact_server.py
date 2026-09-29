@@ -1158,8 +1158,10 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
     directives = {
         name: sources for name, *sources in (part.split() for part in policy.split(";"))
     }
-    for name in ("default-src", "style-src", "script-src"):
+    for name in ("default-src", "script-src"):
         assert set(EXTERNAL_ORIGINS) <= set(directives[name]), name
+    for name in ("img-src", "media-src", "font-src", "frame-src", "style-src"):
+        assert "https:" in directives[name], name
     module = re.search(rb'src="([^"]*/page/app\.js)"', body).group(1).decode()
     assert fetch(f"{server}{module}")[1].decode() == f'import "{chart}";\n'
 

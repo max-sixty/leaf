@@ -82,10 +82,11 @@ PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The public CDNs a page may load from, the set a Claude artifact page is given:
-# Google Fonts' stylesheets and font files, and the script CDNs. A reference to
-# one of these is served from there as written; capture neither reads nor
-# refuses it, and every fetch directive of `page_policy` admits it.
+# The public CDNs a page may run code and read data from, the set a Claude artifact
+# page is given: Google Fonts' stylesheets and font files, and the script CDNs. What a
+# page only shows (an image, media, a frame, a font, a stylesheet) may come from any
+# https: origin (`shown_reference`). A reference to either is served from there as
+# written; capture neither reads nor refuses it.
 EXTERNAL_ORIGINS = (
     "https://fonts.googleapis.com",
     "https://fonts.gstatic.com",
@@ -107,6 +108,51 @@ def external_reference(reference: str) -> bool:
     return f"{parsed.scheme}://{parsed.netloc}" in EXTERNAL_ORIGINS
 
 
+def shown_reference(reference: str) -> bool:
+    """Whether a URL names something a page may show from another origin: any https:
+    URL with a host."""
+    try:
+        parsed = urlsplit(reference)
+    except ValueError:
+        return False
+    return parsed.scheme == "https" and bool(parsed.netloc)
+
+
+# The script types a browser runs as JavaScript, per the HTML standard: no type, or a
+# JavaScript MIME type, runs as a classic script, and "module" as a module. It reads
+# "importmap" and "speculationrules" as JSON, and never runs any other type.
+JAVASCRIPT_TYPES = frozenset(
+    {
+        "",
+        "application/ecmascript",
+        "application/javascript",
+        "application/x-ecmascript",
+        "application/x-javascript",
+        "text/ecmascript",
+        "text/javascript",
+        "text/javascript1.0",
+        "text/javascript1.1",
+        "text/javascript1.2",
+        "text/javascript1.3",
+        "text/javascript1.4",
+        "text/javascript1.5",
+        "text/jscript",
+        "text/livescript",
+        "text/x-ecmascript",
+        "text/x-javascript",
+    }
+)
+
+
+def script_kind(attrs: dict) -> str:
+    """What a browser does with a script element: "module", "classic", "importmap",
+    "speculationrules", or "data" for a block it never runs."""
+    kind = (attrs.get("type") or "").strip().lower()
+    if kind in {"module", "importmap", "speculationrules"}:
+        return kind
+    return "classic" if kind in JAVASCRIPT_TYPES else "data"
+
+
 def page_policy(nonce: str, origin: str) -> str:
     """The one CSP every page runs under, served or exported.
 
@@ -115,26 +161,28 @@ def page_policy(nonce: str, origin: str) -> str:
     data: URL and must not reach the reader's disk.
 
     The runtime entry and every script the page's source places carry the delivery's
-    nonce, and every module they import inherits it. Beyond the nonce, script-src
-    names only the page's own files and EXTERNAL_ORIGINS; data: and blob: stay out,
-    since either would let a string become a script element. The script CDNs serve
-    any npm package, so a `<script src>` injected into markup and naming one would
-    still run: what keeps injected scripts out is that message markup is inserted
-    where no script runs, and that `page check` refuses every script but a module.
-    base-uri and form-action need their own directives because default-src governs
-    only fetches.
+    nonce, and every module they import inherits it. Every such script is the page
+    author's, and message markup is inserted where no script runs. Beyond the nonce,
+    script-src names only the page's own files and EXTERNAL_ORIGINS; data: and blob:
+    stay out, since either would let a string become a script element. base-uri and
+    form-action need their own directives because default-src governs only fetches.
 
-    Fetches reach the page's own files, data: and blob: URLs, and EXTERNAL_ORIGINS, so
-    markup quoted into a page cannot load a tracking image. The author's code may
-    compile at run time (eval, Function, WebAssembly, a blob: worker): it is trusted,
-    and markup reaches a compiler only through a library the author chose that
-    evaluates markup. 'unsafe-inline' admits the <style> block a page writes its CSS in.
+    What the page shows (images, media, frames, fonts, stylesheets) may come from
+    any https: origin. What its code fetches, and the code itself, comes from the
+    page's own files, data: and blob: URLs, and EXTERNAL_ORIGINS: data a page reads
+    arrives through its `data/` sources, where the log and an export can hold it.
+    The author's code may compile at run time (eval, Function, WebAssembly, a blob:
+    worker): it is trusted, and markup reaches a compiler only through a library the
+    author chose that evaluates markup. 'unsafe-inline' admits the <style> block a
+    page writes its CSS in.
     """
     own = f"{origin} " if origin else ""
     fetches = f"{own}data: blob: {EXTERNAL_SOURCES}"
+    shown = f"{own}data: blob: https:"
     return (
         f"default-src {fetches}; base-uri 'none'; form-action 'none'; "
-        f"object-src 'none'; style-src {fetches} 'unsafe-inline'; "
+        f"object-src 'none'; img-src {shown}; media-src {shown}; "
+        f"font-src {shown}; frame-src {shown}; style-src {shown} 'unsafe-inline'; "
         f"script-src {own}'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}; "
         f"worker-src {own}blob:"
     )
@@ -261,12 +309,11 @@ class SourceDocument:
         self.external_scripts = []
         # Exact text of each inline script: the capture digests it. Every script
         # records where its start tag ends, where delivery inserts the CSP nonce that
-        # authorizes it. Validation admits only authored modules; keeping the
-        # parser neutral lets it report the actual attributes on anything else.
+        # authorizes it.
         self.inline_scripts = []
-        # Executable behavior has one visible source form: a module block. Event
-        # attributes and javascript: URLs are recorded here so the static door can
-        # refuse hidden second forms before a user discovers them by acting.
+        # Executable behavior has one visible source form: a script. Event attributes
+        # and javascript: URLs, which the page policy never runs, are recorded here so
+        # the static door can refuse them before a user discovers them by acting.
         self.executable_attributes = []
         # Every <link>, whatever relation it declares. Two checks read these — the one
         # stylesheet a page dresses itself with, and the canonical address only
@@ -512,8 +559,8 @@ class SourceDocument:
         self.page_resource_refs.update(
             reference
             for _, reference in references
-            # A page file, or an absolute URL, which capture either leaves as written
-            # or refuses with the origins the page's CSP admits.
+            # A page file, or an absolute URL, which capture leaves as written when
+            # it is https: and refuses otherwise.
             if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
         )
 

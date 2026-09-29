@@ -153,7 +153,7 @@
     }
   };
   window.lfUnwatched = unwatched;
-  // typing_watch.js names what moved the same way.
+  // shift_watch.js names what moved the same way.
   window.lfPlace = place;
   const probing = (driver) =>
     driver &&

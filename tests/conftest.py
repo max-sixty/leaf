@@ -250,12 +250,12 @@ def pytest_addoption(parser):
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
-    """A test body that returns has its last keystrokes judged before its fixtures end
-    (`render_harness.judge_typing`)."""
-    from render_harness import judge_typing
+    """A test body that returns has its last shifts judged before its fixtures end
+    (`render_harness.judge_shifts`)."""
+    from render_harness import judge_shifts
 
     result = yield
-    judge_typing()
+    judge_shifts()
     return result
 
 

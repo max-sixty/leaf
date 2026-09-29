@@ -619,7 +619,9 @@ html { background: var(--paper); }
      * root (lf-tabs.js, `declareStickyHeaders`). */
     scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px);
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
-    body { min-height: 100%; }
+    /* The bottom bar's room is the body's own end, where content growing above it only
+     * lengthens the body: a box standing after the content would move with each growth. */
+    body { min-height: 100%; padding-bottom: var(--lf-bottom-bar-h); }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
   /* A block sample stands in its containing page, and its frame takes the body's

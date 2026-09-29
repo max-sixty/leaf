@@ -2,7 +2,7 @@
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it. */
-/* `.lf-chrome` is one fixed runtime root containing the banner, drawer panel, thread panel,
+/* `.lf-chrome` is one runtime root, taking no room of its own, containing the banner, drawer panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
    inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
    regions.
@@ -362,9 +362,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
-  /* The document can scroll its last line above the bottom bar. A root workspace
-     ends above the bar, so this room fills the rest of the window after it. */
-  :scope { padding-bottom: var(--lf-bottom-bar-h); }
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening
@@ -543,9 +540,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-width: 0; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
     font: inherit; text-align: left; cursor: pointer; }
+  /* The disclosure's chevron stands beside the leaf, ahead of the sentence, so the
+     sentence is the one part of the press that changes: trailing it, the chevron moved
+     with every status the page's news wrote. */
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
-    transform: rotate(45deg); margin: -3px 3px 0 0; }
+    transform: rotate(45deg); margin: -3px 0 0 -4px; }
+  .lf-status-button > .lf-status-text { order: 1; }
   .lf-status-button:hover { color: var(--ink); }
   .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }

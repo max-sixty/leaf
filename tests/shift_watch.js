@@ -46,13 +46,6 @@
   // Shifts without input the page makes today, by the report they make. Each is a
   // defect to fix, not a behavior to keep: fixing one deletes its lines.
   const EXPECTED = [
-    // The bottom bar's status chevron, its More, and the bar itself, as news lands.
-    /^::after in button\.lf-status-button moved/,
-    /^button\.lf-shortcut-more moved/,
-    /^span\.lf-shortcut moved/,
-    /^div\.lf-ui\.lf-bottom-status moved/,
-    // The runtime's root, in the frames that move the content above it.
-    /^div\.lf-chrome moved/,
     // The section after a diff, 68px down, as the page first reads the log
     // (PANEL_PAGE, tests/render_cases_interaction.py).
     /^section#s-merge moved/,

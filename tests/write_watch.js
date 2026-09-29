@@ -11,14 +11,24 @@
 // style pass and a repaint, of the whole document while a CSS highlight holds a range,
 // so code writes only what changed (skills/leaf/assets/AGENTS.md).
 //
+// Each finding is reported once per document: a writer that fires every frame would
+// otherwise bury the report under its own repetitions.
+//
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
-  const place = (node) =>
-    node.nodeType === 1
-      ? `${node.localName}${node.id ? "#" + node.id : ""}` +
-        `${node.classList.length ? "." + [...node.classList].join(".") : ""}`
-      : `${node.nodeName} in ${node.parentElement ? place(node.parentElement) : "nothing"}`;
+  // An element by its tag, id and classes, and one with neither by where it stands.
+  const place = (node) => {
+    if (node.nodeType !== 1)
+      return `${node.nodeName} in ${node.parentElement ? place(node.parentElement) : "nothing"}`;
+    const named =
+      `${node.localName}${node.id ? "#" + node.id : ""}` +
+      `${node.classList.length ? "." + [...node.classList].join(".") : ""}`;
+    const parent = node.parentElement ?? node.getRootNode().host;
+    return node.id || node.classList.length || !parent
+      ? named
+      : `${named} in ${place(parent)}`;
+  };
   const serial = (nodes) =>
     [...nodes].map((node) => node.outerHTML ?? node.data ?? "").join("");
   let count = 0;
@@ -26,6 +36,26 @@
   const number = (node) => {
     if (!numbered.has(node)) numbered.set(node, ++count);
     return numbered.get(node);
+  };
+  // Writes that restate a value for a reason of their own, by how a report begins.
+  const EXPECTED = [
+    // CodeMirror writes every attribute of its content element when it mounts a view,
+    // the tab-size style that element already holds among them.
+    "style on div.cm-content",
+    // Web Awesome's icon reflects its `library` property onto the attribute it came from.
+    "library on wa-icon",
+    // Letting go of focus borrows the body's tab stop to move where the next Tab starts,
+    // and gives it back in the same task (focus.js, `releaseFocus`).
+    "tabindex on body",
+    // The contents map decides whether it needs its crowded face by measuring its labels
+    // without it, on every measure.
+    "data-lf-compact on lf-toc",
+  ];
+  const reported = new Set();
+  const report = (what) => {
+    if (reported.has(what) || EXPECTED.some((known) => what.startsWith(known))) return;
+    reported.add(what);
+    console.error(`unchanged write: ${what}`);
   };
   const valueOf = (record) =>
     record.type === "attributes"
@@ -39,9 +69,7 @@
     judging = false;
     for (const record of started.values())
       if (valueOf(record) === record.oldValue)
-        console.error(
-          `unchanged write: ${record.attributeName ?? "text"} on ${place(record.target)}`,
-        );
+        report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     started.clear();
   };
   const observer = new MutationObserver((records) => {
@@ -50,7 +78,7 @@
       if (record.type === "childList") {
         const removed = serial(record.removedNodes);
         if (removed !== "" && removed === serial(record.addedNodes))
-          console.error(`unchanged write: children of ${place(record.target)}`);
+          report(`children of ${place(record.target)}`);
       } else if (!started.has(key)) {
         started.set(key, record);
         if (!judging) requestAnimationFrame(() => setTimeout(judge));

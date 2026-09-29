@@ -29,7 +29,8 @@ import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, keepsText, offer } from "./widget-elements.js";
+import { closeControl, el, offer } from "./widget-elements.js";
+import { keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import {
   BANNER_CONTROL_RANK,

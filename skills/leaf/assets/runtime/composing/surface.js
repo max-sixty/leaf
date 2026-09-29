@@ -124,7 +124,7 @@ import {
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
-import { keeps } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
 // one. The destination box's placeholder names whichever of them dispatch would answer.

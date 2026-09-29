@@ -93,7 +93,8 @@ import {
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";

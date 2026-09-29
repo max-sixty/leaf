@@ -1,6 +1,6 @@
 import { focused, keys } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { keeps, keepsText } from "../widget-elements.js";
+import { keeps, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";

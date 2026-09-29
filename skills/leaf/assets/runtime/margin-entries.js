@@ -16,7 +16,8 @@
 import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
-import { keeps, offer } from "./widget-elements.js";
+import { offer } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { reducedMotion } from "./motion.js";
 import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 

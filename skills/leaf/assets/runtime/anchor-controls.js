@@ -36,7 +36,8 @@ import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
-import { keeps, keepsText, offer, reveal } from "./widget-elements.js";
+import { offer, reveal } from "./widget-elements.js";
+import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';

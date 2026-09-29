@@ -9,7 +9,8 @@
 
 import { cancelRender, nextRender } from "./rendering.js";
 import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
-import { el, keeps } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
 
 // Persistent pointer-inert projections for every element target. A semantic visual

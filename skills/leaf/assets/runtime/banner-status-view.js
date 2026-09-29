@@ -5,7 +5,8 @@
  * publication layouts; no outside code writes or reparents anything inside it.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { el, keeps } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";

@@ -41,6 +41,7 @@ import {
   claimTraversals,
   commands,
   declareStickyHeaders,
+  keeps,
   openAsks,
   layoutChanged,
   listWalkPosition,
@@ -317,9 +318,9 @@ customElements.define(
           replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
           if (panel === active) panel.removeAttribute("hidden");
-          else panel.setAttribute("hidden", HIDDEN);
-          btn.setAttribute("aria-selected", panel === active ? "true" : "false");
-          btn.tabIndex = panel === active ? 0 : -1;
+          else keeps(panel, "hidden", HIDDEN);
+          keeps(btn, "aria-selected", panel === active);
+          keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
         this.#active = active;
         if (switched) this.#open(active, from);

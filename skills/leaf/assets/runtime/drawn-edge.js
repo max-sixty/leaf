@@ -7,6 +7,7 @@ import { userStore } from "./storage.js";
 import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
+import { keeps } from "./keeps.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -63,8 +64,8 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
     // on every step — the platform's own announcement, and the whole reason the edge is a
     // separator. The cap moves with the window, so it is restated wherever the width is.
     for (const handle of handles) {
-      handle.setAttribute("aria-valuenow", String(Math.round(width())));
-      handle.setAttribute("aria-valuemax", String(Math.round(cap())));
+      keeps(handle, "aria-valuenow", Math.round(width()));
+      keeps(handle, "aria-valuemax", Math.round(cap()));
       // A boundary with no distance to travel is not a control. This happens to the
       // comment sheet at the supported 320px floor: leaving its separator in the tab
       // order promised a resize no pointer or arrow could make. Transfer a user who

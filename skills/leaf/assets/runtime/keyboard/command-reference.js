@@ -38,7 +38,8 @@ import {
   neutralStates,
 } from "./presentation.js";
 import { handBack, tabStops } from "../focus.js";
-import { closeControl, keeps } from "../widget-elements.js";
+import { closeControl } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {

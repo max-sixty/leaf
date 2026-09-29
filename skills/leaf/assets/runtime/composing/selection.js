@@ -17,7 +17,8 @@
    Boot constructs the command owner with explicit travel, delivery, and repaint
    capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
-import { el, keeps, responseAction } from "../widget-elements.js";
+import { el, responseAction } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 import {
   clearDraft,

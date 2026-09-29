@@ -41,6 +41,7 @@ import { packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
+import { keeps } from "./keeps.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -169,7 +170,7 @@ function settleResidency() {
   const changed =
     (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
   if (!changed) return false;
-  main.setAttribute("data-lf-margin", tokens);
+  keeps(main, "data-lf-margin", tokens);
   setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
   return true;
 }

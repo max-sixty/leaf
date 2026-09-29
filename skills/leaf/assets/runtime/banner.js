@@ -2,7 +2,8 @@
  * that has changed. */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
-import { el, keeps, keepsText, offer, reserve } from "./widget-elements.js";
+import { el, offer, reserve } from "./widget-elements.js";
+import { keeps, keepsText } from "./keeps.js";
 import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -38,18 +39,23 @@ toggleBtn.setAttribute("aria-expanded", "false");
 let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
-  toggleBtn.textContent =
-    openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
+  keepsText(
+    toggleBtn,
+    openThreads === null ? "Threads" : `Open threads: ${openThreads}`,
+  );
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
     : null;
-  if (unread)
-    toggleBtn.setAttribute("aria-label", `${toggleBtn.textContent}, ${unread}`);
+  if (unread) keeps(toggleBtn, "aria-label", `${toggleBtn.textContent}, ${unread}`);
   else toggleBtn.removeAttribute("aria-label");
-  toggleBtn.dataset.lfKeyTitle = unread
-    ? `Show or hide the thread panel; ${unread}`
-    : "Show or hide the thread panel";
+  keeps(
+    toggleBtn,
+    "data-lf-key-title",
+    unread
+      ? `Show or hide the thread panel; ${unread}`
+      : "Show or hide the thread panel",
+  );
 }
 // Both counts come from the one thread-list reading, so they are painted together.
 export function setThreadCounts(open, unread) {

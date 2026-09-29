@@ -528,6 +528,52 @@ export function createMarginProjection({
   const inlineHosts = new Map();
   let optionsOrdinal = 0;
   let pageInventory = [];
+  // How far down the page each entry's target stands, in whole percent, as its marker's
+  // name last said. A target in skipped content (a tab not chosen) stands nowhere down
+  // the page, and asking would force that content's style and layout (`skipped`).
+  let spokenPositions = [];
+  // The column's size the positions were measured against.
+  let spokenBasis = null;
+  // Geometry is one read-only batch after every row has reconciled. Reading a target
+  // between two marker writes forced one full document layout per Page Map entry —
+  // including on the two-second heartbeat. Every name is then written together.
+  function nameMarkers(positions) {
+    spokenPositions = positions;
+    const walked = pageInventory
+      .map((entry, index) => ({ entry, position: positions[index] }))
+      .filter(({ entry }) => entryHasMarginHost(entry));
+    walked.forEach(({ entry, position }, index) => {
+      const marker = rows.get(entry.key);
+      const name = markerName(entry, index, walked.length, position);
+      paintMarker(marker, entry, hosts.get(entry.key).primary, {
+        suppressed: Boolean(focusedOwnerOffer(entry)),
+        accessibleLabel: name,
+      });
+    });
+  }
+  // Down the margin's column, which is `main` or, on a page without one, the body, as
+  // the margin's layout reads it (margin-layout.js).
+  const marginColumn = () => document.querySelector("main") || document.body;
+  function readSpokenPositions(
+    inventory,
+    mainRect = marginColumn().getBoundingClientRect(),
+    mainHeight = marginColumn().scrollHeight,
+  ) {
+    spokenBasis = mainRect && { width: mainRect.width, height: mainHeight };
+    return inventory.map((entry) =>
+      targetFor(entry) &&
+      !skipped(targetFor(entry)) &&
+      !readingRegionFor(targetFor(entry)) &&
+      mainRect &&
+      mainHeight
+        ? Math.round(
+            ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
+              mainHeight) *
+              100,
+          )
+        : null,
+    );
+  }
   let previewEntry = null;
   let previewThreadItem = null;
   let previewLatest = null;
@@ -604,8 +650,11 @@ export function createMarginProjection({
     if (choice?.kind === "comment") {
       const opensInline = !panelIsOpen();
       keeps(control, "aria-controls", opensInline ? preview.id : panel.id);
-      if (opensInline) keeps(control, "aria-expanded", previewMarginEntry === control);
-      else control.removeAttribute("aria-expanded");
+      keeps(
+        control,
+        "aria-expanded",
+        opensInline ? previewMarginEntry === control : null,
+      );
       return;
     }
     const disclosed =
@@ -1957,11 +2006,9 @@ export function createMarginProjection({
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
-    const main = document.querySelector("main");
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
       chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
-    const mainRect = main?.getBoundingClientRect();
     presentingMarginContributions();
     syncInlineOffers();
     pageInventory = collectEntries();
@@ -2136,37 +2183,7 @@ export function createMarginProjection({
     for (const control of workflowCarriers)
       if (!nextWorkflowCarriers.has(control)) syncMarginAgentWorkflow(control, null);
     workflowCarriers = nextWorkflowCarriers;
-    // Geometry is one read-only batch after every row has reconciled. Reading a target
-    // between two marker writes forced one full document layout per Page Map entry —
-    // including on the two-second heartbeat. The spoken positions use the main rect
-    // already read above and one final scroll height, then write every name together.
-    // A target in skipped content (a tab not chosen) stands nowhere down the page, and
-    // asking would force that content's style and layout (`skipped`).
-    const mainHeight = main?.scrollHeight ?? 0;
-    const positions = pageInventory.map((entry) =>
-      targetFor(entry) &&
-      !skipped(targetFor(entry)) &&
-      !readingRegionFor(targetFor(entry)) &&
-      mainRect &&
-      mainHeight
-        ? Math.round(
-            ((entryPlace(entry).getBoundingClientRect().top - mainRect.top) /
-              mainHeight) *
-              100,
-          )
-        : null,
-    );
-    const walked = pageInventory
-      .map((entry, index) => ({ entry, position: positions[index] }))
-      .filter(({ entry }) => entryHasMarginHost(entry));
-    walked.forEach(({ entry, position }, index) => {
-      const marker = rows.get(entry.key);
-      const name = markerName(entry, index, walked.length, position);
-      paintMarker(marker, entry, hosts.get(entry.key).primary, {
-        suppressed: Boolean(focusedOwnerOffer(entry)),
-        accessibleLabel: name,
-      });
-    });
+    nameMarkers(readSpokenPositions(pageInventory));
     renderPageMapDialog(pageInventory);
     keepsHidden(nav, pageInventory.length === 0);
     keeps(nav, "aria-label", `Page Map, ${pageInventory.length} locations`);
@@ -3016,9 +3033,16 @@ export function createMarginProjection({
     previewNext.onclick = () => stepPreviewThread(1);
     watchProjection(document.body, renderMargin);
     document.addEventListener("lf-comparison", renderMargin);
-    document.addEventListener("lf-margin-layout", () => {
+    document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
       placeThreadPreview();
       scheduleMarginEntryLabels();
+      // A new width or height moves where targets stand down the page, and so what their
+      // markers' names say; whatever else moves a target renders the margin, which names
+      // them anew. Measured against the column this pass read.
+      if (column.width === spokenBasis?.width && height === spokenBasis?.height) return;
+      const moved = readSpokenPositions(pageInventory, column, height);
+      if (moved.some((position, index) => position !== spokenPositions[index]))
+        nameMarkers(moved);
     });
     for (const event of ["pointerover", "focusin"])
       document.addEventListener(event, scheduleMarginEntryLabels, { capture: true });

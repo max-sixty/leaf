@@ -2,7 +2,7 @@
 
    The annotation layer is everything Leaf draws over the page's content: the margin rows
    standing as pins, whatever they hold, the durable marks on commented and reacted
-   passages with their element contours, an open card, and an unfolded cluster. The rail
+   passages, an open card, and an unfolded cluster. The rail
    covers nothing, so it and everything standing in it stay. Hiding the layer changes no
    geometry, since nothing in it takes up room; it lets the user see what lies under it.
 
@@ -34,7 +34,7 @@ export function setAnnotationsHidden(on) {
   setRuntimeRootAttribute(
     document.documentElement,
     "data-lf-annotations",
-    on ? "hidden" : "shown",
+    on ? "hidden" : null,
   );
   tabStore.set(ANNOTATIONS_KEY, on ? "hidden" : null);
   for (const watcher of watchers) watcher(on);

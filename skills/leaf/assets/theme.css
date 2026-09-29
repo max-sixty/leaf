@@ -1919,7 +1919,10 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * an animation and no way at all of keeping a transition. An animation is
  * declared and named, and `animationend` is how the layer knows one has run —
  * the thread list takes `grow` off a card that way — so the near-zero duration
- * keeps that event and spends no time on it. A transition is declared by
+ * keeps that event and spends no time on it. It runs once, since an endless
+ * animation at that duration repeats on every frame, showing a different point
+ * of its keyframes each time: a pulse becomes a flicker, and the page never
+ * rests. A transition is declared by
  * nobody: `transition-property` is `all` until something says otherwise, so a
  * duration on every element makes a transition out of every property that
  * changes, on every element, and none of them is a transition this theme
@@ -1931,6 +1934,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
     transition: none !important;
   }
 }

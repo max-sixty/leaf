@@ -2741,8 +2741,11 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
 
 
-def test_a_marked_element_uses_a_complete_contour(browser, serve):
-    """Element comments and keyboard focus both keep a complete visible boundary."""
+def test_a_marked_element_draws_nothing_at_rest_and_a_complete_hover_contour(
+    browser, serve
+):
+    """An element's comment draws no contour until the pointer indicates it, and then
+    one complete boundary that the element's own children do not paint over."""
     context = browser.new_context(
         viewport={"width": 1201, "height": 900},
         color_scheme="light",
@@ -2762,6 +2765,7 @@ def test_a_marked_element_uses_a_complete_contour(browser, serve):
         )
     page = open_page(browser, url, context=context)
     ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--mark-ink")))
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
     for ident in ("approach", "col-doing"):
         target = page.locator(f"#{ident}")
         expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -2769,21 +2773,22 @@ def test_a_marked_element_uses_a_complete_contour(browser, serve):
             "node => node.scrollIntoView({block: 'center', inline: 'nearest', "
             "behavior: 'instant'})"
         )
-        edges = mark_edges(page, ident, ink)
-        assert all(seen == {2} for seen in edges.values()), (
-            f"the comment contour on #{ident} was incomplete: {edges}"
+        page.mouse.move(0, 0)
+        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_count(0)
+        rest = mark_edges(page, ident, ink)
+        assert all(seen == {0} for seen in rest.values()), (
+            f"the comment on #{ident} drew a contour at rest: {rest}"
         )
 
-    target = page.locator("#approach")
-    target.evaluate("node => { node.tabIndex = 0; node.focus(); }")
-    expect(page.locator('.lf-visual-mark[data-for="approach"]')).to_have_class(
-        re.compile(r"\blf-visual-mark-focus\b")
-    )
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    focused = mark_edges(page, "approach", accent)
-    assert all(seen == {4} for seen in focused.values()), (
-        f"keyboard focus did not restore a complete ring: {focused}"
-    )
+        box = target.bounding_box()
+        page.mouse.move(box["x"] + 6, box["y"] + box["height"] / 2)
+        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_class(
+            re.compile(r"\blf-visual-mark-hover\b")
+        )
+        edges = mark_edges(page, ident, accent)
+        assert all(seen == {4} for seen in edges.values()), (
+            f"the hover contour on #{ident} was incomplete: {edges}"
+        )
 
 
 def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
@@ -5992,8 +5997,8 @@ RING_NEW_STOP = f"""() => {{
 # reading of the wash has to come with the corpus case that shows it.
 #
 # A marked element answers the keyboard with the same named accent ring as any other
-# focusable passage. Its resting contour has no focus-ring declaration, so it cannot be
-# mistaken for focus.
+# focusable passage. Its hover and current-thread contours have no focus-ring
+# declaration, so they cannot be mistaken for focus.
 #
 # The band cast as a shadow is the third. The anchored response bar draws it that way —
 # its focused states take the outline off so the field and its choices keep one

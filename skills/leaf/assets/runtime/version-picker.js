@@ -165,13 +165,9 @@ class VersionPickerView {
   // The button's disclosure state has one writer, which reads the popover itself: a new
   // model and the popover's own toggle both arrive here.
   #presentDisclosure() {
-    if (this.#model.picker.offered) {
-      keeps(this.button, "aria-haspopup", "menu");
-      keeps(this.button, "aria-expanded", this.isOpen());
-    } else {
-      this.button.removeAttribute("aria-haspopup");
-      this.button.removeAttribute("aria-expanded");
-    }
+    const offered = this.#model.picker.offered;
+    keeps(this.button, "aria-haspopup", offered ? "menu" : null);
+    keeps(this.button, "aria-expanded", offered ? this.isOpen() : null);
   }
 
   #renderMenu() {

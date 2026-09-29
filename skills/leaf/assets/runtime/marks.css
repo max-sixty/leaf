@@ -11,9 +11,8 @@
    through the highlight registry — which styles glyphs, so the underline stands in for
    a border and the pointer's cursor comes from a class the hit-test puts on body. A
    posted thread's mark wears the comment layer's own violet (--mark-ink and the wash
-   beside it, which is the same colour a marked element's contour is drawn in); the open
-   composer's draft wears the accent, and outranks it where they overlap. The rail
-   stays solid so the annotation reads as one continuous contour.
+   beside it); the open composer's draft wears the accent, and outranks it where they
+   overlap. The rail stays solid so the annotation reads as one continuous contour.
 
    The wash and the ink answer two questions, so they are moved by two things. The wash
    says how near the user's attention is, in three steps of one hue: --mark for a mark
@@ -42,9 +41,10 @@
    are what the hue affords rather than what a floor asks: --mark composites to 1.13:1
    over the light paper and 1.34:1 over the dark, and --dfd1ed cannot reach 1.5:1 against
    --paper at any alpha at all — opaque it stands at 1.38:1. So what the user sees a
-   mark by is the line, at 9.0:1 light and 6.2:1 dark, exactly as the element anchors
-   next door are seen by their complete contour (.lf-mark-el, chrome.css). The wash then
-   only has to separate one mark from another, which is a job it can do at 1.1:1.
+   mark by is the line, at 9.0:1 light and 6.2:1 dark. The wash then only has to
+   separate one mark from another, which is a job it can do at 1.1:1. An element holding
+   threads wears neither at rest (.lf-mark-el, chrome.css): its box is its own, so the
+   margin entry beside it is enough, where a passage has no edge but the mark's.
 
    lf-react was the one name with no line, and it was the faintest wash of the set: a
    reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.

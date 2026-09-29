@@ -234,27 +234,24 @@ html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main .lf-thread-seat,
 html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
-/* Element feedback is one hollow contour. Unlike a text highlight, an element mark
-   is projected above everything the target draws, so any interior paint can obscure
-   the target's own words or picture. The target painter keeps this contour above those
-   descendants; these declarations are the no-JS fallback. A reaction and a
-   comment share the contour because it locates feedback rather than naming its kind;
-   the margin control carries that distinction. */
-:is(.lf-mark-el, .lf-react-el) {
-  outline: 1px solid var(--mark-ink); outline-offset: -1px; }
+/* An element holding threads draws no contour at rest: its margin entry says so, and a
+   box means "this, now". A contour appears for a moment — a draft on it, the pointer on
+   its thread, the thread the user stands in — and is one hollow line. Unlike a text
+   highlight, an element mark is projected above everything the target draws, so any
+   interior paint can obscure the target's own words or picture. The target painter
+   keeps the contour above those descendants; the declarations below are the no-JS
+   fallback. The element still takes a press that opens its thread. */
 .lf-mark-el { cursor: pointer; }
-/* The annotation layer hidden (`o`): the resting contour goes with the text marks, here
-   and in the chrome's projection of it (at .lf-visual-mark), and the contours of a
-   gesture (pending, hover, focus, the current thread) stay. */
+/* The annotation layer hidden (`o`): the element's threads are out of reach, so the
+   hand that promises one goes too, while a gesture's own contour stays. */
 :root[data-lf-annotations="hidden"]
-  :is(.lf-mark-el, .lf-react-el):not(.lf-pending, .lf-mark-hover, .lf-mark-here,
-    :focus-visible, .lf-focus-visible) { outline-color: transparent; cursor: auto; }
+  .lf-mark-el:not(.lf-pending, .lf-mark-hover, .lf-mark-here,
+    :focus-visible, .lf-focus-visible) { cursor: auto; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
-/* The draft's own passage uses the accent contour. An open composer is on screen
-   whenever this is, and an already-posted element keeps the posted colour instead, so
-   the two states never contend on one element. */
+/* The draft's own element uses the accent contour. An open composer is on screen
+   whenever this is. */
 .lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
   cursor: auto; }
 /* Hover and the current thread use one accent contour. A press can temporarily move
@@ -265,7 +262,7 @@ html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring);
   --lf-focus-ring: passage-focus; outline-offset: 2px; }
-/* The standing comment promotes the same contour to accent. Focus on the passage
+/* The thread the user stands in draws the same accent contour. Focus on the element
    itself is the separate outer ring above. */
 .lf-mark-el.lf-mark-here { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
@@ -276,7 +273,7 @@ body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: pointer; }
 /* The chrome layer projects every element mark above the element's own descendants,
    so source paint would duplicate it. */
-:is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-projected-mark {
+:is(.lf-mark-el, .lf-action-target).lf-projected-mark {
   outline: none;
 }
 .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
@@ -389,14 +386,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--ink); box-shadow: 0 8px 24px var(--shade);
     outline: var(--focus-ring); --lf-focus-ring: visual-target;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  /* The hand only where the press lands. An element anchor wears its outline
+  /* The hand only where the press lands. An element anchor draws its contour
      wherever its element stands, the layer's own parts included — that is what lets
      a design comment about the banner point at the banner, and a thread about a
-     question an agent asked in a reply point at the question. What the outline may
+     question an agent asked in a reply point at the question. What the mark may
      not do here is offer the hand: markAt refuses a press inside this container on
      purpose, because what the container holds keeps its own presses — the Threads
      button opens the panel, an option takes a pick, and neither opens a thread. So
-     the outline goes on saying which element, and stops promising a click nothing
+     the contour goes on saying which element, and stops promising a click nothing
      takes. Scoped rather than written at document level, where it would widen the
      shared vocabulary by this container's own class. Design mode's rules outside
      outrank this at a weight it cannot reach and draw the arrow here too, which is
@@ -1335,9 +1332,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      page element is reliably the runtime's to paint in — the mark comment at
      document level holds the inventory (outside the border, an enclosing scroller
      clips; inside it, a choose group's own cells paint over; the border band is
-     wherever the widget's own border already is). A standing mark can live with the
-     hairline that survives all that, because an annotation is something a user
-     can hunt for. A promise cannot: it answers a held key at a glance, and over a
+     wherever the widget's own border already is). An annotation's contour can live
+     with whatever band survives all that, because a user can hunt for it. A promise
+     cannot: it answers a held key at a glance, and over a
      box whose border is already the accent the arm changed nothing a user could
      see, which was reported as no box at all.
      The layer over the page is the runtime's by construction, so the aim is stated
@@ -1369,34 +1366,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending) path {
     stroke: var(--accent); }
+  /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
+     an action's target alone keeps the hairline. */
   .lf-visual-mark { position: absolute; display: none; pointer-events: none;
-    --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
-    border: 1px solid var(--mark-ink);
+    --lf-shape-ink: var(--accent); --lf-shape-stroke: var(--focus-ring-w);
+    border: var(--focus-ring-w) solid var(--accent);
     /* This layer is above the target's children. Keep its interior physically unable
        to paint over them, including under package and page-local theme rules. */
     background: none !important; }
-  .lf-visual-mark.lf-visual-mark-pending {
-    --lf-shape-stroke: var(--focus-ring-w);
-    border: var(--focus-ring-w) solid var(--accent); }
-  .lf-visual-mark.lf-visual-mark-action {
-    --lf-shape-ink: var(--accent); border: 1px solid var(--accent); }
-  .lf-visual-mark.lf-visual-mark-hover {
-    border: var(--focus-ring-w) solid var(--accent); }
-  .lf-visual-mark.lf-visual-mark-focus {
-    --lf-shape-ink: var(--accent); border: var(--focus-ring-w) solid var(--accent); }
-  .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-focus,
-      .lf-visual-mark-here) {
-    --lf-shape-stroke: var(--focus-ring-w); }
-  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-hover,
-      .lf-visual-mark-here) {
-    --lf-shape-ink: var(--accent); }
-  .lf-visual-mark.lf-visual-mark-here {
-    border: var(--focus-ring-w) solid var(--accent); }
+  .lf-visual-mark.lf-visual-mark-action:not(.lf-visual-mark-pending,
+      .lf-visual-mark-hover, .lf-visual-mark-focus, .lf-visual-mark-here) {
+    --lf-shape-stroke: 1px; border-width: 1px; }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
-  html[data-lf-annotations="hidden"] :scope
-    .lf-visual-mark:is(.lf-visual-mark-comment, .lf-visual-mark-reaction):not(
-      .lf-visual-mark-pending, .lf-visual-mark-hover, .lf-visual-mark-focus,
-      .lf-visual-mark-here, .lf-visual-mark-action) { visibility: hidden; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
@@ -1781,13 +1762,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      as long as they are the page shows its bones. Every item — a widget, a section, a
      heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
      drawn from the item's geometry the way the aim's box is (paintLegend), one pixel
-     outside the border box so a thread's mark, one pixel inside it, still shows
+     outside the border box so a contour the item wears inside it still shows
      beside. Every item but a widget's parts wears its name above the box's corner
      too — the tag and id a fix is written against, the words the composer and the
      thread will carry — and the parts (a card, an option, a milestone: what x-owners
      declares) keep the hairline alone and are named under the pointer, or a board
      would wear a tag on every card and say nothing. Dashed rather than solid because
-     a legend is structural while the solid rail is the annotation's (.lf-mark-el).
+     a legend is structural while a solid contour is a gesture's (.lf-mark-el).
      Under the pointer the aim's box lifts one item out of the legend
      (.lf-aim) and its full name — the control's word included — floats where the tag
      stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top

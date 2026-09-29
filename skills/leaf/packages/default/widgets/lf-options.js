@@ -229,8 +229,7 @@ class DoneControl extends LitElement {
   }
 
   updated() {
-    if (this.busy) keeps(this.control, "aria-busy", "true");
-    else this.control?.removeAttribute("aria-busy");
+    keeps(this.control, "aria-busy", this.busy ? "true" : null);
   }
 
   render() {

@@ -4583,13 +4583,11 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
     hovered_mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(hovered_mark).to_have_class(re.compile(r"\blf-visual-mark-hover\b"))
-    hovered_width = hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
+    # The contour is the hover's alone: the figure's thread draws nothing at rest, so
+    # moving the pointer on takes the figure's contour away.
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
-    assert (
-        hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
-        != hovered_width
-    )
+    expect(hovered_mark).to_have_count(0)
 
     # Standing in one comment while pointing at another says both, because they answer
     # different questions and rank apart: the standing mark keeps its ink above the wash.

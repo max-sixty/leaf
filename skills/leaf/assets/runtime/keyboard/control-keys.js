@@ -55,8 +55,10 @@ export function paintCoreControls() {
       // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
       // alternatives. The complete sequence remains in the overlay, tooltip, and
       // accessible command reference instead of claiming its final press works alone.
-      if (active && !scope.sequence)
-        keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
-      else control.removeAttribute("aria-keyshortcuts");
+      keeps(
+        control,
+        "aria-keyshortcuts",
+        active && !scope.sequence ? ariaShortcuts([row], false) : null,
+      );
     }
 }

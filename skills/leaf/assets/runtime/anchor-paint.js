@@ -44,7 +44,6 @@ export function createAnchorPaint({
   hoveredPanelThreadId,
   panelThreadForId,
 }) {
-  const reacted = new Map();
   const marked = new Map();
   const placed = new Map();
   const visualTargets = new Map();
@@ -60,7 +59,6 @@ export function createAnchorPaint({
   let mounted = false;
 
   const marksFor = (id) => marked.get(id) ?? [];
-  const allMarks = () => [...marked.values()].flat();
   const elementMarks = (where) =>
     [...where].flat().filter((mark) => mark instanceof Element);
 
@@ -70,9 +68,10 @@ export function createAnchorPaint({
     if (element && surface) visualTargets.set(element, surface);
   };
 
+  // An element's threads and reactions draw nothing on it at rest: its margin entry
+  // already says it holds them, and a contour means "this, now". Only a moment projects
+  // one — a draft, an action, the pointer, the thread the user stands in.
   function paintVisualStates() {
-    const comments = new Set(elementMarks(marked.values()));
-    const reactions = new Set(elementMarks(reacted.values()));
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
     const hover = new Set(elementMarks(hoverParts));
@@ -80,7 +79,7 @@ export function createAnchorPaint({
     // Paint every element state in the chrome plane. A declared visual substitutes its
     // registered surface so compound pictures keep their contour.
     const elements = new Set(
-      [comments, reactions, pending, action, hover, here]
+      [pending, action, hover, here]
         .flatMap((states) => [...states])
         .filter((element) => element instanceof Element),
     );
@@ -90,8 +89,6 @@ export function createAnchorPaint({
       ),
     );
     const sources = [
-      ["comment", comments],
-      ["reaction", reactions],
       ["pending", pending],
       ["action", action],
       ["hover", hover],
@@ -110,18 +107,12 @@ export function createAnchorPaint({
   }
 
   const outlined = () =>
-    new Set([
-      ...elementMarks(marked.values()),
-      ...elementMarks(reacted.values()),
-      ...pendingOutline,
-      ...actionOutline,
-    ]);
+    new Set([...elementMarks(marked.values()), ...pendingOutline, ...actionOutline]);
 
   // Each element's outline classes follow the current record. Toggling the last pass's
   // elements with this one's writes only the classes that moved.
   function paintOutlines(before) {
     const marks = new Set(elementMarks(marked.values()));
-    const reactions = new Set(elementMarks(reacted.values()));
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
     for (const element of new Set([...before, ...outlined()])) {
@@ -130,7 +121,6 @@ export function createAnchorPaint({
         marks.has(element) || pending.has(element),
       );
       element.classList.toggle(PENDING, pending.has(element));
-      element.classList.toggle("lf-react-el", reactions.has(element));
       element.classList.toggle("lf-action-target", action.has(element));
     }
   }
@@ -227,7 +217,6 @@ export function createAnchorPaint({
 
     const before = outlined();
     marked.clear();
-    reacted.clear();
     placed.clear();
     pendingOutline = [];
     actionOutline = [];
@@ -271,14 +260,10 @@ export function createAnchorPaint({
         let at;
         let before;
         if (targetElement(found)) {
-          const parts = targetParts(found);
-          rememberVisual(found);
-          reacted.set(thread.id, parts);
           [at, before] = [found.place, true];
         } else {
           const segments = targetSegments(found);
           const ranges = segments.map((segment) => rangeOf([segment]));
-          reacted.set(thread.id, ranges);
           reactions.push(...ranges);
           const block = annotationAt(segments[0].node);
           const host = shadowHost(block?.getRootNode());
@@ -346,11 +331,7 @@ export function createAnchorPaint({
         : [];
     if (resolvedDraft) rememberVisual(resolvedDraft);
     const pending = [];
-    if (targetElement(resolvedDraft)) {
-      const taken = allMarks();
-      for (const part of pendingMarks)
-        if (!taken.includes(part)) pendingOutline.push(part);
-    }
+    if (targetElement(resolvedDraft)) pendingOutline = pendingMarks;
     if (targetSegments(resolvedDraft).length) pending.push(...pendingMarks);
 
     const active = draft.open ? null : actionAnchor;
@@ -397,7 +378,6 @@ export function createAnchorPaint({
     hoverFrame = 0;
     const before = outlined();
     marked.clear();
-    reacted.clear();
     pendingOutline = [];
     actionOutline = [];
     paintOutlines(before);

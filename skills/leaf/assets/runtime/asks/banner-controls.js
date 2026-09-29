@@ -37,8 +37,7 @@ class AskBannerFace extends RetainedFace {
       control.toggleAttribute("data-lf-complete", this.model.complete);
     } else {
       keeps(control, "title", this.model.title);
-      if (this.model.busy) keeps(control, "aria-disabled", "true");
-      else control.removeAttribute("aria-disabled");
+      keeps(control, "aria-disabled", this.model.busy ? "true" : null);
     }
     showNews(control, this.model.offered);
   }

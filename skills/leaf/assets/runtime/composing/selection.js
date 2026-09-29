@@ -41,6 +41,7 @@ import { elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
+import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 
@@ -131,6 +132,7 @@ export function createSelectionComposer({
   anchorTargetAt,
   bringForward,
   fabAnchorAt,
+  fabPointAt,
   fabPositioned,
   beginFabFocus,
   endFabFocus,
@@ -616,8 +618,10 @@ export function createSelectionComposer({
         const about = pendingAbout;
         const drawing = structuredClone(pendingDrawing);
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
-        // Threads is open. Carry the submitted field's geometry into the new card.
+        // Threads is open. Carry the submitted field's geometry into the new card, which
+        // stands where the field did: by the row a pointing gesture named.
         const transition = threadTransitionOrigin(composerInput, visible);
+        const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
         const sent = sendMessage(
@@ -633,6 +637,7 @@ export function createSelectionComposer({
           },
         );
         if (!sent) return;
+        if (anchor && !anchor.quote) commitPoint(anchorTargetAt(anchor), point);
         // The semantic publication is synchronous, while the retained thread list
         // commits its keyed DOM asynchronously. Wait for that presentation before
         // choosing the destination: otherwise an already-open panel can be asked to

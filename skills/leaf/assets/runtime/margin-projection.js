@@ -118,6 +118,7 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
+import { committedPoint, pointBand } from "./pointed-place.js";
 import {
   TEXT_FIELD,
   declareRelease,
@@ -734,12 +735,15 @@ export function createMarginProjection({
   // The row the card hangs from. A row the rail has no room for is withheld and has no
   // box. A card placed against that empty box stood in the boundary's corner over the
   // words the user pressed, and had never been beside its cluster for a scroll to carry
-  // it away from. It stands by the row's target instead. A row whose target is not shown
+  // it away from. It stands by the row's target instead, at the row inside it the
+  // cluster would stand level with (pointed-place.js). A row whose target is not shown
   // is withheld too, and that target has no box to stand by either.
   function threadCardCluster() {
     const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
-    return row.checkVisibility() ? row : (targetFor(previewEntry) ?? row);
+    if (row.checkVisibility()) return row;
+    const target = targetFor(previewEntry);
+    return committedPoint(target) ?? target ?? row;
   }
   // Where the card stands is thread-card-geometry.js's rule, worked out in client
   // coordinates. Floating UI measures the cluster in the card's positioning space; the
@@ -766,9 +770,13 @@ export function createMarginProjection({
           y: clusterBox.height / rects.reference.height || 1,
         };
         const style = getComputedStyle(preview);
+        // A target pointed into is, for the card, the row its cluster stands by: the
+        // card clears that row rather than a whole target taller than the window.
+        const box = target?.getBoundingClientRect() ?? null;
+        const point = committedPoint(target);
         const geometry = threadCardGeometry({
           cluster: clusterBox,
-          target: target?.getBoundingClientRect() ?? null,
+          target: point ? pointBand(box, point) : box,
           boundary,
           scrollport: threadCardBoundary(target, { viewport: "layout" }),
           gap: CARD_GAP,
@@ -1220,6 +1228,7 @@ export function createMarginProjection({
   function markerOptions(row, order) {
     return {
       anchor: () => targetFor(row.lfEntry),
+      point: () => committedPoint(targetFor(row.lfEntry)),
       order,
       priority: 10,
       move: (into) => moveHost(row, into),

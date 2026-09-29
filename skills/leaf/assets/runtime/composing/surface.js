@@ -26,7 +26,8 @@
    region only enough to keep the passage
    and field visible together; it finally scrolls internally. Beside a target, the
    action-bearing foot stays in place while the field grows upward, until the visible
-   boundary limits it.
+   boundary limits it. A target the gesture pointed into stands the field level with
+   the row it pointed at rather than at the target's top (pointed-place.js).
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
@@ -125,6 +126,7 @@ import {
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
+import { pointBand, standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
@@ -189,6 +191,11 @@ export function createResponseSurface({
     });
   let fabAnchor = null;
   let fabOrigin = null;
+  // The row inside the target the gesture that opened this bar pointed at, which the bar
+  // stands level with (pointed-place.js). `gesturePoint` carries it from the gesture,
+  // for the length of its synchronous open, to the showFab that raises the bar there.
+  let fabPoint = null;
+  let gesturePoint = null;
   let fabFloating = true;
   let fabInlineOutlet = null;
   let fabPlacement = null;
@@ -325,7 +332,7 @@ export function createResponseSurface({
 
   function watchFabPosition(target, autoUpdate) {
     const reference = {
-      contextElement: target,
+      contextElement: fabPointIn(target) ?? target,
       getBoundingClientRect: () =>
         anchorBox(fabAnchor) ?? target.getBoundingClientRect(),
     };
@@ -354,7 +361,9 @@ export function createResponseSurface({
   const anchorStands = (anchor) =>
     Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor, pageText()));
   // A visual's durable anchor is also the geometry authority. Resolve it again after a
-  // reflow instead of remembering where inside the target the pointer happened to land.
+  // reflow instead of remembering where the pointer happened to land; what a pointing
+  // gesture keeps is the row it landed on, an element whose box is read afresh here, and
+  // the bar stands level with it (pointed-place.js).
   function anchorBox(anchor) {
     if (anchor?.quote) {
       const selection = pageSelection();
@@ -381,12 +390,16 @@ export function createResponseSurface({
       return range.getBoundingClientRect();
     }
     const clips = new Map();
-    return union(
+    const box = union(
       targetParts(found)
         .map((part) => shownRect(part, clips))
         .filter(Boolean),
     );
+    const point = box && fabPointIn(targetElement(found));
+    return point ? pointBand(box, point) : box;
   }
+  const fabPointIn = (target) =>
+    fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   // The passage remains the exact anchor, but its resolved place is not spare space: a
   // short selection cannot lend the words around it to the response field. Keep the bar
   // beside that whole place, or above/below it when the rail is too narrow.
@@ -748,11 +761,22 @@ export function createResponseSurface({
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
     if (!anchor && composerOpen) hideComposer();
+    // A gesture on this anchor says where in it the bar stands; re-placing the bar keeps
+    // where the last one said, and any other anchor starts at its target's top.
+    const point =
+      gesturePoint && sameAnchor(gesturePoint.anchor, anchor)
+        ? gesturePoint.point
+        : sameAnchor(previous, anchor)
+          ? fabPoint
+          : null;
+    const pointMoved = point !== fabPoint;
+    fabPoint = point;
     if (
       !anchor ||
       !previous ||
       !sameAnchor(previous, anchor) ||
       !place ||
+      pointMoved ||
       (!previousFloating && !keptInline)
     )
       stopFabPositioning({ reset: true });
@@ -923,14 +947,19 @@ export function createResponseSurface({
   // authored anchor; this command owns the one transition from that target into Comment.
   // Focusing the field drops any older browser selection, and an unsent draft follows the
   // deliberate move. A visual proxy supplies its origin so Escape can return to it.
-  function commentOnTarget({ anchor, element = null }, { origin = null } = {}) {
+  function commentOnTarget(
+    { anchor, element = null, point = null },
+    { origin = null } = {},
+  ) {
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
     bringForward(element);
     targetActivation = true;
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
+    gesturePoint = { anchor, point };
     openComment(anchor, "", { carry: true });
+    gesturePoint = null;
     if (origin) showFab(anchor, null, { origin });
     setTimeout(() => {
       targetActivation = false;
@@ -1267,6 +1296,7 @@ export function createResponseSurface({
   // the two are one function.
 
   const fabAnchorAt = () => fabAnchor;
+  const fabPointAt = () => fabPointIn(fabTargetAt());
 
   function mount() {
     // Floating, the box is carried away with its passage and comes back with it, by the
@@ -1277,7 +1307,8 @@ export function createResponseSurface({
       bringBack: (behavior) => {
         const found = resolveAnchor(fabAnchor, pageText());
         const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;
-        const line = start?.parentElement ?? fabTargetAt();
+        const target = fabTargetAt();
+        const line = start?.parentElement ?? fabPointIn(target) ?? target;
         if (line) scrollToElement(line, behavior, "nearest");
       },
     });
@@ -1654,6 +1685,7 @@ export function createResponseSurface({
     updateFab,
     standDown,
     fabAnchorAt,
+    fabPointAt,
     seatFab,
     restoreFab,
     fabInlineOutlet: () => fabInlineOutlet,

@@ -39,6 +39,7 @@ import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
+import { pointBand } from "./pointed-place.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
 import { keeps } from "./keeps.js";
@@ -483,7 +484,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
   for (const entry of standing) {
     const { read } = entry;
     if (read.place !== "pin") continue;
-    const { target, row, box } = read;
+    const { target, point, row, box } = read;
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
@@ -497,7 +498,9 @@ function seatPins(standing, { bands, shell, pinInset }) {
             bottom: box.top + held.top + height,
           }
         : null;
-    const parts = target.getRootNode() === document ? partsOf(target) : [];
+    // A pin level with a pointed row keeps to that row, as a pin keeps to its target.
+    const about = point ?? target;
+    const parts = about.getRootNode() === document ? partsOf(about) : [];
     const around = height + REACH + GAP;
     const band = {
       top: Math.min(home.top, ...parts.map((part) => part.top)) - around,
@@ -521,6 +524,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // drawing, whose `display` says nothing about lines.
     const end = parts.at(-1);
     const inline =
+      !point &&
       target instanceof HTMLElement &&
       getComputedStyle(target).display.startsWith("inline");
     const within = stop === pageScroller ? null : contentBox(stop);
@@ -577,9 +581,10 @@ function observeLayout() {
   observer.observe(observedColumn);
 }
 
-// Each row states its target (`anchor`), its place among the others in the layer
-// (`order`), its packing priority, and how to move it between lanes without dropping the
-// focus it holds (`move`).
+// Each row states its target (`anchor`), the row inside it it stands level with, if any
+// (`point`, pointed-place.js), its place among the others in the layer (`order`), its
+// packing priority, and how to move it between lanes without dropping the focus it holds
+// (`move`).
 export function registerMarginRow(row, options = {}) {
   rows.set(row, options);
   observeLayout();
@@ -681,6 +686,13 @@ function scheduleScrollReading() {
       const target = options.anchor();
       if (!target?.isConnected || parked.has(row)) continue;
       const anchor = anchorElement(target);
+      // A box scrolled inside the anchor moves a pointed row against the box the row is
+      // inset from, as it moves a target inside its host.
+      const point = options.point?.();
+      if (point && boxes.some((box) => under(point, box) && under(box, anchor))) {
+        scheduleMarginLayout();
+        return;
+      }
       const moving = boxes.filter((box) => under(target, box));
       if (!moving.length) continue;
       if (anchor !== target && moving.some((box) => under(box, anchor))) {
@@ -757,8 +769,11 @@ export function layoutMarginRows() {
       continue;
     }
     const anchor = anchorElement(target);
+    // Level with the row a gesture pointed into, where the row's comment has one
+    // (pointed-place.js); otherwise level with the target's top.
+    const point = options.point?.() ?? null;
     for (
-      let root = target.getRootNode();
+      let root = (point ?? target).getRootNode();
       shadowHost(root);
       root = root.host.getRootNode()
     )
@@ -768,21 +783,24 @@ export function layoutMarginRows() {
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
     const extent = shownExtent(target);
+    const top = extent && point ? pointBand(extent, point).top : extent?.top;
+    const level = point ? top : box.top;
     const place = rowPosture({
       railStands: stands,
       besideRail: railBeside(scroller),
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
-      noted: notes.some((note) => note.top < box.top + size && note.bottom > box.top),
+      noted: notes.some((note) => note.top < level + size && note.bottom > level),
     });
     const shown =
       !parked.has(row) &&
-      targetShown(target, extent, place === "pin" ? null : { top: extent?.top }, bands);
+      targetShown(target, extent, place === "pin" ? null : { top }, bands);
     reads.push({
       row,
       options,
       target,
+      point,
       anchor,
       naming: anchorReading(anchor),
       scroller,
@@ -791,6 +809,7 @@ export function layoutMarginRows() {
       place,
       box,
       extent,
+      top,
     });
   }
   // What each lane's region shows, cut by the scrollers around it but not by the window,
@@ -843,18 +862,19 @@ export function layoutMarginRows() {
   // A withheld row is anchored too, so that when its target comes into view it has only
   // to show. Its insets are written once packing has said where it stands.
   const px = (length) => (length ? `${length}px` : null);
-  for (const { row, naming, shown, place, box, extent } of reads) {
+  for (const { row, naming, shown, place, box, extent, top } of reads) {
     row.classList.toggle("lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
     if (shown) continue;
-    setStyle(row, "--lf-inset-top", px(extent && extent.top - box.top));
+    setStyle(row, "--lf-inset-top", px(extent && top - box.top));
     setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
   }
 
   // Packing reads where each row stands with no push, then writes every push together.
-  // Each row stands level with its target's top, and a pin `--pin-inset` inside its right
+  // Each row stands level with its target's top, or the row inside it its comment
+  // pointed at, and a pin `--pin-inset` inside its right
   // edge, so where it will stand is worked out from the target rather than read back; only
   // its size and whether the browser took its anchor are read off the row.
   const placed = reads
@@ -872,8 +892,8 @@ export function layoutMarginRows() {
               ? read.extent.right - pinInset - box.width
               : box.left - step,
           right: read.place === "pin" ? read.extent.right - pinInset : box.right - step,
-          top: read.extent.top,
-          bottom: read.extent.top + box.height,
+          top: read.top,
+          bottom: read.top + box.height,
         },
         priority: read.options.priority ?? 0,
         read,

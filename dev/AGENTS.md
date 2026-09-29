@@ -72,9 +72,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 
 ## Website and demo
 
-CI, `worker/`'s npm scripts and `.config/wt.toml` run these. Outside `.tmp/`, they
-write only the catalog pin in `example-previews.json` and the demo frames the README
-and site cards draw.
+CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
+generate live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
+in `leaf-assets.json` and the README's image URLs that name it.
 
 - `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, and
   `npm run dev --prefix worker` builds and serves it through `wrangler dev`.
@@ -86,12 +86,12 @@ and site cards draw.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
-- `leaf-dev fetch-previews` fetches the catalog previews pinned in
-  `example-previews.json` (`example_assets.py`, which the site build also calls).
-  `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures them,
-  republishes them to `max-sixty/leaf-assets`, and updates the pin.
-- `leaf-dev record-demo` regenerates `docs/demo.gif`, the README stills, and
-  `docs/session-card.png`.
+- `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in
+  `leaf-assets.json` (`leaf_assets.py`, which the site build also calls).
+  `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures the catalog
+  previews under its `examples/`, republishes them, and moves the pin.
+- `leaf-dev record-demo` regenerates the README's demo GIF and stills and the site's
+  card under its `demo/`, and publishes them the same way.
 
 ## Codex
 

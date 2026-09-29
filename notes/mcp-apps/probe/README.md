@@ -24,8 +24,8 @@ wrote before. The probe leaves the tracked tree alone: an install is the tracked
 tree and nothing in one reads probe evidence. Copy into
 `notes/mcp-apps/experiments/<number>/results/` the part a written-up result cites —
 `reference-host.json` and `source.sha256` identify the run in a few hundred
-bytes; a screenshot earns its megabyte only where the prose points at it, which
-the suite holds over the archive. The runner stops its servers on completion;
+bytes. Screenshots stay in `.tmp/`, since the suite refuses a binary in the
+tracked tree. The runner stops its servers on completion;
 `--keep-live` keeps the passing preview open until Ctrl-C. Ports 3001, 8080, and
 8081 must be free.
 

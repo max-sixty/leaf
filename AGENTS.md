@@ -176,6 +176,18 @@ Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
 `skills/leaf/mcp-app/` are generated and committed where their consumer reads
 them; `build/AGENTS.md` says how to regenerate them.
 
+Every tracked byte ships in every install and stays in history, so keep large
+and binary files out of the tree. An image Leaf generates for its README or
+site, such as the demo recording or a catalog preview, is published to
+`max-sixty/leaf-assets` and pinned by `leaf-assets.json`
+(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+captures, recordings and raw run output, stays in `.tmp/` and reaches the user
+on a Leaf page; a note keeps the finding and the command that reproduces it,
+not the capture. The only binaries in the tree are the drawn images the
+examples render (`examples/media/`) and the captures an eval case hands its
+child. The suite refuses any other binary, and pre-commit refuses a new file
+over 500 KB.
+
 ## Cross-runtime invariants
 
 ### The document starts state; the log changes it

@@ -2983,13 +2983,13 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-conditional", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("phase", state.phase.value); }
+  renderState(state) { keeps(this, "phase", state.phase.value); }
 });
 """
     page = open_page(
@@ -5525,7 +5525,7 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
-        """import { once, widgetController } from "/runtime/widget-api.js";
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-pair", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -5534,7 +5534,7 @@ customElements.define("lf-pair", class extends HTMLElement {
   renderState(state) {
     for (const [verb, reading] of Object.entries(state)) {
       if (reading.value === null) this.removeAttribute(verb);
-      else this.setAttribute(verb, reading.value);
+      else keeps(this, verb, reading.value);
     }
   }
 });
@@ -5707,7 +5707,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -5715,9 +5715,9 @@ customElements.define("lf-tally", class extends HTMLElement {
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     if (state.set.value === null) this.removeAttribute("count");
-    else this.setAttribute("count", state.set.value);
+    else keeps(this, "count", state.set.value);
     if (state.observe.value === null) this.removeAttribute("seen");
-    else this.setAttribute("seen", state.observe.value);
+    else keeps(this, "seen", state.observe.value);
   }
 });
 """
@@ -9229,7 +9229,7 @@ def test_project_widget_can_join_the_orchestration_projection(
         command,
         layer_registry=registry,
         layer_widgets={
-            "lf-area.js": """import { once, widgetController } from \"/runtime/widget-api.js\";
+            "lf-area.js": """import { keeps, once, widgetController } from \"/runtime/widget-api.js\";
 customElements.define(\"lf-area\", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -9238,7 +9238,7 @@ customElements.define(\"lf-area\", class extends HTMLElement {
     this.#stop ??= this.#controller.subscribe(() => {});
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute(\"phase\", state.phase.value); }
+  renderState(state) { keeps(this, \"phase\", state.phase.value); }
 });
 """
         },

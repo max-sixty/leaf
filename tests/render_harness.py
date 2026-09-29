@@ -58,6 +58,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
 ROOT = Path(__file__).parent.parent
+WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -1079,7 +1080,8 @@ def watched(page):
 
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses. Call before navigation so the init script takes effect.
+    the render gate uses, and by DOM writes that change nothing (`write_watch.js`).
+    Call before navigation so the init script takes effect.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1098,6 +1100,7 @@ def watched(page):
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
+    page.add_init_script(path=WRITE_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {
@@ -1909,70 +1912,6 @@ def compare_with(page, version=None):
     press.click()
 
 
-# Every DOM write, in the document and each open shadow root, recorded with the value it
-# left, so a write that left the value it found reads as one. A write's value is the old
-# value of the next write to the same place, or what stands there when the batch arrives.
-_WATCH_WRITES = """() => {
-  window.lfWriteObserver?.disconnect();
-  window.lfWrites = [];
-  window.lfWriteStep = null;
-  const place = (node) =>
-    node.nodeType === 1
-      ? `${node.localName}${node.id ? "#" + node.id : ""}` +
-        `${node.classList.length ? "." + [...node.classList].join(".") : ""}`
-      : node.nodeName;
-  const serial = (nodes) =>
-    [...nodes].map((node) => node.outerHTML ?? node.data ?? "").join("");
-  let count = 0;
-  const numbered = new WeakMap();
-  const number = (node) => {
-    if (!numbered.has(node)) numbered.set(node, ++count);
-    return numbered.get(node);
-  };
-  const observer = new MutationObserver((records) => {
-    const next = new Map();
-    const written = [];
-    for (const record of [...records].reverse()) {
-      const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
-      const now =
-        record.type === "attributes"
-          ? record.target.getAttribute(record.attributeName)
-          : record.type === "characterData"
-            ? record.target.data
-            : null;
-      const left = next.has(key) ? next.get(key) : now;
-      next.set(key, record.oldValue);
-      written.unshift({
-        step: window.lfWriteStep,
-        key,
-        type: record.type,
-        attribute: record.attributeName,
-        target: place(record.target),
-        old: record.oldValue,
-        left,
-        unchanged:
-          record.type === "childList"
-            ? serial(record.removedNodes) !== "" &&
-              serial(record.removedNodes) === serial(record.addedNodes)
-            : left === record.oldValue,
-      });
-    }
-    window.lfWrites.push(...written);
-  });
-  window.lfWriteObserver = observer;
-  const options = {
-    subtree: true, attributes: true, childList: true, characterData: true,
-    attributeOldValue: true, characterDataOldValue: true,
-  };
-  const watch = (root) => {
-    observer.observe(root, options);
-    for (const node of root.querySelectorAll("*"))
-      if (node.shadowRoot) watch(node.shadowRoot);
-  };
-  watch(document);
-}"""
-
-
 def scroll_writes(page, steps, scroller="document.scrollingElement"):
     """Scroll `scroller` (a page expression) by each of `steps`, waiting for every
     repaint a step queues, and return each DOM write the scroll caused, numbered by
@@ -1980,7 +1919,7 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     nothing new under it."""
     page.mouse.move(2, 300)
     rendered(page)
-    page.evaluate(_WATCH_WRITES)
+    page.evaluate("() => { window.lfWrites = []; window.lfWriteStep = null; }")
     start = page.evaluate(f"() => {scroller}.scrollTop")
     for index, step in enumerate(steps):
         page.evaluate(
@@ -1992,28 +1931,25 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     assert page.evaluate(f"() => {scroller}.scrollTop") == start + sum(steps), (
         "the scroll did not go where its steps lead"
     )
-    return page.evaluate("() => window.lfWrites")
+    return page.evaluate(
+        "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
+    )
 
 
-def restless_writes(writes):
-    """The writes a page makes that no change asked for, as findings.
+def scroll_followers(writes):
+    """The places a scroll writes on more than two of its steps, as findings.
 
-    A write that leaves the value it found changes nothing and still costs a repaint,
-    of the whole document while a highlight holds a range. And a place written on more
-    than two steps of a scroll is following the scroll: a state the scroll changes
-    crosses a small pass at most once each way, while a position written from scroll
-    events is written on every step, a frame behind the browser, which carries a box
-    that CSS lays out (an anchor, a sticky offset, a scroll timeline) with the scroll
-    itself."""
+    A state the scroll changes crosses a small pass at most once each way, while a
+    position written from scroll events is written on every step, a frame behind the
+    browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
+    timeline) with the scroll itself. A write that changes nothing needs no reading
+    here: the browser fixture fails it wherever it happens (`write_watch.js`)."""
     places = {}
     for w in writes:
         places.setdefault(w["key"], []).append(w)
     found = []
     for written in places.values():
         what = f"{written[0]['type']} {written[0]['attribute'] or ''} on {written[0]['target']}"
-        unchanged = {w["step"] for w in written if w["unchanged"]}
-        if unchanged:
-            found.append(f"{what} rewrote the value it held, on {len(unchanged)} steps")
         steps = {w["step"] for w in written}
         if len(steps) > 2:
             found.append(f"{what} follows the scroll, written on {len(steps)} steps")

@@ -117,7 +117,8 @@ import {
   TEXT_BLOCK,
 } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
-import { el, keeps, keepsText, reserve, reveal } from "../widget-elements.js";
+import { el, reserve, reveal } from "../widget-elements.js";
+import { keeps, keepsText } from "../keeps.js";
 import { asksBtn, asksList, asksOffered, asksPanel, drawerIsOpen } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import {
@@ -630,7 +631,7 @@ export function createAskView({
     withdrawRoutes();
   }
   // The page scrolls under these projections on every frame, so a pass writes only what
-  // changed (widget-elements.js, `keeps`): a badge already worn keeps its face, and a chip
+  // changed (keeps.js): a badge already worn keeps its face, and a chip
   // stands in the document plane, where the scroll carries it.
   function paintActionProjections() {
     const available = availableCommandRoutes();

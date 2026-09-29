@@ -5,7 +5,7 @@
  * imports the thread presenter to request a refresh.
  *
  * `pageShifted` runs on every scroll event, so each capability it calls writes only
- * what changed (widget-elements.js, `keeps`). Target paint stands in the document plane
+ * what changed (keeps.js). Target paint stands in the document plane
  * (`pagePlaneRect`), where the compositor carries it through a root scroll, so its
  * shifted callback moves only what a nested scroller moved.
  */
@@ -15,7 +15,8 @@ import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
 import { coarsePointer } from "./pointer.js";
-import { keeps, keepsText, LAYOUT } from "./widget-elements.js";
+import { LAYOUT } from "./widget-elements.js";
+import { keeps, keepsText } from "./keeps.js";
 
 export function createPageGeometry({
   refreshAnchorHover,

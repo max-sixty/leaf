@@ -32,6 +32,7 @@ import {
 } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
+import { keeps } from "../keeps.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -186,22 +187,28 @@ export class MessageView {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
-    if (prior && prior.author !== model.author)
-      this.node.classList.remove(prior.author);
-    this.node.classList.add(panel ? "lf-msg" : "lf-page-thread-msg", model.author);
-    if (!panel) {
-      this.node.classList.add("lf-ui");
-      this.node.dataset.lfGen = "1";
-      this.node.dataset.lfOffer = "";
+    // A view presents messages of one surface for its whole life, so what the surface
+    // makes of the node is written once, on the first presentation.
+    if (!prior) {
+      this.node.classList.add(panel ? "lf-msg" : "lf-page-thread-msg");
+      this.#header.className = panel ? "lf-msg-head" : "lf-page-thread-head";
+      if (panel) this.node.tabIndex = -1;
+      else {
+        this.node.classList.add("lf-ui");
+        this.node.dataset.lfGen = "1";
+        this.node.dataset.lfOffer = "";
+      }
     }
-    if (panel) this.node.tabIndex = -1;
-    this.node.setAttribute(panel ? "data-mid" : "data-event", model.id);
+    if (prior && prior.author !== model.author)
+      this.node.classList.toggle(prior.author, false);
+    this.node.classList.toggle(model.author, true);
+    keeps(this.node, panel ? "data-mid" : "data-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
-    if (model.attempt) this.node.dataset.attempt = model.attempt;
+    if (model.attempt) keeps(this.node, "data-attempt", model.attempt);
     else delete this.node.dataset.attempt;
-    if (model.pending) this.node.setAttribute("aria-busy", "true");
+    if (model.pending) keeps(this.node, "aria-busy", "true");
     else this.node.removeAttribute("aria-busy");
-    if (model.failure) this.node.dataset.failure = model.failure;
+    if (model.failure) keeps(this.node, "data-failure", model.failure);
     else delete this.node.dataset.failure;
     if (model.nativeAuthored && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({
@@ -214,7 +221,6 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
-    this.#header.className = panel ? "lf-msg-head" : "lf-page-thread-head";
     render(
       html`
         <b>${model.by}</b

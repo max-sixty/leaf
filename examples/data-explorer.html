@@ -76,7 +76,7 @@
       }
     </style>
     <script type="module">
-      import { layoutChanged, offer, once } from "/runtime/widget-api.js";
+      import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
@@ -130,6 +130,8 @@
           #rows = null;
           #results = null;
           #count = null;
+          #rowEls = new Map();
+          #listed = "";
           #next = 3;
 
           connectedCallback() {
@@ -244,92 +246,120 @@
             });
           }
 
+          // Each filter keeps its row across renders, so the value being typed keeps its
+          // caret, and a render writes only what moved: a label, an end of the list, or
+          // the order.
+          #row(row) {
+            const known = this.#rowEls.get(row.id);
+            if (known) return known;
+            const { id } = row;
+            const element = document.createElement("div");
+            element.className = "query-row";
+            element.dataset.filterId = id;
+            const field = labelledSelect(
+              `${id}-field`,
+              "Field",
+              [
+                ["region", "Region"],
+                ["risk", "Risk"],
+                ["owner", "Owner"],
+              ],
+              row.field,
+              (value) => this.#update(id, "field", value),
+            );
+            const operator = labelledSelect(
+              `${id}-operator`,
+              "Operator",
+              [
+                ["is", "is"],
+                ["above", "is above"],
+                ["contains", "contains"],
+              ],
+              row.operator,
+              (value) => this.#update(id, "operator", value),
+            );
+            const valueLabel = document.createElement("label");
+            valueLabel.append(document.createTextNode("Value"));
+            const input = offer("input", "", undefined, "text");
+            input.name = `${id}-value`;
+            input.value = row.value;
+            input.addEventListener("input", () =>
+              this.#update(id, "value", input.value),
+            );
+            valueLabel.append(input);
+            const actions = document.createElement("div");
+            actions.className = "query-row-actions";
+            const up = offer("button", "lf-btn small");
+            const down = offer("button", "lf-btn small");
+            const remove = offer("button", "lf-btn small");
+            up.addEventListener("click", () => this.#move(id, -1));
+            down.addEventListener("click", () => this.#move(id, 1));
+            remove.addEventListener("click", () => this.#remove(id));
+            actions.append(up, down, remove);
+            element.append(field, operator, valueLabel, actions);
+            const made = {
+              element,
+              field: field.querySelector("select"),
+              operator: operator.querySelector("select"),
+              input,
+              up,
+              down,
+              remove,
+            };
+            this.#rowEls.set(id, made);
+            return made;
+          }
+
           #render() {
             if (!this.#rows) return;
             const byId = new Map(this.#state.rows.map((row) => [row.id, row]));
-            this.#rows.replaceChildren(
-              ...this.#state.order.map((id, index) => {
-                const row = byId.get(id);
-                const element = document.createElement("div");
-                element.className = "query-row";
-                element.dataset.filterId = id;
-                element.append(
-                  labelledSelect(
-                    `${id}-field`,
-                    "Field",
-                    [
-                      ["region", "Region"],
-                      ["risk", "Risk"],
-                      ["owner", "Owner"],
-                    ],
-                    row.field,
-                    (value) => this.#update(id, "field", value),
-                  ),
-                  labelledSelect(
-                    `${id}-operator`,
-                    "Operator",
-                    [
-                      ["is", "is"],
-                      ["above", "is above"],
-                      ["contains", "contains"],
-                    ],
-                    row.operator,
-                    (value) => this.#update(id, "operator", value),
-                  ),
-                );
-                const valueLabel = document.createElement("label");
-                valueLabel.append(document.createTextNode("Value"));
-                const input = offer("input", "", undefined, "text");
-                input.name = `${id}-value`;
-                input.value = row.value;
-                input.addEventListener("input", () =>
-                  this.#update(id, "value", input.value),
-                );
-                valueLabel.append(input);
-                const actions = document.createElement("div");
-                actions.className = "query-row-actions";
-                const up = offer(
-                  "button",
-                  "lf-btn small",
-                  `Move filter ${index + 1} up`,
-                );
-                const down = offer(
-                  "button",
-                  "lf-btn small",
-                  `Move filter ${index + 1} down`,
-                );
-                const remove = offer(
-                  "button",
-                  "lf-btn small",
-                  `Remove filter ${index + 1}`,
-                );
-                up.disabled = index === 0;
-                down.disabled = index === this.#state.order.length - 1;
-                up.addEventListener("click", () => this.#move(id, -1));
-                down.addEventListener("click", () => this.#move(id, 1));
-                remove.addEventListener("click", () => this.#remove(id));
-                actions.append(up, down, remove);
-                element.append(valueLabel, actions);
-                return element;
-              }),
-            );
+            const last = this.#state.order.length - 1;
+            const shown = this.#state.order.map((id, index) => {
+              const row = byId.get(id);
+              const made = this.#row(row);
+              if (made.field.value !== row.field) made.field.value = row.field;
+              if (made.operator.value !== row.operator)
+                made.operator.value = row.operator;
+              if (made.input.value !== row.value) made.input.value = row.value;
+              keepsText(made.up, `Move filter ${index + 1} up`);
+              keepsText(made.down, `Move filter ${index + 1} down`);
+              keepsText(made.remove, `Remove filter ${index + 1}`);
+              made.up.toggleAttribute("disabled", index === 0);
+              made.down.toggleAttribute("disabled", index === last);
+              return made.element;
+            });
+            for (const id of this.#rowEls.keys())
+              if (!byId.has(id)) this.#rowEls.delete(id);
+            const standing = this.#rows.children;
+            if (
+              shown.length !== standing.length ||
+              shown.some((element, index) => element !== standing[index])
+            )
+              this.#rows.replaceChildren(...shown);
             const values = this.#playground?.values;
             const filtered = RELEASES.filter((release) =>
               this.#state.order.every((id) => matches(release, byId.get(id))),
             ).slice(0, values?.limit ?? 4);
-            this.#results.replaceChildren(
-              ...filtered.map((release) => {
-                const row = document.createElement("tr");
-                for (const value of Object.values(release)) {
-                  const cell = document.createElement("td");
-                  cell.textContent = value;
-                  if (typeof value === "number") cell.className = "num";
-                  row.append(cell);
-                }
-                return row;
-              }),
+            const listed = JSON.stringify(filtered);
+            if (listed !== this.#listed) {
+              this.#listed = listed;
+              this.#results.replaceChildren(
+                ...filtered.map((release) => {
+                  const row = document.createElement("tr");
+                  for (const value of Object.values(release)) {
+                    const cell = document.createElement("td");
+                    cell.textContent = value;
+                    if (typeof value === "number") cell.className = "num";
+                    row.append(cell);
+                  }
+                  return row;
+                }),
+              );
+            }
+            keepsText(
+              this.#count,
+              `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`,
             );
-            this.#count.textContent = `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`;
             layoutChanged(this);
           }
         },

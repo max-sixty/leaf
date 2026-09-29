@@ -9,6 +9,7 @@ import {
 } from "../banner-toolbar.js";
 import { RetainedFace } from "../retained-face.js";
 import { el } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 const FACE_TAG = "lf-ask-banner-face";
 const EMPTY_PROGRESS = Object.freeze({
@@ -28,13 +29,15 @@ class AskBannerFace extends RetainedFace {
   updated() {
     const control = this.parentElement;
     if (!control) return;
-    if (control.title !== this.model.title) control.title = this.model.title;
+    // The progress control is the drawer's, which a key reaches, so it names itself in
+    // `data-lf-key-title` and the keyboard pass writes the title that adds the key.
+    // A bulk control has no key, so its title is its name.
     if (this.kind === "progress") {
-      if (control.dataset.lfKeyTitle !== this.model.title)
-        control.dataset.lfKeyTitle = this.model.title;
+      keeps(control, "data-lf-key-title", this.model.title);
       control.toggleAttribute("data-lf-complete", this.model.complete);
     } else {
-      if (this.model.busy) control.setAttribute("aria-disabled", "true");
+      keeps(control, "title", this.model.title);
+      if (this.model.busy) keeps(control, "aria-disabled", "true");
       else control.removeAttribute("aria-disabled");
     }
     showNews(control, this.model.offered);

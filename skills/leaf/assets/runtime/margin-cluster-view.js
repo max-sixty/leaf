@@ -17,7 +17,8 @@ import {
   presentMarginEntry,
   trackMarginEntryControl,
 } from "./margin-entries.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { el, offer } from "./widget-elements.js";
+import { keeps, keepsHidden } from "./keeps.js";
 import { holdFocus } from "./focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.

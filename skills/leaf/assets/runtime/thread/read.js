@@ -18,6 +18,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
 import { under, upFrom } from "../shadow.js";
+import { keeps, keepsHidden } from "../keeps.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
@@ -310,9 +311,9 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
         for (const key of refusedThisVisit)
           if (!current.has(key)) refusedThisVisit.delete(key);
         const count = unread.length;
-        firstUnreadBtn.hidden = count === 0;
-        firstUnreadBtn.textContent = "Next unread";
-        firstUnreadBtn.setAttribute(
+        keepsHidden(firstUnreadBtn, count === 0);
+        keeps(
+          firstUnreadBtn,
           "aria-label",
           `${count} unread ${count === 1 ? "message" : "messages"}. Go to first unread message`,
         );

@@ -20,6 +20,7 @@ import {
   holdFocus,
   authoredScope,
   commands,
+  keeps,
   keepsText,
   matchesWhen,
   offer,
@@ -235,7 +236,7 @@ function openFleet(plan, mode) {
 function setWorkers(goal, open) {
   goal.toggleAttribute("data-lf-open", open);
   const crew = goal.querySelector(":scope > .lf-task-meta .lf-task-crew");
-  crew?.setAttribute("aria-expanded", String(open));
+  keeps(crew, "aria-expanded", open);
 }
 
 function toggleWorkers(goal) {

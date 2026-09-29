@@ -125,7 +125,7 @@ import {
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
-import { keeps } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
 // one. The destination box's placeholder names whichever of them dispatch would answer.
@@ -288,7 +288,7 @@ export function createResponseSurface({
       fabFloating = false;
       moveFab(outlet);
     }
-    fabBar.dataset.lfPresentation = "inline";
+    keeps(fabBar, "data-lf-presentation", "inline");
     fabBar.style.display = "inline-flex";
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
@@ -778,8 +778,8 @@ export function createResponseSurface({
     fab.style.display = fabAnchor ? "" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
-      fabBar.setAttribute("aria-label", label ? `Respond to ${label}` : "Respond");
-      fabInput.setAttribute("aria-label", label ? `Comment on ${label}` : "Comment");
+      keeps(fabBar, "aria-label", label ? `Respond to ${label}` : "Respond");
+      keeps(fabInput, "aria-label", label ? `Comment on ${label}` : "Comment");
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));

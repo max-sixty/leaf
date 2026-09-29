@@ -389,22 +389,22 @@ const FOCUS_WITHIN = "lf-focus-within";
 // still select a label's authored words.
 let labelPress = null;
 const markLabelPress = (held, pointerId) => {
-  held.classList.add(FOCUS);
+  held.classList.toggle(FOCUS, true);
   const within = [];
   for (let node = held; node; node = upFrom(node)) {
-    node.classList.add(FOCUS_WITHIN);
+    node.classList.toggle(FOCUS_WITHIN, true);
     within.push(node);
   }
-  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
+  if (held.matches(":focus-visible")) held.classList.toggle(FOCUS_VISIBLE, true);
   labelPress = { held, pointerId, within };
 };
 const finishLabelPress = () => {
   const press = labelPress;
   if (!press) return null;
   labelPress = null;
-  press.held.classList.remove(FOCUS);
-  press.held.classList.remove(FOCUS_VISIBLE);
-  for (const node of press.within) node.classList.remove(FOCUS_WITHIN);
+  press.held.classList.toggle(FOCUS, false);
+  press.held.classList.toggle(FOCUS_VISIBLE, false);
+  for (const node of press.within) node.classList.toggle(FOCUS_WITHIN, false);
   repaint();
   return press;
 };

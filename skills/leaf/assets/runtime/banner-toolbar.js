@@ -78,15 +78,23 @@ const visible = (entry) => {
   return entry.seat !== "gesture" || entry.rank === nearestGesture();
 };
 
+// The door is part of the row's template, so Lit writes its state only where it moved.
 function rowTemplate() {
+  const open = overflowMenu.matches(":popover-open");
+  const news = menu.some((entry) => entry.urgent && visible(entry));
+  const name = news ? "More page controls, new" : "More page controls";
+  // Keep the native invoker standing until its open popover has closed. A semantic
+  // update can retire the last visible item while the user is inside it; closing then
+  // lets paint remove the empty door.
   return html`
     <button
       class="lf-btn lf-banner-more"
       type="button"
-      aria-expanded="false"
-      aria-label="More page controls"
-      title="More page controls"
-      hidden
+      aria-expanded=${String(open)}
+      aria-label=${name}
+      title=${name}
+      ?data-lf-news=${news}
+      ?hidden=${!open && !menu.some(visible)}
     >
       ⋯
     </button>
@@ -122,24 +130,10 @@ function paintControl(entry) {
   entry.control.style.visibility = visible(entry) ? "" : "hidden";
 }
 
-function paintDoor() {
-  const hasMenu = menu.some(visible);
-  const news = menu.some((entry) => entry.urgent && visible(entry));
-  // Keep the native invoker standing until its open popover has closed. A semantic
-  // update can retire the last visible item while the user is inside it; closing then
-  // lets paint remove the empty door.
-  overflowBtn.hidden = !hasMenu && !overflowMenu.matches(":popover-open");
-  overflowBtn.toggleAttribute("data-lf-news", news);
-  const name = news ? "More page controls, new" : "More page controls";
-  overflowBtn.setAttribute("aria-label", name);
-  overflowBtn.title = name;
-}
-
 function paint() {
   render(rowTemplate(), bannerActions);
   render(menuTemplate(), overflowMenu);
   for (const entry of controls.values()) paintControl(entry);
-  paintDoor();
 }
 
 const focusable = (entry) =>
@@ -150,10 +144,9 @@ const focusable = (entry) =>
   entry.control.checkVisibility();
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
-  overflowBtn.setAttribute("aria-expanded", String(open));
+  render(rowTemplate(), bannerActions);
   if (open && document.activeElement === overflowBtn)
     menu.find(focusable)?.focusTarget.focus();
-  if (!open) paintDoor();
   repaint();
 });
 

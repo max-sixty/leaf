@@ -1359,6 +1359,42 @@ def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser,
     assert page.locator("#unknown code").text_content() == "y = 2"
 
 
+def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
+    """A second dressing pass that reaches a block whose tokens are still on their way
+    leaves it to the pass in flight, so that pass colors the text the block holds when
+    its tokens land. Text rewritten meanwhile, as a live revision rewrites a block in
+    place, must not be put back to what the first pass read."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "rewritten block",
+                '<h1 id="t">Blocks</h1>\n'
+                '<pre id="later"><code class="language-python">x = 1</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
+    text = page.evaluate(
+        """async () => {
+          const syntax = performance.getEntriesByType('resource')
+            .find(resource => resource.name.endsWith('/runtime/syntax.js'));
+          const {highlightBlocks} = await import(syntax.name);
+          const code = document.createElement('code');
+          code.className = 'language-python';
+          code.textContent = 'old = 1';
+          document.querySelector('#later').after(
+            Object.assign(document.createElement('pre'), {id: 'rewritten'}));
+          document.querySelector('#rewritten').append(code);
+          const first = highlightBlocks(code);
+          code.textContent = 'new = 2';
+          await Promise.all([first, highlightBlocks(code)]);
+          return code.textContent;
+        }"""
+    )
+    assert text == "new = 2"
+
+
 def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,

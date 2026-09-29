@@ -106,11 +106,7 @@ export function createAnchorPaint({
   }
 
   const outlined = () =>
-    new Set([
-      ...elementMarks(marked.values()),
-      ...pendingOutline,
-      ...actionOutline,
-    ]);
+    new Set([...elementMarks(marked.values()), ...pendingOutline, ...actionOutline]);
 
   // Each element's outline classes follow the current record. Toggling the last pass's
   // elements with this one's writes only the classes that moved.

@@ -5678,7 +5678,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
               const band = probe.getBoundingClientRect().height;
               probe.remove();
               return {band, reserved: parseFloat(getComputedStyle(
-                document.querySelector('.lf-chrome')).paddingBottom)};
+                document.body).paddingBottom)};
             }"""
         )
         assert room["band"] > 0 and room["reserved"] == room["band"], room

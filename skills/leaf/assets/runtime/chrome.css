@@ -2,10 +2,12 @@
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it. */
-/* `.lf-chrome` is one runtime root, taking no room of its own, containing the banner, drawer panel, thread panel,
+/* `.lf-chrome` is one runtime root containing the banner, drawer panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
-   inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
-   regions.
+   inspection paint, legend, and Go-to hint layer. It stands after the document and takes
+   no room there, since a box after the content moves whenever the content grows; the
+   theme reserves the chrome's room (html[data-lf-live]). The page and panel are separate
+   scroll regions.
 
    The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
    names do not escape that root. The global vocabulary is deliberately small: shared
@@ -1689,7 +1691,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       - var(--lf-safe-left) - var(--lf-safe-right));
     width: max-content; min-height: calc(var(--lf-key-badge-size) + 12px); align-content: center;
     white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; }
+    overflow: hidden; text-overflow: ellipsis;
+    /* The status stands at the bar's end and grows away from it, so that end is its
+       inline start: a new sentence of a new width moves no edge it stood by, where a
+       left-to-right box held at its right end moved its start with every notice. Each
+       sentence still reads in its own direction. */
+    direction: rtl; }
+  .lf-bottom-status, .lf-bottom-status > * { unicode-bidi: plaintext; }
   .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
       > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
   .lf-walk-position { font-variant-numeric: tabular-nums; }

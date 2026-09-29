@@ -89,13 +89,16 @@ const inSeatingOrder = (rows) =>
 // A pin that finds no room for its resting face stands folded where it can fold: one
 // control, its options' toggle, seated as any pin is at that size, so it takes room the
 // whole face could not, and stands at its home only where even that finds none. Held
-// open, a folded pin spreads over whatever stands beside it, and every other pin keeps
-// to its toggle, so opening it moves nothing the user sees but the pin itself.
+// open, a folded pin spreads leftward from the toggle over whatever stands beside it,
+// and every other pin keeps to its toggle, so opening it moves nothing the user sees but
+// the pin itself. So that every action it opens to lands inside `bounds`, the toggle is
+// seated only where the open width fits to its left: the search's bounds give up that
+// width on the left, and a home too near that edge moves right until it fits.
 //
 // Each pin is `{ key, rect, priority, held, seat, parts, cover, walls, neighbours, line,
 // bounds, folds, folded }`, `rect` its home, `held` the rect it holds or null, `folds`
-// the same pin folded, `{ rect, seat }`, where it can fold, and `folded` whether it stands
-// folded now, which a held pin keeps. A pin seated first is a wall to the next, and every
+// the same pin folded, `{ rect, seat, open }` with `open` its width opened, where it can
+// fold, and `folded` whether it stands folded now, which a held pin keeps. A pin seated first is a wall to the next, and every
 // other pin's target is one a pin reaching further out must not stand nearer to, unless
 // the two targets meet, as a passage in a commented block does. The answer maps each key
 // to its seat, `{ rect, folded }`.
@@ -104,7 +107,7 @@ export function seatRows(pins, { reach, gap }) {
   const seated = [];
   for (const pin of inSeatingOrder(pins)) {
     const own = pin.parts ?? [];
-    const spot = ({ seat }) =>
+    const spot = ({ seat }, bounds = pin.bounds) =>
       pinSpot({
         seat,
         parts: own,
@@ -118,7 +121,7 @@ export function seatRows(pins, { reach, gap }) {
               !other.parts?.some((part) => own.some((mine) => overlaps(part, mine))),
           )
           .flatMap((other) => other.parts ?? []),
-        bounds: pin.bounds,
+        bounds,
         reach,
         line: pin.line,
         gap,
@@ -128,7 +131,19 @@ export function seatRows(pins, { reach, gap }) {
     if (!rect && own.length) {
       rect = spot(pin);
       folded = !rect && Boolean(pin.folds);
-      if (folded) rect = spot(pin.folds) ?? pin.folds.rect;
+      if (folded) {
+        const { rect: home, open } = pin.folds;
+        const bounds = {
+          ...pin.bounds,
+          left: pin.bounds.left + open - (home.right - home.left),
+        };
+        const left = Math.max(home.left, bounds.left);
+        rect = spot(pin.folds, bounds) ?? {
+          ...home,
+          left,
+          right: left + home.right - home.left,
+        };
+      }
     }
     rect ??= pin.rect;
     if (pin.held && folded)

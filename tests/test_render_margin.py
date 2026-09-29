@@ -1235,28 +1235,28 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         }"""
     )
     assert len(geometry["controls"]) == 2, geometry
+    # Inside the window across too: at 390px the pin stands folded, and Ask travel
+    # standing at it opens it leftward from its toggle.
+    for control in geometry["controls"]:
+        assert 0 <= control["x"] < control["right"] <= width, geometry
     for control in geometry["controls"]:
         assert 0 < control["y"] < control["bottom"] <= geometry["foot"], geometry
     assert len(geometry["chips"]) == 2, geometry
 
     # Each chip hangs off its own control's upper corner, the left one unless that would
     # lay it over the control beside it: the pair stand 4px apart, so the second's digit
-    # takes its right corner.
-    # A chip centred on a corner nearer the window's edge than half its width stands
-    # inside the window instead: at 390px the suggestion's pin is folded, and opened
-    # when the Ask travel stands at it, its Accept reaches to the window's left edge.
+    # takes its right corner. At 390px the pin stands folded and opens with its toggle
+    # right of Reject, so every corner of Reject lays its digit over a control and the
+    # digit keeps the first (key-badge-placement.js, `paint`). A chip is pulled inside
+    # the window, which at 390px moves Accept's, whose corner stands 6px in, by 3px.
     def hangs(corner, chip):
         return abs(max(corner, chip["half"]) - chip["x"]) <= 2
 
+    first, second = geometry["chips"]
+    accept, reject = geometry["controls"]
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
         assert abs(control["y"] - chip["y"]) <= 2, geometry
-        assert hangs(control["x"], chip) or hangs(control["right"], chip), geometry
-    # The second's left corner would lay its digit over Accept, so it takes its right,
-    # unless that would lay it over the folded pin's toggle, which stands right of
-    # Reject at 390px: with every corner covering a control, the digit keeps the first.
-    first, second = geometry["chips"]
-    assert hangs(geometry["controls"][0]["x"], first), geometry
-    reject = geometry["controls"][1]
+    assert hangs(accept["x"], first), geometry
     assert hangs(reject["x" if width == 390 else "right"], second), geometry
 
 
@@ -8574,6 +8574,42 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(accept).to_be_focused()
     keyboard.keyboard.press("Enter")
     expect(keyboard.locator("#s")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_a_folded_pin_at_the_window_s_left_edge_opens_inside_the_window(browser, serve):
+    """On the feature gallery at 390px under a finger, the Replace suggestion's run ends
+    102px in, and its pair finds no room, so its pin stands folded. It opens leftward
+    from the toggle to Accept, Reject and the toggle, 140px, so the toggle is seated
+    only where that fits: a tap leaves the toggle where the finger pressed it, every
+    action it opens stands inside the window, and focus lands on an Accept the user
+    can see."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-replace"]')
+    expect(row).to_have_attribute("data-lf-folded", "")
+    toggle = row.locator(".lf-margin-more")
+    toggle.scroll_into_view_if_needed()
+    pressed = toggle.bounding_box()
+    toggle.tap()
+    accept = row.locator(".lf-sug-accept")
+    expect(accept).to_be_focused()
+    assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
+    opened = row.locator(".lf-margin-entry:visible").evaluate_all(
+        "els => els.map(el => { const b = el.getBoundingClientRect();"
+        " return [el.getAttribute('aria-label'), b.left, b.right]; })"
+    )
+    assert len(opened) == 3, opened
+    for label, left, right in opened:
+        assert 0 <= left < right <= 390, (label, opened)
+    # What the finger finds at Accept's middle is Accept.
+    assert accept.evaluate(
+        "el => { const b = el.getBoundingClientRect();"
+        " return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)"
+        "?.closest('.lf-margin-entry') === el; }"
+    )
 
 
 def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, serve):

@@ -20,8 +20,9 @@
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
    opened. A pin the layout found no room for stands folded to its toggle
-   (`foldedKeys`, margin-model.js's `canFold`), and the same state opens it. Page Map and Go-to arrivals activate the exact visible control;
-   they do not choose another action for the user.
+   (`standsFolded`, margin-model.js's `canFold`), and the same state opens it. Page Map
+   and Go-to arrivals activate the exact visible control; they do not choose another
+   action for the user.
 
    The thread card stands by its owning cluster, or, where the rail has no room for that
    cluster, by the page target the cluster is about. `thread-card-geometry.js` states
@@ -83,6 +84,7 @@ import {
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
+  standsFolded,
   unregisterMarginRow,
 } from "./margin-layout.js";
 import {
@@ -239,7 +241,7 @@ export function createMarginProjection({
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     let from = "path:";
-    for (let node = target; node; ) {
+    for (let node = target; node;) {
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (projection/data.js).
@@ -274,7 +276,7 @@ export function createMarginProjection({
     // tree from a later target inside one of its nested shadow hosts.
     const ancestry = (target) => {
       const chain = [];
-      for (let node = target; node; ) {
+      for (let node = target; node;) {
         chain.push(node);
         node = renderedParent(node);
       }
@@ -585,10 +587,9 @@ export function createMarginProjection({
   let forcedInlineKey = null;
   let forcedInlineOptionsKey = null;
   let expandedOptionsKey = null;
-  // The entries whose pin the layout found no room for, so their clusters stand folded
-  // (margin-layout.js, `seatPins`). Placement sets it; the gesture that opens any
-  // options opens a folded one.
-  const foldedKeys = new Set();
+  // Whether an entry's pin stands folded is the layout's answer (`standsFolded`); the
+  // gesture that opens any options opens a folded one.
+  const folded = (entry) => standsFolded(hosts.get(entry.key));
   let refoldQueued = false;
   // An explicit mode can focus one contribution inside the target's existing cluster.
   // The rail then shows that owner's complete control set without spending margin entries on
@@ -1347,14 +1348,18 @@ export function createMarginProjection({
             expandedKey: expandedOptionsKey,
             expandedOwner: expandedOptionsOwner,
           }),
-        // Asked from inside the layout pass, which has already seated the row at its
-        // new size: the cluster is presented again once that pass has written, before
-        // the frame paints, however many rows it folded.
-        set: (folded) => {
-          const key = row.lfEntry.key;
-          if (foldedKeys.has(key) === folded) return;
-          if (folded) foldedKeys.add(key);
-          else foldedKeys.delete(key);
+        // How many controls the pin shows opened: its options and the toggle.
+        controls: () => {
+          const { options } = clusterProjection(row.lfEntry, {
+            expandedKey: row.lfEntry.key,
+            folded: true,
+          });
+          return options.visible.length + (options.spill ? 1 : 0) + 1;
+        },
+        // Told from inside the layout pass, which has already seated the row at its new
+        // size: the cluster is presented again once that pass has written, before the
+        // frame paints, however many rows it folded.
+        changed: () => {
           if (refoldQueued) return;
           refoldQueued = true;
           queueMicrotask(() => {
@@ -2064,7 +2069,6 @@ export function createMarginProjection({
         rows.delete(key);
         moreMarginEntries.delete(key);
         hosts.delete(key);
-        foldedKeys.delete(key);
       }
     const nextWorkflowCarriers = new Set();
     pageInventory.forEach((entry, order) => {
@@ -2119,14 +2123,15 @@ export function createMarginProjection({
             return;
           const current = host.lfEntry;
           const primary = current && choosePrimary(current);
-          const folded =
+          const standsFoldedNow =
             Boolean(current) &&
-            foldedKeys.has(current.key) &&
+            folded(current) &&
             canFold(current, {
               expandedKey: expandedOptionsKey,
               expandedOwner: expandedOptionsOwner,
             });
-          if (!current || !(folded || optionsOffered(current, primary))) return;
+          if (!current || !(standsFoldedNow || optionsOffered(current, primary)))
+            return;
           if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
           if (entryEngaged(current)) return;
           // A folded cluster's toggle is its only control and stands after the actions it
@@ -2139,7 +2144,8 @@ export function createMarginProjection({
               Node.DOCUMENT_POSITION_FOLLOWING,
             );
           setOptionsOpen(current, true, {
-            focusOption: control === more ? (folded && !back ? "first" : "last") : null,
+            focusOption:
+              control === more ? (standsFoldedNow && !back ? "first" : "last") : null,
           });
         });
         host.addEventListener("focusin", () => {
@@ -2215,7 +2221,7 @@ export function createMarginProjection({
         expandedKey: expandedOptionsKey,
         expandedOwner: expandedOptionsOwner,
         forcedInlineKey,
-        folded: foldedKeys.has(entry.key),
+        folded: folded(entry),
       });
       if (!projection.hasOptions && expandedOptionsKey === entry.key) {
         expandedOptionsKey = null;
@@ -2908,7 +2914,7 @@ export function createMarginProjection({
     const entry = place
       ? pageInventory.find(
           (candidate) =>
-            foldedKeys.has(candidate.key) &&
+            folded(candidate) &&
             canFold(candidate, state) &&
             under(place, targetFor(candidate)),
         )

@@ -285,7 +285,8 @@ test("a pin that reaches further keeps to its own target's pins", () => {
 });
 
 // The longer section's pin as `seatRows` takes it: the pair, and folded, one 44px
-// control, the toggle to its options.
+// control, the toggle to its options, which opens 140px wide to Accept, Reject and the
+// toggle.
 const pair = (over = {}) => ({
   ...longer,
   key: "pair",
@@ -294,6 +295,7 @@ const pair = (over = {}) => ({
   folds: {
     rect: box(322, longer.rect.top, 366, longer.rect.bottom),
     seat: box(282, longer.seat.top, 326, longer.seat.bottom),
+    open: 140,
   },
   folded: false,
   ...over,
@@ -319,6 +321,7 @@ test("a pin with no room for its face stands folded where one control finds room
         folds: {
           rect: box(322, 694, 366, 738),
           seat: box(282, 709.5, 326, 753.5),
+          open: 140,
         },
       }),
     ]),
@@ -330,6 +333,37 @@ test("a pin with no room for its face stands folded where one control finds room
     rect: box(322, longer.rect.top, 366, longer.rect.bottom),
     folded: true,
   });
+});
+
+test("a folded pin stands only where its opened actions stay inside its bounds", () => {
+  // A one-word run at the column's left edge, in full lines, with room for one control
+  // only above its paragraph's first line, left of a framed block. The toggle would fit
+  // there, but it opens leftward to 140px, past the window's left edge; so it takes its
+  // home instead, moved right until the opened pin fits inside the window.
+  const walls = [box(4, 560, 386, 650), box(100, 650, 386, 717), box(4, 800, 386, 900)];
+  const lines = [
+    box(24, 721, 366, 742),
+    box(24, 748, 366, 769),
+    box(24, 775, 366, 796),
+  ];
+  const edge = pair({
+    seat: box(66, 736.5, 162, 780.5),
+    rect: box(-38, 748, 58, 792),
+    parts: [box(24, 748, 62, 769)],
+    cover: [...walls, ...lines],
+    walls,
+    neighbours: [],
+    folds: {
+      rect: box(14, 748, 58, 792),
+      seat: box(66, 736.5, 110, 780.5),
+      open: 140,
+    },
+  });
+  assert.deepEqual(seatOf([edge]), { rect: box(100, 748, 144, 792), folded: true });
+  // Opening no wider than itself, the same pin takes the room above.
+  const narrow = seatOf([{ ...edge, folds: { ...edge.folds, open: 44 } }]);
+  assert.equal(narrow.folded, true);
+  assert.ok(narrow.rect.bottom <= 717, narrow);
 });
 
 test("a folded pin held open keeps its fold, and the others keep to its toggle", () => {

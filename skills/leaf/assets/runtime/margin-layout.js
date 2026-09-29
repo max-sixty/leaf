@@ -516,15 +516,17 @@ function lineOf(block) {
 // reads it to say whether the pin still stands inside what the pane shows.
 const seats = new WeakMap();
 
-// The rows this pass stood folded (`seatRows`), which each row's `fold` is told of.
+// The rows the last pass stood folded (`seatRows`). This is the one reading of it: the
+// projection presents a row folded by asking `standsFolded`, and a row's `fold.changed`
+// tells it to ask again.
 const folded = new WeakSet();
+export const standsFolded = (row) => folded.has(row);
 
-// Tell a row whether it stands folded, where that changed.
 function standFolded(row, fold, on) {
   if (folded.has(row) === on) return;
   if (on) folded.add(row);
   else folded.delete(row);
-  fold?.set(on);
+  fold?.changed();
 }
 
 // Seats every pin (`seatRows`): reads what each may not stand on around its target and
@@ -534,8 +536,8 @@ function standFolded(row, fold, on) {
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
-// unfolded its face is two controls, folded one, each a square the row's height, beside
-// the gap and the focus ring's room the row keeps.
+// unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
+// square the row's height, beside the gaps and the focus ring's room the row keeps.
 function seatPins(standing, { bands, shell, pinInset }) {
   const main = marginColumn();
   const pins = [];
@@ -553,9 +555,11 @@ function seatPins(standing, { bands, shell, pinInset }) {
     if (!fold) standFolded(row, read.options.fold, false);
     entry.fold = fold;
     const style = fold && getComputedStyle(row);
-    const ring = fold ? parseFloat(style.paddingRight) : 0;
-    const narrow = height + ring;
-    const wide = fold ? 2 * height + parseFloat(style.columnGap) + ring : width;
+    const across = (count) =>
+      count * height +
+      (count - 1) * parseFloat(style.columnGap) +
+      parseFloat(style.paddingRight);
+    const wide = fold ? across(2) : width;
     const held = seats.get(row);
     entry.held =
       held && row.matches(":hover, :focus-within")
@@ -624,7 +628,11 @@ function seatPins(standing, { bands, shell, pinInset }) {
       neighbours,
       line,
       seat: seatAt(wide),
-      folds: fold && { rect: homeAt(narrow), seat: seatAt(narrow) },
+      folds: fold && {
+        rect: homeAt(across(1)),
+        seat: seatAt(across(1)),
+        open: across(fold.controls()),
+      },
       folded: folded.has(row),
       bounds: {
         left: Math.max(within?.left ?? 0, clipped?.left ?? 0) + pinInset,
@@ -691,6 +699,7 @@ export function unregisterMarginRow(row) {
     pushes.delete(row);
     steps.delete(row);
     parked.delete(row);
+    folded.delete(row);
   }
   if (!rows.size) {
     observer?.disconnect();

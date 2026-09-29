@@ -592,6 +592,41 @@ def test_read_converges_across_two_tabs(browser, serve):
     ]
 
 
+DIAG_PROBE = """
+(() => {
+  const top = window.top;
+  top.__probe ??= [];
+  const doc = () => ({
+    url: location.href.slice(-60),
+    frame: !!window.frameElement,
+    ready: document.readyState,
+    sheets: [...document.styleSheets].map((x) => (x.href || 'inline').slice(-40)),
+    body: document.body ? [document.body.getBoundingClientRect().x, document.body.getBoundingClientRect().y] : null,
+    margin: document.body ? getComputedStyle(document.body).marginLeft : null,
+    live: !!document.documentElement?.hasAttribute('data-lf-live'),
+    block: !!document.documentElement?.hasAttribute('data-lf-sample-block'),
+    presented: !!document.body?.hasAttribute('data-lf-presented'),
+    t: Math.round(performance.timeOrigin + performance.now()) % 1000000,
+  });
+  top.__probe.push({ start: doc() });
+  const log = (what) => top.__probe.push({ [what]: doc() });
+  for (const k of ["readystatechange"]) document.addEventListener(k, () => log(document.readyState));
+  requestAnimationFrame(() => log("frame1"));
+  new PerformanceObserver((list) => {
+    for (const e of list.getEntries())
+      for (const s of e.sources)
+        if (s.node && (s.node === document.body || s.node === document.documentElement))
+          top.__probe.push({ shift: doc(), input: e.hadRecentInput,
+            prev: [s.previousRect.x, s.previousRect.y, s.previousRect.width, s.previousRect.height],
+            cur: [s.currentRect.x, s.currentRect.y, s.currentRect.width, s.currentRect.height],
+            at: Math.round(performance.timeOrigin + e.startTime) % 1000000 });
+  }).observe({ type: 'layout-shift', buffered: true });
+  document.addEventListener('DOMContentLoaded', () => top.__probe.push({ dcl: doc() }));
+  addEventListener('load', () => top.__probe.push({ load: doc() }));
+})();
+"""
+
+
 def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     root = "a1b2c3d4"
     # Each child is taller than the window, so its frame is too, and the thread panel it
@@ -630,6 +665,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
                 }
             ],
         ),
+        init_script=DIAG_PROBE,
     )
     clipped = page.locator("#clipped-practice iframe")
     far = page.locator("#far-practice iframe")
@@ -675,6 +711,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     expect(far_child.locator(".lf-first-unread")).to_have_text("Next unread")
     page.evaluate("scrollBy(0, 700)")
     expect(far_child.locator(".lf-first-unread")).to_be_hidden()
+    page.evaluate("() => window.lfShiftsJudged?.()")
+    import json as diag_json
+    print("DIAG", diag_json.dumps(page.evaluate("window.__probe")))
 
 
 def test_shadow_package_thread_registers_its_real_message_body(browser, serve):

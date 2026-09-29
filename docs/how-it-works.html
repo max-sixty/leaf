@@ -361,6 +361,97 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </ul>
           </section>
 
+          <section id="turn-end">
+            <h2>When the agent's turn can end</h2>
+            <p id="turn-end-owed">
+              Every move you hand over reaches the agent, but only some are owed an
+              answer. A comment, or a reply in a thread, is owed a reply there. An
+              answer to an Ask is owed a version whose markup records it. Resolving a
+              thread, editing a draft, or moving a card owes nothing, though the agent
+              still reads it with the rest of the delivery. A move you have not
+              finished, such as a pick before the Done its Ask waits for, has not been
+              handed over yet.
+            </p>
+            <lf-diagram
+              id="turn-end-move"
+              parts="node:Sent node:Queued node:Held node:Picked node:Working node:Settled"
+            >
+              <pre>
+stateDiagram-v2
+  state "Sent" as Sent
+  state "Queued" as Queued
+  state "Picked up" as Picked
+  state "Working" as Working
+  state "Settled" as Settled
+  state "Delivered, not yet answered" as Held {
+    [*] --&gt; Picked
+    Picked --&gt; Working: the agent claims its work
+  }
+  [*] --&gt; Sent: you send a move owed an answer
+  Sent --&gt; Queued: Codex queues it for the next turn
+  Sent --&gt; Held: a hook or a wait hands it to a turn
+  Queued --&gt; Held: the queued turn opens
+  Held --&gt; Settled: a reply or a version answers it
+  Settled --&gt; [*]
+</pre>
+            </lf-diagram>
+            <p id="turn-end-hook">
+              When the agent ends a turn, Leaf checks the pages its session holds before
+              letting it go, and keeps the turn going only for something it owes. Leaf
+              puts the reason in the agent's context, and Claude Code shows it as
+              additional context from the Stop hook, not as an error. Leaf reminds once
+              for the same debt: a turn that ends again over it is let go, and the next
+              turn begins with the owed move in its context. A move owed an answer that
+              arrives as the turn ends goes into that turn; one that owes nothing waits
+              for the watcher.
+            </p>
+            <lf-diagram id="turn-end-check" parts="node:Hand node:Remind node:Ends">
+              <pre>
+flowchart TD
+  Stop(["the agent ends its turn"]) --&gt; New(["input owed an answer arrived?"])
+  New -- yes --&gt; Hand["Leaf hands it into this turn"]
+  New -- no --&gt; Again(["Leaf kept this turn going already?"])
+  Again -- yes --&gt; Ends["the turn ends"]
+  Again -- no --&gt; Owed(["a delivered move unanswered?"])
+  Owed -- yes --&gt; Claimed(["this turn claimed its work?"])
+  Claimed -- no --&gt; Remind["Leaf names what is owed; the turn goes on"]
+  Claimed -- yes --&gt; Watched(["a watcher runs, or the page is closed?"])
+  Owed -- no --&gt; Watched
+  Watched -- no --&gt; Remind
+  Watched -- yes --&gt; Ends
+  Hand -.-&gt; Stop
+  Remind -. the agent acts, then ends again .-&gt; Stop
+  classDef goes fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  classDef ends fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
+  class Hand,Remind goes
+  class Ends ends
+</pre>
+            </lf-diagram>
+            <ul id="turn-end-rules">
+              <li id="turn-end-claim">
+                <strong>A claim answers for its turn.</strong> Work longer than a few
+                minutes runs in background workers, and their results wake the agent in
+                a later turn. So a move the agent claimed in this turn with
+                <code>leaf status … --on</code> lets the turn end: the move reads
+                Working, with the claim's words beside it. The claim holds only for the
+                turn that wrote it. The next turn answers the move or claims it again,
+                and two minutes after an unrenewed claim's turn ends, the banner says
+                the turn ended.
+              </li>
+              <li id="turn-end-watch">
+                <strong>A page between turns is watched or closed.</strong> Without a
+                <code>leaf wait</code> or Codex's adapter, what you send next reaches
+                the agent only when Leaf messages its session or something else wakes
+                it. A developer's preview owes no watcher.
+              </li>
+              <li id="turn-end-idle">
+                <strong>Closing answers nothing.</strong>
+                <code>leaf status … idle</code> refuses while any delivered move is
+                unanswered, claimed or not.
+              </li>
+            </ul>
+          </section>
+
           <section id="agent">
             <h2>A command never edits the document</h2>
             <p id="agent-split">
@@ -621,8 +712,11 @@ flowchart LR
               <li id="updates-on-long-work">
                 <strong>During long work.</strong> Work longer than a few minutes goes
                 to background workers, so the agent stays free to answer your next
-                comment. Its status names what is still running, and it writes it again
-                when a worker reports.
+                comment. Its status names what is still running, beside the move the
+                work answers, and it writes it again when a worker reports (<a
+                  href="#turn-end"
+                  >when the agent's turn can end</a
+                >).
               </li>
               <li id="updates-on-handoff">
                 <strong>When it is your move.</strong> A waiting status names the answer

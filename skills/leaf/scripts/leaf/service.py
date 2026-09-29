@@ -416,13 +416,26 @@ class PageTransaction:
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             claims = [held for held in claims if held["subject"] != work["subject"]]
+            voice = self.voice()
+            claim = self.claim
             claims.append(
                 {
                     "id": secrets.token_hex(4),
                     **work,
                     "detail": detail,
                     "ts": status["ts"],
-                    **self.voice(),
+                    **voice,
+                    # The claimant's turn that wrote it, which is how the Stop hook
+                    # tells work this turn declared from work an earlier turn left
+                    # (`activity.turn_obligations`). Another session's claim names
+                    # none. A Claude Code subagent runs as its parent's session, so
+                    # a claim it wrote would name the parent's turn; workers leave
+                    # status to the session driving the page.
+                    "turn": (
+                        claim.get("turn")
+                        if claim and claim["id"] == voice["session"]
+                        else None
+                    ),
                 }
             )
         if claims:
@@ -867,7 +880,9 @@ def requires_agent_attention(event: dict) -> bool:
 
 
 # The fields every stored work claim carries (`PageService.set_status`).
-CLAIM_FIELDS = frozenset({"id", "subject", "after", "detail", "ts", "agent", "session"})
+CLAIM_FIELDS = frozenset(
+    {"id", "subject", "after", "detail", "ts", "agent", "session", "turn"}
+)
 
 
 def claim_update_sources(status: dict) -> list[dict]:
@@ -900,6 +915,7 @@ def claim_update_sources(status: dict) -> list[dict]:
             "log_floor": claim["after"],
             "agent": claim["agent"],
             "session": claim["session"],
+            "turn": claim["turn"],
         }
         if event := claim.get("event"):
             source["event"] = event

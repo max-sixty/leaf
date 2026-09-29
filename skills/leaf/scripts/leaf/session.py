@@ -98,8 +98,9 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, the ones the Stop hook holds a turn open
-    for. The check and the transition share the log lock, so an event arriving
+    `activity.blocking_obligations`, a claimed move's included: the Stop hook lets
+    the turn that claimed one end over it, but closing the page answers nothing.
+    The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     # Ahead of the transaction, which reaches `set_status` without a subject:
     # refused here, `idle --on` cannot be reported back as a claim the page

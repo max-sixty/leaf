@@ -72,12 +72,19 @@ function pushNativeLayer(node, kind) {
 // A layer opened while nothing held focus has nobody to hand focus back to as it closes,
 // so the browser leaves focus on the hidden control it held until the next rendering
 // update drops it, and a key pressed in that frame was dispatched from a control the
-// user can no longer see. Closing such a layer lets go at once, as its opening found
-// the user: standing nowhere.
+// user can no longer see. Closing such a popover lets go at once, as its opening found
+// the user: standing nowhere. A modal is still modal as it announces its close, with the
+// page behind it inert, so a let-go there lands no one and only takes the body's stop
+// and gives it back; the modal's owner lands the user as it closes it (the Page Map's
+// cancel, the command reference's close).
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
-  if (entry?.fromNowhere && event.target.contains(document.activeElement))
+  if (
+    entry?.kind === "popover" &&
+    entry.fromNowhere &&
+    event.target.contains(document.activeElement)
+  )
     releaseFocus();
 }
 

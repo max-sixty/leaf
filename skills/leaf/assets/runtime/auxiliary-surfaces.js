@@ -15,7 +15,7 @@
 
    In the covering posture this owner makes every sibling reading surface inert, dims that
    entire background, gives the surface modal semantics, and moves focus in only when it was
-   outside. It re-derives those siblings when the live version replaces the authored
+   elsewhere in this document. It re-derives those siblings when the live version replaces the authored
    page. Leaving that posture restores exactly the inert and role state it found; it
    does not rebuild, hide, or scroll either side.
 
@@ -42,6 +42,7 @@ import { deepFocus, tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 import { keeps, keepsHidden } from "./keeps.js";
+import { nextRender } from "./rendering.js";
 
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
 let selectedKey = null;
@@ -118,14 +119,22 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (active) syncBackground(active);
   });
 
-  const focusMutations = new MutationObserver(() => {
-    if (
-      active &&
-      !active.surface.contains(document.activeElement) &&
-      !nativeLayerContains(document.activeElement)
-    )
+  // Focus is moved in only from elsewhere in this document. Where the document holds no
+  // focus at all, the user is in another one — the page around a sample, a sibling
+  // sample, another window — and moving it in would pull them back into this frame: four
+  // samples with open panels did so to each other on every frame. The boundary takes the
+  // focus when the document does instead, once the press or key that brought the user
+  // back has put them somewhere. The band a surface stands under stays live beside it.
+  const outside = (controller) =>
+    document.hasFocus() &&
+    !controller.surface.contains(document.activeElement) &&
+    !(controller.underBand && band.contains(document.activeElement));
+  const recover = () => {
+    if (active && outside(active) && !nativeLayerContains(document.activeElement))
       place(active.focus() ?? active.surface);
-  });
+  };
+  const focusMutations = new MutationObserver(recover);
+  addEventListener("focus", () => nextRender(recover));
 
   // The covering boundary moves in one step, from the surface holding it to `next` or to
   // none. What both boundaries say — the inert background they share, the scrim, the
@@ -137,8 +146,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (previous) {
       backgroundMutations.disconnect();
       focusMutations.disconnect();
-      if (previous.role === null) previous.surface.removeAttribute("role");
-      else keeps(previous.surface, "role", previous.role);
+      keeps(previous.surface, "role", previous.role);
       previous.surface.removeAttribute("aria-modal");
     }
     active = next;
@@ -160,8 +168,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     backgroundMutations.observe(chromeRoot, { childList: true });
     focusMutations.observe(next.surface, { childList: true, subtree: true });
 
-    if (!next.surface.contains(document.activeElement))
-      place(next.focus() ?? next.surface);
+    if (outside(next)) place(next.focus() ?? next.surface);
   }
 
   function registerAuxiliarySurface({

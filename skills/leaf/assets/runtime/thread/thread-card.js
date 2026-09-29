@@ -296,8 +296,7 @@ export class ThreadView {
     this.node.toggleAttribute("inert", model.folding);
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
-    if (model.attempt) keeps(this.node, "data-attempt", model.attempt);
-    else delete this.node.dataset.attempt;
+    keeps(this.node, "data-attempt", model.attempt || null);
     if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
       this.node.toggleAttribute("open", !model.resolved);
       this.#summaryResolved = model.resolved;

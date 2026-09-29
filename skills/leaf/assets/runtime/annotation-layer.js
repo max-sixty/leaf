@@ -34,7 +34,7 @@ export function setAnnotationsHidden(on) {
   setRuntimeRootAttribute(
     document.documentElement,
     "data-lf-annotations",
-    on ? "hidden" : "shown",
+    on ? "hidden" : null,
   );
   tabStore.set(ANNOTATIONS_KEY, on ? "hidden" : null);
   for (const watcher of watchers) watcher(on);

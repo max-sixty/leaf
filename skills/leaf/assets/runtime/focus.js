@@ -57,17 +57,27 @@ export function focusDestination(destination, caret = null) {
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
 
+// The elements wearing a stop lent here, which is no part of what their author wrote.
+const lent = new WeakSet();
+export const wearsLentStop = (element) => lent.has(element);
+
 function lendStop(destination) {
   if (destination.hasAttribute("tabindex")) return;
+  // Only the `-1` lent here is taken back: a box that came to scroll meanwhile wears
+  // the reach pass's stop (reach.js), which is that pass's to take.
+  const giveBack = () => {
+    lent.delete(destination);
+    if (destination.getAttribute("tabindex") === "-1")
+      destination.removeAttribute("tabindex");
+  };
+  lent.add(destination);
   destination.tabIndex = -1;
   destination.focus({ preventScroll: true });
   if (!destination.matches(":focus")) {
-    destination.removeAttribute("tabindex");
+    giveBack();
     return;
   }
-  destination.addEventListener("blur", () => destination.removeAttribute("tabindex"), {
-    once: true,
-  });
+  destination.addEventListener("blur", giveBack, { once: true });
 }
 
 // The input types whose selection the platform will answer for. Reading `selectionStart`
@@ -386,11 +396,16 @@ let released = () => {};
 export function declareRelease(release) {
   released = release;
 }
+// Once: what the release ends may have let go already, as the thread card does when it
+// closes with the focus inside it, and a second let-go would land the user again.
+let letGoes = 0;
 export function release() {
+  const before = letGoes;
   released();
-  letGo();
+  if (letGoes === before) letGo();
 }
 export function letGo() {
+  letGoes++;
   const covering = coveringSurface();
   if (covering) {
     // `contains` stops at a shadow boundary and `document.activeElement` is the host of

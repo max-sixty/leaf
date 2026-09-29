@@ -84,8 +84,7 @@ export class SettledOptions {
       ...options,
       ...this.#host.querySelectorAll(":scope > :is(.lf-another, lf-options-done)"),
     ])
-      if (this.#isOpen) el.removeAttribute("hidden");
-      else keeps(el, "hidden", HIDDEN);
+      keeps(el, "hidden", this.#isOpen ? null : HIDDEN);
 
     const names = options
       .filter((option) => option.hasAttribute("chosen"))

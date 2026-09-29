@@ -81,3 +81,15 @@ def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
     page.locator("#field").fill("a")
     page.locator("#field").fill("ab")
     judge_shifts()
+
+
+def test_a_shift_without_input_after_typing_fails(browser):
+    page = field_page(browser)
+    page.locator("#field").fill("a")
+    page.evaluate(
+        """() => new Promise((done) => requestAnimationFrame(() =>
+          requestAnimationFrame(() => requestAnimationFrame(done))))"""
+    )
+    page.evaluate("document.getElementById('above').style.height = '40px'")
+    judge_shifts()
+    consume_browser_errors(page, "textarea#field moved without input")

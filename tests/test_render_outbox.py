@@ -2775,8 +2775,10 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # accounts for it no second time.
     errors = take_browser_errors(page)
     assert errors == [
-        "leaf: Presentation failed: <lf-suggestion> renderState threw: "
-        "injected optimistic presentation fault"
+        (
+            "leaf: Presentation failed: <lf-suggestion> renderState threw: "
+            "injected optimistic presentation fault"
+        )
     ], errors
 
 

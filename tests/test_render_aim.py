@@ -1229,6 +1229,93 @@ def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
     )
 
 
+def point_a_comment(page, text, x=60):
+    """⌥-click row 51 of the tall diff at `x` and send `text`, leaving the card."""
+    row = page.locator("lf-diff [data-line]").nth(50)
+    row.scroll_into_view_if_needed()
+    rendered(page)
+    row.click(modifiers=["Alt"], position={"x": x, "y": 5})
+    write(open_compact_comment(page), text)
+    with sending(page, text):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    rendered(page)
+
+
+def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
+    """Typing in a card scrolled away brings it back, and for a pointed comment what it
+    stands by is its row: the diff around it still overlaps the window, so bringing the
+    diff into view moved nothing and left the reply below the window."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "Why this line?")
+    page.evaluate("() => scrollTo({ top: 0, behavior: 'instant' })")
+    rendered(page)
+    page.keyboard.press("t")
+    reply = page.locator(".lf-margin-preview leaf-text")
+    expect(reply).to_be_visible()
+    scroll_settled(page)
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.keyboard.type("Still")
+    page.evaluate("() => scrollBy({ top: -700, behavior: 'instant' })")
+    rendered(page)
+    below = reply.bounding_box()
+    assert below["y"] > 900, f"the scroll must carry the reply off the window: {below}"
+    page.keyboard.type(" here")
+    scroll_settled(page)
+    rendered(page)
+    box = reply.bounding_box()
+    assert box["y"] >= 0 and box["y"] + box["height"] <= 900, (
+        f"typing left the reply off the window: {box}"
+    )
+
+
+def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
+    """Two comments pointed at one line, at two places along it, stand as one margin row
+    at the line, as two comments on the diff's own top share its row; the row the first
+    made is the one the second joins."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "First about this line.", x=60)
+    first = page.evaluate(ROWS_ON, ["whole"])
+    point_a_comment(page, "Second about this line.", x=200)
+    second = page.evaluate(ROWS_ON, ["whole"])
+    assert len(first) == 1 and second == first, (
+        f"the second comment made a margin row of its own: {first} then {second}"
+    )
+
+
+def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
+    """A listener places a margin row by how far down the page it is and tells rows
+    apart by their names. A pointed row stands two-thirds of the way down the diff, and
+    it is named by the line it stands by, not only by the diff the target's own row
+    names."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "Why this line?")
+    spoken = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const row = document.querySelector('lf-diff').shadowRoot
+            .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+          const host = [...document.querySelectorAll('[data-lf-margin-for]')]
+            .find((host) => host.lfTarget?.id === 'whole');
+          return {
+            at: Math.round((row.top - main.getBoundingClientRect().top)
+                           / main.scrollHeight * 100),
+            name: host.querySelector('.lf-margin-marker').getAttribute('aria-label'),
+          };
+        }"""
+    )
+    said = re.search(r"(\d+) percent down", spoken["name"])
+    assert said and abs(int(said[1]) - spoken["at"]) <= 3, spoken
+    assert "let value_50 = compute(50);" in spoken["name"], spoken
+
+
 def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(

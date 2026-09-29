@@ -26,7 +26,8 @@ import {
   pageWords,
   rangeOf,
 } from "./passages.js";
-import { bareReaction } from "./thread/model.js";
+import { bareReaction, threadKey } from "./thread/model.js";
+import { placePoints } from "./pointed-place.js";
 import { shadowHost, under } from "./shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
@@ -238,20 +239,28 @@ export function createAnchorPaint({
     const reactionSeats = new Map();
     const notes = new Map();
 
+    const pointable = [];
     for (const thread of threads) {
       if (!thread.anchor) continue;
       const found = resolveAnchor(thread.anchor, text);
       if (!found) continue;
       // Placement includes resolved threads and remains distinct from paint. The panel
-      // orders from this record instead of resolving the same coordinate again.
+      // orders from this record instead of resolving the same coordinate again. A
+      // pointed thread's record also carries the row it stands by (`point`) and the key
+      // of the margin row it shares with others pointed there (`pointRow`), below.
+      const target = targetElement(found) ?? found.place;
       placed.set(thread.id, {
         datumElement: null,
         exact: true,
         status: "exact",
         ...found,
-        target: targetElement(found) ?? found.place,
+        target,
         element: found.place,
+        point: null,
+        pointRow: null,
       });
+      if (!thread.resolved && !thread.anchor.quote && target)
+        pointable.push({ id: thread.id, key: threadKey(thread), target });
       if (found.status === "outdated" || thread.resolved) continue;
 
       if (bareReaction(thread)) {
@@ -300,6 +309,18 @@ export function createAnchorPaint({
       for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
         if (holder && !inChrome(holder))
           notes.set(holder, [...(notes.get(holder) ?? []), thread.id]);
+    }
+    // Where each open thread a pointing gesture stood at a row inside its target stands
+    // in this reading (pointed-place.js), found with the anchors it lies inside.
+    const pointed = placePoints(
+      pointable,
+      new Set(threads.filter((thread) => !thread.resolved).map(threadKey)),
+      text,
+    );
+    for (const { id, key } of pointable) {
+      const point = pointed.get(key);
+      if (point)
+        Object.assign(placed.get(id), { point: point.element, pointRow: point.row });
     }
 
     const resolvedDraft =

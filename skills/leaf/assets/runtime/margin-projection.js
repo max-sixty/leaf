@@ -76,7 +76,7 @@
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { cancelRender, nextRender } from "./rendering.js";
-import { labelWords, spokenSubject } from "./margin-entry-model.js";
+import { excerptWords, labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
   mountMarginLayer,
   registerMarginRow,
@@ -123,7 +123,7 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
-import { pointBand, pointOf } from "./pointed-place.js";
+import { pointBand, standingPoint } from "./pointed-place.js";
 import {
   TEXT_FIELD,
   declareRelease,
@@ -300,13 +300,18 @@ export function createMarginProjection({
   const targets = new Map();
   const itemSources = new WeakMap();
   const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
-  // The thread key a pointed entry stands for (groupFor), read afresh each time so a
-  // re-rendered target finds the row again by its words.
-  const pointKeys = new Map();
+  // The row a pointed entry stands by (groupFor), as anchor paint last placed it, while
+  // it still stands inside its target. Where the entry stands (`entryPlace`) is that
+  // row, else the target: every reading of where an entry is on the page, as against
+  // what it is about, asks this.
+  const points = new Map();
   const entryPoint = (entry) =>
-    entry && pointKeys.has(entry.key)
-      ? pointOf(pointKeys.get(entry.key), targetFor(entry))
-      : null;
+    entry ? standingPoint(targetFor(entry), points.get(entry.key)) : null;
+  const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  const pointWords = (point) => {
+    const words = excerptWords(point.textContent, 32);
+    return words ? `“${words}”` : null;
+  };
   const sourceItem = (item) => itemSources.get(item);
   function captureItem(item) {
     const { activate, discloses, thread, ...data } = item;
@@ -774,8 +779,7 @@ export function createMarginProjection({
     const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     if (row.checkVisibility()) return row;
-    const target = targetFor(previewEntry);
-    return entryPoint(previewEntry) ?? target ?? row;
+    return entryPlace(previewEntry) ?? row;
   }
   // Where the card stands is thread-card-geometry.js's rule, worked out in client
   // coordinates. Floating UI measures the cluster in the card's positioning space; the
@@ -917,11 +921,11 @@ export function createMarginProjection({
     return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
   }
 
-  // One group per target, and one more for each thread a pointing gesture stood at a
-  // row inside it (pointed-place.js): that thread's row stands at its point, and
+  // One group per target, and one more for each row inside it that pointing gestures
+  // stood threads at (pointed-place.js): those threads stand there together, and
   // everything else about the target (its other threads, an Ask's marker, a widget's
-  // actions) keeps the target's own row. `pointed` is `{ key, element }`, the thread's
-  // key and the element it stands level with.
+  // actions) keeps the target's own row. `pointed` is `{ key, element }`: the row's key,
+  // which its first comment gave it and later ones share, and the element it is.
   function groupFor(groups, target, pointed = null) {
     const slot = pointed ? `point:${pointed.key}` : target;
     let group = groups.get(slot);
@@ -932,7 +936,6 @@ export function createMarginProjection({
         key,
         target,
         point: pointed?.element ?? null,
-        pointKey: pointed?.key ?? null,
         word,
         subject: null,
         title: null,
@@ -997,9 +1000,9 @@ export function createMarginProjection({
       const attention = threadAttention(thread);
       const onUser = attention?.kind === "needs_user";
       const unread = thread.unread.length;
-      const key = threadKey(thread);
-      const point = pointOf(key, target);
-      const pointed = point ? { key, element: point } : null;
+      const placement = placedAt(id);
+      const point = standingPoint(target, placement?.point);
+      const pointed = point ? { key: placement.pointRow, element: point } : null;
       add(
         groups,
         target,
@@ -1225,7 +1228,7 @@ export function createMarginProjection({
       .filter((group) => !group.subject)
       .map((group) => group.target);
     targets.clear();
-    pointKeys.clear();
+    points.clear();
     return marginInventory(
       collected
         .sort((left, right) =>
@@ -1234,7 +1237,7 @@ export function createMarginProjection({
         .map((group) => {
           const subject = outlineSubjectFor(group.target, subjects, outline);
           targets.set(group.key, group.target);
-          if (group.pointKey !== null) pointKeys.set(group.key, group.pointKey);
+          if (group.point) points.set(group.key, group.point);
           return Object.freeze({
             key: group.key,
             targetId: group.target.id,
@@ -1243,6 +1246,9 @@ export function createMarginProjection({
                 group.subject ? null : subject.context,
                 group.word,
                 group.subject ?? addressableLabel(group.target),
+                // A pointed row is named by the words it stands by, so it and the
+                // target's own row do not read alike.
+                group.point && pointWords(group.point),
               ]
                 .filter(Boolean)
                 .join(" · "),
@@ -1452,7 +1458,7 @@ export function createMarginProjection({
     const item = closestAcross(control, "[data-lf-margin-for]");
     const entry = item?.lfEntry;
     if (!targetFor(entry) || !control) return false;
-    scrollToElement(entryPoint(entry) ?? targetFor(entry), undefined, "nearest");
+    scrollToElement(entryPlace(entry), undefined, "nearest");
     // Arrive before activation, then use the exact visible margin entry's own press. A generated
     // route never chooses among the cluster's actions on the user's behalf.
     focusForNavigation(control);
@@ -2139,7 +2145,7 @@ export function createMarginProjection({
       mainRect &&
       mainHeight
         ? Math.round(
-            ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
+            ((entryPlace(entry).getBoundingClientRect().top - mainRect.top) /
               mainHeight) *
               100,
           )
@@ -2996,7 +3002,7 @@ export function createMarginProjection({
     declareOffFlowSurface(preview, {
       bringBack: (behavior) =>
         scrollToElement(
-          targetFor(previewEntry) ?? previewMarginEntry,
+          entryPlace(previewEntry) ?? previewMarginEntry,
           behavior,
           "nearest",
         ),

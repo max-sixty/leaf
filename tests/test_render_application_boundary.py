@@ -36,7 +36,7 @@ from render_harness import (
 )
 
 THREAD_READER = r"""
-import {watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+import {keepsText, watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
@@ -44,9 +44,9 @@ customElements.define('lf-thread-reader', class extends HTMLElement {
     this.stop = watchThreads(this, collection => {
       this.reading = collection;
       this.sameReading = collection === readThreads();
-      this.output.textContent = collection.threads.map(thread =>
+      keepsText(this.output, collection.threads.map(thread =>
         threadTurns(thread).map(message => message.body.text).join('\n')
-      ).join('\n');
+      ).join('\n'));
       this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
     });
   }
@@ -66,7 +66,7 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+import {keepsText, openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
@@ -87,16 +87,21 @@ customElements.define('lf-thread-filter', class extends HTMLElement {
   paint() {
     if (!this.reading) return;
     const query = this.input.value.toLowerCase();
-    this.list.replaceChildren(...this.reading.threads
-      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query))
-      .map(thread => {
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.textContent = threadSummary(thread).topic;
-        button.onclick = () => openThread(thread.id);
-        item.append(button);
-        return item;
-      }));
+    const shown = this.reading.threads
+      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query));
+    // Each row is kept and says only what changed.
+    const items = [...this.list.children];
+    shown.forEach((thread, index) => {
+      let item = items[index];
+      if (!item) {
+        item = document.createElement('li');
+        item.append(document.createElement('button'));
+        this.list.append(item);
+      }
+      keepsText(item.firstChild, threadSummary(thread).topic);
+      item.firstChild.onclick = () => openThread(thread.id);
+    });
+    for (const item of items.slice(shown.length)) item.remove();
   }
   disconnectedCallback() {
     this.stop?.();
@@ -120,7 +125,7 @@ THREAD_FILTER_DECLARATION = {
 }
 
 THREAD_MIRROR = r"""
-import {mountThreadViews, threadSummary} from '/runtime/widget-api.js';
+import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
 customElements.define('lf-thread-mirror', class extends HTMLElement {
   connectedCallback() {
     if (!this.outlet) {
@@ -135,7 +140,7 @@ customElements.define('lf-thread-mirror', class extends HTMLElement {
       this.updates = (this.updates ?? 0) + 1;
       (this.signals ??= []).push(surfaces.signal);
       if (this.holding) {
-        this.setAttribute('data-held', 'true');
+        keeps(this, 'data-held', true);
         return new Promise(resolve => (this.releases ??= []).push(resolve));
       }
       const query = this.input.value.toLowerCase();
@@ -652,7 +657,7 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, layerFact, widgetController } from "/runtime/widget-api.js";
+import { LitElement, html, keeps, layerFact, widgetController } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LitElement {
   controller = widgetController(this);
@@ -662,11 +667,11 @@ customElements.define("lf-local", class extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     layerFact("$tones");
-    this.dataset.pageWidget = "ready";
+    keeps(this, "data-page-widget", "ready");
     this.stop ??= this.controller.subscribe(reading => {
       this.reading = reading;
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
-      this.dataset.subscriberChoice = this.dataset.renderedChoice;
+      keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
       this.requestUpdate();
     });
@@ -681,7 +686,7 @@ customElements.define("lf-local", class extends LitElement {
   }
 
   choose() {
-    this.dataset.renderOrder = "";
+    keeps(this, "data-render-order", "");
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
     const sent = this.controller.dispatch({
       kind: "action",
@@ -690,10 +695,10 @@ customElements.define("lf-local", class extends LitElement {
     });
     if (!sent) return;
     this.reading = sent.reading;
-    this.dataset.delivery = "pending";
+    keeps(this, "data-delivery", "pending");
     this.requestUpdate();
     sent.delivery.then(accepted => {
-      this.dataset.delivery = accepted ? "accepted" : "refused";
+      keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
 
@@ -703,7 +708,7 @@ customElements.define("lf-local", class extends LitElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    this.dataset.renderedChoice = state.choose.value;
+    keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
     this.requestUpdate();
   }
@@ -733,9 +738,9 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 ).replace(
-    "    this.dataset.renderedChoice = state.choose.value;",
+    '    keeps(this, "data-rendered-choice", state.choose.value);',
     """\
-    this.dataset.renderedChoice = state.choose.value;
+    keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.controllerRenders = String(
       Number(this.dataset.controllerRenders || 0) + 1
     );""",
@@ -1127,7 +1132,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         """() => {
           pageLocal.id = 'drifted-local';
           const reading = pageLocal.controller.read();
-          pageLocal.id = 'page-local';
           return {
             available: reading.actions.choose.available,
             undo: reading.actions.choose.undo.length,
@@ -1135,6 +1139,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         }"""
     )
     assert drifted == {"available": False, "undo": 0}
+    page.evaluate("pageLocal.id = 'page-local'")
 
     undo = []
     page.route("**/api/event", lambda route: undo.append(route))
@@ -1945,15 +1950,15 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
 
 
 THREAD_ACTIONS = r"""
-import {threadActions, watchThreads} from '/runtime/widget-api.js';
+import {keeps, threadActions, watchThreads} from '/runtime/widget-api.js';
 customElements.define('lf-thread-actions', class extends HTMLElement {
   connectedCallback() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
     this.stop = watchThreads(this, collection => {
       this.thread = collection.threads[0];
-      this.dataset.resolved = String(Boolean(this.thread?.resolved));
-      this.dataset.reacted = String(Boolean(this.thread?.msgs.some(msg => msg.token === 'keep')));
+      keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
+      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.some(msg => msg.token === 'keep')));
     });
     this.querySelectorAll('button').forEach(button => button.onclick = () => {
       const key = this.thread.key;
@@ -1965,7 +1970,7 @@ customElements.define('lf-thread-actions', class extends HTMLElement {
           : button.textContent === 'Reopen'
             ? threadActions.reopen(key)
             : threadActions.toggleReaction(key, agent.id, 'keep');
-      this.dataset.accepted = String(this.last !== null);
+      keeps(this, 'data-accepted', this.last !== null);
     });
   }
   disconnectedCallback() { this.stop(); }

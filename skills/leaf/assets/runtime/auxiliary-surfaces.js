@@ -41,6 +41,7 @@ import { under } from "./shadow.js";
 import { deepFocus, tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
+import { keeps, keepsHidden } from "./keeps.js";
 
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
 let selectedKey = null;
@@ -73,14 +74,19 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
   };
   const nativeLayerContains = (node) => node?.closest?.("dialog:modal, :popover-open");
   const overlay = (node) => node.matches?.("dialog:not(.lf-thread-panel), [popover]");
-  const background = ({ surface, underBand }) => {
+  // Every other surface is out of the background: only one is selected, so the rest are
+  // closed, or inert for the length of their exit slide (motion.js). Each surface's own
+  // show and hide own whether it takes presses, and the boundary never records or
+  // restores a state that belongs to them.
+  const background = ({ underBand }) => {
+    const surfaces = new Set([...controllers.values()].map(({ surface }) => surface));
     const nodes = [];
     for (const child of document.body.children) {
       if (child !== chromeRoot) nodes.push(child);
     }
     for (const child of chromeRoot.children) {
       if (
-        child !== surface &&
+        !surfaces.has(child) &&
         child !== scrim &&
         !overlay(child) &&
         !(underBand && child === band)
@@ -90,16 +96,21 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     return nodes;
   };
 
+  // The inert state each background node had before the boundary took it. The map
+  // belongs to the boundary rather than to a surface, so a node the next surface's
+  // boundary also takes stays inert through the handover instead of being restored and
+  // taken again.
+  const suspended = new Map();
   const syncBackground = (controller) => {
-    const next = new Set(background(controller));
-    for (const [node, inert] of controller.suspended) {
+    const next = new Set(controller ? background(controller) : []);
+    for (const [node, inert] of suspended) {
       if (next.has(node)) continue;
-      node.inert = inert;
-      controller.suspended.delete(node);
+      node.toggleAttribute("inert", inert);
+      suspended.delete(node);
     }
     for (const node of next) {
-      if (!controller.suspended.has(node)) controller.suspended.set(node, node.inert);
-      node.inert = true;
+      if (!suspended.has(node)) suspended.set(node, node.inert);
+      node.toggleAttribute("inert", true);
     }
   };
 
@@ -116,42 +127,41 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
       place(active.focus() ?? active.surface);
   });
 
-  function enter(controller) {
-    if (active && active !== controller)
-      throw new Error("leaf: two covering auxiliary surfaces cannot be modal together");
-    if (active === controller) return;
-
-    for (const popover of openPopovers())
-      if (!under(popover, controller.surface)) popover.hidePopover();
-    active = controller;
-    syncBackground(controller);
-    controller.role = controller.surface.getAttribute("role");
-    controller.surface.setAttribute("role", "dialog");
-    controller.surface.setAttribute("aria-modal", "true");
-    document.documentElement.dataset.lfCoveringSurface = controller.surface.id;
-    band.toggleAttribute("data-lf-over-covering", controller.underBand);
-    scrim.hidden = false;
+  // The covering boundary moves in one step, from the surface holding it to `next` or to
+  // none. What both boundaries say — the inert background they share, the scrim, the
+  // band's place — is written once, to where it ends, rather than lifted by one surface
+  // and put back by the next.
+  function cover(next) {
+    if (active === next) return;
+    const previous = active;
+    if (previous) {
+      backgroundMutations.disconnect();
+      focusMutations.disconnect();
+      if (previous.role === null) previous.surface.removeAttribute("role");
+      else keeps(previous.surface, "role", previous.role);
+      previous.surface.removeAttribute("aria-modal");
+    }
+    active = next;
+    if (next)
+      for (const popover of openPopovers())
+        if (!under(popover, next.surface)) popover.hidePopover();
+    syncBackground(next);
+    band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));
+    keepsHidden(scrim, !next);
+    if (!next) {
+      delete document.documentElement.dataset.lfCoveringSurface;
+      return;
+    }
+    next.role = next.surface.getAttribute("role");
+    keeps(next.surface, "role", "dialog");
+    keeps(next.surface, "aria-modal", "true");
+    keeps(document.documentElement, "data-lf-covering-surface", next.surface.id);
     backgroundMutations.observe(document.body, { childList: true });
     backgroundMutations.observe(chromeRoot, { childList: true });
-    focusMutations.observe(controller.surface, { childList: true, subtree: true });
+    focusMutations.observe(next.surface, { childList: true, subtree: true });
 
-    if (!controller.surface.contains(document.activeElement))
-      place(controller.focus() ?? controller.surface);
-  }
-
-  function leave(controller) {
-    if (active !== controller) return;
-    backgroundMutations.disconnect();
-    focusMutations.disconnect();
-    for (const [node, inert] of controller.suspended) node.inert = inert;
-    controller.suspended.clear();
-    if (controller.role === null) controller.surface.removeAttribute("role");
-    else controller.surface.setAttribute("role", controller.role);
-    controller.surface.removeAttribute("aria-modal");
-    delete document.documentElement.dataset.lfCoveringSurface;
-    band.removeAttribute("data-lf-over-covering");
-    scrim.hidden = true;
-    active = null;
+    if (!next.surface.contains(document.activeElement))
+      place(next.focus() ?? next.surface);
   }
 
   function registerAuxiliarySurface({
@@ -182,7 +192,6 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
       hide,
       arrival,
       role: null,
-      suspended: new Map(),
     };
     controllers.set(key, controller);
     return () => {
@@ -194,8 +203,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
 
   function sync() {
     const selected = controllers.get(selectedKey);
-    if (active && (active !== selected || !active.covers())) leave(active);
-    if (selected && selected !== arriving && selected.covers()) enter(selected);
+    cover(selected && selected !== arriving && selected.covers() ? selected : null);
   }
 
   function select(
@@ -206,23 +214,24 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
       throw new Error(`leaf: unknown auxiliary surface ${key}`);
     if (selectedKey === key) return;
     const previous = controllers.get(selectedKey);
-    if (active) leave(active);
     selectedKey = key;
-    arriving = null;
     const selected = controllers.get(key);
-    previous?.hide({ returnFocus });
     // The selected surface's width reaches the stylesheet's covering rule through this.
     if (key) document.body.dataset.lfAuxiliarySurface = key;
     else delete document.body.dataset.lfAuxiliarySurface;
-    if (selected) {
-      if (
-        phase === "arrival" &&
-        selected.arrival === "presentation" &&
-        !pagePresented()
-      )
-        arriving = selected;
-      else selected.show({ phase });
-    }
+    arriving =
+      selected &&
+      phase === "arrival" &&
+      selected.arrival === "presentation" &&
+      !pagePresented()
+        ? selected
+        : null;
+    // A surface that will cover takes the boundary straight over at `sync`. Otherwise
+    // the boundary lifts before the previous surface hides, so the focus it hands back
+    // lands on a live page.
+    if (!selected || arriving || !selected.covers()) cover(null);
+    previous?.hide({ returnFocus });
+    if (selected && !arriving) selected.show({ phase });
     sync();
     syncLayout();
     afterChange();

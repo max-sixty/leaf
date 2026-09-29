@@ -11,6 +11,7 @@
  * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
  * CSS anchors keep the card with its phrase. */
 import {
+  keeps,
   offer,
   once,
   paintKeys,
@@ -166,7 +167,7 @@ customElements.define(
       const open = this.#bubble.matches(":popover-open");
       if (show === this.#shown && show === open) return;
       this.#shown = show;
-      this.#mark.setAttribute("aria-expanded", String(show));
+      keeps(this.#mark, "aria-expanded", show);
       paintKeys();
 
       if (show) {

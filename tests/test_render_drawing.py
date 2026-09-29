@@ -923,7 +923,12 @@ def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
     page.mouse.move(*start)
     page.keyboard.press("w")
     page.mouse.down()
-    target.evaluate("el => el.replaceWith(el.cloneNode(true))")
+    # Marked, so the replacement is a different element and not the same one written
+    # again.
+    target.evaluate(
+        "el => { const next = el.cloneNode(true); next.dataset.replaced = ''; "
+        "el.replaceWith(next); }"
+    )
     page.mouse.move(start[0] + 120, start[1], steps=8)
     page.mouse.up()
 

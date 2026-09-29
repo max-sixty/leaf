@@ -13,7 +13,14 @@
 // Every paint dispatches `film-frame` with the chapter, its caption and the run's status,
 // so the page can tell the current step beside the film.
 
-import { offer, once, registerVisualParts } from "/runtime/widget-api.js";
+import {
+  keeps,
+  keepsHidden,
+  keepsText,
+  offer,
+  once,
+  registerVisualParts,
+} from "/runtime/widget-api.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -64,6 +71,9 @@ customElements.define(
       this.inspector.className = "film-inspect";
       this.inspector.hidden = true;
       this.inspector.setAttribute("role", "status");
+      this.inspectorTitle = document.createElement("strong");
+      this.inspectorBody = document.createElement("span");
+      this.inspector.append(this.inspectorTitle, this.inspectorBody);
       stage.append(this.inspector);
       stage.addEventListener("click", (e) => this.#click(e));
       stage.addEventListener("pointermove", (e) => this.#hover(e));
@@ -160,7 +170,7 @@ customElements.define(
       this.#t = this.#fresh
         ? this.#poster()
         : (this.#film.starts[chapter] ?? Math.min(this.#t, this.#film.total));
-      this.scrub.max = this.#film.total;
+      keeps(this.scrub, "max", this.#film.total);
       this.#inspect(null);
       this.#paint();
     }
@@ -206,18 +216,14 @@ customElements.define(
       for (const p of this.painter.parts())
         p.element.classList.toggle("film-picked", p === part);
       if (!part) {
-        this.inspector.hidden = true;
+        keepsHidden(this.inspector, true);
         return;
       }
       const box = part.element.getBoundingClientRect();
       const stage = this.stage.getBoundingClientRect();
-      this.inspector.replaceChildren();
-      const title = document.createElement("strong");
-      title.textContent = part.label;
-      const body = document.createElement("span");
-      body.textContent = part.info;
-      this.inspector.append(title, body);
-      this.inspector.hidden = false;
+      keepsText(this.inspectorTitle, part.label);
+      keepsText(this.inspectorBody, part.info);
+      keepsHidden(this.inspector, false);
       const left = Math.min(
         box.right - stage.left + 10,
         stage.width - this.inspector.offsetWidth - 10,
@@ -304,7 +310,7 @@ customElements.define(
       this.#fresh = false;
       this.#playing = false;
       cancelAnimationFrame(this.#raf);
-      this.playBtn.textContent = this.#t >= this.#film.total - 0.01 ? "Replay" : "Play";
+      keepsText(this.playBtn, this.#t >= this.#film.total - 0.01 ? "Replay" : "Play");
     }
 
     #paint() {

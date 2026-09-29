@@ -81,6 +81,7 @@ import {
 } from "./margin-layout.js";
 import {
   marginContributionEntries,
+  presentingMarginContributions,
   marginContributionSource,
   marginEntry,
   marginEntryRecord,
@@ -126,7 +127,8 @@ import {
   letGo,
   placeChrome,
 } from "./focus.js";
-import { closeControl, el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { closeControl, el, offer } from "./widget-elements.js";
+import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -228,7 +230,15 @@ export function createMarginProjection({
     const prefix = host ? `${targetPath(host)}/shadow/` : "";
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
+    let from = "path:";
     for (let node = target; node;) {
+      // A projected datum's node is generated, so it stands at no authored position
+      // among its siblings; it is named by its projection and key, which also survive a
+      // renderer replacing it (projection/data.js).
+      if (node.dataset?.lfProjection && node.hasAttribute("data-lf-datum")) {
+        from = `datum:${node.dataset.lfProjection}/${node.dataset.lfDatum}:`;
+        break;
+      }
       const parent =
         node.parentElement ??
         (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
@@ -242,7 +252,7 @@ export function createMarginProjection({
       if (node.localName === "main" || parent instanceof ShadowRoot) break;
       node = parent;
     }
-    return `${prefix}path:${steps.reverse().join("/")}`;
+    return `${prefix}${from}${steps.reverse().join("/")}`;
   }
 
   function comesBefore(left, right) {
@@ -516,6 +526,7 @@ export function createMarginProjection({
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
+  let highlightFrame = 0;
   let rovingFrame = 0;
   // A modal or contextual thread surface temporarily owns focus without ending the
   // document interaction beneath it. Preserve that context so its commands remain
@@ -662,7 +673,7 @@ export function createMarginProjection({
   };
   // A scroll moves the held edge and with it the room to the boundary, so the cap the
   // geometry asks for moves with every scroll, and every write during a scroll costs a
-  // repaint (widget-elements.js, `keeps`) while the card's far edge, written from the
+  // repaint (keeps.js) while the card's far edge, written from the
   // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
   // cap the card wears: a card short of both caps renders the same under either, and a
   // card at its cap takes a new one only once its contents change, when a turn arrives
@@ -1349,25 +1360,24 @@ export function createMarginProjection({
     );
   }
 
-  function openMarginEntryOptions(target, { owner = null } = {}) {
-    renderMargin.refresh();
-    const entry = pageInventory.find((candidate) => targetFor(candidate) === target);
-    const more = entry && moreMarginEntries.get(entry.key);
-    const focusedOffer =
-      owner && entry?.offers.find((offered) => offered.key === owner);
-    if (!entry || !more || (owner && !focusedOffer)) return false;
+  // Stand one contributor's options open at a target. Decided on the entries before
+  // anything paints, so the cluster renders once, already open, rather than shut and
+  // then opened in the same task.
+  function openMarginEntryOptions(target, owner) {
+    const entry = collectEntries().find((candidate) => targetFor(candidate) === target);
+    if (
+      !entry ||
+      !entryHasMarginHost(entry) ||
+      !entry.offers.some((offered) => offered.key === owner)
+    )
+      return false;
     if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
+      renderMargin.refresh();
       const options = hosts.get(entry.key)?.options;
       if (options?.isConnected && !options.hidden) return true;
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
-      renderMargin.refresh();
     }
-    if (expandedOptionsKey === entry.key && expandedOptionsOwner !== owner) {
-      setOptionsOpen(entry, true, { owner });
-      return true;
-    }
-    if (!owner && more.hidden) return false;
     setOptionsOpen(entry, true, { owner });
     return true;
   }
@@ -1891,6 +1901,7 @@ export function createMarginProjection({
     if (!nav.isConnected)
       chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
     const mainRect = main?.getBoundingClientRect();
+    presentingMarginContributions();
     syncInlineOffers();
     pageInventory = collectEntries();
     const liveHosts = new Set(
@@ -2173,37 +2184,41 @@ export function createMarginProjection({
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       previewList.scrollHeight - previewList.clientHeight - previewList.scrollTop <= 2;
-    const hold = arriving ? null : previewPlace.take();
-    if (arriving) previewList.scrollTop = 0;
-    previewThreadItem = selected?.id ?? null;
-    const targetHeading =
-      targetFor(entry)?.querySelector(":scope > strong")?.textContent;
-    // A target with a heading is named by it. One without — an aside, a paragraph —
-    // is headed by the passage the selected thread quotes, as the panel heads it: a card
-    // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
-    // last sentence was a third name for one thread, and the least exact.
-    const quoted = sourceItem(selected)?.thread?.anchor
-      ? anchorLabel(
-          sourceItem(selected).thread.anchor,
-          sourceItem(selected).thread.root.about,
-        )
-      : null;
-    const title = labelWords(targetHeading || quoted || entry.title);
-    keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
-    previewNav.hidden = threadItems.length < 2;
-    const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-    previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
-    previewPrevious.disabled = selectedIndex === 0;
-    previewNext.disabled = selectedIndex === threadItems.length - 1;
-    setChildren(previewList, selected ? [previewItemNode(selected)] : []);
-    // The list holds the one thread the card shows, so a user whose place in a thread
-    // the rebuild took lands on that thread; a step button it hid hands them to Close.
-    restoreFocus?.(
-      focusedItem && previewList.querySelector(".lf-page-thread"),
-      previewClose,
-    );
-    placeThreadPreview();
-    previewPlace.finish(hold);
+    const present = () => {
+      previewThreadItem = selected?.id ?? null;
+      const targetHeading =
+        targetFor(entry)?.querySelector(":scope > strong")?.textContent;
+      // A target with a heading is named by it. One without — an aside, a paragraph —
+      // is headed by the passage the selected thread quotes, as the panel heads it: a card
+      // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
+      // last sentence was a third name for one thread, and the least exact.
+      const quoted = sourceItem(selected)?.thread?.anchor
+        ? anchorLabel(
+            sourceItem(selected).thread.anchor,
+            sourceItem(selected).thread.root.about,
+          )
+        : null;
+      const title = labelWords(targetHeading || quoted || entry.title);
+      keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
+      keepsHidden(previewNav, threadItems.length < 2);
+      const selectedIndex = Math.max(0, threadItems.indexOf(selected));
+      keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
+      previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
+      previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
+      setChildren(previewList, selected ? [previewItemNode(selected)] : []);
+      // The list holds the one thread the card shows, so a user whose place in a thread
+      // the rebuild took lands on that thread; a step button it hid hands them to Close.
+      restoreFocus?.(
+        focusedItem && previewList.querySelector(".lf-page-thread"),
+        previewClose,
+      );
+      placeThreadPreview();
+    };
+    if (!arriving) previewPlace.around(present);
+    else {
+      previewList.scrollTop = 0;
+      present();
+    }
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
     if (follow) previewList.scrollTop = previewList.scrollHeight;
   }
@@ -2266,16 +2281,27 @@ export function createMarginProjection({
         },
       },
     );
-    node.dataset.lfMarginEntry = item.id;
+    keeps(node, "data-lf-margin-entry", item.id);
     node.lfMarginItem = item.id;
     return node;
   }
 
+  // One gesture can move the trace's source more than once: a close that clears it and
+  // the focus it hands back that names the same target again. The trace paints what the
+  // gesture ends on, once, in the frame that follows it.
   function highlight(target) {
     if (highlighted === target) return;
     highlighted = target;
-    const part = target ? visualAt(target, { unclaimed: false })?.part : null;
-    paintTrace(target, part?.element === target ? part.surface : target);
+    highlightFrame ||= nextRender(() => {
+      highlightFrame = 0;
+      const part = highlighted
+        ? visualAt(highlighted, { unclaimed: false })?.part
+        : null;
+      paintTrace(
+        highlighted,
+        part?.element === highlighted ? part.surface : highlighted,
+      );
+    });
   }
 
   function refreshHighlight() {
@@ -2312,7 +2338,7 @@ export function createMarginProjection({
     previewEntry = entry;
     transferThreadCard(button);
     buildThreadCard(entry, threadItem);
-    preview.hidden = false;
+    keepsHidden(preview, false);
     const positioned = placedThreadPreview();
     refreshHighlight();
     for (const row of rows.values())

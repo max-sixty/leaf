@@ -4480,15 +4480,15 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
             ];
             for (const offered of index ? offers.reverse() : offers)
               fixture.registrations.push(registerMarginContribution(offered));
+            // One state change reaches both contributions, and the margin paints it
+            // once rather than once with each of them.
             fixture.rest = () => {
               fixture.engaged = false;
-              fixture.registrations.forEach(registration =>
-                registration.update({immediate: true}));
+              fixture.registrations.forEach(registration => registration.update());
             };
             fixture.busy = () => {
               fixture.saveState = 'busy';
-              fixture.registrations.forEach(registration =>
-                registration.update({immediate: true}));
+              fixture.registrations.forEach(registration => registration.update());
             };
             window.marginEntryFixtures.push(fixture);
           }
@@ -6526,10 +6526,14 @@ def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, se
     def card(sent):
         return threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')
 
-    # Keyboard modality without Tab, whose own landing in the list would scroll it.
+    # Keyboard modality without Tab, whose own landing in the list would scroll it. A
+    # second arrival leaves the stop the first lent, which a restated value would rewrite.
     def arrive(selector):
         page.keyboard.press("Shift")
-        page.locator(selector).evaluate("node => { node.tabIndex = -1; node.focus(); }")
+        page.locator(selector).evaluate(
+            "node => { if (node.getAttribute('tabindex') !== '-1') node.tabIndex = -1;"
+            " node.focus(); }"
+        )
         expect(page.locator(selector)).to_be_focused()
         assert page.locator(selector).evaluate("node => node.matches(':focus-visible')")
 

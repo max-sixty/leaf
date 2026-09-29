@@ -261,16 +261,16 @@ export function createReactionController({
     anchor = fabAnchorAt(),
   ) {
     // Read before the bar goes, because the reading is about the bar that is standing.
-    // `showFab(null)` lands the user on this same answer, but `setReact(false)` runs
-    // after it and the palette makes a return of its own, so the landing is asserted once
-    // more once everything has settled. The bar owns what that answer is.
+    // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
+    // palette makes a return of its own, so the user lands once, when everything has
+    // settled, rather than once as the bar goes and again after the palette.
     const returnTo = fabReturnTo();
     const restoreTargetFocus = () => handBack(returnTo);
     if (!anchor) return;
     if (standing) {
       await commands.withdrawReaction(standing);
       hideComposer();
-      showFab(null);
+      showFab(null, null, { returnFocus: "none" });
       setReact(false);
       restoreTargetFocus();
       return;
@@ -284,7 +284,7 @@ export function createReactionController({
     if (designModeActive()) event.about = "design";
     const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
-    showFab(null);
+    showFab(null, null, { returnFocus: "none" });
     setReact(false);
     restoreTargetFocus();
     getSelection()?.removeAllRanges();
@@ -359,7 +359,7 @@ export function createReactionController({
         ),
     });
     marginTarget = target;
-    if (openMarginEntryOptions(target, { owner: "responses" })) {
+    if (openMarginEntryOptions(target, "responses")) {
       marginUnfolded = !standing;
       return true;
     }

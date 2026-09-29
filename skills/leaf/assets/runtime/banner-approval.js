@@ -9,6 +9,7 @@
  * the reason in `title` alone, which a keyboard user never reached, since Tab skipped the
  * control, and a finger never sees. */
 import { LitElement, html } from "../vendor/browser-runtime.js";
+import { keeps } from "./keeps.js";
 
 const TAG = "leaf-banner-approval-face";
 const INITIAL = Object.freeze({
@@ -47,13 +48,13 @@ class BannerApprovalFace extends LitElement {
     if (!(control instanceof HTMLButtonElement)) return;
     const { reason, title } = this.model;
     if (reason) {
-      control.setAttribute("aria-disabled", "true");
-      control.setAttribute("aria-description", reason);
+      keeps(control, "aria-disabled", "true");
+      keeps(control, "aria-description", reason);
     } else {
       control.removeAttribute("aria-disabled");
       control.removeAttribute("aria-description");
     }
-    control.title = title;
+    keeps(control, "title", title);
   }
 
   render() {

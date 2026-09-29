@@ -3,13 +3,16 @@
  * Version travel supplies one frozen presentation reading and stable commands. This
  * synchronous light-DOM Lit view retains the native picker button, versions popover,
  * and latest-version chip in their separate banner and chrome seats. It owns their
- * labels, attributes, keyed rows, and disclosure focus; it never
+ * labels, attributes, keyed rows, and disclosure focus, all but the `title`: a control
+ * names itself in `data-lf-key-title`, and the keyboard pass writes the title that adds
+ * its shortcut (keyboard/control-keys.js), so each has one writer. It never
  * fetches a document, chooses a version, or decides what a comparison means.
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
 const INITIAL_LATEST = "New page available → open v999";
@@ -70,10 +73,8 @@ class VersionPickerView {
       for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
     });
     this.menu.addEventListener("toggle", (event) => {
-      const open = event.newState === "open";
-      if (this.#model.picker.offered)
-        this.button.setAttribute("aria-expanded", String(open));
-      if (!open) {
+      this.#presentDisclosure();
+      if (event.newState !== "open") {
         this.#displayedRows = this.#model.rows;
         this.#renderMenu();
       }
@@ -145,28 +146,32 @@ class VersionPickerView {
     const { picker, latest } = model;
     if (!picker.offered) this.close();
 
-    this.button.disabled = !picker.offered;
-    if (picker.offered) {
-      this.button.setAttribute("aria-haspopup", "menu");
-      this.button.setAttribute("aria-expanded", String(this.isOpen()));
-    } else {
-      this.button.removeAttribute("aria-haspopup");
-      this.button.removeAttribute("aria-expanded");
-    }
+    this.button.toggleAttribute("disabled", !picker.offered);
+    this.#presentDisclosure();
     this.button.classList.toggle("on", picker.compared);
     this.button.toggleAttribute("data-lf-news", picker.news);
-    this.button.dataset.lfKeyTitle = picker.keyTitle;
-    this.button.setAttribute("aria-label", picker.ariaLabel);
-    this.button.title = picker.keyTitle;
+    keeps(this.button, "data-lf-key-title", picker.keyTitle);
+    keeps(this.button, "aria-label", picker.ariaLabel);
     render(picker.token, this.button);
 
-    this.latestChip.disabled = latest.disabled;
-    this.latestChip.dataset.lfKeyTitle = latest.keyTitle;
-    this.latestChip.title = latest.keyTitle;
+    this.latestChip.toggleAttribute("disabled", latest.disabled);
+    keeps(this.latestChip, "data-lf-key-title", latest.keyTitle);
     render(latest.label, this.latestChip);
 
     if (!this.isOpen()) this.#displayedRows = model.rows;
     this.#renderMenu();
+  }
+
+  // The button's disclosure state has one writer, which reads the popover itself: a new
+  // model and the popover's own toggle both arrive here.
+  #presentDisclosure() {
+    if (this.#model.picker.offered) {
+      keeps(this.button, "aria-haspopup", "menu");
+      keeps(this.button, "aria-expanded", this.isOpen());
+    } else {
+      this.button.removeAttribute("aria-haspopup");
+      this.button.removeAttribute("aria-expanded");
+    }
   }
 
   #renderMenu() {

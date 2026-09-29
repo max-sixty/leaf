@@ -23,6 +23,9 @@ import {
   dragging,
   commands,
   holdFocus,
+  keeps,
+  keepsHidden,
+  keepsText,
   layoutChanged,
   motion,
   once,
@@ -217,20 +220,20 @@ customElements.define(
       if (reading === this.#painted) return;
 
       const keysMoved = available !== this.#keysAvailable;
-      this.#pass.disabled = !available;
-      this.#keep.disabled = !available;
-      this.#progress.textContent = progress;
+      this.#pass.toggleAttribute("disabled", !available);
+      this.#keep.toggleAttribute("disabled", !available);
+      keepsText(this.#progress, progress);
 
       for (const { pile, verdict, cards } of piles) {
         for (const { card, active, returnable, returning } of cards) {
-          card.tabIndex = active ? 0 : -1;
+          keeps(card, "tabindex", active ? 0 : -1);
           const button = card.querySelector(":scope > .lf-swipe-return");
           if (!button) continue;
-          button.hidden = !returnable;
-          button.disabled = returning;
+          keepsHidden(button, !returnable);
+          button.toggleAttribute("disabled", returning);
         }
         const label = pile.querySelector(':scope > [data-lf-said="verdict"]');
-        if (label) label.textContent = `${VERDICTS[verdict]} · ${cards.length}`;
+        keepsText(label, `${VERDICTS[verdict]} · ${cards.length}`);
       }
       if (keysMoved) paintKeys();
       this.#keysAvailable = available;
@@ -386,7 +389,7 @@ customElements.define(
       if (!gesture) return;
       if (gesture.card.hasPointerCapture?.(gesture.id))
         gesture.card.releasePointerCapture(gesture.id);
-      gesture.card.classList.remove("lf-swipe-dragging");
+      gesture.card.classList.toggle("lf-swipe-dragging", false);
       gesture.card.style.removeProperty("--lf-swipe-drag-x");
       dragging(this, false);
       if (resume) this.#resumePresentation();

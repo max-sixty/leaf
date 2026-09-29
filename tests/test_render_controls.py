@@ -1987,14 +1987,14 @@ def test_the_banner_wraps_by_what_it_holds(
     # from what delivery wrote on the root. It reserved one row for a sign-off page at
     # 600px, so the page shown first moved down a row when the banner arrived.
     guessed = page.evaluate(
-        """() => {
+        """() => lfUnwatched(() => {
           const root = document.documentElement;
           const drawn = root.dataset.lfBannerRows;
           delete root.dataset.lfBannerRows;
           const guess = getComputedStyle(root).getPropertyValue('--lf-banner-rows').trim();
           root.dataset.lfBannerRows = drawn;
           return guess;
-        }"""
+        })"""
     )
     assert guessed == read["rows"], (width, touch, signoff, guessed, read["rows"])
 
@@ -5128,8 +5128,9 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 
     plant = """(how) => {
       const box = document.querySelector('main p');
-      box.classList.add('probe-target');
-      box.classList.remove('lf-mark-el', 'lf-mark-hover', 'lf-focus-visible');
+      box.classList.toggle('probe-target', true);
+      for (const name of ['lf-mark-el', 'lf-mark-hover', 'lf-focus-visible'])
+        box.classList.toggle(name, false);
       box.style.outline = '';
       box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
@@ -5234,7 +5235,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     # scrollbar is not taken out of and so is the same number only while there is none.
     plant = """(how) => {
       const box = document.querySelector('main p');
-      box.classList.add('probe-target');
+      box.classList.toggle('probe-target', true);
       box.style.cssText = `position: fixed; left: 40px; top: ${innerHeight - 30}px;
         width: 120px; height: 30px; box-sizing: border-box; margin: 0`;
       if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--shade)';
@@ -6744,17 +6745,17 @@ HAND_BACK = """async (step) => {
   const {handBack} = await window.__lfRuntimeImport('/runtime/focus.js');
   const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
   const main = document.querySelector('main');
-  const made = (tag, id, parent = main) => {
+  const made = (tag, id, parent = main, hidden = false) => {
     document.getElementById(id)?.remove();
     const node = document.createElement(tag);
     node.id = id;
     node.textContent = id;
+    node.hidden = hidden;
     parent.prepend(node);
     return node;
   };
-  const open = made('button', 'open'), shut = made('button', 'shut');
+  const open = made('button', 'open'), shut = made('button', 'shut', main, true);
   const layer = made('div', 'layer');
-  shut.hidden = true;
   made('button', 'inside', layer).focus();
   layer.hidden = true;
   if (step === 'first that lands') handBack(shut, open);

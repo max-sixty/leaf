@@ -11,12 +11,22 @@
    selection, agent workflow, and whose turn a reading waits on are independent
    presentation fields, written by the projection rather than declared. Ordering follows
    interaction state, then rank, contribution key, and entry key. Registration and DOM
-   order never decide which unrelated action becomes primary. */
+   order never decide which unrelated action becomes primary.
+
+   The changes one script makes reach the projections once, when its synchronous work is
+   done: a publication that updates several contributions, or a widget moved from one
+   parent to another, would otherwise paint every state it passes through. A render the
+   task asked for anyway takes the change (`presentingMarginContributions`) and leaves
+   nothing owed, and a registration asked for a control to reach (its focus, its layout) settles
+   first. Asked whether it holds a node, it answers from what stands: the node the caller
+   holds is in the controls presented now. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
+import { afterScript } from "./rendering.js";
 import { iconElement } from "./icons.js";
-import { keeps, offer } from "./widget-elements.js";
+import { offer } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { reducedMotion } from "./motion.js";
 import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 
@@ -84,11 +94,22 @@ const controlContributions = new WeakMap();
 const iconNodes = new WeakMap();
 const contributorClasses = new WeakMap();
 
+let owed = false;
 const changed = () => {
-  for (const listener of listeners) listener();
+  owed = true;
+  afterScript(settle);
 };
+function settle() {
+  if (!owed) return;
+  owed = false;
+  for (const listener of listeners) listener();
+}
 
 export const marginContributionEntries = () => contributions.values();
+// A render that reads every contribution presents whatever change was owed.
+export function presentingMarginContributions() {
+  owed = false;
+}
 export function watchMarginContributions(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -323,17 +344,12 @@ export function presentMarginEntry(control, offered, options = {}) {
   const record = presentMarginEntryHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncMarginEntrySelection(control, options.selected);
-  if (!control.classList.contains("lf-margin-entry"))
-    control.classList.add("lf-margin-entry");
+  control.classList.toggle("lf-margin-entry", true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
-  if (
-    priorClasses.length !== nextClasses.length ||
-    priorClasses.some((name, index) => name !== nextClasses[index])
-  ) {
-    control.classList.remove(...priorClasses);
-    if (nextClasses.length) control.classList.add(...nextClasses);
-  }
+  for (const name of priorClasses)
+    if (!nextClasses.includes(name)) control.classList.toggle(name, false);
+  for (const name of nextClasses) control.classList.toggle(name, true);
   contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleMarginEntryLabel(record);
   const glyph = record.icon
@@ -405,6 +421,7 @@ export function registerMarginContribution({
   const entry = (entryKey) =>
     offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
   const control = (entryKey, surface = null, visible = false) => {
+    settle();
     const surfaces = presented.get(offered);
     const preferred = surface ? [surface] : ["margin", "map", "inline"];
     for (const name of preferred) {
@@ -413,6 +430,12 @@ export function registerMarginContribution({
         return candidate;
     }
     return null;
+  };
+  let owedFocus = null;
+  const landFocus = () => {
+    const key = owedFocus;
+    owedFocus = null;
+    if (key != null) registration.focus(key);
   };
   const registration = Object.freeze({
     entry(entryKey) {
@@ -459,11 +482,20 @@ export function registerMarginContribution({
       destination.focus({ preventScroll: true });
       return true;
     },
+    // A focus asked for with an update lands when the script's render does, on the
+    // control that render leaves: two updates in one script (an undo shown pending, then
+    // its publication) render once rather than painting the step between them.
     update({ immediate = false, focus = null } = {}) {
       publishReading(offered);
       changed();
-      if (immediate) layoutMarginRows();
-      if (focus != null) registration.focus(focus);
+      if (immediate) {
+        settle();
+        layoutMarginRows();
+      }
+      if (focus != null) {
+        owedFocus = focus;
+        afterScript(landFocus);
+      }
     },
     unregister() {
       if (!contributions.delete(offered)) return;

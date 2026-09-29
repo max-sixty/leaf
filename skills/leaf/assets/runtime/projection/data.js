@@ -62,6 +62,7 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { setChildren } from "../dom-children.js";
 import { under } from "../shadow.js";
+import { keeps } from "../keeps.js";
 
 // Runtime-supplied data is a third kind of page word: it is neither prose the author
 // put in the version nor apparatus the runtime asks the user to operate. It belongs
@@ -152,9 +153,9 @@ export function createDataProjection({ invalidateDom }) {
       throw new TypeError("projectData snapshot needs a source and revision");
 
     const stampBasis = (node) => {
-      if (snapshot) node.dataset.lfSource = snapshot.source;
+      if (snapshot) keeps(node, "data-lf-source", snapshot.source);
       else delete node.dataset.lfSource;
-      if (snapshot) node.dataset.lfSourceRevision = String(snapshot.revision);
+      if (snapshot) keeps(node, "data-lf-source-revision", snapshot.revision);
       else delete node.dataset.lfSourceRevision;
     };
     stampBasis(root);
@@ -222,23 +223,23 @@ export function createDataProjection({ invalidateDom }) {
           throw new TypeError(
             `projectData(${root.id}) label ${index} must be a non-empty string`,
           );
-        node.dataset.lfDatumLabel = label;
+        keeps(node, "data-lf-datum-label", label);
         if (
           !node.hasAttribute("aria-label") &&
           (!node.hasAttribute("aria-description") ||
             node.getAttribute("aria-description") === priorLabel)
         )
-          node.setAttribute("aria-description", label);
+          keeps(node, "aria-description", label);
       } else if (priorLabel !== undefined) {
         if (node.getAttribute("aria-description") === priorLabel)
           node.removeAttribute("aria-description");
         delete node.dataset.lfDatumLabel;
       }
-      node.dataset.lfGen = "1";
-      node.dataset.lfProjection = root.id;
-      node.dataset.lfDatum = key;
+      keeps(node, "data-lf-gen", "1");
+      keeps(node, "data-lf-projection", root.id);
+      keeps(node, "data-lf-datum", key);
       stampBasis(node);
-      if (identify) node.dataset.lfIdentity = identity;
+      if (identify) keeps(node, "data-lf-identity", identity);
       else delete node.dataset.lfIdentity;
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
@@ -248,7 +249,7 @@ export function createDataProjection({ invalidateDom }) {
           throw new TypeError(
             `projectData(${root.id}) origin ${index} must be an object`,
           );
-        node.dataset.lfOrigin = JSON.stringify(origin);
+        keeps(node, "data-lf-origin", JSON.stringify(origin));
       } else delete node.dataset.lfOrigin;
       wanted.push(node);
       index++;

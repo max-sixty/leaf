@@ -219,9 +219,15 @@ textarea:focus {
   font: 11px/1.35 var(--font-sans, system-ui);
 }
 
+/* The box grows with its words, through field-sizing rather than a script: measuring
+   one means setting its height to auto and back, a write on every keystroke that
+   changes nothing when the height holds. */
 textarea {
   width: 100%;
   min-height: 66px;
+  max-height: 240px;
+  field-sizing: content;
+  overflow-y: auto;
   resize: vertical;
   border: 1px solid var(--app-line);
   border-radius: 9px;

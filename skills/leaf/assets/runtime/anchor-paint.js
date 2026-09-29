@@ -246,8 +246,9 @@ export function createAnchorPaint({
       if (!found) continue;
       // Placement includes resolved threads and remains distinct from paint. The panel
       // orders from this record instead of resolving the same coordinate again. A
-      // pointed thread's record also carries the row it stands by (`point`) and the key
-      // of the margin row it shares with others pointed there (`pointRow`), below.
+      // pointed thread's record also carries the row it stands by (`point`), the key of
+      // the margin row it shares with others pointed there (`pointRow`), and the row's
+      // words as the page reads them (`pointWords`), below.
       const target = targetElement(found) ?? found.place;
       placed.set(thread.id, {
         datumElement: null,
@@ -258,6 +259,7 @@ export function createAnchorPaint({
         element: found.place,
         point: null,
         pointRow: null,
+        pointWords: null,
       });
       // A drawing's part names where on the picture it is; a point is for a target that
       // names no place inside itself.
@@ -319,7 +321,11 @@ export function createAnchorPaint({
     for (const { id, key } of pointable) {
       const point = pointed.get(key);
       if (point)
-        Object.assign(placed.get(id), { point: point.element, pointRow: point.row });
+        Object.assign(placed.get(id), {
+          point: point.element,
+          pointRow: point.row,
+          pointWords: point.words,
+        });
     }
 
     const resolvedDraft =

@@ -1350,6 +1350,31 @@ POINTED_WITHIN = {
         ["#within tr >> nth=30 >> td >> nth=0", "#within tr >> nth=30 >> td >> nth=1"],
         "#within tr >> nth=30",
     ),
+    # A table's row whatever blocks its cells hold.
+    "cell blocks": (
+        '<table id="within">'
+        + "".join(
+            f"<tr><td><p>Row {n} first cell</p></td><td><p>Row {n} second</p></td></tr>"
+            for n in range(40)
+        )
+        + "</table>",
+        [
+            "#within tr >> nth=30 >> td >> nth=0 >> p",
+            "#within tr >> nth=30 >> td >> nth=1 >> p",
+        ],
+        "#within tr >> nth=30",
+    ),
+    # A target's first line: its own row stands there already, so a comment pointed at
+    # it joins that row, an Ask's marker's, rather than standing pushed below it.
+    "first line": (
+        (
+            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<lf-option id="north">North</lf-option><lf-option id="south">South'
+            "</lf-option></lf-options></lf-ask>"
+        ),
+        ["#within h2"],
+        0,
+    ),
 }
 
 
@@ -1382,8 +1407,16 @@ def test_comments_pointed_within_one_line_share_its_row(browser, serve, case):
     )
     rows = page.evaluate(ROWS_ON, ["within"])
     assert len(rows) == 1 and abs(rows[0][1] - depth) <= 8, (
-        f"two comments within one line stand at {rows}, not as one row at {depth}"
+        f"comments within one line stand at {rows}, not as one row at {depth}"
     )
+    if case == "table":
+        # Named by the row's words as the page reads them, one cell apart from the next.
+        name = page.evaluate(
+            """() => [...document.querySelectorAll('[data-lf-margin-for]')]
+              .find((host) => host.lfTarget?.id === 'within')
+              .querySelector('.lf-margin-marker').getAttribute('aria-label')"""
+        )
+        assert "“Row 30 first cell Row 30" in name, name
 
 
 def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):

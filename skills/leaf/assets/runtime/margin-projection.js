@@ -80,6 +80,7 @@ import { excerptWords, labelWords, spokenSubject } from "./margin-entry-model.js
 import {
   mountMarginLayer,
   registerMarginRow,
+  rowPitch,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   unregisterMarginRow,
@@ -181,7 +182,7 @@ import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
-import { shownWindow, skipped } from "./geometry.js";
+import { shownExtent, shownWindow, skipped } from "./geometry.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
@@ -308,9 +309,17 @@ export function createMarginProjection({
   const entryPoint = (entry) =>
     entry ? standingPoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
-  const pointWords = (point) => {
-    const words = excerptWords(point.textContent, 32);
-    return words ? `“${words}”` : null;
+  // A pointed row is named by its words as the page reads them, cells and blocks apart.
+  const pointName = (words) => {
+    const excerpt = words && excerptWords(words, 32);
+    return excerpt ? `“${excerpt}”` : null;
+  };
+  // A point level with its target's own row, closer than packing lets one row stand
+  // below another, would only be pushed down beside that row: it is no place of its
+  // own, and its comment joins the target's row.
+  const standsApart = (target, point) => {
+    const extent = shownExtent(target);
+    return !extent || pointBand(extent, point).top - extent.top >= rowPitch();
   };
   const sourceItem = (item) => itemSources.get(item);
   function captureItem(item) {
@@ -924,8 +933,9 @@ export function createMarginProjection({
   // One group per target, and one more for each row inside it that pointing gestures
   // stood threads at (pointed-place.js): those threads stand there together, and
   // everything else about the target (its other threads, an Ask's marker, a widget's
-  // actions) keeps the target's own row. `pointed` is `{ key, element }`: the row's key,
-  // which its first comment gave it and later ones share, and the element it is.
+  // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
+  // row's key, which its first comment gave it and later ones share, the element it is,
+  // and its words as the page reads them, which name it.
   function groupFor(groups, target, pointed = null) {
     const slot = pointed ? `point:${pointed.key}` : target;
     let group = groups.get(slot);
@@ -936,6 +946,7 @@ export function createMarginProjection({
         key,
         target,
         point: pointed?.element ?? null,
+        pointWords: pointed?.words ?? null,
         word,
         subject: null,
         title: null,
@@ -1002,7 +1013,10 @@ export function createMarginProjection({
       const unread = thread.unread.length;
       const placement = placedAt(id);
       const point = standingPoint(target, placement?.point);
-      const pointed = point ? { key: placement.pointRow, element: point } : null;
+      const pointed =
+        point && standsApart(target, point)
+          ? { key: placement.pointRow, element: point, words: placement.pointWords }
+          : null;
       add(
         groups,
         target,
@@ -1248,7 +1262,7 @@ export function createMarginProjection({
                 group.subject ?? addressableLabel(group.target),
                 // A pointed row is named by the words it stands by, so it and the
                 // target's own row do not read alike.
-                group.point && pointWords(group.point),
+                pointName(group.pointWords),
               ]
                 .filter(Boolean)
                 .join(" · "),

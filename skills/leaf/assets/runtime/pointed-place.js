@@ -20,7 +20,9 @@
    box is up; a send hands its point over under its thread's key (`threadKey`, the
    attempt that survives the log's answer), with the row's words as a passage
    (`rangeAnchor`), the identity the page already resolves quotes by. Comments pointed at
-   one row share that row's key, the first one's, so they stand as one margin row.
+   one row share that row's key, the first one's, so they stand as one margin row; one
+   pointed at a line within a row's height of the target's top joins the target's own
+   margin row (`margin-projection.js`, `standsApart`).
 
    Anchor paint's pass is the one writer of the points (`placePoints`, beside its
    resolution of every thread's anchor): it takes in what sends handed over, keeps a row
@@ -39,24 +41,28 @@ const points = new Map();
 // Points a send has handed over (`commitPoint`), until the pass takes them in.
 const handed = new Map();
 
-// Boxes that are not a line of their own: laid out within one, drawing no box, or one
-// cell of a table's row, which is the line the user sees.
-const WITHIN_A_LINE = /^(inline|contents$|table-cell$)/;
+// Boxes that are not a line of their own: laid out within one, or drawing no box.
+const WITHIN_A_LINE = /^(inline|contents$)/;
 
 // The line `node` lies on inside `target`: the nearest element around it that lays out
 // as a line or a block of its own, short of the target itself. Words, a link or code
 // inline in the target's own lines have none, and neither does a drawing's shape, whose
 // `display` says nothing about lines.
+//
+// Inside a table's cell the line is the cell's row, whatever blocks the cell holds, so
+// the climb goes on past a block it found to see whether a cell holds it.
 function rowIn(target, node) {
   let at = node?.nodeType === Node.ELEMENT_NODE ? node : (node?.parentElement ?? null);
   if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
-  for (; at && at !== target; at = upFrom(at))
-    if (
-      !(at instanceof SVGElement) &&
-      !WITHIN_A_LINE.test(getComputedStyle(at).display)
-    )
-      return at;
-  return null;
+  let line = null;
+  for (; at && at !== target; at = upFrom(at)) {
+    if (at instanceof SVGElement) continue;
+    const display = getComputedStyle(at).display;
+    if (display === "table-row") return at;
+    if (display === "table-cell") line = null;
+    else if (!line && !WITHIN_A_LINE.test(display)) line = at;
+  }
+  return line;
 }
 
 // The row a press on `node` points at inside `target`, or null for none.
@@ -79,7 +85,7 @@ export function commitPoint(key, element, passage) {
 }
 
 // Where each of `threads` pointed into its target stands on this page reading `text`:
-// `{ key, target }` in, and `key → { element, row }` out for each that stands. The one
+// `{ key, target }` in, and `key → { element, row, words }` out for each that stands. The one
 // writer of the points, run by anchor paint's pass. It takes in what sends handed over,
 // a comment pointed at a row another stands at sharing that row's key. `known` is the key
 // of every thread the log holds, settled ones included, so undoing a settle finds its
@@ -106,7 +112,8 @@ export function placePoints(threads, known, text) {
       element = standingPoint(target, rowIn(target, targetSegments(found)[0]?.node));
       if (element) point.element = element;
     }
-    if (element) placed.set(key, { element, row: point.row });
+    if (element)
+      placed.set(key, { element, row: point.row, words: point.passage?.quote ?? null });
   }
   if (known.size)
     for (const store of [points, handed])

@@ -747,6 +747,15 @@ function scheduleScrollReading() {
   });
 }
 
+const railMarker = () =>
+  layer?.root.parentElement.querySelector(
+    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
+  );
+
+// How far below a row another must stand to keep its own place rather than be pushed
+// below it (`packRows`): a resting rail marker's height and the gap packing keeps.
+export const rowPitch = () => (railMarker()?.offsetHeight || 32) + GAP;
+
 export function layoutMarginRows() {
   cancelRender(pending);
   pending = 0;
@@ -769,10 +778,7 @@ export function layoutMarginRows() {
     return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
   };
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
-  const entry = layer.root.parentElement.querySelector(
-    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
-  );
-  const size = entry?.offsetWidth || 32;
+  const size = railMarker()?.offsetWidth || 32;
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]

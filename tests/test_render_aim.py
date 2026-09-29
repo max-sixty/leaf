@@ -1397,6 +1397,11 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             f"holding ⌥ over {label} in {case_name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
+        # An element a standing thread already marks, read before the press marks it
+        # as the draft's too.
+        already_marked = bool(
+            promised and page.locator(f"#{promised}.lf-mark-el").count()
+        )
         page.mouse.click(*point)
         page.keyboard.up("Alt")
         composer = page.locator(".lf-composer")
@@ -1415,14 +1420,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             # The sequence promised Comment, so the press focuses its compact field.
             open_compact_comment(page)
             mark = page.evaluate(DRAFT_MARK)
-            # A box a standing thread already outlines keeps the posted colour and takes
-            # no pending class of its own: the draft claims whichever boxes are still
-            # free (paintAnchors), so aiming at an element the log already marks keeps
-            # the promise and paints nothing new. The other half of the press is read
-            # either way — where the composer opened on something else, that element
-            # wears the pending mark and this reads it there.
-            if mark is None and page.locator(f"#{promised}.lf-mark-el").count():
-                mark = promised
+            # A standing thread draws nothing on its element at rest, so a draft on an
+            # element the log already marks wears the pending contour like any other.
+            if already_marked:
                 reached_paths.add("standing mark")
             assert mark == promised, (
                 f"⌥-clicking {label} in {case_name} promised {promised} and "
@@ -1999,7 +1999,9 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
             },
         )
     page = open_page(browser, url)
-    expect(page.locator("#reacted.lf-react-el")).to_have_count(1)
+    expect(page.locator('[data-lf-margin-for="reacted"] .lf-react-mark')).to_have_count(
+        1
+    )
     expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
     page.keyboard.press("l")
     expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
@@ -2307,7 +2309,10 @@ def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, 
 
 
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
-    """The package's update signal rebuilds a contour even when its box does not move."""
+    """The package's update signal rebuilds a contour even when its box does not move.
+
+    The contour is the one standing in the part's thread raises; at rest a thread draws
+    nothing on its element."""
     url = serve(
         GENERIC_VISUAL_PAGE,
         layer_registry=GENERIC_VISUAL_LAYER,
@@ -2325,6 +2330,8 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
         },
     )
     page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     contour = page.locator(".lf-visual-mark-shape > g > rect")
     expect(contour).to_have_attribute("rx", "8")
     before = page.evaluate(
@@ -2367,25 +2374,27 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     )
     page = open_page(browser, url)
     inner = page.locator("#inner")
-    mark = page.locator(".lf-visual-mark-comment")
-    expect(mark).to_have_count(1)
     expect(inner).to_be_hidden()
+    # Pointing at the visual raises the thread's contour, and it encloses the whole.
+    page.locator("#visual").hover()
     placed = page.evaluate(
         """() => {
           const box = (el) => el.getBoundingClientRect();
-          const mark = box(document.querySelector('.lf-visual-mark-comment'));
+          const mark = document.querySelector('.lf-visual-mark-hover');
           const visual = box(document.querySelector('#visual'));
-          return mark.width >= visual.width && mark.height >= visual.height;
+          return Boolean(mark) && box(mark).width >= visual.width
+            && box(mark).height >= visual.height;
         }"""
     )
     assert placed
+    page.mouse.move(0, 0)
 
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(inner).to_be_visible()
     page.wait_for_function(
         """() => {
-          const mark = document.querySelector('.lf-visual-mark-comment');
+          const mark = document.querySelector('.lf-visual-mark-here');
           const inner = document.querySelector('#inner').getBoundingClientRect();
           const box = mark?.getBoundingClientRect();
           return box && box.width < inner.width + 40 && box.height < inner.height + 40;
@@ -2415,11 +2424,14 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
         },
     )
     page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(page.locator("#inner")).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(page.locator("#outer")).not_to_have_class(
         re.compile(r"\blf-projected-mark\b")
     )
 
+    page.keyboard.press("Escape")
     page.locator("#html-surface").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
     assert (
@@ -2437,8 +2449,9 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     """Decoration omitted from a contour still belongs to its semantic part.
 
     The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle remains the only cloned paint. A second draft on the same
-    part keeps the posted comment's contour instead of claiming it as pending paint.
+    package-selected rectangle remains the only cloned paint of the contour the pointer
+    raises. A second draft on the same part wears the pending contour, since the posted
+    comment draws none at rest.
     """
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -2460,11 +2473,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     outer = page.locator("#outer")
     decoration = page.locator("#outer-decoration")
     mark = page.locator(".lf-visual-mark")
-
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    assert page.eval_on_selector_all(
-        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
+    expect(mark).to_have_count(0)
 
     def midpoint(line):
         return line.evaluate(
@@ -2481,6 +2490,10 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    assert page.eval_on_selector_all(
+        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
     page.mouse.click(point["x"], point["y"])
     expect(
         page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
@@ -2494,8 +2507,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     page.mouse.click(point["x"], point["y"])
     page.keyboard.up("Alt")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-comment\b"))
-    expect(mark).not_to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
+    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
 
 
 def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, serve):
@@ -2521,6 +2533,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
     mark = page.locator(".lf-visual-mark")
 
+    surface.hover()
     expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(mark).to_be_visible()
     expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
@@ -2567,13 +2580,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface = host.locator("#wide-surface")
     mark = page.locator(".lf-visual-mark")
 
+    surface.hover(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
     mark_box = mark.bounding_box()
     assert mark_box["x"] >= host_box["x"]
     assert mark_box["x"] + mark_box["width"] <= host_box["x"] + host_box["width"]
 
-    surface.hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "wide-surface")
@@ -2584,7 +2597,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
 
 def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
-    """A posted comment keeps the same semantic geometry the aim promised.
+    """A posted comment's contour keeps the same semantic geometry the aim promised.
 
     The diamond's diagonal contour must change while the empty bounding-box corners do
     not. A CSS outline on the returned group produces the opposite result.
@@ -2617,6 +2630,10 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
+    # Standing in the thread raises the contour; at rest the thread draws none.
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
+    expect(diamond).to_have_class(re.compile(r"\blf-projected-mark\b"))
     # The comment's margin row stands on the diagram; nothing Leaf draws moves the
     # page's content, so the diamond is read where it stands rather than assumed.
     moved = diamond.bounding_box()

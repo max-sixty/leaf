@@ -47,9 +47,6 @@
     // as they first update, and its icon redraws its SVG.
     /^[\w-]+ on wa-/,
     /^children of svg in wa-icon/,
-    // Letting go of focus borrows the body's tab stop to move where the next Tab starts,
-    // and gives it back in the same task (focus.js, `releaseFocus`).
-    /^tabindex on body/,
     // The contents map decides whether it needs its crowded face by measuring its labels
     // without it, on every measure.
     /^data-lf-compact on lf-toc/,
@@ -64,19 +61,29 @@
     record.type === "attributes"
       ? record.target.getAttribute(record.attributeName)
       : record.target.data;
-  // The render gate resolves a paint through a custom property it sets on the element
-  // and takes off again (render-checks/widgets.js). That is the instrument's write, not
-  // the page's.
-  const probing = (value) => value?.includes("--_leaf-render-");
+  // Writes that pass through a value and come back for a reason of their own, by the
+  // values they passed through. The render gate resolves a paint through a custom
+  // property it sets on the element and takes off again (render-checks/widgets.js),
+  // which is the instrument's write, not the page's. And an arrival lends an element
+  // a tab stop to move where the next Tab starts, which it gives back on the blur
+  // (focus.js, `lendStop`), as soon as the next move if that comes in the same frame.
+  const lent = ({ record, through }) =>
+    (through.some((value) => value?.includes("--_leaf-render-")) &&
+      through.every((value) => !value || value.includes("--_leaf-render-"))) ||
+    (record.attributeName === "tabindex" &&
+      record.oldValue === null &&
+      through.every((value) => value === "-1"));
   // The first write to each place since the last rendering, with each value the place
   // passed through after it, judged once a frame has rendered after it.
   const started = new Map();
   let judging = false;
   const judge = () => {
     judging = false;
-    for (const { record, through } of started.values())
-      if (valueOf(record) === record.oldValue && !through.some(probing))
+    for (const write of started.values()) {
+      const { record, through } = write;
+      if (valueOf(record) === record.oldValue && !(through.length && lent(write)))
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
+    }
     started.clear();
   };
   const observer = new MutationObserver((records) => {

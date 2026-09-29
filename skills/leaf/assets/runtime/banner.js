@@ -4,6 +4,7 @@ import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
+import { setRuntimeRootAttribute } from "./root-state.js";
 import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -657,7 +658,11 @@ const bannerRows = sizeObserver(() => {
     const wrapped =
       bannerStatus.getClientRects().length > 0 &&
       bannerActions.offsetTop > bannerStatus.offsetTop;
-    document.documentElement.dataset.lfBannerRows = wrapped ? "2" : "1";
+    setRuntimeRootAttribute(
+      document.documentElement,
+      "data-lf-banner-rows",
+      wrapped ? 2 : 1,
+    );
   });
 });
 

@@ -86,8 +86,9 @@ const inSeatingOrder = (rows) =>
 // seated first, so no other pin takes its room. A pin with no `parts` to read around,
 // such as one inside a shadow tree, stands at its home.
 //
-// Each pin is `{ key, rect, priority, held, seat, parts, cover, bounds }`, `rect` its
-// home and `held` the rect it holds or null. The answer maps each key to its seat.
+// Each pin is `{ key, rect, priority, held, seat, parts, cover, neighbours, bounds }`,
+// `rect` its home and `held` the rect it holds or null. The answer maps each key to its
+// seat.
 export function seatRows(pins, { reach, gap }) {
   const seats = new Map();
   const seated = [];
@@ -100,6 +101,7 @@ export function seatRows(pins, { reach, gap }) {
             home: pin.rect,
             parts: pin.parts,
             cover: [...pin.cover, ...seated],
+            neighbours: pin.neighbours,
             bounds: pin.bounds,
             reach,
             gap,
@@ -116,29 +118,29 @@ export function seatRows(pins, { reach, gap }) {
 // wherever the seat covers nothing. Where the seat would cover words, a control, another
 // block, or a pin placed before it, the pin takes the room of its own size nearest the
 // seat that covers none of them and still touches its target: the free end of the line
-// the target ends on, the leading above or below it, the gap before the next block. The
+// the target ends on, the leading above or below it, the gap before the next block.
+// Where the target has no such room, the pin takes the nearest room that covers no words
+// though it stands on a neighbouring block, such as the empty end of the short heading
+// just above a run whose lines are full: over its words would hide what the pin is
+// about, and the neighbour's empty end, within reach, still reads as the target's. The
 // room is found, never made; a pin that finds none stands at `home`, its target's corner,
 // over the words, and packing moves it off whatever pin already stands there.
 //
 // `parts` are the boxes of the target, one per line for a run of text. `cover` is what
-// the pin may not stand on; another block counts whole, since a pin anywhere on it, even
-// over its empty end, reads as that block's. `bounds` is the box the pin must stay inside:
-// the window across, or the whole content of the pane that scrolls it, never the part the
-// pane shows, which would seat the same page differently at each scroll. `reach` is how
-// far from the nearest part it may stand, and `gap` the clearance kept from what it avoids.
-export function pinSpot({ seat, home, parts, cover, bounds, reach, gap }) {
+// the pin may never stand on, each box whole: words, controls, a block that paints its
+// box. `neighbours` are the other blocks that paint nothing, whose words `cover` holds
+// already (`coverIn`). `bounds` is the box the pin must stay inside: the window across,
+// or the whole content of the pane that scrolls it, never the part the pane shows, which
+// would seat the same page differently at each scroll. `reach` is how far from the
+// nearest part it may stand, and `gap` the clearance kept from what it avoids.
+export function pinSpot({ seat, home, parts, cover, neighbours, bounds, reach, gap }) {
   const width = seat.right - seat.left;
   const height = seat.bottom - seat.top;
   const top = Math.min(...parts.map((part) => part.top)) - height - reach - gap;
   const bottom = Math.max(...parts.map((part) => part.bottom)) + height + reach + gap;
-  const near = cover.filter((box) => box.bottom > top && box.top < bottom);
-  const clear = (rect) =>
-    rect.left >= bounds.left &&
-    rect.right <= bounds.right &&
-    rect.top >= bounds.top &&
-    rect.bottom <= bounds.bottom &&
-    !near.some((box) => overlaps(box, rect));
-  if (clear(seat)) return seat;
+  const band = (box) => box.bottom > top && box.top < bottom;
+  const avoided = cover.filter(band);
+  const beside = neighbours.filter(band);
   const xs = new Set([seat.left, bounds.right - width]);
   const ys = new Set([seat.top]);
   for (const part of parts) {
@@ -158,7 +160,7 @@ export function pinSpot({ seat, home, parts, cover, bounds, reach, gap }) {
     ])
       ys.add(y);
   }
-  for (const box of near) {
+  for (const box of [...avoided, ...beside]) {
     xs.add(box.right + gap);
     xs.add(box.left - width - gap);
     ys.add(box.bottom + gap);
@@ -169,16 +171,27 @@ export function pinSpot({ seat, home, parts, cover, bounds, reach, gap }) {
       Math.max(0, box.left - rect.right, rect.left - box.right),
       Math.max(0, box.top - rect.bottom, rect.top - box.bottom),
     );
-  let best = null;
-  let bestScore = Infinity;
-  for (const x of xs)
-    for (const y of ys) {
-      const rect = { left: x, right: x + width, top: y, bottom: y + height };
-      const score = Math.hypot(rect.left - seat.left, rect.top - seat.top);
-      if (score >= bestScore || !clear(rect)) continue;
-      if (Math.min(...parts.map((part) => apart(rect, part))) > reach) continue;
-      best = rect;
-      bestScore = score;
-    }
-  return best ?? home;
+  // The room nearest the seat, clear of `boxes`, inside `bounds`, and within reach.
+  const nearest = (boxes) => {
+    const clear = (rect) =>
+      rect.left >= bounds.left &&
+      rect.right <= bounds.right &&
+      rect.top >= bounds.top &&
+      rect.bottom <= bounds.bottom &&
+      !boxes.some((box) => overlaps(box, rect));
+    if (clear(seat)) return seat;
+    let best = null;
+    let bestScore = Infinity;
+    for (const x of xs)
+      for (const y of ys) {
+        const rect = { left: x, right: x + width, top: y, bottom: y + height };
+        const score = Math.hypot(rect.left - seat.left, rect.top - seat.top);
+        if (score >= bestScore || !clear(rect)) continue;
+        if (Math.min(...parts.map((part) => apart(rect, part))) > reach) continue;
+        best = rect;
+        bestScore = score;
+      }
+    return best;
+  };
+  return nearest([...avoided, ...beside]) ?? nearest(avoided) ?? home;
 }

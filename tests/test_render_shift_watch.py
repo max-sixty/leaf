@@ -30,9 +30,7 @@ def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page = field_page(browser, "carry")
     page.locator("#field").fill("a")
     judge_shifts()
-    consume_browser_errors(
-        page, "typing in textarea#field moved textarea#field"
-    )
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
 def test_typing_may_grow_its_field(browser):
@@ -46,3 +44,40 @@ def test_a_shift_without_input_fails(browser):
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_shifts()
     consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+
+
+# A composer pinned to the viewport's foot, standing partly past its right edge and
+# painting a shadow to its left, whose field grows up as a key lands in it: what Chrome
+# reports of it is clipped and shadowed, not its box.
+FOOT = """<!doctype html><body style="margin:0">
+<div id="foot" style="position: fixed; bottom: 0; right: -300px; width: 400px;
+  box-shadow: -60px 0 40px black">
+  <textarea id="field" rows="1" style="display: block; width: 100%"></textarea>
+</div>
+<script>
+  const field = document.getElementById("field");
+  field.addEventListener("beforeinput", () => { field.rows += 2; });
+</script>"""
+
+
+def foot_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(FOOT))
+    return page
+
+
+def test_typing_may_grow_a_field_whose_holder_paints_past_the_viewport(browser):
+    page = foot_page(browser)
+    page.locator("#field").fill("a")
+    judge_shifts()
+
+
+def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
+    page = foot_page(browser)
+    page.evaluate(
+        """document.getElementById("foot").animate(
+          [{ transform: "translateX(-200px)" }, { transform: "none" }], 3000)"""
+    )
+    page.locator("#field").fill("a")
+    page.locator("#field").fill("ab")
+    judge_shifts()

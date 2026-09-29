@@ -392,8 +392,10 @@ function blockOf(target) {
 // nothing is a `neighbour`: it covers only by its words, so the empty end of a short
 // heading or line beside the target is room, but a pin there can read as that block's,
 // and `pinSpot` takes it only where the target has no room of its own. Inside the
-// target's own block nothing counts whole, since that is the pin's own. A box that holds
-// the target is not one to avoid, since the pin stands on it. The walk leaves any
+// target's own block a box that paints nothing is the pin's own room, but one that paints
+// still counts whole, since a pin on it reads as that box's however it nests: a choice's
+// pin on the first option's card would read as that option's. The target, and a box that
+// holds it, are not ones to avoid, since the pin stands on them. The walk leaves any
 // subtree whose box misses the band, so a long page costs what lies near the target.
 //
 // The controls come back apart as well, since packing keeps the pin off them, a pin left
@@ -459,13 +461,17 @@ function coverIn(root, band, target, block, bands, stop) {
         continue;
       }
       if (node instanceof SVGElement) continue;
-      if (!boxless && !holds && !block.contains(node)) {
+      if (!boxless && !holds && node !== target) {
         const style = getComputedStyle(node);
         if (paintsItsBox(style)) {
           cover.push(edges(box));
           continue;
         }
-        if (!style.display.startsWith("inline") && style.display !== "contents")
+        if (
+          !block.contains(node) &&
+          !style.display.startsWith("inline") &&
+          style.display !== "contents"
+        )
           neighbours.push(edges(box));
       }
       // A closed disclosure draws only its summary; reading the rest would force its

@@ -93,3 +93,20 @@ def test_a_shift_without_input_after_typing_fails(browser):
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_shifts()
     consume_browser_errors(page, "textarea#field moved without input")
+
+
+# A frame nested in the page, whose button grows a box above a paragraph in that frame.
+NESTED = """<!doctype html><body style="margin:0">
+<div id="above"></div><p id="below">Below.</p>
+<button id="grow" onclick="document.getElementById('above').style.height = '40px'">
+  Grow</button>"""
+
+
+def test_a_press_in_a_nested_frame_is_input(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f'<iframe src="data:text/html,{quote(NESTED)}"></iframe>')
+    )
+    page.frame_locator("iframe").locator("#grow").click()
+    judge_shifts()

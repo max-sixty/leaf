@@ -7,7 +7,8 @@
 // and names the elements that moved (the five that moved most, in a frame that moved
 // more). It also says whether the user gave the page input in the half second before
 // the frame (`hadRecentInput`; a key, a press or a resize is input, a script's click or
-// a server's news is not). Text inserted without a key, as Playwright's `fill` and
+// a server's news is not). It credits none to a frame nested in another page, where a
+// trusted key or press in the frame's own document counts the same way. Text inserted without a key, as Playwright's `fill` and
 // `insert_text` and a committed composition do, is not input to Chrome, but its trusted
 // `beforeinput` is typing here: a frame of that keystroke's rendering (below) is the
 // second rule's alone, and a frame after it is judged like any other. Two rules read the
@@ -53,6 +54,7 @@
 // like any other.
 (() => {
   const WINDOW = 1000;
+  const RECENT = 500;
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
   // Shifts without input the page makes today, by the region they move; typing that
@@ -180,14 +182,22 @@
     subtree: true,
     attributeFilter: ["data-lf-reading"],
   });
+  // Chrome credits no input to a frame nested in another page, so a trusted key or
+  // press in this document counts for as long as Chrome counts one (`hadRecentInput`).
+  let pressed = -Infinity;
   for (const type of ["keydown", "pointerdown"])
     document.addEventListener(
       type,
       (event) => {
-        if (event.isTrusted) close();
+        if (!event.isTrusted) return;
+        pressed = event.timeStamp;
+        close();
       },
       true,
     );
+  const input = (entry) =>
+    entry.hadRecentInput ||
+    (pressed <= entry.startTime && entry.startTime - pressed < RECENT);
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;
@@ -240,7 +250,7 @@
       if (painted) typed(entry, rendering, painted.boxes);
       else if (rendering === open && open) open.waiting.push(entry);
       // A frame the keystroke's rendering ended before reading is no one's to judge.
-      else if (!rendering && !entry.hadRecentInput) unasked(entry);
+      else if (!rendering && !input(entry)) unasked(entry);
     }
   };
   const observer = new PerformanceObserver((list) => judge(list.getEntries()));

@@ -232,20 +232,31 @@ function classify(el) {
 // What a box holds moves its overflow as much as its own size does, and can move
 // without it: text rewrapping at a new width inside a pane of fixed height, frames a
 // widget sizes a pass after its host. So a candidate's children are watched beside it,
-// as they stand when it is first classified; a widget that replaces them says so
-// through the layout signal.
-const heldChildren = new WeakMap();
+// whichever children it holds: one a widget swaps in is watched from its arrival, which
+// is itself a change to what the box holds, and one it takes out is let go.
+const childrenWatched = new WeakSet();
+const childLists = new MutationObserver((records) => {
+  for (const { target, addedNodes, removedNodes } of records) {
+    if (!childrenWatched.has(target)) continue;
+    for (const node of removedNodes)
+      if (node.nodeType === Node.ELEMENT_NODE) reachSizes.unobserve(node);
+    for (const node of addedNodes)
+      if (node.nodeType === Node.ELEMENT_NODE) reachSizes.observe(node);
+  }
+});
 function watchReach(el) {
   reachSizes.observe(el);
-  if (heldChildren.has(el)) return;
-  const children = [...el.children];
-  heldChildren.set(el, children);
-  for (const child of children) reachSizes.observe(child);
+  if (childrenWatched.has(el)) return;
+  childrenWatched.add(el);
+  for (const child of el.children) reachSizes.observe(child);
+  childLists.observe(el, { childList: true });
 }
+// A MutationObserver lets go of no single target, so a box no longer watched is only
+// left out of what its deliveries do.
 function unwatchReach(el) {
   reachSizes.unobserve(el);
-  for (const child of heldChildren.get(el) ?? []) reachSizes.unobserve(child);
-  heldChildren.delete(el);
+  if (!childrenWatched.delete(el)) return;
+  for (const child of el.children) reachSizes.unobserve(child);
 }
 const depth = (el) => {
   let levels = 0;

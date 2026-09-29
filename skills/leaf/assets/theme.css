@@ -1590,6 +1590,10 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
     right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
+/* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
+ * stands beside it, which keeps its place. */
+.lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {
+    z-index: 3; }
 /* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of

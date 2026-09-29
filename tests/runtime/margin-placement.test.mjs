@@ -147,7 +147,7 @@ test("a pin whose seat covers words takes the nearest room beside its target", (
   assert.deepEqual(spot([...words, box(24, 178, 366, 260)]), box(284, 125, 328, 169));
 });
 
-test("a box in cover counts whole, so a pin with no room of its own stays home", () => {
+test("a box in cover counts whole, so a pin with no room of its own finds none", () => {
   // Brought up to the paragraph, a block that paints its box (`coverIn`) leaves the
   // last line too little room below, though no word stands in its top 20px; the pin
   // stands in the leading above the run instead.
@@ -156,10 +156,7 @@ test("a box in cover counts whole, so a pin with no room of its own stays home",
   // With a painted heading 10px above the paragraph, that room is the heading's, and
   // the room above the heading lies further out than a line.
   const painted = box(24, 40, 366, 90);
-  assert.deepEqual(
-    spot([...words, below, painted], [], [below, painted]),
-    box(318, 100, 362, 144),
-  );
+  assert.equal(spot([...words, below, painted], [], [below, painted]), null);
 });
 
 test("where its target has no room, a pin takes a neighbour's empty end", () => {
@@ -212,7 +209,7 @@ const lines = [box(24, 667, 309, 688), box(24, 694, 316, 715), box(24, 721, 278,
 const next = box(24, 761, 366, 900);
 const section = {
   seat: box(282, 709.5, 378, 753.5),
-  home: box(270, 694, 366, 738),
+  rect: box(270, 694, 366, 738),
   parts: [box(162, 694, 316, 715), box(24, 721, 278, 742)],
   cover: [draft, api, ...lines, next],
   walls: [draft, next],
@@ -224,40 +221,40 @@ const section = {
   gap: 4,
 };
 
+// The same section with the paragraph a line longer, so the run starts a line lower.
+const lower = (b) => box(b.left, b.top + 27, b.right, b.bottom + 27);
+const longer = {
+  ...section,
+  seat: lower(section.seat),
+  rect: lower(section.rect),
+  parts: section.parts.map(lower),
+  cover: [draft, api, lines[0], ...lines.map(lower), lower(next)],
+  walls: [draft, lower(next)],
+};
+
 test("with no room within reach, a pin reaches past a line of words", () => {
   // The heading's empty end stands one full line above the run's first part, 31px out.
   assert.deepEqual(pinSpot(section), box(282, 619, 378, 663));
   // A line further than that is too far: with the paragraph a line longer, the pin
-  // stays home.
-  const lower = (b) => box(b.left, b.top + 27, b.right, b.bottom + 27);
-  assert.deepEqual(
-    pinSpot({
-      ...section,
-      seat: lower(section.seat),
-      home: lower(section.home),
-      parts: section.parts.map(lower),
-      cover: [draft, api, lines[0], ...lines.map(lower), lower(next)],
-      walls: [draft, lower(next)],
-    }),
-    lower(section.home),
-  );
+  // finds no room.
+  assert.equal(pinSpot(longer), null);
 });
 
 test("a pin reaching further passes no wall and no other pin's target", () => {
   // A rule drawn across the top of the paragraph lies between the heading and the run.
   const rule = box(24, 664, 366, 666);
-  assert.deepEqual(
+  assert.equal(
     pinSpot({
       ...section,
       cover: [...section.cover, rule],
       walls: [draft, rule, next],
     }),
-    section.home,
+    null,
   );
   // With the heading a pin's target, a pin on its empty end would read as that one's,
   // and so it would with a pin's target on the heading's line, though further off.
-  assert.deepEqual(pinSpot({ ...section, others: [heading] }), section.home);
-  assert.deepEqual(pinSpot({ ...section, others: [api] }), section.home);
+  assert.equal(pinSpot({ ...section, others: [heading] }), null);
+  assert.equal(pinSpot({ ...section, others: [api] }), null);
 });
 
 test("a pin that reaches further keeps to its own target's pins", () => {
@@ -266,7 +263,6 @@ test("a pin that reaches further keeps to its own target's pins", () => {
   const pin = (key, parts, priority) => ({
     ...section,
     key,
-    rect: section.home,
     priority,
     held: null,
     parts,
@@ -277,15 +273,91 @@ test("a pin that reaches further keeps to its own target's pins", () => {
     ...pin("section", [box(24, 621, 366, 900)], 20),
     seat: box(342, 621, 366, 645),
   };
-  assert.deepEqual(
-    seatRows([run, whole], { reach: 12, gap: 4 }).get("run"),
-    box(282, 619, 378, 663),
-  );
+  assert.deepEqual(seatRows([run, whole], { reach: 12, gap: 4 }).get("run"), {
+    rect: box(282, 619, 378, 663),
+    folded: false,
+  });
   const titled = { ...pin("heading", [heading], 20), seat: box(342, 621, 366, 645) };
+  assert.deepEqual(seatRows([run, titled], { reach: 12, gap: 4 }).get("run"), {
+    rect: section.rect,
+    folded: false,
+  });
+});
+
+// The longer section's pin as `seatRows` takes it: the pair, and folded, one 44px
+// control, the toggle to its options.
+const pair = (over = {}) => ({
+  ...longer,
+  key: "pair",
+  priority: 10,
+  held: null,
+  folds: {
+    rect: box(322, longer.rect.top, 366, longer.rect.bottom),
+    seat: box(282, longer.seat.top, 326, longer.seat.bottom),
+  },
+  folded: false,
+  ...over,
+});
+const seatOf = (pins) => seatRows(pins, { reach: 12, gap: 4 }).get("pair");
+
+test("a pin with no room for its face stands folded where one control finds room", () => {
+  // Past the end of the line above the run's last, level with that last line.
+  assert.deepEqual(seatOf([pair()]), {
+    rect: box(320, 736.5, 364, 780.5),
+    folded: true,
+  });
+  // A pin that cannot fold stands at its home, over its words.
+  assert.deepEqual(seatOf([pair({ folds: null })]), {
+    rect: longer.rect,
+    folded: false,
+  });
+  // One that finds room for its face keeps it whole.
   assert.deepEqual(
-    seatRows([run, titled], { reach: 12, gap: 4 }).get("run"),
-    section.home,
+    seatOf([
+      pair({
+        ...section,
+        folds: {
+          rect: box(322, 694, 366, 738),
+          seat: box(282, 709.5, 326, 753.5),
+        },
+      }),
+    ]),
+    { rect: box(282, 619, 378, 663), folded: false },
   );
+  // With no room even folded, it stands folded at its home.
+  const crowded = [...longer.cover, box(4, 560, 386, 900)];
+  assert.deepEqual(seatOf([pair({ cover: crowded })]), {
+    rect: box(322, longer.rect.top, 366, longer.rect.bottom),
+    folded: true,
+  });
+});
+
+test("a folded pin held open keeps its fold, and the others keep to its toggle", () => {
+  // Open under the finger, the pin is three controls wide, its toggle at the right.
+  const open = box(222, 736.5, 364, 780.5);
+  const seats = seatRows(
+    [
+      pair({ held: open, folded: true }),
+      {
+        ...pair({ key: "beside", priority: 20 }),
+        // A pin whose seat is where the open pin's actions now stand.
+        seat: box(230, 740, 274, 784),
+        parts: [box(24, 748, 226, 769)],
+        folds: null,
+        cover: [],
+        walls: [],
+      },
+    ],
+    { reach: 12, gap: 4 },
+  );
+  assert.deepEqual(seats.get("pair"), {
+    rect: box(320, 736.5, 364, 780.5),
+    folded: true,
+  });
+  assert.deepEqual(seats.get("beside"), {
+    rect: box(230, 740, 274, 784),
+    folded: false,
+  });
 });
 
 // Two pins by the same run: `first` the more important, `second` below it in packing.
@@ -308,8 +380,8 @@ const overlap = (a, b) =>
 
 test("pins are seated the more important first, each clear of those before it", () => {
   const seats = seatRows([pin("second", 10), pin("first", 0)], { reach: 12, gap: 4 });
-  assert.deepEqual(seats.get("first"), seat);
-  assert.ok(!overlap(seats.get("second"), seat), seats);
+  assert.deepEqual(seats.get("first").rect, seat);
+  assert.ok(!overlap(seats.get("second").rect, seat), seats);
 });
 
 test("a held pin keeps its seat, and a more important pin takes other room", () => {
@@ -318,8 +390,8 @@ test("a held pin keeps its seat, and a more important pin takes other room", () 
     reach: 12,
     gap: 4,
   });
-  assert.deepEqual(seats.get("second"), seat);
-  assert.ok(!overlap(seats.get("first"), seat), seats);
+  assert.deepEqual(seats.get("second").rect, seat);
+  assert.ok(!overlap(seats.get("first").rect, seat), seats);
 });
 
 test("a held row is packed first, so nothing pushes it from under the press", () => {

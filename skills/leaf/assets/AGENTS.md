@@ -23,7 +23,11 @@ free room measured beside its target, in a rail the page declares, or as a pin b
 its target: in room found where it covers no words and no other box that paints its
 own extent, clear of neighbouring blocks where its target has room of its own, and
 reaching one line of words further out only where it has none within reach
-(`pinSpot`, `coverIn`), and otherwise inside its target's corner.
+(`pinSpot`, `coverIn`), and otherwise inside its target's corner. A pin whose face is a
+primary and one more control that finds no room for both stands folded to its options'
+toggle, seated at that size (`seatRows`); a press on the toggle, or the keyboard
+arriving on it or standing at its target, opens it, spreading the actions over what
+stands beside it with the toggle left under the press, and moves nothing else.
 
 The rail and a pin are different kinds. The rail is room: a strip beside the column,
 which the column may move over to leave (`settleResidency`) but never narrows or

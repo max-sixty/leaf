@@ -284,8 +284,11 @@ geometry without them:
   of that room lies within reach, it reaches one line further out, past a line of words
   but never past a painted block or nearer another pin's target, such as to the end of
   the section's heading above a full first line. A pin is 26px with a mouse and 44px
-  under a finger, and where no such room exists, as for a pair of them in a phone's
-  full lines deep in a paragraph, it stays in the corner over the block's words.
+  under a finger. A pair, such as a suggestion's Accept and Reject, that finds no such
+  room folds to one control, a `…` that opens to both on a tap or when the keyboard
+  arrives on it or on its target, and takes room of that size; where even that finds none, as in a
+  phone's full lines deep in a paragraph, the pin stays in the corner over the block's
+  words.
 - A marker on a figure grown past the rail stands on the figure as a pin, at the
   corner of the part it names when it names one.
 - The user hides every pin and passage mark with `o`, or with Hide annotations in the

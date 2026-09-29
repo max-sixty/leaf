@@ -76,15 +76,19 @@ class MarginClusterView extends HTMLElement {
         "data-lf-margin-entry-primary",
         model.hasPrimary && node === direct[0],
       );
-    keepsHidden(this.#more, !model.hasOptions || model.optionsOpen);
+    // Folded, the toggle stays while its options are open, after them: a pin unfolds
+    // leftward from its right edge, so the toggle stays under the press that opened it.
+    keepsHidden(this.#more, !model.hasOptions || (model.optionsOpen && !model.folded));
     this.#more.lfEntry = model.entry;
     keeps(this.#more, "aria-label", model.moreLabel);
     keeps(this.#more, "aria-expanded", model.optionsOpen);
     this.toggleAttribute("data-lf-options-open", model.optionsOpen);
+    this.toggleAttribute("data-lf-folded", model.folded);
     keeps(this, "data-lf-state", model.state);
     render(
       html`
-        ${this.#owner.nodes(direct)} ${this.#marker} ${this.#more}
+        ${this.#owner.nodes(direct)} ${this.#marker}
+        ${model.folded ? nothing : this.#more}
         <div
           class="lf-margin-options"
           id=${this.#optionsId}
@@ -95,6 +99,7 @@ class MarginClusterView extends HTMLElement {
         >
           ${this.#owner.nodes(options)}
         </div>
+        ${model.folded ? this.#more : nothing}
       `,
       this,
     );

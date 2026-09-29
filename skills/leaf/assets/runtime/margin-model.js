@@ -6,6 +6,9 @@
  * these values; neither DOM state nor registration capabilities enter this module.
  * A resting cluster has a primary and one peer, or More when multiple peers remain.
  * Expanded clusters have six seats including the route to the complete Page Map.
+ * A pin its placement found no room for stands folded where its resting face is a
+ * primary and one more control: the options toggle alone, whose options are then every
+ * control, the primary first. Folding is placement's input, opening it the gesture's.
  * Failure, work in flight, and engagement keep completion controls exposed. An
  * explicitly focused contribution uses those seats alone; an open thread keeps its
  * aggregate control inside the budget. Thread membership retains thread order.
@@ -286,6 +289,7 @@ function optionGroupProjection(
   optionsOpen,
   focusedOffer = null,
   forcedInlineKey = null,
+  folded = false,
 ) {
   const items = optionItems(entry, primary, focusedOffer);
   // Peers may use the whole cluster budget only when no margin entry stands outside this
@@ -317,7 +321,7 @@ function optionGroupProjection(
   return Object.freeze({
     entry,
     entryKey: entry.key,
-    label: `${entryEngaged(entry) ? "Actions" : "More options"} for ${spokenSubject(entry.title)}`,
+    label: `${entryEngaged(entry) || folded ? "Actions" : "More options"} for ${spokenSubject(entry.title)}`,
     hidden: !optionsOpen || direct.length === 0,
     items: Object.freeze(items),
     spill: needsSpill
@@ -331,40 +335,70 @@ function optionGroupProjection(
   });
 }
 
+const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
+  expandedKey === entry.key && expandedOwner
+    ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
+    : null;
+
+// Whether a cluster may stand folded: its resting face is a contributed primary and one
+// more control, a peer or More, and nothing else, so folding it trades exactly one of
+// them for the toggle. A cluster that shows a reading or a notice, or is engaged, keeps
+// its face, since what it shows there is what the user returns to.
+export function canFold(entry, { expandedKey = null, expandedOwner = null } = {}) {
+  if (focusedOfferOf(entry, expandedKey, expandedOwner)) return false;
+  const primary = choosePrimary(entry);
+  return (
+    Boolean(primary) &&
+    secondaryCount(entry, primary) > 0 &&
+    entry.choices.length === 0 &&
+    noticeItems(entry).length === 0 &&
+    !entryEngaged(entry)
+  );
+}
+
 export function clusterProjection(
   entry,
-  { expandedKey = null, expandedOwner = null, forcedInlineKey = null } = {},
+  {
+    expandedKey = null,
+    expandedOwner = null,
+    forcedInlineKey = null,
+    folded = false,
+  } = {},
 ) {
-  const focusedOffer =
-    expandedKey === entry.key && expandedOwner
-      ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
-      : null;
+  const focusedOffer = focusedOfferOf(entry, expandedKey, expandedOwner);
   const primary = focusedOffer ? null : choosePrimary(entry);
+  const folds = folded && canFold(entry, { expandedKey, expandedOwner });
+  // Folded, the primary stands among the options, first, behind the toggle.
+  const face = folds ? null : primary;
   const secondaries = focusedOffer
     ? focusedOffer.reading.entries.filter((record) => record.visible).length
     : secondaryCount(entry, primary);
-  const hasOptions = secondaries > (focusedOffer ? 0 : RESTING_MARGIN_ENTRY_BUDGET - 1);
+  const hasOptions =
+    folds || secondaries > (focusedOffer ? 0 : RESTING_MARGIN_ENTRY_BUDGET - 1);
   const optionsOpen =
     secondaries > 0 &&
     (!hasOptions || expandedKey === entry.key || entryEngaged(entry));
+  const subject = spokenSubject(entry.title);
   return Object.freeze({
     primary,
     hasOptions,
     optionsOpen,
+    folded: folds,
     options: optionGroupProjection(
       entry,
-      primary,
+      face,
       optionsOpen,
       focusedOffer,
       forcedInlineKey,
+      folds,
     ),
-    direct: Object.freeze([...(primary ? [primary] : []), ...noticeItems(entry)]),
+    direct: Object.freeze([...(face ? [face] : []), ...noticeItems(entry)]),
     entry,
     kind: "page",
-    label: `Page actions for ${spokenSubject(entry.title)}`,
-    moreLabel: `More options for ${spokenSubject(entry.title)}`,
+    label: `Page actions for ${subject}`,
+    moreLabel: `${folds ? "Actions" : "More options"} for ${subject}`,
     offers: entry.offers,
-    hasPrimary: Boolean(primary),
+    hasPrimary: Boolean(face),
     state: entryState(entry),
     target: entry.targetId || entry.key,
   });

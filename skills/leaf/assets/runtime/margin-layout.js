@@ -516,20 +516,46 @@ function lineOf(block) {
 // reads it to say whether the pin still stands inside what the pane shows.
 const seats = new WeakMap();
 
+// The rows this pass stood folded (`seatRows`), which each row's `fold` is told of.
+const folded = new WeakSet();
+
+// Tell a row whether it stands folded, where that changed.
+function standFolded(row, fold, on) {
+  if (folded.has(row) === on) return;
+  if (on) folded.add(row);
+  else folded.delete(row);
+  fold?.set(on);
+}
+
 // Seats every pin (`seatRows`): reads what each may not stand on around its target and
 // the room it may take, then writes each seat into its entry's rect for packing, with the
 // controls packing keeps it off. A pin inside a shadow tree stays at its corner: the words
 // around it are the tree's, which this walk does not read.
+//
+// A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
+// which are worked out rather than read, since only the one it stands at is drawn:
+// unfolded its face is two controls, folded one, each a square the row's height, beside
+// the gap and the focus ring's room the row keeps.
 function seatPins(standing, { bands, shell, pinInset }) {
   const main = marginColumn();
   const pins = [];
   for (const entry of standing) {
     const { read } = entry;
-    if (read.place !== "pin") continue;
+    if (read.place !== "pin") {
+      standFolded(read.row, read.options.fold, false);
+      continue;
+    }
     const { target, point, row, box } = read;
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
+    const fold = read.options.fold?.able() ? read.options.fold : null;
+    if (!fold) standFolded(row, read.options.fold, false);
+    entry.fold = fold;
+    const style = fold && getComputedStyle(row);
+    const ring = fold ? parseFloat(style.paddingRight) : 0;
+    const narrow = height + ring;
+    const wide = fold ? 2 * height + parseFloat(style.columnGap) + ring : width;
     const held = seats.get(row);
     entry.held =
       held && row.matches(":hover, :focus-within")
@@ -572,6 +598,16 @@ function seatPins(standing, { bands, shell, pinInset }) {
       !point &&
       target instanceof HTMLElement &&
       getComputedStyle(target).display.startsWith("inline");
+    const homeAt = (size) => ({ ...home, left: home.right - size });
+    const seatAt = (size) =>
+      inline
+        ? {
+            left: end.right + GAP,
+            right: end.right + GAP + size,
+            top: (end.top + end.bottom - height) / 2,
+            bottom: (end.top + end.bottom + height) / 2,
+          }
+        : homeAt(size);
     const within = stop === pageScroller ? null : contentBox(stop);
     // A board or table can clip the target across without owning its reading region.
     // Search only the room it shows; otherwise the nearest clear spot can leave the
@@ -579,7 +615,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     const clipped = clippedBand(target, EVERYWHERE, bands, stop);
     pins.push({
       key: entry,
-      rect: home,
+      rect: homeAt(wide),
       priority: entry.priority,
       held: entry.held,
       parts,
@@ -587,14 +623,9 @@ function seatPins(standing, { bands, shell, pinInset }) {
       walls,
       neighbours,
       line,
-      seat: inline
-        ? {
-            left: end.right + GAP,
-            right: end.right + GAP + width,
-            top: (end.top + end.bottom - height) / 2,
-            bottom: (end.top + end.bottom + height) / 2,
-          }
-        : home,
+      seat: seatAt(wide),
+      folds: fold && { rect: homeAt(narrow), seat: seatAt(narrow) },
+      folded: folded.has(row),
       bounds: {
         left: Math.max(within?.left ?? 0, clipped?.left ?? 0) + pinInset,
         right: Math.min(within?.right ?? shell, clipped?.right ?? shell) - pinInset,
@@ -603,8 +634,12 @@ function seatPins(standing, { bands, shell, pinInset }) {
       },
     });
   }
-  for (const [entry, rect] of seatRows(pins, { reach: REACH, gap: GAP })) {
+  for (const [entry, { rect, folded: on }] of seatRows(pins, {
+    reach: REACH,
+    gap: GAP,
+  })) {
     entry.rect = rect;
+    if (entry.fold) standFolded(entry.read.row, entry.fold, on);
     seats.set(entry.read.row, {
       top: rect.top - entry.read.box.top,
       right: entry.read.box.right - rect.right,

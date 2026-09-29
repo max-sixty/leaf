@@ -86,42 +86,57 @@ const inSeatingOrder = (rows) =>
 // seated first, so no other pin takes its room. A pin with no `parts` to read around,
 // such as one inside a shadow tree, stands at its home.
 //
+// A pin that finds no room for its resting face stands folded where it can fold: one
+// control, its options' toggle, seated as any pin is at that size, so it takes room the
+// whole face could not, and stands at its home only where even that finds none. Held
+// open, a folded pin spreads over whatever stands beside it, and every other pin keeps
+// to its toggle, so opening it moves nothing the user sees but the pin itself.
+//
 // Each pin is `{ key, rect, priority, held, seat, parts, cover, walls, neighbours, line,
-// bounds }`, `rect` its home and `held` the rect it holds or null. A pin seated first is
-// a wall to the next, and every other pin's target is one a pin reaching further out must
-// not stand nearer to, unless the two targets meet, as a passage in a commented block
-// does. The answer maps each key to its seat.
+// bounds, folds, folded }`, `rect` its home, `held` the rect it holds or null, `folds`
+// the same pin folded, `{ rect, seat }`, where it can fold, and `folded` whether it stands
+// folded now, which a held pin keeps. A pin seated first is a wall to the next, and every
+// other pin's target is one a pin reaching further out must not stand nearer to, unless
+// the two targets meet, as a passage in a commented block does. The answer maps each key
+// to its seat, `{ rect, folded }`.
 export function seatRows(pins, { reach, gap }) {
   const seats = new Map();
   const seated = [];
   for (const pin of inSeatingOrder(pins)) {
     const own = pin.parts ?? [];
-    const rect =
-      pin.held ??
-      (own.length
-        ? pinSpot({
-            seat: pin.seat,
-            home: pin.rect,
-            parts: own,
-            cover: [...pin.cover, ...seated],
-            walls: [...pin.walls, ...seated],
-            neighbours: pin.neighbours,
-            others: pins
-              .filter(
-                (other) =>
-                  other !== pin &&
-                  !other.parts?.some((part) =>
-                    own.some((mine) => overlaps(part, mine)),
-                  ),
-              )
-              .flatMap((other) => other.parts ?? []),
-            bounds: pin.bounds,
-            reach,
-            line: pin.line,
-            gap,
-          })
-        : pin.rect);
-    seats.set(pin.key, rect);
+    const spot = ({ seat }) =>
+      pinSpot({
+        seat,
+        parts: own,
+        cover: [...pin.cover, ...seated],
+        walls: [...pin.walls, ...seated],
+        neighbours: pin.neighbours,
+        others: pins
+          .filter(
+            (other) =>
+              other !== pin &&
+              !other.parts?.some((part) => own.some((mine) => overlaps(part, mine))),
+          )
+          .flatMap((other) => other.parts ?? []),
+        bounds: pin.bounds,
+        reach,
+        line: pin.line,
+        gap,
+      });
+    let rect = pin.held;
+    let folded = Boolean(pin.folds && pin.folded);
+    if (!rect && own.length) {
+      rect = spot(pin);
+      folded = !rect && Boolean(pin.folds);
+      if (folded) rect = spot(pin.folds) ?? pin.folds.rect;
+    }
+    rect ??= pin.rect;
+    if (pin.held && folded)
+      rect = {
+        ...rect,
+        left: rect.right - (pin.folds.rect.right - pin.folds.rect.left),
+      };
+    seats.set(pin.key, { rect, folded });
     seated.push(rect);
   }
   return seats;
@@ -149,8 +164,7 @@ export function seatRows(pins, { reach, gap }) {
 // on the way to its target's nearest part, and stands neither level with any other pin's
 // target, where it would read as that line's, nor nearer one than its own. Over its own
 // words would hide what the pin is about, so each of these is better; room is found,
-// never made, and a pin that finds none stands at `home`, its target's corner, over the
-// words, and packing moves it off whatever pin already stands there.
+// never made, and where there is none the answer is null (`seatRows`).
 //
 // `parts` are the boxes of the target, one per line for a run of text. `cover` is what
 // the pin may never stand on, each box whole: words, controls, a block that paints its
@@ -163,7 +177,6 @@ export function seatRows(pins, { reach, gap }) {
 // of its target's words, and `gap` the clearance kept from what it avoids.
 export function pinSpot({
   seat,
-  home,
   parts,
   cover,
   walls,
@@ -267,5 +280,5 @@ export function pinSpot({
       const room = nearest(boxes, limit);
       if (room) return room;
     }
-  return home;
+  return null;
 }

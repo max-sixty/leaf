@@ -17,17 +17,18 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
-  // An element by its tag, id and classes, and one with neither by where it stands.
+  // An element by its tag, id and classes, one with neither by where it stands, and one
+  // in a shadow tree by the tree's host too.
   const place = (node) => {
     if (node.nodeType !== 1)
       return `${node.nodeName} in ${node.parentElement ? place(node.parentElement) : "nothing"}`;
     const named =
       `${node.localName}${node.id ? "#" + node.id : ""}` +
       `${node.classList.length ? "." + [...node.classList].join(".") : ""}`;
-    const parent = node.parentElement ?? node.getRootNode().host;
-    return node.id || node.classList.length || !parent
-      ? named
-      : `${named} in ${place(parent)}`;
+    if (!node.id && !node.classList.length && node.parentElement)
+      return `${named} in ${place(node.parentElement)}`;
+    const root = node.getRootNode();
+    return root instanceof ShadowRoot ? `${named} in ${place(root.host)}` : named;
   };
   const serial = (nodes) =>
     [...nodes].map((node) => node.outerHTML ?? node.data ?? "").join("");
@@ -37,23 +38,25 @@
     if (!numbered.has(node)) numbered.set(node, ++count);
     return numbered.get(node);
   };
-  // Writes that restate a value for a reason of their own, by how a report begins.
+  // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
-    "style on div.cm-content",
-    // Web Awesome's icon reflects its `library` property onto the attribute it came from.
-    "library on wa-icon",
+    /^style on div\.cm-content/,
+    // Web Awesome's components reflect each property onto the attribute it came from
+    // as they first update, and its icon redraws its SVG.
+    /^[\w-]+ on wa-/,
+    /^children of svg in wa-icon/,
     // Letting go of focus borrows the body's tab stop to move where the next Tab starts,
     // and gives it back in the same task (focus.js, `releaseFocus`).
-    "tabindex on body",
+    /^tabindex on body/,
     // The contents map decides whether it needs its crowded face by measuring its labels
     // without it, on every measure.
-    "data-lf-compact on lf-toc",
+    /^data-lf-compact on lf-toc/,
   ];
   const reported = new Set();
   const report = (what) => {
-    if (reported.has(what) || EXPECTED.some((known) => what.startsWith(known))) return;
+    if (reported.has(what) || EXPECTED.some((known) => known.test(what))) return;
     reported.add(what);
     console.error(`unchanged write: ${what}`);
   };
@@ -61,14 +64,18 @@
     record.type === "attributes"
       ? record.target.getAttribute(record.attributeName)
       : record.target.data;
-  // The first write to each place since the last rendering, judged once a frame has
-  // rendered after it.
+  // The render gate resolves a paint through a custom property it sets on the element
+  // and takes off again (render-checks/widgets.js). That is the instrument's write, not
+  // the page's.
+  const probing = (value) => value?.includes("--_leaf-render-");
+  // The first write to each place since the last rendering, with each value the place
+  // passed through after it, judged once a frame has rendered after it.
   const started = new Map();
   let judging = false;
   const judge = () => {
     judging = false;
-    for (const record of started.values())
-      if (valueOf(record) === record.oldValue)
+    for (const { record, through } of started.values())
+      if (valueOf(record) === record.oldValue && !through.some(probing))
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     started.clear();
   };
@@ -79,8 +86,9 @@
         const removed = serial(record.removedNodes);
         if (removed !== "" && removed === serial(record.addedNodes))
           report(`children of ${place(record.target)}`);
-      } else if (!started.has(key)) {
-        started.set(key, record);
+      } else if (started.has(key)) started.get(key).through.push(record.oldValue);
+      else {
+        started.set(key, { record, through: [] });
         if (!judging) requestAnimationFrame(() => setTimeout(judge));
         judging = true;
       }

@@ -310,6 +310,12 @@ customElements.define(
       this.#paintInspector();
     }
 
+    // A shot offers its own flip controls only in Flip.
+    #paintShotControls(shot) {
+      if (this.#mode === "flip") shot.removeAttribute("data-lf-shot-controls");
+      else keeps(shot, "data-lf-shot-controls", "off");
+    }
+
     #paintInspector() {
       if (!this.#inspector) return;
       keeps(this, "data-inspection-mode", this.#mode);
@@ -334,9 +340,7 @@ customElements.define(
       const percent = `${this.#opacity}%`;
       relabel(readout, percent, { says: false });
       for (const shot of this.querySelectorAll("lf-shot")) {
-        const flip = this.#mode === "flip";
-        if (flip) shot.removeAttribute("data-lf-shot-controls");
-        else keeps(shot, "data-lf-shot-controls", "off");
+        this.#paintShotControls(shot);
         for (const frame of shot.querySelectorAll(".lf-shotframe")) {
           const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
           if (this.#mode !== "compare") {
@@ -807,6 +811,8 @@ customElements.define(
         shot.setAttribute("after", after);
         shot.setAttribute("alt", alt);
         shot.toggleAttribute("outlines", true);
+        // Before the shot connects, so it declares its keys once, for this mode.
+        this.#paintShotControls(shot);
         entry.shotHost.replaceChildren(shot);
         entry.difference = undefined;
         this.#paintPosition(entry);

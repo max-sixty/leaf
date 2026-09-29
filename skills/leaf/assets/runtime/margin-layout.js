@@ -502,6 +502,10 @@ function seatPins(standing, { bands, shell, pinInset }) {
       target instanceof HTMLElement &&
       getComputedStyle(target).display.startsWith("inline");
     const within = stop === pageScroller ? null : contentBox(stop);
+    // A board or table can clip the target across without owning its reading region.
+    // Search only the room it shows; otherwise the nearest clear spot can leave the
+    // scroller and targetShown withholds an otherwise reachable action.
+    const clipped = clippedBand(target, EVERYWHERE, bands, stop);
     pins.push({
       key: entry,
       rect: home,
@@ -518,8 +522,8 @@ function seatPins(standing, { bands, shell, pinInset }) {
           }
         : home,
       bounds: {
-        left: (within?.left ?? 0) + pinInset,
-        right: (within?.right ?? shell) - pinInset,
+        left: Math.max(within?.left ?? 0, clipped?.left ?? 0) + pinInset,
+        right: Math.min(within?.right ?? shell, clipped?.right ?? shell) - pinInset,
         top: within?.top ?? -Infinity,
         bottom: within?.bottom ?? Infinity,
       },

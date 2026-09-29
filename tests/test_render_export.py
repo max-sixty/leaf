@@ -1231,9 +1231,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     expect(add).to_have_attribute("data-lf-empty", "")
     expect(add).to_be_hidden()
     field.click()
-    expect(field).to_have_attribute(
-        "placeholder", re.compile(r"^Another option — add to select \S")
-    )
+    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
     write(field, "Portrait sketch")
     expect(add).not_to_have_attribute("data-lf-empty", "")
 

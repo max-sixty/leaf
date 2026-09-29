@@ -1878,7 +1878,11 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-signoff")).to_have_count(1)
-    expect(page.locator(".lf-signoff")).to_be_hidden()
+    expect(page.locator(".lf-signoff")).to_be_visible()
+    expect(page.locator(".lf-signoff")).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-signoff")).to_have_attribute(
+        "aria-description", "There is no stamped version to approve yet"
+    )
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"

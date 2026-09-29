@@ -718,7 +718,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
 
     # As a scrolling page's root set, a side list keeps the page's history but is a
-    # box: nothing sticks, so a switch leaves the page where the user stands.
+    # box. Its list sticks beside the item the user reads down, and the next item opens
+    # at its start rather than where the user stood in the last one.
     def long(key):
         return "".join(
             f"<p id='filler-{key}-{i}'>{'Background. ' * 40}</p>" for i in range(12)
@@ -733,19 +734,20 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     page = open_page(browser, serve(column))
     resized(page, 1200, 900)
-    # The list is off screen above, so the walk is the gesture: a click would first
-    # scroll the tab into view.
-    page.get_by_role("tab", name="Ticket b", exact=True).evaluate(
-        "tab => tab.focus({preventScroll: true})"
-    )
     page.evaluate("document.scrollingElement.scrollTop = 900")
-    before = page.evaluate("document.scrollingElement.scrollTop")
-    page.keyboard.press("ArrowDown")
+    rendered(page)
+    in_view = """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip').getBoundingClientRect();
+      return strip.top >= 0 && strip.bottom <= innerHeight;
+    }"""
+    assert page.evaluate(in_view)
+    page.get_by_role("tab", name="Ticket c", exact=True).click()
     expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
         "aria-selected", "true"
     )
     rendered(page)
-    assert page.evaluate("document.scrollingElement.scrollTop") == before
+    top = page.evaluate("document.getElementById('t-c').getBoundingClientRect().top")
+    assert 0 <= top < 200, top
     # Back is made from wherever the user reads, so it lands the set's start rather than
     # leaving them partway down, or at the end of, a view that is not the one they read.
     page.evaluate("document.scrollingElement.scrollTop = 1600")
@@ -756,6 +758,71 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     rendered(page)
     top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
     assert 0 <= top < 200, top
+
+
+def test_a_queue_longer_than_the_workspace_scrolls_beside_its_item(browser, serve):
+    """A side list as a full-height workspace's body, holding more rows than the window:
+    each row keeps its height, so no row draws over the next, and the list scrolls on its
+    own while the item beside it scrolls with the body. A row opens its item at its start
+    whatever the user had read of the last one."""
+
+    def ticket(n):
+        filler = "".join(f"<p id='f-{n}-{i}'>{'Background. ' * 40}</p>" for i in range(12))
+        return (
+            f'<lf-tab id="t-{n}" label="Ticket {n} · a name long enough to wrap in the list"'
+            f' summary="sev {n % 3} · suggested fix">{filler}</lf-tab>'
+        )
+
+    source = leaf_page(
+        "a long queue",
+        '<header><h1>Queue</h1></header><lf-tabs id="queue" list="side">'
+        + "".join(ticket(n) for n in range(24))
+        + "</lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    rows = page.evaluate("""() => [...document.querySelectorAll('#queue .lf-tab-btn')]
+      .map((b) => ({top: b.getBoundingClientRect().top, bottom: b.getBoundingClientRect().bottom,
+                    fits: b.scrollHeight <= b.clientHeight + 1}))""")
+    assert all(row["fits"] for row in rows), rows
+    assert all(a["bottom"] <= b["top"] + 0.5 for a, b in pairwise(rows)), rows
+    boxes = page.evaluate("""() => {
+      const set = document.getElementById('queue');
+      const strip = set.querySelector(':scope > .lf-tabstrip');
+      return {set: set.clientHeight, strip: strip.clientHeight, list: strip.scrollHeight};
+    }""")
+    assert boxes["list"] > boxes["strip"] and boxes["strip"] <= boxes["set"] + 1, boxes
+
+    page.evaluate("document.getElementById('queue').scrollTop = 800")
+    strip_top = page.evaluate(
+        "document.querySelector('#queue > .lf-tabstrip').getBoundingClientRect().top"
+    )
+    set_top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
+    assert abs(strip_top - set_top) <= 1, (strip_top, set_top)
+
+    last = page.get_by_role("tab", name=re.compile(r"^Ticket 23 "))
+    last.click()
+    expect(last).to_have_attribute("aria-selected", "true")
+    rendered(page)
+    assert page.evaluate("document.getElementById('queue').scrollTop") == 0
+    expect(last).to_be_in_viewport()
+
+    # The walk keeps the open row in the list's view too.
+    page.keyboard.press("Home")
+    first = page.get_by_role("tab", name=re.compile(r"^Ticket 0 "))
+    expect(first).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("ArrowUp")
+    expect(last).to_have_attribute("aria-selected", "true")
+    shown = """() => {
+      const list = document.querySelector('#queue > .lf-tabstrip').getBoundingClientRect();
+      const row = document.querySelector('#queue .lf-tab-btn[aria-selected=true]')
+        .getBoundingClientRect();
+      return row.top >= list.top - 1 && row.bottom <= list.bottom + 1;
+    }"""
+    assert page.evaluate(shown)
+    page.keyboard.press("Home")
+    assert page.evaluate(shown)
 
 
 def test_root_tab_targets_remain_global(browser, serve):

@@ -216,7 +216,8 @@ A queue whose items open one at a time beside it, such as tickets, cases or find
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
 `lf-tab`, so one opens beside the list, a link or an Ask opens its own, and each tab counts
 the Asks its item still holds. Write no script to select, hide or mark an item; the tab
-set does all three.
+set does all three. The user works a queue from Ask to Ask, so an item's panel opens
+with its `lf-ask` ("Asks and sign-off").
 
 Each pane's body scrolls on its own, and a widget that fills the body of a full-height
 workspace, such as a playground's stage, grows to the window's height. The `lf-pane`
@@ -512,7 +513,9 @@ state, over a list, a table, or a board that speaks for itself.
 
 Write for what the user has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
-claim they could doubt, and drop the journey once the conclusion replaces it.
+claim they could doubt, and drop the journey once the conclusion replaces it. A
+possibility you checked and ruled out is journey too: say what holds rather than
+what does not, since the user never held the guess.
 
 ## Pre-handover review
 
@@ -549,11 +552,12 @@ Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
-For a page with Asks, start at the top and press `a` through them. At each
-arrival, confirm that the question, shared premise, alternatives, and evidence
-that distinguishes them are visible together, the displayed numbers match the
-available actions, and the next press of `a` reaches the next open Ask while the
-complete page remains visible.
+For a page with Asks, the check also saves the window at each of the first eight
+as `a` reaches it from the top, which is how a user working the page meets each
+question. At each arrival, confirm that what the question is about, its shared
+premise, the alternatives, and the evidence that distinguishes them are visible
+together, the displayed numbers match the available actions, and the next press of
+`a` reaches the next open Ask while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and

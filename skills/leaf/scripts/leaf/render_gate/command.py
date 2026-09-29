@@ -115,10 +115,18 @@ def _screen_lines(screens) -> list[str]:
             runs[-1][0].append(shot.name)
         else:
             runs.append(([shot.name], label))
-    return [f"  screens to read before handing the page over, in {into}:"] + [
-        f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
-        for names, label in runs
-    ]
+    return (
+        [f"  screens to read before handing the page over, in {into}:"]
+        + [
+            f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
+            for names, label in runs
+        ]
+        + [
+            "  then read its words as the user will: the headings on their own, each "
+            "name introduced where it is first used, and each Ask whole where `a` "
+            'lands on it (page-authoring.md, "Pre-handover review")'
+        ]
+    )
 
 
 def render_check(

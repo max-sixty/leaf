@@ -254,6 +254,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
+    Each Ask gets the window `a` brings it into, as the user working the page meets it.
     A second check replaces the first's screens rather than adding to them."""
     tiles = "".join(
         f"<lf-metric id='m{i}' value='{i}'>metric {i}</lf-metric>" for i in range(4)
@@ -265,6 +266,12 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             f"<div id='body'><div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
+            )
+            + "".join(
+                f"<lf-ask id='ask-{i}'><h2>Ship part {i}?</h2>"
+                f"<lf-options id='o-{i}' choose><lf-option id='o-{i}-y'>Yes</lf-option>"
+                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-ask>"
+                for i in range(2)
             )
             + "</div><aside id='checks'><p>Checks beside the body.</p></aside>",
             layout="sidebar",
@@ -287,6 +294,10 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     into, listed = check()
     names = sorted(path.name for path in into.iterdir())
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    assert {"1200px-ask-1.png", "1200px-ask-2.png"} <= set(names)
+    assert "1200px-ask-3.png" not in names
+    assert any("each press of `a`" in line for line in listed)
+    assert any("the headings on their own" in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
     assert any("<div id=2026-numbers> 4 → " in line for line in listed)

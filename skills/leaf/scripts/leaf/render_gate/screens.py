@@ -5,9 +5,12 @@ which is the author's judgment of a picture. So the check saves the page as a re
 meets it: down the page three times, on a desktop, in the widest window the sweep
 reaches, where what scales with the window is at its largest, and on a phone, each as
 far as its first eight screens, where a reader decides whether to go on, with the
-label saying how many of the page's screens they are; and one screen at each width
+label saying how many of the page's screens they are; one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
-margin content changes, with that box in view. The screens go to one directory per page
+margin content changes, with that box in view; and, on a page with Asks, the desktop
+window at each of its first eight as `a` arrives there from the top, which is how a
+user working the page reads each question, with everything above it out of view and,
+in a tab set, the view that holds it opened. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
 directory beside it and then puts it in its place, so a reader never meets half of one
 check's screens and half of another's. The page directory is the page's record, and a
@@ -62,6 +65,24 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
+def _asks_in_turn(page, into: Path) -> tuple[list[Path], int]:
+    """The window at each Ask `a` reaches from the top, until the walk stops at the
+    last, and how many Asks the page holds."""
+    held = page.evaluate("document.querySelectorAll('lf-ask').length")
+    shots, seen = [], None
+    for k in range(min(MOST_SCREENS, held)):
+        page.keyboard.press("a")
+        rendered(page)
+        here = page.evaluate("document.activeElement?.closest('lf-ask')?.id ?? null")
+        if here is None or here == seen:
+            break
+        seen = here
+        shot = into / f"{page.viewport_size['width']}px-ask-{k + 1}.png"
+        page.screenshot(path=shot)
+        shots.append(shot)
+    return shots, held
+
+
 def screens_dir(page_dir: Path) -> Path:
     """The page's screens directory, the same for every check of that page."""
     key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:12]
@@ -104,6 +125,15 @@ def save_screens(
             context.close()
 
     whole(RENDER_VIEWPORT, False, "desktop")
+    context, page = _open(browser, url, RENDER_VIEWPORT, False)
+    try:
+        shots, held = _asks_in_turn(page, into)
+        label = "desktop, each press of `a` from the top, at the next open Ask"
+        if held > len(shots) == MOST_SCREENS:
+            label = f"{label}, the first {len(shots)} of the page's {held} Asks"
+        saved.extend((shot, label) for shot in shots)
+    finally:
+        context.close()
     widest = {"width": max(SWEEP_WIDTHS), "height": RENDER_VIEWPORT["height"]}
     whole(widest, False, "the widest window")
     for width, selector, said in reading.arrangement:

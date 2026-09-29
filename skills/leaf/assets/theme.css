@@ -1236,8 +1236,10 @@ dd { margin: 0 0 8px 0; }
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
         margin: 0 0 10px; }
-/* Riding in a line of prose is all this adds to the chip above. */
-.tag { vertical-align: middle; }
+/* Riding in a line is all this adds to the chip above: in the middle of a line of prose,
+ * and of a row a page lays out as flex or grid, at its own height. Stretched, it took
+ * the height of a link a size up beside it, its text at the top of a tall box. */
+.tag { vertical-align: middle; align-self: center; }
 /* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
    page's own prose at the page's own size, so the tint is the whole of the marking and
    this says nothing about size at all. It held 16px once, a pixel under the body around it

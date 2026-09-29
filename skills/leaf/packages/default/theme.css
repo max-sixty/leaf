@@ -1336,12 +1336,22 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * list is a column left of the open panel wherever the set holds both, and a row
      * over it below that, as a narrow window or a phone gives it, so the open item is
      * never below the whole list. The set is the container its own parts ask, which
-     * is why the stacking is written on them and not on the set. */
+     * is why the stacking is written on them and not on the set.
+     *
+     * The list column stays in view while the open item scrolls beside it: it sticks
+     * at the top of whatever scrolls the set, the page, a workspace's body or a pane's,
+     * and is never taller than that box's view (lf-tabs.js measures both), so a queue
+     * longer than the window scrolls on its own rather than taking the item out of view
+     * to reach its last rows. The
+     * column's tint is the set's own background, and the open panel is the card beside
+     * it, at least the row's height, so the tint and the rule between them run the
+     * set's full height wherever the list ends. */
     lf-tabs[list="side"].lf-rendered {
       container-type: inline-size;
       display: grid;
       grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
       align-items: start;
+      background: var(--field);
     }
     lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
       grid-column: 1;
@@ -1351,9 +1361,23 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       gap: 0;
       padding: 8px;
       border-bottom: 0;
-      border-inline-end: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
-      align-self: stretch;
+      position: sticky;
+      top: var(--lf-list-top, var(--lf-top));
+      max-block-size: var(--lf-list-view, var(--lf-view-height));
+      box-sizing: border-box;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    /* A row keeps its content's height however many share the column: in a list bounded
+     * by the view, a row that gave up height would draw its words over the next row's. */
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn { flex: none; }
+    lf-tabs[list="side"].lf-rendered > lf-tab:not([hidden]) {
+      min-block-size: 100%;
+      box-sizing: border-box;
+      background: var(--card);
+      border-inline-start: 1px solid var(--border-2);
+      border-radius: 0 calc(var(--r) - 1px) calc(var(--r) - 1px) 0;
     }
     /* A row is its name, then its counts, with the summary on a line under them. The
      * row keeps the Asks count's slot when none wait, so an answer moves nothing. */
@@ -1382,11 +1406,19 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
         grid-row: auto;
         flex-direction: row;
         flex-wrap: wrap;
-        border-inline-end: 0;
         border-bottom: 1px solid var(--border-2);
         border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+        position: static;
+        max-block-size: none;
+        overflow-y: visible;
       }
+      /* Across a row a name wraps within the strip's width instead. */
+      lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn { flex: initial; }
       lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+      lf-tabs[list="side"].lf-rendered > lf-tab:not([hidden]) {
+        border-inline-start: 0;
+        border-radius: 0 0 calc(var(--r) - 1px) calc(var(--r) - 1px);
+      }
     }
 
     /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is

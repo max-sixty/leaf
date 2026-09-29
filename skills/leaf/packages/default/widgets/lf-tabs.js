@@ -23,9 +23,10 @@
  * box ("box"): framed, its strip in flow, each panel a bounded box that what it holds
  * measures itself against, and a switch leaves the page where it stands. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
- * down as well as across (theme.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's history, and Back or Forward there lands the
- * set's start when the user stood below it.
+ * down as well as across (theme.css says where it stacks, and how its list sticks); a
+ * side list is a box even as the root set, which keeps the root's history, and an item
+ * opened from its row, or by Back or Forward, lands the set's start when the user stood
+ * below it.
  *
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list's row adds the panel's `summary` under the name. Every tab wears two
@@ -55,7 +56,9 @@ import {
   relabel,
   replaceEntry,
   restorePlace,
+  scrollerFor,
   selectableOffer,
+  sizeObserver,
   tabStore,
   watchAsks,
 } from "/runtime/widget-api.js";
@@ -88,6 +91,7 @@ customElements.define(
     #stopAsks = null;
     #side = false;
     #pageFlow = false;
+    #listFit = null;
 
     connectedCallback() {
       if (!once(this)) {
@@ -95,6 +99,7 @@ customElements.define(
         this.#syncRootContext();
         this.#listenForHistory();
         this.#listenForAsks();
+        this.#watchListFit();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -166,8 +171,9 @@ customElements.define(
         // whole of when this scope holds — is always one of these buttons.
         const at = order.indexOf(document.activeElement);
         const next = order[to(at, order.length)];
-        // The strip is always on screen; focus scrolling a stuck tab back to its place
-        // in flow would move the view being left before the switch records it.
+        // The strip is always on screen, and a side list scrolls its row into view as the
+        // item opens (#showRow); focus scrolling a stuck tab back to its place in flow
+        // would move the view being left before the switch records it.
         next.focus({ preventScroll: true });
         next.click();
         beginWalk("tab", "Tab", () =>
@@ -226,6 +232,7 @@ customElements.define(
       this.prepend(strip);
       this.#declareStickyHeader();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
+      this.#watchListFit();
       // Restore this user's tab; a remembered id always resolves in later
       // versions because check forbids dropping ids. Restoration happens here,
       // during upgrade, so the runtime's view restore measures final geometry.
@@ -254,6 +261,48 @@ customElements.define(
       this.#contextObserver = null;
       this.#stopAsks?.();
       this.#stopAsks = null;
+      this.#listFit?.disconnect();
+      this.#listFit = null;
+    }
+
+    // A side list sticks at the top of the box that scrolls the set and is never taller
+    // than that box's view (theme.css), and only the box knows both: the page's are the
+    // chrome's bands, less a page tab strip stuck under the banner, and any other
+    // scroller's are its own top and height. Written on the strip, the set's own box,
+    // and read again whenever the set or what scrolls it changes size.
+    #watchListFit() {
+      if (!this.#side || !this.#strip || this.#listFit) return;
+      this.#listFit = sizeObserver(() => this.#fitList());
+      this.#listFit.observe(this);
+      this.#fitList();
+    }
+
+    #fitList() {
+      const scroller = scrollerFor(this);
+      const page = scroller === pageScroller;
+      if (!page) this.#listFit.observe(scroller);
+      const fit = {
+        "--lf-list-top": page
+          ? "calc(var(--lf-top) + var(--lf-root-tab-clear, 0px))"
+          : "var(--lf-top)",
+        "--lf-list-view": page
+          ? "calc(var(--lf-view-height) - var(--lf-root-tab-clear, 0px))"
+          : `${scroller.clientHeight}px`,
+      };
+      for (const [name, value] of Object.entries(fit))
+        if (this.#strip.style.getPropertyValue(name) !== value)
+          this.#strip.style.setProperty(name, value);
+    }
+
+    // The open item's row stays in view in a list that scrolls on its own, however the
+    // item was opened: a press, the arrow walk, Ask travel, a link, Back or Forward.
+    #showRow(btn) {
+      const strip = this.#strip;
+      if (strip.scrollHeight <= strip.clientHeight) return;
+      const list = strip.getBoundingClientRect();
+      const row = btn.getBoundingClientRect();
+      if (row.top < list.top) strip.scrollTop -= list.top - row.top;
+      else if (row.bottom > list.bottom) strip.scrollTop += row.bottom - list.bottom;
     }
 
     #listenForAsks() {
@@ -322,7 +371,9 @@ customElements.define(
         }
         this.#active = active;
         if (switched) this.#open(active, from);
-        else if (reason === "history") this.#land();
+        else if (reason === "history" || (this.#side && reason === "ordinary"))
+          this.#land();
+        if (this.#side) this.#showRow(this.#buttons.get(active));
         if (remember) tabStore.set(TAB_KEY + this.id, active.id);
         const presentation = [];
         for (const panel of [previous, active].filter(Boolean)) {
@@ -478,10 +529,24 @@ customElements.define(
     // the user reads: left where it stood, a view shorter than the one it replaced puts
     // them at the page's end, partway down it. So a traversal lands the set's start, as a
     // page-flow view without a place lands at its own, and leaves a set already in view
-    // where it is.
+    // where it is. A side list's item opened from its row lands the same way: the list
+    // sticks beside the item, so the row stays in view and the item opens at its start
+    // rather than partway down, or past the end of, the item before it. The set's start
+    // lands where its list sticks, or, for a set whose list does not stick, where the
+    // box that scrolls it puts a destination; a set that is a full-height workspace's
+    // body scrolls itself (layouts.css), so its start is its own scroll's.
     #land() {
-      if (this.getBoundingClientRect().top < 0)
-        this.scrollIntoView({ block: "start", behavior: "instant" });
+      const scroller = scrollerFor(this);
+      if (scroller === this) {
+        this.scrollTop = 0;
+        return;
+      }
+      const edge = scroller === pageScroller ? 0 : scroller.getBoundingClientRect().top;
+      const inset = this.#side
+        ? getComputedStyle(this.#strip).top
+        : getComputedStyle(scroller).scrollPaddingTop;
+      const above = edge + (parseFloat(inset) || 0) - this.getBoundingClientRect().top;
+      if (above > 0.5) scroller.scrollTop -= above;
     }
 
     #placeKey(panel) {

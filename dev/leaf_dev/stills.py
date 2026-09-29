@@ -138,6 +138,15 @@ def element_thread(page: Page) -> None:
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
 
 
+def side_list(page: Page) -> None:
+    """The feature gallery's side-list queue, its top at the top of the window."""
+    page.evaluate("location.hash = '#bg-side-queue'")
+    page.wait_for_function(
+        "() => document.getElementById('bg-side-queue')?.checkVisibility()"
+    )
+    page.locator("#bg-side-queue").evaluate("el => el.scrollIntoView({block: 'start'})")
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -158,6 +167,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_focused,
         pane_focused,
         element_thread,
+        side_list,
         go_to,
     )
 }
@@ -196,6 +206,8 @@ STATES = (
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
+    State("side-list", "developer/feature-gallery", side_list),
+    State("side-list-dark", "developer/feature-gallery", side_list, scheme="dark"),
 )
 
 

@@ -106,7 +106,10 @@ export function scheduleResidency() {
 
 function settleResidency() {
   const main = document.querySelector("main");
-  if (!main) return false;
+  if (!main) {
+    decidePins(false);
+    return false;
+  }
   const style = getComputedStyle(main);
   const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
   // The offset the column stands at, which is the written shift only where the Layout
@@ -167,26 +170,29 @@ function settleResidency() {
         : 0,
   );
   const tokens = standing.join(" ");
+  decidePins(standing.includes("rail"));
   const changed =
     (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
   if (!changed) return false;
   keeps(main, "data-lf-margin", tokens);
   setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
-  paintPins(main);
   return true;
 }
 
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 
-// Said once, on the chrome root, when the margin's standing is decided: where the
-// markers are pins, the banner offers the Page Map in their place (chrome.css). A
-// standing not yet decided says nothing.
-function paintPins(main) {
-  if (main.hasAttribute("data-lf-margin"))
-    layer?.root
-      .closest(".lf-chrome")
-      .toggleAttribute("data-lf-pins", !railStands(main));
+// Said on the chrome root where the margin's standing is decided: where the markers are
+// pins, the banner offers the Page Map in their place (chrome.css). Until the standing
+// is decided it says nothing, rather than one answer the decision then takes back.
+let railStood = null;
+function decidePins(stands) {
+  railStood = stands;
+  paintPins();
+}
+function paintPins() {
+  if (railStood !== null)
+    layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !railStood);
 }
 
 const labelRect = (name, left, top, label) => ({
@@ -268,8 +274,7 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
-  const main = document.querySelector("main");
-  if (main) paintPins(main);
+  paintPins();
   hearScrolls(document);
   // Opening or closing a disclosure shows or hides the residents inside it. `toggle`
   // does not bubble, so it is heard on the way down.

@@ -282,8 +282,7 @@ function drawTrace(
   if (!shaped) targetTraceShape.replaceChildren();
   traceShapeKey = shaped ? shapeKey : "";
   targetTraceBox.classList.toggle("lf-shaped", shaped);
-  if (element.id) keeps(targetTraceBox, "data-for", element.id);
-  else targetTraceBox.removeAttribute("data-for");
+  keeps(targetTraceBox, "data-for", element.id || null);
   keeps(targetTraceBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
   standOver(
     targetTraceBox,
@@ -342,8 +341,7 @@ function paintTargets(rebuildGeometry = true) {
     const { overlay, shape } = record;
     const { rect, shapeKey } = placed;
     element.classList.toggle(PROJECTED, true);
-    if (element.id) keeps(overlay, "data-for", element.id);
-    else overlay.removeAttribute("data-for");
+    keeps(overlay, "data-for", element.id || null);
     overlay.classList.toggle("lf-shaped", Boolean(geometry));
     if (
       rebuildGeometry ||

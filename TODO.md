@@ -17,11 +17,14 @@ has tried; settle that before building it.
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly everywhere.** An App Server carrier (leaf.page and
-  `leaf codex start`) now titles a thread from its opening message in about 3 s
-  (`codex_titles`). Every other carrier still titles on the agent's reply, so a
-  Claude Code thread reads "Generating title" for as long as the work takes; give
-  those carriers the same lightweight request.
+- **Name a new Thread promptly everywhere.** A Claude Code page and an App Server
+  carrier (leaf.page and `leaf codex start`) title a thread from its opening
+  message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
+  queue` still titles on the agent's reply; give it the same request, through
+  `codex exec`. Worktrunk's `codex exec` command took 3.7–5 s and about 13k input
+  tokens per title here, and it leaves the user's MCP servers on, which the App
+  Server request turns off by name. A request at admission, as Claude Code's is,
+  would serve every harness once the page server can reach each one's model.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide
@@ -262,10 +265,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  and the host waits for it. In a session holding no page it now costs about
-  0.15s warm (2.5s cold, after a plugin update leaves uv to sync), mostly uv and
-  Python startup: `leaf.hooks` imports in about 25ms. A session holding a page
-  adds about 0.1s to import page reading. That cost is why the `PostToolUse`
+  and the host waits for it. In a session holding no page it costs about 50ms
+  warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
+  uv adds about 15ms, Python startup about 10ms, and importing the CLI about
+  15ms. A session holding a page adds about 0.1s to import page reading and
+  read each page's state, so its prompt and Stop hooks cost about 0.15s. That cost is why the `PostToolUse`
   registration keeps its `if` prefilter, and it limits what else hooks can
   carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
   can answer more events itself. Rewriting the hook path in a compiled language

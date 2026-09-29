@@ -268,6 +268,21 @@ CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def failing_claude(tmp_path_factory):
+    """Put a `claude` that fails at once ahead of the developer's own on PATH, for
+    the rest of the run, before any fixture starts a server. A Claude Code page
+    server asks `claude` to name each thread a user opens (`thread_titles`), from a
+    thread that can outlive the test that posted the comment, so no teardown may
+    restore the real one under it; a test about titling puts its own `claude`
+    first."""
+    programs = tmp_path_factory.mktemp("host-programs")
+    claude = programs / "claude"
+    claude.write_text("#!/bin/sh\nexit 1\n")
+    claude.chmod(0o755)
+    os.environ["PATH"] = f"{programs}{os.pathsep}{os.environ['PATH']}"
+
+
 @pytest.fixture(autouse=True)
 def isolated_session(tmp_path_factory, monkeypatch):
     """The run is an agent session of its own, in state directories of its own.

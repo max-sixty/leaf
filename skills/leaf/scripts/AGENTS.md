@@ -38,9 +38,10 @@ subpackage's initializer is only a marker, never a second API.
 - `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
-- `codex`, `codex_adapter`, `codex_titles`: Codex delivery records and App Server
-  turn folds, the detached carrier behind `leaf codex start`, and the titles both
-  App Server carriers give the threads their turns answer;
+- `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
+  the detached carrier behind `leaf codex start`;
+- `thread_titles`: the title Leaf asks the host's model for when a user opens a
+  thread, before the agent's reply could name it;
 - `mcp_page`, `mcp_server`, `mcp_app`: the capability-scoped MCP page server, its
   transport, and the comments-only snapshot fallback;
 - `state_paths`, `machine`, `leases`, `service`, `server`, `hosting`, `detached`:

@@ -276,6 +276,40 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
+def test_a_comment_box_carried_away_comes_back_for_the_words_typed_into_it(
+    browser, serve
+):
+    """The box floats over the page beside its passage, so a scroll carries it off with
+    the passage, and the browser's caret reveal cannot bring back a box fixed over the
+    page. The first word typed into it brings the passage, and the box, back."""
+    source = next(source for source in EXAMPLES if source.stem == "triage-board")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 500)
+    box = page.locator("#triage-lede").bounding_box()
+    y = box["y"] + 10
+    select(page, (box["x"] + 2, y), (box["x"] + 200, y))
+    page.locator(".lf-fab-input").click()
+    field = page.locator(".lf-composer leaf-text")
+    expect(field).to_be_focused()
+    bar = page.locator(".lf-fab-bar")
+    page.mouse.wheel(0, 3000)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fab-bar').getBoundingClientRect().bottom < 0"
+    )
+    rendered(page)
+    expect(field).to_be_focused()
+    page.keyboard.type("x")
+    page.wait_for_function(
+        """() => {
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          return bar.top >= head && bar.bottom <= innerHeight;
+        }"""
+    )
+    expect(bar).to_be_visible()
+    expect(field).to_have_js_property("value", "x")
+
+
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
     """The gesture itself, on the words a widget renders from an attribute: drag across
     a column's heading and the same button, quote, and mark come up as for a paragraph,

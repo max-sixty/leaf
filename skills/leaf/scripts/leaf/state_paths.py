@@ -15,17 +15,37 @@ def state_home_path() -> Path:
     return Path(root) / "leaf"
 
 
+# A session's files that end with it: the mark its hooks leave, and its page
+# servers' log of the thread titles they asked for.
+HOOKS_SUFFIX = "hooks"
+TITLES_SUFFIX = "titles.log"
+
+
+def session_file(session_id: str, suffix: str) -> Path:
+    """One state-home file belonging to a single host session.
+
+    A host's session id is not a filename, so the session is named by a digest of
+    it. Every file one session owns — its leases, their start mark and locks, and a
+    Codex task's deliveries and adapter log — is that one name with a different
+    suffix, in the state home's `sessions/`.
+    """
+    key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
+    return state_home_path() / "sessions" / f"{key}.{suffix}"
+
+
 def end_session(session_id: str) -> None:
-    """Release this session's claims under each page's transaction lock.
+    """Release this session's claims under each page's transaction lock, then
+    remove the files that end with it.
 
     SessionEnd does not need the claim's lifetime reading: the host has ended
     the session, so any unreleased record still naming it may be closed. A
     successor is checked after taking the same log lock as claim transitions.
+    The files go last because a page server writes the titles log only under
+    that lock while the session holds the page (`thread_titles`), so none is
+    written after this removes it.
     """
     if not session_id:
         return
-    key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    (state_home_path() / "sessions" / f"{key}.hooks").unlink(missing_ok=True)
 
     from .event_log import flocked, now_iso
     from .files import write_json
@@ -55,3 +75,5 @@ def end_session(session_id: str) -> None:
                     write_json(path, {**current, "released": now_iso()})
         except (OSError, ValueError, TypeError):
             continue
+    for suffix in (HOOKS_SUFFIX, TITLES_SUFFIX):
+        session_file(session_id, suffix).unlink(missing_ok=True)

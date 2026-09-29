@@ -328,7 +328,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
             policy=lambda nonce: f"script-src 'nonce-{nonce}'",
             import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
             page_root=PAGE_ROOT,
-            html_attributes={"data-lf-sample-block": ""},
+            html_attributes={"data-lf-contained": ""},
             body_attributes={"inert": ""},
             body_end='<script type="module" src="/ready.js"></script>',
         ),
@@ -336,7 +336,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
 
     assert delivered.startswith("﻿<!doctype html>")
     served = SourceDocument(delivered.removeprefix("﻿"))
-    assert "data-lf-sample-block" in served.tree.find("html").attrs
+    assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
     assert served.tree.find("body").find_all("script")[-1].attrs["src"] == "/ready.js"
     policy = served.http_equivs[0]["content"]

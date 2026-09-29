@@ -98,7 +98,6 @@ class Demo {
     this.sample = mountSample(this.frameElement, {
       template: template?.id,
       passive: true,
-      window: true,
     });
     await this.sample.ready;
     const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;

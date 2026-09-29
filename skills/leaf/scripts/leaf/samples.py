@@ -32,7 +32,6 @@ class Sample:
     parent: Path
     layer: dict
     passive: bool
-    window: bool
     asset_root: str
     lock: Lock = field(default_factory=Lock)
     closed: bool = False
@@ -63,7 +62,6 @@ class Samples:
         data: dict,
         template_id: str,
         passive: bool,
-        window: bool,
         asset_root: str,
     ) -> str:
         template = next(
@@ -128,12 +126,7 @@ class Samples:
         identity = secrets.token_hex(16)
         with self.lock:
             self.pages[identity] = Sample(
-                temporary,
-                parent,
-                artifact.registry["$layer"],
-                passive,
-                window,
-                asset_root,
+                temporary, parent, artifact.registry["$layer"], passive, asset_root
             )
         return identity
 

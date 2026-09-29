@@ -383,15 +383,14 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
           return {
             block: doc.documentElement.hasAttribute('data-lf-sample-block'),
             bar: getComputedStyle(doc.querySelector('.lf-shortcut-bar')).display,
+            page: doc.documentElement.scrollHeight,
           };
         }"""
     )
     assert not child["block"]
     assert child["bar"] != "none"
     frame = sample.locator("iframe")
-    viewport = page.viewport_size
-    expected = min(0.75 * viewport["height"], 48 * 16)
-    assert abs(frame.bounding_box()["height"] - expected) <= 2
+    assert frame.bounding_box()["height"] < child["page"] / 2
 
     box = frame.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)

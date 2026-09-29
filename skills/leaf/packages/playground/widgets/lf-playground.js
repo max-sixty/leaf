@@ -35,6 +35,7 @@ import {
   reserve,
   says,
   tabStore,
+  wear,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -691,11 +692,8 @@ customElements.define(
         if (control) this.#setInput(control, value);
       }
       const reflection = this.#reflection();
-      for (const [name, value] of Object.entries(reflection.attributes))
-        keeps(this, name, value);
-      for (const [name, value] of Object.entries(reflection.properties))
-        this.style.setProperty(name, value);
-      void dressSamples(this, reflection);
+      wear(this, reflection);
+      dressSamples(this, reflection);
       this.#renderOutput();
       this.#syncCopy();
       this.#paintPresets();

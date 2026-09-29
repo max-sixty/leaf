@@ -4,42 +4,16 @@
  * focus from the page; this owner releases a live child once it presents, and after
  * that focus entering the frame is entry, the way it is for any iframe. The child's
  * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
- * same host and remain inert throughout their playback. A child is a block of the
- * page holding it unless it is asked for as a window: then it is a whole Leaf window,
- * chrome included, at the frame's size.
+ * same host and remain inert throughout their playback.
  *
- * An element can dress the children of the frames under it: attributes and custom
- * properties each child's root wears, so a candidate that restyles a whole page keys on
- * that child's root and never on the page holding the frame. A frame's nearest dressed
- * ancestor decides. The child's bootstrap takes its dress before it paints, reset
- * children included, and a new dress reaches every child already standing. */
+ * A live child is a block of the page holding it (`data-lf-sample-block` on its root)
+ * unless it is asked for as a window; a passive replay always is one. A window is a
+ * whole Leaf window, chrome included, at the frame's size. The child's bootstrap asks
+ * its frame for that marker and its dress (dress.js) before it paints. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
 import { discardPageStorage } from "./storage.js";
-
-const dresses = new WeakMap();
-
-function dressFor(frame) {
-  for (let node = frame.parentElement; node; node = node.parentElement)
-    if (dresses.has(node)) return dresses.get(node);
-  return null;
-}
-
-function wear(root, dress) {
-  if (!dress) return;
-  for (const [name, value] of Object.entries(dress.attributes))
-    if (root.getAttribute(name) !== value) root.setAttribute(name, value);
-  for (const [name, value] of Object.entries(dress.properties))
-    root.style.setProperty(name, value);
-}
-
-export function dressSamples(owner, dress) {
-  dresses.set(owner, dress);
-  for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) {
-    const root = frame.contentDocument?.documentElement;
-    if (root && dressFor(frame) === dress) wear(root, dress);
-  }
-}
+import { dressFor, wear } from "./dress.js";
 
 async function request(url, body) {
   const response = await fetch(url, {
@@ -112,7 +86,11 @@ export function mountSample(
   let loading = null;
   frame.inert = passive;
   frame.toggleAttribute("data-lf-contained", true);
-  frame.lfDressRoot = (root) => wear(root, dressFor(frame));
+  frame.lfDressRoot = (root) => {
+    root.toggleAttribute("data-lf-sample-block", !(passive || asWindow));
+    const dress = dressFor(frame);
+    if (dress) wear(root, dress);
+  };
 
   const release = (url) => request(new URL("api/release", url), {});
 
@@ -135,11 +113,7 @@ export function mountSample(
   async function replace() {
     await retire();
     if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-    const { url } = await request(pageUrl("api/samples"), {
-      template,
-      passive,
-      window: asWindow,
-    });
+    const { url } = await request(pageUrl("api/samples"), { template, passive });
     current = new URL(url, location.href).href;
     try {
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");

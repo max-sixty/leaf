@@ -133,7 +133,7 @@ customElements.define(
         if (this.#ready !== ready) return doc;
         this.#reset.disabled = false;
         this.#status.textContent = "";
-        if (!this.hasAttribute("window")) this.#follow(doc);
+        if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
         return doc;
       });
       this.#ready = ready;

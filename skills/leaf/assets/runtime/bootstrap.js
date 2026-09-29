@@ -18,7 +18,8 @@
   const script = document.currentScript;
   const root = document.documentElement;
   root.toggleAttribute("data-lf-live", true);
-  // A live sample's child wears what its host dresses it in before it paints (sample.js).
+  // A sample's child takes its form and its dress from its frame before it paints
+  // (sample.js).
   window.frameElement?.lfDressRoot?.(root);
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;

@@ -1971,6 +1971,9 @@ lf-sample[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * banner and bottom bar in view with the whole frame. */
 lf-sample[window] > .lf-sample-frame { height: min(75vh, 48rem); }
+/* Inside a block sample the viewport follows the content, so there a window takes a
+ * fixed height rather than a share of the frame it is growing. */
+html[data-lf-sample-block] lf-sample[window] > .lf-sample-frame { height: 32rem; }
 @media print {
   .lf-sample-controls, .lf-sample-frame { display: none; }
 }

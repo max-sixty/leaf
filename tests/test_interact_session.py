@@ -1623,13 +1623,19 @@ def test_both_hosts_are_asked_for_a_title_in_the_same_words(
     placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
     snapshot.check(
         yaml_document(
-            "What Claude Code's page server runs, and what it and an App Server "
-            "carrier send, for a\nthread opened on a passage.",
+            "What Claude Code's page server runs, what it and an App Server carrier "
+            "both send, and\nthe App Server's titling thread, for a thread opened "
+            "on a passage.",
             {
                 "command": ["claude", *(placeholders.get(a, a) for a in argv)],
                 "system_prompt": Prose(system_prompt),
                 "request": Prose(call["stdin"]),
                 "schema": schema,
+                "app_server_thread": {
+                    key: start["params"][key]
+                    for key in ("ephemeral", "approvalPolicy", "sandbox", "config")
+                },
+                "app_server_effort": turn["params"]["effort"],
             },
         )
     )

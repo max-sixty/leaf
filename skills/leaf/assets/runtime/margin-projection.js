@@ -567,7 +567,7 @@ export function createMarginProjection({
       mainRect &&
       mainHeight
         ? Math.round(
-            ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
+            ((entryPlace(entry).getBoundingClientRect().top - mainRect.top) /
               mainHeight) *
               100,
           )

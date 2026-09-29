@@ -5,6 +5,7 @@ import { pageCommand } from "../keyboard/register.js";
 import { pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { elementFromPointAcross, inChrome, leafSurface } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
+import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
@@ -61,8 +62,13 @@ export function createAim({
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
-    const at = onPage(elementFromPointAcross(pointer.x, pointer.y));
-    return at && aimTargetAt(at);
+    return pointedTarget(onPage(elementFromPointAcross(pointer.x, pointer.y)));
+  }
+  // The target a press names, with the row inside it the press landed on: a comment on a
+  // target taller than the window stands where the user pointed (pointed-place.js).
+  function pointedTarget(at) {
+    const target = at && aimTargetAt(at);
+    return target && { ...target, point: pointInto(target.element, at) };
   }
   function setAiming(on) {
     aiming = on;
@@ -147,7 +153,7 @@ export function createAim({
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
       const choosing = targetPicker.active() && !leafSurface(pressed);
       claimedPress = choosing
-        ? { picker: aimTargetAt(pressed) }
+        ? { picker: pointedTarget(pressed) }
         : designTarget
           ? { designMode: designMode.target(pressed) }
           : aim

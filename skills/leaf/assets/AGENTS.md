@@ -139,7 +139,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `thread-card-geometry.js` |
+| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `thread-card-geometry.js`, `pointed-place.js` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
@@ -207,6 +207,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
+| the row inside a target a comment stands by | `pointed-place.js`: the element a pointing gesture landed on, held by the composer until sent, then per target; presentation only |
 | geometry readings: what a scroller shows, what a surface hides, sticky-header room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareStickyHeaders`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM

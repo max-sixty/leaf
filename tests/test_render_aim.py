@@ -660,6 +660,9 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
         }""",
         arg=compact_height,
     )
+    # The field grows by CSS from the foot the bar stands on; placement takes the grown
+    # bar back inside the boundary on the render that follows.
+    rendered(page)
     grown = bar.bounding_box()
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
@@ -1018,6 +1021,74 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     box = field.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
+
+
+TALL_DIFF_PAGE = leaf_page(
+    "A tall diff",
+    '<h1>Review</h1><p>One file, commented on whole.</p><lf-diff id="whole"><pre>'
+    "diff --git a/src/lib.rs b/src/lib.rs\n--- a/src/lib.rs\n+++ b/src/lib.rs\n"
+    "@@ -0,0 +1,80 @@\n"
+    + "\n".join(f"+    let value_{n} = compute({n});" for n in range(80))
+    + "\n</pre></lf-diff><p>After the diff.</p>",
+)
+# Where the pointed row, the comment box and the margin cluster stand in the window.
+POINTED_ROW = """() => {
+  const row = document.querySelector('lf-diff').shadowRoot
+    .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+  const top = (selector) =>
+    document.querySelector(selector)?.getBoundingClientRect().top ?? null;
+  return { row: row.top, height: row.height, bar: top('.lf-fab-bar'),
+           cluster: top('.lf-margin-cluster'), card: top('.lf-margin-preview'),
+           diff: document.querySelector('lf-diff').getBoundingClientRect().top };
+}"""
+
+
+def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
+    browser, serve
+):
+    """⌥-clicking a line deep in an unbound diff comments on the whole diff, which is
+    the target the registry gives it, but the user pointed at that line. The box to
+    write in, the cluster the sent comment leaves and the card it opens stand level with
+    it rather than at the diff's top, a screen above; `t` travels back to that row. The
+    event still names the whole diff: where the comment stands is presentation."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    row = page.locator("lf-diff [data-line]").nth(50)
+    row.scroll_into_view_if_needed()
+    rendered(page)
+    row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
+    field = open_compact_comment(page)
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert at["diff"] < -at["height"] * 20, f"the diff's top must be off screen: {at}"
+    assert abs(at["bar"] - at["row"]) <= 2 * at["height"], (
+        f"the comment box stands {at['row'] - at['bar']:.0f}px from the row: {at}"
+    )
+
+    write(field, "Why this line?")
+    with sending(page, "the comment on the whole diff"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["anchor"]) == ("comment", {"section": "whole"})
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert abs(at["cluster"] - at["row"]) <= at["height"], (
+        f"the cluster stands {at['row'] - at['cluster']:.0f}px from the row: {at}"
+    )
+    assert abs(at["card"] - at["row"]) <= 2 * at["height"], at
+
+    page.keyboard.press("Escape")
+    page.evaluate("() => scrollTo({ top: 0, behavior: 'instant' })")
+    rendered(page)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    scroll_settled(page)
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert 0 < at["row"] < 900 and abs(at["card"] - at["row"]) <= 2 * at["height"], (
+        f"`t` did not bring the pointed row and its card back: {at}"
+    )
 
 
 def test_a_comment_rechooses_after_target_width_reflow(browser, serve):

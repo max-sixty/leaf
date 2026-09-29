@@ -46,13 +46,13 @@ from render_cases_layout import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
     any_owner_entry,
+    example_media,
     holding,
     leaf_page,
     open_page,
@@ -1568,7 +1568,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()
     reply = thread.locator("leaf-text")
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         reply.evaluate(
@@ -1666,7 +1666,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         field.evaluate(

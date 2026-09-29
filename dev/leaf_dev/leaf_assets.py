@@ -1,18 +1,25 @@
-"""Fetch and publish the generated images Leaf keeps in max-sixty/leaf-assets.
+"""Fetch and publish the binary files Leaf keeps in max-sixty/leaf-assets.
 
-Every tracked byte ships in every install, so the images Leaf generates for its README
-and site live in a separate Git repository instead: `examples/` holds the catalog
-previews (`leaf_dev.example_previews`) and `demo/` the README's recording and stills
-and the site's card (`leaf_dev.record_demo`). `leaf-assets.json` pins one commit, so
-every Leaf checkout reads one immutable image set; the README's image URLs name the
-same commit. Downloads land under .tmp, which both local builds and CI may discard and
-reconstruct.
+Every tracked byte ships in every install, so Leaf's tree is text and its images live
+in a separate Git repository instead, each at the path its reader would look for it in
+the tree (`pinned_copy`):
+
+- `examples/` holds the catalog previews (`leaf_dev.example_previews`), and
+  `examples/media/` the images the example pages show (`leaf_dev.page_fixtures`);
+- `demo/` holds the README's recording and stills and the site's card
+  (`leaf_dev.record_demo`);
+- `evals/<case>/` holds what a guidance case hands its child
+  (`leaf_dev.guidance_eval`).
+
+`leaf-assets.json` pins one commit, so every Leaf checkout reads one immutable set; the
+README's image URLs name the same commit. Downloads land under .tmp, which both local
+builds and CI may discard and reconstruct.
 
     uv run leaf-dev fetch-assets
 
-The site build and both generators call `pinned_assets()`, which fetches on a miss; the
-command only warms the cache, as `wt setup` does. A generator stages its files in a
-clone with `stage` and pushes them with `publish`, which moves the pin.
+Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
+the cache, as `wt setup` does. A writer stages its files in a clone and pushes them with
+`publish`, which moves the pin.
 """
 
 import json
@@ -27,13 +34,14 @@ import click
 
 from leaf_dev import ROOT
 
-LOCK = ROOT / "leaf-assets.json"
+LOCK = "leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
 README = ROOT / "README.md"
 
 
-def specification() -> tuple[str, str]:
-    locked = json.loads(LOCK.read_text(encoding="utf-8"))
+def specification(root: Path = ROOT) -> tuple[str, str]:
+    """The repository and revision the checkout at `root` pins."""
+    locked = json.loads((root / LOCK).read_text(encoding="utf-8"))
     return locked["repository"], locked["revision"]
 
 
@@ -73,13 +81,20 @@ def _download(repository: str, revision: str, target: Path) -> None:
         raise RuntimeError(f"could not fetch {url}: {error}") from error
 
 
-def pinned_assets() -> Path:
-    """Return the cached tree of the revision declared by this checkout."""
-    repository, revision = specification()
+def pinned_assets(root: Path = ROOT) -> Path:
+    """Return the cached tree of the revision the checkout at `root` pins."""
+    repository, revision = specification(root)
     target = CACHE / revision
     if not (target / ".complete").is_file():
         _download(repository, revision, target)
     return target
+
+
+def pinned_copy(path: Path) -> Path | None:
+    """Where the pinned assets hold `path`, a path in a checkout that keeps its bytes
+    there; None outside any checkout that pins assets, such as a scratch source."""
+    root = next((up for up in path.parents if (up / LOCK).is_file()), None)
+    return None if root is None else pinned_assets(root) / path.relative_to(root)
 
 
 def run(*args: str, cwd: Path) -> str:
@@ -93,9 +108,8 @@ def run(*args: str, cwd: Path) -> str:
     return completed.stdout.strip()
 
 
-def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
-    """Clone the asset repository into `staging` with `directory` holding exactly
-    `files`, for the generator to verify before it publishes."""
+def clone(staging: Path) -> Path:
+    """Clone the asset repository's current head into `staging`."""
     repository, _ = specification()
     checkout = staging / "leaf-assets"
     run(
@@ -105,10 +119,18 @@ def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
         str(checkout),
         cwd=staging,
     )
+    return checkout
+
+
+def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
+    """Clone the asset repository into `staging` with `directory`'s files exactly
+    `files`, for a generator to verify before it publishes. Subdirectories are left
+    alone: `examples/media/` sits inside the previews' `examples/`."""
+    checkout = clone(staging)
     target = checkout / directory
-    target.mkdir(exist_ok=True)
+    target.mkdir(parents=True, exist_ok=True)
     for stale in target.iterdir():
-        if stale.name not in files:
+        if stale.is_file() and stale.name not in files:
             stale.unlink()
     for name, content in files.items():
         (target / name).write_bytes(content)
@@ -123,7 +145,7 @@ def publish(checkout: Path, message: str) -> str:
         run("git", "commit", "-m", message, cwd=checkout)
         run("git", "push", cwd=checkout)
     revision = run("git", "rev-parse", "HEAD", cwd=checkout)
-    LOCK.write_text(
+    (ROOT / LOCK).write_text(
         json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
         encoding="utf-8",
     )

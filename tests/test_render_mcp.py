@@ -6,7 +6,6 @@ import threading
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from interact_support import ROOT
 from leaf import mcp_page as mcp_page_model
 from leaf.anchor_capture import capture_anchor
 from leaf.event_log import append_event, read_events
@@ -23,6 +22,7 @@ from render_cases_interaction import (
 from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
+    example_media,
     leaf_page,
     open_page,
     write,
@@ -172,7 +172,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     media = page_dir / "media"
     media.mkdir(exist_ok=True)
     for filename in ("051bee487bfb5d13.png", "a99a1b63048502d0.png"):
-        shutil.copy2(ROOT / "examples" / "media" / filename, media / filename)
+        shutil.copy2(example_media() / filename, media / filename)
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()

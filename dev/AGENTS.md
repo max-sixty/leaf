@@ -73,7 +73,7 @@ reaches a module by importing it from this package, never through `sys.path`,
 ## Website and demo
 
 CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
-generate live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
+write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
 
 - `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, and
@@ -92,6 +92,8 @@ in `leaf-assets.json` and the README's image URLs that name it.
   previews under its `examples/`, republishes them, and moves the pin.
 - `leaf-dev record-demo` regenerates the README's demo GIF and stills and the site's
   card under its `demo/`, and publishes them the same way.
+- `leaf-dev publish-media IMAGE...` adds images the example pages show under its
+  `examples/media/`, and moves the pin.
 
 ## Codex
 

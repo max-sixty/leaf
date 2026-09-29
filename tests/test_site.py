@@ -49,6 +49,7 @@ from render_cases_layout import banner_control
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
 from render_harness import (
+    HANDOVER_DEADLINE_MS,
     consume_browser_errors,
     displayed,
     expect_banner_control_offered,
@@ -1651,6 +1652,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     # restored reading position leaves it is not something this test arranges.
     comment_tab.click()
     page.reload(wait_until="domcontentloaded")
+    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text(

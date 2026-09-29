@@ -1457,7 +1457,9 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
     expect(reply).to_be_focused()
     page.keyboard.type("Still writing")
 
-    resized(page, 560, 900)
+    # A phone's column is narrower than the opening line in any font; at 560px whether
+    # it wraps depends on the font's width (Linux's did not).
+    resized(page, 390, 900)
     rendered(page)
     assert first.bounding_box()["height"] > one_line * 1.5, (
         "the opening line must wrap for the reflow to move the pointed line"

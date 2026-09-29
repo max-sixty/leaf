@@ -32,7 +32,7 @@ import {
   progressStates,
 } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
-import { keepsHidden } from "../keeps.js";
+import { keepsHidden, layoutPx } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -540,10 +540,10 @@ export function createTargetPicker({
     );
     for (const [index, { rect }] of plans.entries()) {
       const mark = targetPickerHintLayer.children[index];
-      mark.style.left = `${rect.left}px`;
-      mark.style.top = `${rect.top}px`;
-      mark.style.width = `${rect.width}px`;
-      mark.style.height = `${rect.height}px`;
+      mark.style.left = layoutPx(rect.left);
+      mark.style.top = layoutPx(rect.top);
+      mark.style.width = layoutPx(rect.width);
+      mark.style.height = layoutPx(rect.height);
     }
   }
 

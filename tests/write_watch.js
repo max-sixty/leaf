@@ -60,10 +60,6 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     /^class on .*\.lf-ghost/,
-    // TODO(2026-09-28): a comment's visual mark is placed twice in one script where the
-    // part it marks moves (target-paint.js, `paintTargets`); seen on diagram parts and
-    // a visual action following its scroller. Not yet traced to the second placement.
-    /^style on div\.lf-ui\.lf-visual-mark/,
   ];
   const reported = new Set();
   const report = (what) => {

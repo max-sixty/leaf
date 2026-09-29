@@ -1510,6 +1510,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+  /* Open before its first placement lands (margin-projection.js, `placeThreadPreview`),
+     the card stands at the corner the fallbacks above give it, so it is not seen or
+     pressed there. */
+  .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
      own, so the keyboard standing on the thread rings the card: the ring takes the
      card's edge in place of its border, inset, since the card stands over the page and

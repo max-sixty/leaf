@@ -15,7 +15,7 @@ import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
 import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps, keepsText, layoutPx } from "./keeps.js";
 
 export function createPageGeometry({
   refreshAnchorHover,
@@ -83,8 +83,8 @@ export function createPageGeometry({
       Math.max(2, corner.left),
       above >= 0 ? above : corner.top + 2,
     );
-    inspect.style.left = `${at.left}px`;
-    inspect.style.top = `${at.top}px`;
+    inspect.style.left = layoutPx(at.left);
+    inspect.style.top = layoutPx(at.top);
   }
 
   function queueActionPlacement() {

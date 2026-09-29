@@ -343,6 +343,7 @@ function renderPreview(state) {
       "Copied preview diagnostics",
       "Couldn't copy preview diagnostics",
     );
+    previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
     registerBannerControl({
       key: "preview",
       control: previewMarginEntryCopy,
@@ -351,9 +352,12 @@ function renderPreview(state) {
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
-  previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
-  previewMarginEntry.textContent = label;
-  previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
+  keepsText(previewMarginEntry, label);
+  keeps(
+    previewMarginEntry,
+    "title",
+    `${preview.example} · started ${preview.started} · copy diagnostics`,
+  );
 }
 
 // The vendored layer is the Leaf version this page actually runs. It can remain older

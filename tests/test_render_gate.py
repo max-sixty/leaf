@@ -2148,7 +2148,7 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { once, widgetController } from "/runtime/widget-api.js";\n'
+        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
         "  controller = widgetController(this);\n"
         "  stop;\n"
@@ -2156,7 +2156,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
         '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
+        '      keepsText(this.querySelector("p"), "State replaced unrelated prose.");\n'
         "  }\n"
         "});\n"
     )
@@ -2283,7 +2283,7 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { once, widgetController } from "/runtime/widget-api.js";\n'
+        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
         "  controller = widgetController(this);\n"
         "  stop;\n"
@@ -2291,8 +2291,8 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
         '    if (state.change.value === "corrupt")\n'
-        '      this.closest("lf-shell").querySelector(":scope > p").textContent = '
-        '"Child state replaced wrapper prose.";\n'
+        '      keepsText(this.closest("lf-shell").querySelector(":scope > p"), '
+        '"Child state replaced wrapper prose.");\n'
         "  }\n"
         "});\n"
     )

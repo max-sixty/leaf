@@ -154,8 +154,7 @@ consume. Otherwise close a page only when closing is part of the journey. Filter
 the collector is not an assertion.
 
 A DOM write that changes nothing is one of those problems (`write_watch.js`): a value
-restated where it already stands, or a place that two writers, or one writer twice,
-return to its starting value within a frame. Fix the writer (`runtime/keeps.js`). A
+restated where it already stands, or a place one task takes away and puts back. Fix the writer (`runtime/keeps.js`). A
 write that restates for a reason of its own, as a vendored component or a focus borrow
 does, joins `EXPECTED` in `write_watch.js` with that reason.
 

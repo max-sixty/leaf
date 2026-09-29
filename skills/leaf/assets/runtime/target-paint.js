@@ -142,10 +142,16 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
   const outline = document.createElementNS(SVG_NS, "g");
   outline.append(...stroke);
   paint.push(outline);
-  host.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  host.setAttribute("width", String(width));
-  host.setAttribute("height", String(height));
-  host.replaceChildren(...paint);
+  keeps(host, "viewBox", `0 0 ${width} ${height}`);
+  keeps(host, "width", width);
+  keeps(host, "height", height);
+  // A repaint of geometry that has not moved clones the shapes it already holds.
+  const held = host.children;
+  if (
+    paint.length !== held.length ||
+    paint.some((node, index) => !node.isEqualNode(held[index]))
+  )
+    host.replaceChildren(...paint);
   return true;
 }
 

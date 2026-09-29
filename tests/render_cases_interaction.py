@@ -1517,7 +1517,7 @@ SEATED_ASK_ENTRY = {
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
 SEATED_ASK_MODULE = """\
-import { threadBox, offer, once, widgetController } from "/runtime/widget-api.js";
+import { keeps, keepsText, threadBox, offer, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-verdict",
@@ -1550,15 +1550,15 @@ customElements.define(
     }
 
     settled() {
-      this.press.textContent = "Accepted";
-      this.press.setAttribute("aria-pressed", "true");
+      keepsText(this.press, "Accepted");
+      keeps(this.press, "aria-pressed", true);
     }
 
     renderState(state) {
       if (state.settle.value) this.settled();
       else {
-        this.press.textContent = "Accept";
-        this.press.setAttribute("aria-pressed", "false");
+        keepsText(this.press, "Accept");
+        keeps(this.press, "aria-pressed", false);
       }
     }
   },

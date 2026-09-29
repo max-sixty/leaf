@@ -44,7 +44,7 @@ class ThreadListView extends RetainedFace {
     if (!visible.length) return;
     const chosen = visible.find((row) => row.key === this.#expandedKey) ?? visible[0];
     this.#expandedKey = chosen.key;
-    chosen.node.open = true;
+    chosen.node.toggleAttribute("open", true);
   }
 
   #chooseFromSummary(card, event) {

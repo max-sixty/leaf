@@ -324,10 +324,12 @@ export function createAnchorControls({
       const alive = Boolean(fragmentTarget(href));
       anchor.classList.toggle("detached", !alive);
       if (alive) anchor.removeAttribute("aria-disabled");
-      else anchor.setAttribute("aria-disabled", "true");
-      anchor.title = alive
-        ? `Jump to § ${id}`
-        : `§ ${id} isn't in the version you're viewing`;
+      else keeps(anchor, "aria-disabled", "true");
+      keeps(
+        anchor,
+        "title",
+        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version you're viewing`,
+      );
     }
   }
 

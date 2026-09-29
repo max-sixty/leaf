@@ -3,13 +3,13 @@
 // opens (render_harness.watched).
 //
 // A write that changes nothing is reported on the console as a browser problem, which
-// fails the test like any other. "Nothing" is judged per frame: the writes to one place
-// (an attribute, a text node's data) between two renderings change nothing when the
-// place holds the value it started with once the frame has rendered, whether one writer
-// restated it or two writers took turns, and a child-list write changes nothing when it
-// puts back nodes that serialize as the ones it took out. Such a write still costs a
-// style pass and a repaint, of the whole document while a CSS highlight holds a range,
-// so code writes only what changed (skills/leaf/assets/AGENTS.md).
+// fails the test like any other. "Nothing" is judged per task: the writes one task makes
+// to one place (an attribute, a text node's data) change nothing when the place ends the
+// task holding the value it started with, whether the task restated it or took it away
+// and put it back, and a child-list write changes nothing when it puts back nodes that
+// serialize as the ones it took out. Such a write still costs a style pass and a
+// repaint, of the whole document while a CSS highlight holds a range, so code writes
+// only what changed (skills/leaf/assets/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.
@@ -46,6 +46,7 @@
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they first update, and its icon redraws its SVG.
     /^[\w-]+ on wa-/,
+    /^[\w-]+ on svg in wa-icon/,
     /^children of svg in wa-icon/,
     // The contents map decides whether it needs its crowded face by measuring its labels
     // without it, on every measure.
@@ -66,19 +67,17 @@
   // property it sets on the element and takes off again (render-checks/widgets.js),
   // which is the instrument's write, not the page's. And an arrival lends an element
   // a tab stop to move where the next Tab starts, which it gives back on the blur
-  // (focus.js, `lendStop`), as soon as the next move if that comes in the same frame.
+  // (focus.js, `lendStop`), at once where the element will not take the focus.
   const lent = ({ record, through }) =>
     (through.some((value) => value?.includes("--_leaf-render-")) &&
       through.every((value) => !value || value.includes("--_leaf-render-"))) ||
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
       through.every((value) => value === "-1"));
-  // The first write to each place since the last rendering, with each value the place
-  // passed through after it, judged once a frame has rendered after it.
+  // The first write to each place in this task, with each value the place passed
+  // through after it.
   const started = new Map();
-  let judging = false;
   const judge = () => {
-    judging = false;
     for (const write of started.values()) {
       const { record, through } = write;
       if (valueOf(record) === record.oldValue && !(through.length && lent(write)))
@@ -96,8 +95,6 @@
       } else if (started.has(key)) started.get(key).through.push(record.oldValue);
       else {
         started.set(key, { record, through: [] });
-        if (!judging) requestAnimationFrame(() => setTimeout(judge));
-        judging = true;
       }
       if (Array.isArray(window.lfWrites))
         window.lfWrites.push({
@@ -108,6 +105,7 @@
           target: place(record.target),
         });
     }
+    judge();
   });
   const options = {
     subtree: true,

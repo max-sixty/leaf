@@ -300,7 +300,7 @@ export class ThreadView {
     if (model.attempt) keeps(this.node, "data-attempt", model.attempt);
     else delete this.node.dataset.attempt;
     if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
-      this.node.open = !model.resolved;
+      this.node.toggleAttribute("open", !model.resolved);
       this.#summaryResolved = model.resolved;
     }
     const wanted = new Set(model.messages.map((message) => message.key));

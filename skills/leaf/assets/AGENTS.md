@@ -20,8 +20,9 @@ it is given, declare the minimum it needs, and never let its content size its ho
 
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
 free room measured beside its target, in a rail the page declares, or as a pin by
-its target: in room found where it covers no words (`pinSpot`), and otherwise inside
-its target's corner.
+its target: in room found where it covers no words and no other box that paints its
+own extent, clear of neighbouring blocks where its target has room of its own
+(`pinSpot`, `coverIn`), and otherwise inside its target's corner.
 
 The rail and a pin are different kinds. The rail is room: a strip beside the column,
 which the column may move over to leave (`settleResidency`) but never narrows or

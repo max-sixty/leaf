@@ -8324,6 +8324,120 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
         )
 
 
+PIN_READING = """(id) => {
+  const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+  const words = [];
+  const walk = document.createTreeWalker(document.querySelector('main'),
+    NodeFilter.SHOW_TEXT);
+  for (let text = walk.nextNode(); text; text = walk.nextNode()) {
+    // A pending suggestion's "proposed deletion" is said only to a screen reader,
+    // clipped to nothing on screen, though its text node still reports a line box.
+    if (!text.data.trim() || !text.parentElement.checkVisibility()
+      || text.parentElement.closest('.lf-quiet')) continue;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    words.push(...[...range.getClientRects()]
+      .filter((box) => box.width > 2 && box.height > 2).map(edges));
+  }
+  const parts = [...document.getElementById(id).querySelectorAll('*')]
+    .filter((el) => el.checkVisibility())
+    .flatMap((el) => [...el.getClientRects()]).map(edges);
+  const entries = [...document.querySelectorAll(
+    `[data-lf-margin-for="${id}"] .lf-margin-entry`)]
+    .filter((entry) => entry.checkVisibility())
+    .map((entry) => edges(entry.getBoundingClientRect()));
+  return {words, parts, entries};
+}"""
+
+
+def _meets(a, b):
+    return (
+        a["left"] < b["right"]
+        and b["left"] < a["right"]
+        and a["top"] < b["bottom"]
+        and b["top"] < a["bottom"]
+    )
+
+
+def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
+    """Under a finger a suggestion's Accept and Reject are a 96px pin, and on
+    release-notes at 390px its run fills both lines of the Console paragraph, so the
+    only room within reach is the empty end of the short heading just above. A block
+    that paints nothing of its own counts only by its words, so the pin stands there,
+    over none of the page's words, rather than covering the run it decides."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-only"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = page.evaluate(PIN_READING, "rn-sug-only")
+    # Accept and Reject.
+    assert len(reading["entries"]) == 2, reading["entries"]
+    for entry in reading["entries"]:
+        covered = [word for word in reading["words"] if _meets(word, entry)]
+        assert not covered, (entry, covered)
+    pair = {
+        "left": min(e["left"] for e in reading["entries"]),
+        "right": max(e["right"] for e in reading["entries"]),
+        "top": min(e["top"] for e in reading["entries"]),
+        "bottom": max(e["bottom"] for e in reading["entries"]),
+    }
+    apart = min(
+        max(
+            0,
+            part["left"] - pair["right"],
+            pair["left"] - part["right"],
+            part["top"] - pair["bottom"],
+            pair["top"] - part["bottom"],
+        )
+        for part in reading["parts"]
+    )
+    # Within the 12px `pinSpot` reaches from its target.
+    assert apart <= 12, (pair, reading["parts"])
+
+
+def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, serve):
+    """A block that draws its own box, with a fill, a rule or a shadow, reads as one
+    thing, so a pin anywhere on it reads as that block's: the heading's empty end is
+    room for a pin only while the heading paints nothing there."""
+    body = (
+        '<h1 id="t">Notes</h1><h2 id="h">Console</h2><p>The status column is the '
+        '<lf-suggestion id="s"><lf-old>release\'s only visual change.</lf-old>'
+        "<lf-new>only change to the run-list layout.</lf-new></lf-suggestion></p>"
+        "<p>The next paragraph starts a new subject and runs on long enough to fill "
+        "the lines beneath the suggestion.</p>"
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    stands = {}
+    for painted in (False, True):
+        head = "<style>#h { background: #eee; }</style>" if painted else ""
+        page = open_page(
+            browser, serve(leaf_page("a heading", body, head=head)), context=context
+        )
+        margins_laid_out(page)
+        expect(
+            page.locator('.lf-margin-cluster[data-lf-margin-for="s"]')
+        ).to_have_attribute("data-lf-place", "pin")
+        heading = page.evaluate(
+            "() => { const {left, top, right, bottom} ="
+            " document.getElementById('h').getBoundingClientRect();"
+            " return {left, top, right, bottom}; }"
+        )
+        entries = page.evaluate(PIN_READING, "s")["entries"]
+        assert len(entries) == 2, entries
+        stands[painted] = any(_meets(entry, heading) for entry in entries)
+        page.close()
+    assert stands == {False: True, True: False}, stands
+
+
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     """A `display: contents` target anchors through its first shown part, but its pin
     stands at the corner of every part together, and shows while they do."""

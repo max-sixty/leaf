@@ -160,11 +160,11 @@ vendored component or a focus borrow does, joins `EXPECTED` in `write_watch.js` 
 that reason. A test that reads the page by changing it and putting it back does so
 inside `lfUnwatched`.
 
-Typing that moves its own field, or anything standing before it, is one of those
-problems (`typing_watch.js`), so a test that types checks the "Stability" rule in
-`skills/leaf/assets/AGENTS.md` without asking. Playwright's `fill`, `insert_text`
-and `press` all type; a `value` written by script does not. Fix what moved rather
-than consuming the report.
+Typing that carries the field it types in is one of those problems
+(`typing_watch.js`), so every test that types checks that part of the "Stability" rule
+in `skills/leaf/assets/AGENTS.md`. Playwright's `fill`, `insert_text` and `press` all
+type; a `value` written by script does not. Fix what moved the field rather than
+consuming the report.
 
 ## A page is ready when it says what has finished
 

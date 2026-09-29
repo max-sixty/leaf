@@ -60,8 +60,8 @@ shift: when a box's content changes without a gesture, that box may grow or shri
 into free room, but no other element moves. A change the user requested may reflow
 the content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
-may grow its field and push what follows it, and moves nothing else; the suite's
-browser fixture fails any test whose typing does (`tests/typing_watch.js`).
+may grow its field at the edge its layout grows, but never carries the field; the
+suite's browser fixture fails any test whose typing does (`tests/typing_watch.js`).
 
 Generated interface first appears in its settled position. Reserve space before a
 generated control appears; transient feedback may repaint a control or briefly

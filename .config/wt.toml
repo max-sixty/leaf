@@ -71,10 +71,10 @@ then
 fi
 '''
 
-# uv run synchronizes the locked Python environment. The external previews, browser
+# uv run synchronizes the locked Python environment. The external images, browser
 # binaries, and website node_modules live outside it, so those remain explicit.
 [[aliases.setup]]
-assets = "uv run --frozen leaf-dev fetch-previews"
+assets = "uv run --frozen leaf-dev fetch-assets"
 
 [[aliases.setup]]
 chromium = "uv run --frozen playwright install chromium --only-shell"

@@ -26,6 +26,9 @@ repos:
       - id: check-json
       - id: check-toml
       - id: mixed-line-ending
+      # Every tracked byte ships in every install (AGENTS.md, "The install runs this
+      # tree"). It checks only files a commit adds, past the exclude above.
+      - id: check-added-large-files
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.1
     hooks:

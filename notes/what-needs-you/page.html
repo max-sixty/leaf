@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>What needs you</title>
+  <meta name="description" content="Research and six proposals for how Leaf should track what the user owes the agent and what the agent owes the user, so the list of open things can reach zero without losing work.">
+  <style>
+    .mock {
+      margin: var(--sp-3) 0 0;
+      padding: var(--sp-2) var(--sp-3);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      font-size: 0.9em;
+    }
+    .mock p { margin: 0 0 var(--sp-1); font-weight: 600; }
+    .mock ul { margin: 0; padding: 0; list-style: none; }
+    .mock li { margin: 0.2em 0; }
+    .mock li.grey { opacity: 0.6; }
+    .mock .tag { margin-right: 0.4em; }
+    .three-cases { margin: var(--sp-2) 0 0; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+<main class="layout-column">
+
+<header id="top">
+  <p class="eyebrow">design research</p>
+  <h1>What needs you: which unit should Leaf count?</h1>
+  <p class="lede">An Ask ends when it's answered. A thread doesn't: it tracks whose move it is, what is still owed, whether it's finished, and whether you need to look at it with only the last speaker, one optional flag and one Resolve button. So you either lose work or keep a list that never empties. The six directions below differ on which unit "needs you" counts. I recommend a <em>loop</em>: one thing one side owes the other, which only one side can act on at a time.</p>
+</header>
+
+<section id="today">
+  <h2>A thread tracks four facts with one flag and one button, and the agent's debt is lost between them</h2>
+  <p>An Ask carries all four facts properly. You owe it, it has a condition for being answered, and meeting that condition closes it. A thread carries them like this:</p>
+  <table id="four-facts">
+    <thead><tr><th>Fact</th><th>What a thread uses today</th><th>What goes wrong</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Whose move is it?</th><td>The last speaker, plus <code>--awaits</code> on an agent reply</td><td>An agent reply without <code>--awaits</code> leaves the thread on nobody, and <code>--awaits</code> goes stale</td></tr>
+      <tr><th scope="row">What is still owed?</th><td>The <code>workflows</code> answer for the latest user move</td><td>Resolve settles it: after "please also add a TODO" and Resolve, the agent owes nothing</td></tr>
+      <tr><th scope="row">Is it finished, and who says so?</th><td>Resolve, by either side</td><td>One gesture means done, dropped, handed off and "later"</td></tr>
+      <tr><th scope="row">Do I need to look at it?</th><td>Open or resolved, plus unread</td><td>An open thread that owes nothing counts toward no one and never closes itself, so the list can't reach zero</td></tr>
+    </tbody>
+  </table>
+  <lf-diagram id="today-states" parts="node:OnAgent node:OnYou node:Nobody node:Resolved">
+    <pre>
+stateDiagram-v2
+  state "On the agent" as OnAgent
+  state "On you" as OnYou
+  state "Nobody (still open)" as Nobody
+  state "Resolved" as Resolved
+  [*] --&gt; OnAgent: you comment
+  [*] --&gt; OnYou: agent opens a thread with a question
+  OnAgent --&gt; OnYou: agent replies with --awaits or an Ask
+  OnAgent --&gt; Nobody: agent replies without --awaits
+  OnYou --&gt; OnAgent: you reply
+  OnYou --&gt; Nobody: your 👍 settles the question
+  Nobody --&gt; OnAgent: you reply
+  OnAgent --&gt; Resolved: you resolve, and what the agent owed is settled
+  OnYou --&gt; Resolved: you or the agent resolve
+  Nobody --&gt; Resolved: you or the agent resolve
+  Resolved --&gt; Nobody: agent replies, or you reopen
+    </pre>
+  </lf-diagram>
+  <p>Two transitions cause the pain. "Nobody (still open)" is a state that no count includes and nothing ever closes. "You resolve" from "On the agent" discharges the agent's debt without anyone having paid it.</p>
+</section>
+
+<section id="evidence">
+  <h2>On real pages, what's missing is results and requests, not questions</h2>
+  <p>A subagent read every thread on the 55 pages in this machine's state home and worktrees that carry real user text (July to September): 169 threads and 224 user messages, each classified by hand.</p>
+  <div class="layout-tiles" id="evidence-tiles">
+    <lf-metric id="m-user-opened" value="164 / 169">threads you opened</lf-metric>
+    <lf-metric id="m-agent-asks" value="3%">agent thread messages that ask you anything</lf-metric>
+    <lf-metric id="m-limbo" value="57">threads left open on nobody (median age 28 days)</lf-metric>
+    <lf-metric id="m-promise-resolves" value="15">threads you resolved right after the agent promised work</lf-metric>
+  </div>
+  <ul>
+    <li><strong>Threads run one way.</strong> You ask or instruct, and the agent answers or reports. Decisions already go to Asks, and Asks drain: of 104 on pages you used, 77 were answered and 11 retired, in bursts.</li>
+    <li><strong>Resolve means "off my list", not "done".</strong> 73% of resolves come within three minutes of another on the same page, so you sweep. You asked about it outright: "confirm that when I resolve a thread, [it] doesn't discard the work, and can reopen the thread to tell me when the work has finished". Twice a request was resolved within 9 seconds of being sent and never got a reply ("maybe we add a TODO…", "ensure we're clear about this in our CLAUDE.md").</li>
+    <li><strong>The seam between threads and Asks has no rules.</strong> 46 threads were opened inside Asks:
+      <ul>
+        <li>15 ask a question before choosing ("what are the tradeoffs?").</li>
+        <li>10 ask for more material ("show me sketch"), which leaves the Ask waiting on the agent.</li>
+        <li>13 answer the Ask in prose, and the agent then records the pick by hand ("I've marked the Ask with that choice").</li>
+      </ul>
+    </li>
+    <li><strong>A third of your messages mix kinds.</strong> For example, "ok, yes, let's have the ring; and add a TODO that it may be a bit too strong". When the agent answered four questions at once, you replied "start with #2 &amp; #3".</li>
+    <li><strong><code>--awaits</code> and reactions barely work.</strong> <code>--awaits</code> is on 5% of agent replies, and only 5 of those 11 end in a question mark. One completion report has sat "On you" for 19 days. There is one real reaction in the whole corpus, and it settles nothing.</li>
+  </ul>
+  <details id="evidence-method">
+    <summary>How this was measured, and what it can't show</summary>
+    <p>The subagent kept logs with human-timed user text and dropped the example corpus, eval fixtures and preview copies, deduplicating by message id. The counts come from scripts, and the message kinds were read by hand in thread context, by one reader in one pass. Of the 18 resolves that followed a promise-like reply, 15 were real promises. The logs can't show whether the agent acted on the two resolved requests outside the page, what you said in the terminal, or exactly when you answered an Ask; revision file times stand in for that. A later pass, used in the mechanism table below, re-ran on the grown corpus of 59 pages and 177 threads.</p>
+    <table id="message-kinds">
+      <caption>User messages by kind (215, excluding 9 connectivity probes). "Primary" is the message's main kind; "present" counts every message with that kind in it.</caption>
+      <thead><tr><th>Kind</th><th class="num">Primary</th><th class="num">Present</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Question to the agent</th><td class="num">74</td><td class="num">94</td></tr>
+        <tr><th scope="row">Instruction or request</th><td class="num">55</td><td class="num">90</td></tr>
+        <tr><th scope="row">Decision, or an answer to the agent</th><td class="num">36</td><td class="num">37</td></tr>
+        <tr><th scope="row">Critique or correction</th><td class="num">25</td><td class="num">32</td></tr>
+        <tr><th scope="row">FYI or opinion</th><td class="num">11</td><td class="num">15</td></tr>
+        <tr><th scope="row">Acknowledgement</th><td class="num">11</td><td class="num">11</td></tr>
+        <tr><th scope="row">Deferral or "TODO later"</th><td class="num">3</td><td class="num">11</td></tr>
+      </tbody>
+    </table>
+  </details>
+</section>
+
+<section id="elsewhere">
+  <h2>Elsewhere, whoever did the work reports it, and the one who asked, or a timer, closes it</h2>
+  <p>Every mature system keeps "whose move", "what's owed" and "is it finished" apart. The human-facing ones add a step the agent-to-agent protocols (A2A, MCP Tasks, FIPA) lack: the requester confirms, cheaply, with a timer or a reply as the backstop. Google's Critique is the deliberate exception: the author resolves reviewer comments on trust.</p>
+  <table id="prior-art">
+    <thead><tr><th>System</th><th>What it keeps apart</th><th>Who closes</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Gerrit, Google Critique</th><td>The attention set (whose turn) and each comment's unresolved flag</td><td>The author marks Done or Ack, on trust. Gerrit 3.9 can put the owner back in the attention set after a period of inactivity.</td></tr>
+      <tr><th scope="row">Reviewable</th><td>Unreplied and resolved; each participant's disposition (Blocking, Working, Satisfied…)</td><td>Resolved when someone is Satisfied and nobody is Blocking or Working</td></tr>
+      <tr><th scope="row">Zendesk, Help Scout</th><td>Pending or Open (whose turn) and Solved then Closed (lifecycle). The agent picks the next status as it replies ("Submit as…").</td><td>The agent proposes Solved, a requester reply reopens it, and a timer closes it after 4 days</td></tr>
+      <tr><th scope="row">Camunda delegation</th><td>The delegate's <code>resolveTask</code> and the owner's <code>complete</code></td><td>Only the owner completes; the delegated task comes back to them "for review"</td></tr>
+      <tr><th scope="row">Linear agents</th><td>Session state derived from the kind of the agent's last activity (question, answer, action)</td><td>Issues are assigned to humans and only delegated to agents: "an agent cannot be held accountable"</td></tr>
+      <tr><th scope="row">Claude Code agent view, Devin, Jules</th><td>"Needs input" and "Ready for review" as two separate kinds of "needs you"</td><td>The human archives or merges</td></tr>
+      <tr><th scope="row">WS-HumanTask, MCP elicitation</th><td>Completed, Exited ("no longer interested"), Obsolete; accept, decline, cancel</td><td>Dropping is a named outcome, never a silent done</td></tr>
+    </tbody>
+  </table>
+  <aside class="callout" id="coordinator">The best-known attempt at explicit commitment tracking, Winograd and Flores' Coordinator (late 1980s), was rejected by its users, partly because they had to label each message as a request or a promise. Lucy Suchman went further and criticised the accounting itself as "a technology of accountability". Winograd's reply conceded that explicit structure feels like an imposition in unstructured, email-like work. Cohen et al. (2004) point out that the labelling burden "is avoided if messages can be automatically annotated by intent". In Leaf the agent is a language model that already reads every message, so it can do the labelling. Suchman's objection still applies to anything that puts the categories in front of you.</aside>
+  <ul id="lessons">
+    <li><strong>"Needs you" comes in two kinds.</strong> <em>Answer</em> means a question only you can settle. <em>Review</em> means the agent reports it's done and you check. The "nobody" state is exactly where review went missing.</li>
+    <li><strong>A close that drops owed work must say so.</strong> "Done", "withdrawn" and "later" are different outcomes. Resolving over a pending request is a withdrawal you never chose.</li>
+    <li><strong>The reply sets the next state, and it's not an optional flag.</strong> Zendesk's "Submit as…" and Gerrit's reply dialog make whoever replies pick whose move is next. Linear and Intercom derive the state from whether the agent's last message asked or answered. <code>--awaits</code> is optional, and nothing notices when it's left off.</li>
+    <li><strong>Split a multi-part question into parts that each settle.</strong> No system models "half answered" inside one message. Critique settles each comment separately, and AskUserQuestion answers each question separately.</li>
+    <li><strong>Zero means nothing undecided, not everything finished.</strong> In GTD and Inbox Zero, delegated work moves to a trusted "Waiting for" list. Masicampo and Baumeister (2011) found that a concrete plan removes an unfinished goal's pull, but only if the plan is credible.</li>
+    <li><strong>A deferral ends on a condition or a clock.</strong> Linear snoozes until a date or new activity, whichever comes first. Superhuman and HEY bring a thread back "if no reply by" a date. Reviewable defers until a new revision.</li>
+    <li><strong>Silence means different things after a report and after a question.</strong> After a report, silence can be read as acceptance, labelled "assumed" (Winograd; Zendesk's timer; Intercom Fin's 24 hours). After a question, it is an absence someone has to pursue (conversation analysis).</li>
+    <li><strong>Asking too much ruins the count.</strong> Claude Code users approve 93% of permission prompts. Copilot moved to an explicit <code>@copilot</code> mention so people can leave thoughts without triggering work. GitLab built an attention set and cancelled it, because it moved attention without consent.</li>
+  </ul>
+  <details id="research-sources">
+    <summary>Sources and further findings</summary>
+    <ul>
+      <li>Theory of commitments:
+        <ul>
+          <li>Winograd, "A Language/Action Perspective on the Design of Cooperative Work" (1986): <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-CSCW86.pdf">PDF</a>.</li>
+          <li>Medina-Mora et al., "The Action Workflow Approach" (CSCW 1992): <a href="https://www.lri.fr/~mbl/ENS/CSCW/material/papers/MedinaMora-CSCW92.pdf">PDF</a>.</li>
+          <li>Winograd's reply to Suchman (1994), which quotes her critique: <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-JCSCW94.pdf">PDF</a>.</li>
+        </ul>
+      </li>
+      <li>Email as a task manager:
+        <ul>
+          <li>Cohen, Carvalho and Mitchell, "Learning to Classify Email into Speech Acts" (2004): <a href="http://www.cs.cmu.edu/~wcohen/postscript/acl-2004.pdf">PDF</a>.</li>
+          <li>Bellotti et al., "Taking Email to Task" (CHI 2003), found that a status marker alone "gave a sense of to-doness [but] did not help much in planning": <a href="http://www.chi2004.org/res/Taking%20Email%20to%20Task.pdf">PDF</a>.</li>
+        </ul>
+      </li>
+      <li>How conversations move on and close:
+        <ul>
+          <li>Bangerter and Clark, "Navigating joint projects with dialogue" (2003): "uh-huh" continues a project and "okay" closes it. That is the difference between "I've answered half" and "we're done": <a href="https://web.stanford.edu/~clark/2000s/Bangerter,%20A.%20_%20Clark,%20H.H.%20_Navigating%20joint%20projects%20with%20dialogue_%202003.pdf">PDF</a>.</li>
+          <li>Schegloff and Sacks, "Opening up closings" (1973): a proposal to close leaves the other party one last turn to raise anything left unsaid: <a href="https://web.stanford.edu/~eckert/Courses/l1562018/Readings/SchegloffSacks1973.pdf">PDF</a>.</li>
+        </ul>
+      </li>
+      <li>Unfinished goals and commitments at work:
+        <ul>
+          <li>Masicampo and Baumeister (2011): <a href="https://users.wfu.edu/masicaej/MasicampoBaumeister2011JPSP.pdf">PDF</a>.</li>
+          <li>Sull and Spinosa, "Promise-Based Management" (HBR 2007): <a href="https://stratam.com/Promise-Based-Management.pdf">PDF</a>.</li>
+          <li>Procore's ball in court on RFIs: <a href="https://support.procore.com/products/online/user-guide/project-level/rfi/tutorials/shift-the-ball-in-court-on-an-rfi">docs</a>.</li>
+          <li>Ghibellini and Meier's 2025 meta-analysis finds no general memory advantage for unfinished tasks (the Zeigarnik effect), but a robust pull to resume them (the Ovsiankina effect). The aim is therefore "every open thing has an owner and a next step I trust", not "finish everything": <a href="https://www.nature.com/articles/s41599-025-05000-w">article</a>.</li>
+        </ul>
+      </li>
+      <li>Review tools:
+        <ul>
+          <li>Gerrit attention set: <a href="https://gerrit-review.googlesource.com/Documentation/user-attention-set.html">docs</a>.</li>
+          <li>Gerrit 3.9's <code>readdAfter</code>: <a href="https://www.gerritcodereview.com/3.9.html">release notes</a>.</li>
+          <li>Reviewable dispositions: <a href="https://docs.reviewable.io/discussions">docs</a>.</li>
+          <li>GitLab's cancelled attention requests: <a href="https://gitlab.com/groups/gitlab-org/-/epics/5331">epic 5331</a>.</li>
+          <li>GitHub's "resolve without addressing" complaint: <a href="https://github.com/orgs/community/discussions/12961">discussion 12961</a>.</li>
+        </ul>
+      </li>
+      <li>Agent and workflow platforms:
+        <ul>
+          <li>Linear agent interaction: <a href="https://linear.app/developers/agent-interaction">docs</a>.</li>
+          <li>Camunda <code>resolveTask</code>: <a href="https://docs.camunda.org/javadoc/camunda-bpm-platform/7.14/org/camunda/bpm/engine/TaskService.html">javadoc</a>.</li>
+          <li>Zendesk ticket lifecycle: <a href="https://support.zendesk.com/hc/en-us/articles/8263915942938-About-the-ticket-lifecycle-and-ticket-statuses">docs</a>.</li>
+          <li>Intercom Fin resolutions: <a href="https://fin.ai/help/en/articles/10772642-fin-ai-agent-resolutions">docs</a>.</li>
+          <li>Claude Code agent view: <a href="https://code.claude.com/docs/en/agent-view">docs</a>.</li>
+          <li>MCP elicitation: <a href="https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation">spec</a>.</li>
+        </ul>
+      </li>
+    </ul>
+  </details>
+</section>
+
+<section id="mechanisms">
+  <h2>Five mechanisms tested on the logs; the big surprise is that results land outside their thread</h2>
+  <p>The directions below are assembled from a handful of mechanisms. A second subagent pass tested each mechanism's cheapest falsifier against the grown corpus (59 pages, 177 threads).</p>
+  <table id="mechanism-tests">
+    <thead><tr><th>Mechanism</th><th>What the logs show</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">A result closes the thread it was promised in</th><td>It never did. Of 15 threads resolved after a promise, none got its result posted there. 6 results landed in a version note or a sibling thread, and 9 went to another session by design. A promise is also the thread's last agent word in 24 of 41 cases.</td></tr>
+      <tr><th scope="row">Reading a result acknowledges it</th><td>Plausible, on thin evidence. Read tracking began on 22 September. Since then, 64 of 64 resolves came after the message was read, a median 0.7 minutes later, but that is close to mechanical, since you read before you resolve. The direct evidence is the 6 threads read and then left: 3 were results, where reading settles it, and 3 were a promise and two proposals awaiting a press, where it doesn't.</td></tr>
+      <tr><th scope="row">An Ask drops off the list while a thread inside it waits on the agent</th><td>Safe. The rule was right for 32 of 46 threads, and in 22 of those you then answered by pressing the Ask. Another 13 were prose answers, where hiding the Ask is also right, and 1 was wrong. Separately, three times a prose answer ("yes, great on both") got the reply "press the Ask".</td></tr>
+      <tr><th scope="row">The agent splits each message into loops</th><td>Feasible, with a real error rate. About 26% of your messages hold more than one owed thing; that is fewer than the 32% that mix kinds, since a critique and a question often make one request. In a sample of 88 messages weighted toward mixed ones, a third split in more than one defensible way, and for 14 of the 88 (16%) the choice changes what's on your list. The agent already misread two messages this way without loops: it parked a request as "later" (you replied "can we do this change now?"), and it didn't take a prose answer as an answer.</td></tr>
+      <tr><th scope="row">A question survives in prose</th><td>It doesn't. Offers such as "tell me and I'll add it" and "say the word and I'll put them up" were never answered, and no agent thread message asked two or more explicit questions. Asks persist: of 19 Asks left after partial answering, 7 were pressed later (median 15 hours), and only 3 were lost with their page.</td></tr>
+    </tbody>
+  </table>
+  <p>Two consequences hold whichever direction is picked:</p>
+  <ul>
+    <li><strong>A request must be closable from anywhere.</strong> Its result can arrive in a version, another thread, or another session.</li>
+    <li><strong>A cross-page list needs aging or a "done with this page".</strong> It would start with 58 threads ending on an agent message, 70% of them older than two weeks. 33 of those messages arrived after you last touched their page, so you never saw them.</li>
+  </ul>
+</section>
+
+<section id="script">
+  <h2>One script, run through every direction</h2>
+  <p>Each option below shows what your list holds after the same session. The agent hands over a design page with four Asks: <em>Where should status appear?</em>, <em>Keep the ring?</em>, <em>Should the dot pulse?</em> and <em>Hide when idle?</em> Then:</p>
+  <ol class="steps" id="script-steps">
+    <li>On §Banner you write "Make the banner quieter." The agent replies "Building now…". Later it stamps version 4, whose note says "Banner quieter", and posts nothing in the thread.</li>
+    <li>In a thread on the status Ask you write "Show me a sketch of each first." The agent hasn't sent it yet.</li>
+    <li>You press "No" on the pulse Ask and leave <em>Hide when idle?</em> for later.</li>
+    <li>In a thread on the ring Ask you write "yes to the ring; add a TODO that it may be too strong", and resolve that thread straight away. The agent records "yes" on the Ask and replies "Recorded; I'll add the TODO", but hasn't added it yet.</li>
+  </ol>
+  <p>Each list is a snapshot taken right after these steps, before you read the version note or the agent's reply. By then, you still owe <em>Hide when idle?</em>, a check of the banner, and a pick on status once the sketch arrives. The agent still owes the sketch and the TODO.</p>
+</section>
+
+<section id="directions-section">
+  <lf-ask id="direction">
+    <h2>Which unit should "needs you" count?</h2>
+    <p>The directions differ on the unit that holds the ball: the thread, a queue shared with Asks, a loop, an entry in the page's text, the page itself, or an unread message. Each option shows its list after the script, assuming the agent follows that option's rules, and then what your three cases become: you want the agent to answer, you've answered half, and you're done. The chips compare the same three facets throughout, and the effort figures are my estimates. Only C gets a table of transitions, because it is the one new primitive; the others' rules are complete in their text.</p>
+    <lf-options id="direction-pick" choose>
+      <lf-option id="dir-total-turn">
+        <lf-chip>unit: thread</lf-chip><lf-chip>result elsewhere: lost</lf-chip><lf-chip>effort: ~1 week</lf-chip>
+        <strong>A · Total turn: fix threads in place</strong> Delete the "nobody" state. Every open thread is either on you or on the agent: any agent reply puts it on you, and your reply puts it on the agent. Resolve takes a thread off your list but never settles what the agent owes. A promise is a <code>status --on</code> claim that outlives the turn, and a reply made under a live claim keeps the thread on the agent. An agent reply reopens a resolved thread, as today. A promise from a session that has died counts as yours, since only you can restart the work. <code>--awaits</code> and the settling 👍 are deleted.
+        <div class="mock"><p>Needs you · 2</p><ul>
+          <li><span class="tag">Ask</span>Where should status appear? <em>(counts, though the sketch isn't here)</em></li>
+          <li><span class="tag">Ask</span>Hide when idle?</li>
+          <li class="grey"><span class="tag">agent</span>Banner <em>(the result went to the version note, so the thread still waits and you're never told)</em> · Sketch · Ring, under the TODO claim</li>
+        </ul></div>
+        <p class="three-cases">Your three cases: to get an answer, reply. To answer half, reply, and the agent has to restate the rest in prose. When you're done, resolve, which is now safe.</p>
+        <em>Weak where a thread holds several things, because one claim covers the whole thread and the agent must remember what it promised inside it. An Ask waiting on a sketch still counts. A result posted anywhere but the thread never closes it, so you never see it as done.</em>
+      </lf-option>
+      <lf-option id="dir-one-queue">
+        <lf-chip>unit: Ask or thread</lf-chip><lf-chip>result elsewhere: lost</lf-chip><lf-chip>effort: 2–3 weeks</lf-chip>
+        <strong>B · One queue: threads that need you join the Asks</strong> B is A plus one queue walked with <code>a</code>: open Asks, threads whose latest agent turn you haven't closed, and promises from dead sessions. An Ask with a thread inside it waiting on the agent drops off the queue until the reply lands. The agent asks prose questions as Asks (<code>--ask</code>), your next reply retires them, and the agent re-poses whatever you left open. Agents stop opening threads.
+        <div class="mock"><p>Needs you · 1, walked with <code>a</code></p><ul>
+          <li><span class="tag">Ask</span>Hide when idle?</li>
+          <li class="grey"><span class="tag">agent</span>Status Ask, waiting on the sketch · Banner <em>(the result went to the version note, so you're never told)</em> · Ring, under the TODO claim</li>
+        </ul></div>
+        <p class="three-cases">Your three cases: to get an answer, reply. To answer half, press what you can, and the agent re-poses the rest as Asks. When you're done, <kbd>r</kbd> on the review item.</p>
+        <em>Weak on mixed messages, since one claim covers "yes ring + TODO" as a whole. A result posted outside the thread still never closes it, so the queue looks clear while a result waits unseen.</em>
+      </lf-option>
+      <lf-option id="dir-loops">
+        <lf-chip>unit: loop</lf-chip><lf-chip>result elsewhere: closes it</lf-chip><lf-chip>effort: 4–6 weeks</lf-chip><lf-chip tone="ok">recommended</lf-chip>
+        <strong>C · Loops: one owed thing, one side to act</strong> A loop is one thing one side owes the other. An <em>ask</em> is owed by you: every Ask is one. A <em>request</em> is owed by the agent: every message you send is one request by default. When a message mixes things, the agent's reply may split it into several loops, and the split shows as chips you can correct with one click. The agent can report a request <em>ready</em> from anywhere: a thread, a version stamp, another session. Reading a ready result accepts it, labelled "assumed". A thread becomes conversation only, and its state is derived from its loops. A thread with no open loop is settled and leaves every list, so there is no "nobody" limbo: a thread that owes nothing is finished by definition. Resolve becomes <em>Close</em>, which accepts what's ready and leaves what the agent still owes with the agent. <em>Drop</em> withdraws a request of yours.
+        <div class="mock"><p>Needs you · 1 to answer · 1 to review</p><ul>
+          <li><span class="tag">answer</span>Hide when idle?</li>
+          <li><span class="tag">review</span>Quieter banner, ready in version 4 · reading it accepts</li>
+          <li class="grey"><span class="tag">agent</span>Sketch, which holds up the status Ask · TODO "ring may be too strong" <em>(split from your ring message)</em></li>
+        </ul></div>
+        <p class="three-cases">Your three cases: to get an answer, reply, which opens a request on the agent. To answer half, answer what you can: each question is its own loop, so the rest stays open. When you're done, <em>Close</em> accepts what's ready, and anything the agent still owes stays with it unless you <em>Drop</em> it.</p>
+        <details id="loop-transitions">
+          <summary>Who moves each transition</summary>
+          <table id="loop-table">
+            <thead><tr><th>Loop</th><th>Transition</th><th>Who</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">request</th><td>open → taken (a promise: the <code>status --on</code> claim)</td><td>agent</td></tr>
+              <tr><th scope="row">request</th><td>open or taken → ready, citing where the result is</td><td>agent</td></tr>
+              <tr><th scope="row">request</th><td>ready → accepted</td><td>you, by reading it (assumed) or by Close</td></tr>
+              <tr><th scope="row">request</th><td>ready or accepted → open, when the result is wrong</td><td>you, by replying to it</td></tr>
+              <tr><th scope="row">request</th><td>open or taken → declined, with a reason, back to you to read</td><td>agent</td></tr>
+              <tr><th scope="row">request</th><td>any → dropped</td><td>you, by Drop</td></tr>
+              <tr><th scope="row">request</th><td>one message → several loops (a split), shown as chips</td><td>agent, when it replies; you correct a chip with one click</td></tr>
+              <tr><th scope="row">request</th><td>open → handed (dispatched, with a link to where it went)</td><td>agent</td></tr>
+              <tr><th scope="row">ask</th><td>open → answered</td><td>you, by pressing; or the agent, recording your prose answer as a chip you can correct</td></tr>
+              <tr><th scope="row">ask</th><td>open → declined ("didn't need me")</td><td>you</td></tr>
+              <tr><th scope="row">ask</th><td>open → retired</td><td>agent</td></tr>
+              <tr><th scope="row">ask</th><td>open ⇄ blocked, while a request inside it is with the agent</td><td>derived</td></tr>
+              <tr><th scope="row">either</th><td>→ later, until the next version, a date, or someday; wakes itself</td><td>you, or the agent for its own</td></tr>
+              <tr><th scope="row">request</th><td>taken → stalled, when the claiming session has died; shown as yours</td><td>derived</td></tr>
+            </tbody>
+          </table>
+        </details>
+        <em>My take: results land in versions, sibling threads and other sessions, and C is the only option that still closes such a request per topic without writing the books into the page's prose (D) or closing only whole pages (E). C also keeps both halves of your ring message. Four of A's rules carry into C as they are, so they can ship first: a promise is a claim, a dead session's promise is yours, closing never settles what the agent owes, and <code>--awaits</code> and the settling 👍 go. B's re-posing rule doesn't carry over.</em>
+        <em>Weak where the agent's split is wrong: up to one message in six in a sample weighted toward mixed messages, and fewer overall. It also puts commitment categories in front of you, which is Suchman's objection to The Coordinator. The mitigations: chips appear only when a split differs from one message = one request, and Close is the only routine gesture. On a dispatch, the request closes as handed, not when the other session finishes, unless that session reports back. The Stop hook asks for a position on each open request, which is today's "answer every move" rule with more ways to answer.</em>
+      </lf-option>
+      <lf-option id="dir-ledger">
+        <lf-chip>unit: entry in the page</lf-chip><lf-chip>result elsewhere: closes it</lf-chip><lf-chip>effort: 3–4 weeks</lf-chip>
+        <strong>D · Ledger: the agent keeps the books on the page</strong> The append door requires the agent to account for every user message: answered, an entry, an Ask answer, noted, or declined. The Stop hook refuses a turn that leaves any message unaccounted for. Entries are an <code>lf-ledger</code> widget in the document, which makes the closeout 📌 list a widget: each entry is owed, done (with a link), deferred or dropped. You only answer Asks and contest entries ("not done"). Threads fold once read and never settle anything. Finished results don't count.
+        <div class="mock"><p>Needs you · 1</p><ul>
+          <li><span class="tag">Ask</span>Hide when idle?</li>
+          <li class="grey"><span class="tag">ledger</span>Quieter banner: done, version 4 · Sketch: owed, holds up the status Ask · TODO ring: owed</li>
+        </ul></div>
+        <p class="three-cases">Your three cases: to get an answer, reply, and the agent must account for it. To answer half, answer what you can; the rest stay Asks. When you're done, do nothing: threads fold once read, and entries close by the agent's account.</p>
+        <em>Weak where process text crowds the content, since the books live in the page's prose. A result you never check is closed on the agent's word alone. A dispatch leaves the page's books.</em>
+      </lf-option>
+      <lf-option id="dir-rounds">
+        <lf-chip>unit: page</lf-chip><lf-chip>result elsewhere: in the digest</lf-chip><lf-chip>effort: 3–4 weeks</lf-chip>
+        <strong>E · Rounds: the page takes turns and closes once</strong> Threads become notes with no closure of their own. The agent hands the page over with a digest of what changed, what it needs and what it's still doing. You can hold notes and send them as a batch when you hand the page back. To close, you press Close, and the agent first sends a list of everything done, left undone and dropped. A hub across pages shows one row per page that's yours.
+        <div class="mock"><p>Your pages · 1</p><ul>
+          <li><span class="tag">yours</span>Design page: 1 decision (hide when idle), 1 result to check (version 4). The agent is still drawing the sketch and owes the TODO.</li>
+        </ul></div>
+        <p class="three-cases">Your three cases: to get an answer, send the note now, or hold it and hand the page back. To answer half, hand back with what you answered; the next digest lists the rest. When you're done, press Close, and the agent's closing list shows what's left.</p>
+        <em>Weak on long pages with some topics finished and others hot, since the page never closes. A quick question costs a whole hand-over, and the page only drains if the agent writes a digest every round.</em>
+      </lf-option>
+      <lf-option id="dir-passes">
+        <lf-chip>unit: message</lf-chip><lf-chip>result elsewhere: news</lf-chip><lf-chip>effort: 2–3 weeks</lf-chip>
+        <strong>F · Passes: catch up, and reading is the receipt</strong> Keep no standing list of threads. Each agent message is news, graded none, invited or required, and only an Ask can be required. News graded none, such as "Building now…" or "Recorded; I'll add the TODO", is accepted at once. A review pass across pages walks the rest. Passing over a result accepts it, labelled "assumed". A required Ask returns at the top of each pass, and after three passes the agent must pick a reversible default. Resolve is deleted, and zero means you're caught up.
+        <div class="mock"><p>This pass · 3</p><ul>
+          <li><span class="tag">news</span>Version 4: "Banner quieter" · passing accepts it</li>
+          <li><span class="tag">required</span>Hide when idle? (pass 1 of 3)</li>
+          <li><span class="tag">required</span>Where should status appear? (pass 1 of 3, though the sketch isn't here)</li>
+        </ul></div>
+        <p class="three-cases">Your three cases: to get an answer, reply. To answer half, answer some; the rest return next pass. When you're done, do nothing: passing over it is the close.</p>
+        <em>Weak on the TODO, which nothing tracks except the agent's own reply, as today. A skim counts as acceptance, and an Ask waiting on the agent burns its passes.</em>
+      </lf-option>
+    </lf-options>
+  </lf-ask>
+</section>
+
+<section id="scenarios">
+  <h2>How each direction handles the cases in the logs</h2>
+  <p>✓ means handled by structure. ◐ means structural, but relies on the agent splitting or accounting for a message correctly. ~ means it works only if the agent behaves. ✗ means lost or wrong. Every case is taken from a real thread.</p>
+  <table id="scenario-matrix">
+    <thead><tr><th>Case</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">The result is posted in the thread</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">The result lands in a version note or another thread</th><td>✗</td><td>✗</td><td>◐</td><td>◐</td><td>◐</td><td>~</td></tr>
+      <tr><th scope="row">Resolve right after asking (hand-off)</th><td>✓</td><td>✓</td><td>✓</td><td>◐</td><td>✓</td><td>~</td></tr>
+      <tr><th scope="row"><code>/dispatch</code> to another session</th><td>~</td><td>~</td><td>◐</td><td>~</td><td>~</td><td>~</td></tr>
+      <tr><th scope="row">Four Asks, two answered</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">"Yes ring; add a TODO"</th><td>~</td><td>~</td><td>◐</td><td>◐</td><td>~</td><td>✗</td></tr>
+      <tr><th scope="row">"Show me a sketch" inside an Ask</th><td>✗</td><td>✓</td><td>✓</td><td>◐</td><td>◐</td><td>✗</td></tr>
+      <tr><th scope="row">A prose answer to an Ask</th><td>~</td><td>~</td><td>◐</td><td>◐</td><td>~</td><td>~</td></tr>
+      <tr><th scope="row">Answered in the terminal instead</th><td>~</td><td>~</td><td>◐</td><td>◐</td><td>~</td><td>~</td></tr>
+      <tr><th scope="row">A page left for weeks with unseen results</th><td>✗</td><td>✗</td><td>✗</td><td>◐</td><td>◐</td><td>✓</td></tr>
+      <tr><th scope="row">Sweeping twelve threads</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">"I thought we agreed…" (a rejected result)</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>~</td><td>✗</td></tr>
+      <tr><th scope="row">The agent's session dies mid-promise</th><td>✓</td><td>✓</td><td>✓</td><td>◐</td><td>~</td><td>✗</td></tr>
+      <tr><th scope="row">Over-asking</th><td>~</td><td>~</td><td>~</td><td>~</td><td>~</td><td>✓</td></tr>
+      <tr><th scope="row">Sign-off waits on everything open</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">One list across many pages</th><td>~</td><td>~</td><td>~</td><td>~</td><td>✓</td><td>✓</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="ontology">
+  <h2>What each direction changes in Leaf</h2>
+  <lf-tabs id="ontology-tabs">
+    <lf-tab id="map-total-turn" label="A · Total turn">
+      <table id="map-total-turn-table">
+        <thead><tr><th>Today</th><th>Under Total turn</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Thread attention (on you, waiting, nobody)</th><td>On you or on the agent; "nobody" is deleted</td></tr>
+          <tr><th scope="row">Resolve and reopen</th><td>Kept, but never settles what the agent owes</td></tr>
+          <tr><th scope="row"><code>--awaits</code></th><td>Deleted: any agent reply puts the thread on you</td></tr>
+          <tr><th scope="row"><code>lf-ask</code> and <code>x-awaits</code></th><td>Unchanged</td></tr>
+          <tr><th scope="row">Asks drawer and <code>a</code></th><td>Unchanged; the panel's "Waiting on you" filter becomes exact</td></tr>
+          <tr><th scope="row"><code>workflows</code> answer and the Stop hook</th><td>Refuses an owed move that isn't promised; a promise is a <code>status --on</code> claim that outlives the turn</td></tr>
+          <tr><th scope="row">Sign-off</th><td>Unchanged</td></tr>
+          <tr><th scope="row">Events</th><td>None added; the settling reaction is deleted</td></tr>
+        </tbody>
+      </table>
+    </lf-tab>
+    <lf-tab id="map-one-queue" label="B · One queue">
+      <table id="map-one-queue-table">
+        <thead><tr><th>Today</th><th>Under One queue</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Thread attention (on you, waiting, nobody)</th><td>As A</td></tr>
+          <tr><th scope="row">Resolve and reopen</th><td>As A</td></tr>
+          <tr><th scope="row"><code>--awaits</code></th><td>Replaced by <code>--ask</code>, which posts an Ask your next reply retires</td></tr>
+          <tr><th scope="row"><code>lf-ask</code> and <code>x-awaits</code></th><td>Blocked while a thread inside waits on the agent (command-hub's seat rule, made universal)</td></tr>
+          <tr><th scope="row">Asks drawer and <code>a</code></th><td>One queue drawer; <code>a</code> walks Asks, review threads and stalled promises</td></tr>
+          <tr><th scope="row"><code>workflows</code> answer and the Stop hook</th><td>As A</td></tr>
+          <tr><th scope="row">Sign-off</th><td>A blocked Ask blocks Approve</td></tr>
+          <tr><th scope="row">Events</th><td>None added; agent-opened threads are deleted</td></tr>
+        </tbody>
+      </table>
+    </lf-tab>
+    <lf-tab id="map-loops" label="C · Loops">
+      <table id="map-loops-table">
+        <thead><tr><th>Today</th><th>Under Loops</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Thread attention (on you, waiting, nobody)</th><td>Derived from the thread's loops: needs you, with the agent, or settled (no open loop)</td></tr>
+          <tr><th scope="row">Resolve and reopen</th><td>Replaced by Close (accept what's ready), Drop and Later; replying to an accepted result reopens its loop</td></tr>
+          <tr><th scope="row"><code>--awaits</code></th><td>Replaced by <code>--ask</code>, which opens an ask</td></tr>
+          <tr><th scope="row"><code>lf-ask</code> and <code>x-awaits</code></th><td>The widget surface of an ask; it can be blocked, and your prose answer can answer it</td></tr>
+          <tr><th scope="row">Asks drawer and <code>a</code></th><td>A needs-you drawer (to answer, to review, with the agent, later); <code>a</code> walks it</td></tr>
+          <tr><th scope="row"><code>workflows</code> answer and the Stop hook</th><td><code>workflows</code> becomes the request side of loops; the Stop hook refuses an open request the agent has taken no position on (take, ready, decline, hand, later)</td></tr>
+          <tr><th scope="row">Sign-off</th><td>Waits on every open ask; Approve lists what the agent still owes</td></tr>
+          <tr><th scope="row">Events</th><td>Adds <code>loop_open</code>, <code>loop_move</code> and <code>split</code>; drops <code>resolve</code> and <code>unresolve</code></td></tr>
+        </tbody>
+      </table>
+    </lf-tab>
+    <lf-tab id="map-ledger" label="D · Ledger">
+      <table id="map-ledger-table">
+        <thead><tr><th>Today</th><th>Under Ledger</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Thread attention (on you, waiting, nobody)</th><td>Deleted; a thread folds once read</td></tr>
+          <tr><th scope="row">Resolve and reopen</th><td>Replaced by fold, which settles nothing</td></tr>
+          <tr><th scope="row"><code>--awaits</code></th><td>Deleted</td></tr>
+          <tr><th scope="row"><code>lf-ask</code> and <code>x-awaits</code></th><td>Gains <code>blocked-by</code>; your prose answer can answer it</td></tr>
+          <tr><th scope="row">Asks drawer and <code>a</code></th><td>Gains a Ledger tab</td></tr>
+          <tr><th scope="row"><code>workflows</code> answer and the Stop hook</th><td>Refuses a turn with any user message unaccounted for</td></tr>
+          <tr><th scope="row">Sign-off</th><td>Approve lists the owed entries</td></tr>
+          <tr><th scope="row">Events</th><td>Adds the <code>lf-ledger</code> widget and its verbs (reopen, drop, restore)</td></tr>
+        </tbody>
+      </table>
+    </lf-tab>
+    <lf-tab id="map-rounds" label="E · Rounds">
+      <table id="map-rounds-table">
+        <thead><tr><th>Today</th><th>Under Rounds</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Thread attention (on you, waiting, nobody)</th><td>Deleted; the page holds the turn</td></tr>
+          <tr><th scope="row">Resolve and reopen</th><td>Replaced by Close with a closing list, once per page</td></tr>
+          <tr><th scope="row"><code>--awaits</code></th><td>Replaced by the hand-over digest</td></tr>
+          <tr><th scope="row"><code>lf-ask</code> and <code>x-awaits</code></th><td>Listed in the digest; unanswered ones carry over</td></tr>
+          <tr><th scope="row">Asks drawer and <code>a</code></th><td>A digest drawer, and a hub across pages</td></tr>
+          <tr><th scope="row"><code>workflows</code> answer and the Stop hook</th><td>Refuses a turn that ends with no hand-over</td></tr>
+          <tr><th scope="row">Sign-off</th><td>Close and approve</td></tr>
+          <tr><th scope="row">Events</th><td>Adds <code>handback</code>, <code>hold</code>, <code>close</code>, <code>confirm_close</code>, <code>later</code></td></tr>
+        </tbody>
+      </table>
+    </lf-tab>
+    <lf-tab id="map-passes" label="F · Passes">
+      <table id="map-passes-table">
+        <thead><tr><th>Today</th><th>Under Passes</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Thread attention (on you, waiting, nobody)</th><td>Deleted; each agent message is news</td></tr>
+          <tr><th scope="row">Resolve and reopen</th><td>Deleted; passing over a result accepts it as assumed</td></tr>
+          <tr><th scope="row"><code>--awaits</code></th><td>Replaced by <code>--grade</code> (none, invited, required)</td></tr>
+          <tr><th scope="row"><code>lf-ask</code> and <code>x-awaits</code></th><td>The only required news; after three passes the agent decides</td></tr>
+          <tr><th scope="row">Asks drawer and <code>a</code></th><td>A pass across pages; <code>a</code> stays for Asks</td></tr>
+          <tr><th scope="row"><code>workflows</code> answer and the Stop hook</th><td>As today, plus a grade on every reply</td></tr>
+          <tr><th scope="row">Sign-off</th><td>Enabled when no required item stands</td></tr>
+          <tr><th scope="row">Events</th><td>Adds <code>pass</code>, <code>hold</code>, <code>delegate_decision</code></td></tr>
+        </tbody>
+      </table>
+    </lf-tab>
+  </lf-tabs>
+</section>
+
+<section id="method">
+  <h2>How these directions were found</h2>
+  <p>Four research subagents covered:</p>
+  <ul>
+    <li>review and inbox tools;</li>
+    <li>agent harnesses and workflow engines;</li>
+    <li>theory: speech acts, conversation analysis, GTD and commitment-based management;</li>
+    <li>the real Leaf logs.</li>
+  </ul>
+  <p>Three proposer subagents then worked the same scenarios, each from a different stance: subtract what's there, rebuild around one primitive, or argue against the premise. A and B came from the subtractive stance, C from the rebuild (with A's rules as its default), and D, E and F from the contrarian stance. A last pass tested each mechanism's cheapest falsifier against the logs, and an independent reviewer checked the page against the evidence. The research notes sit beside this page in <code>notes/what-needs-you/research.md</code>.</p>
+</section>
+
+</main>
+</body>
+</html>

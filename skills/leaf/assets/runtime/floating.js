@@ -30,11 +30,9 @@
    after a fetch. */
 
 import { afterPresentation } from "./presentation.js";
-import { atLayoutPrecision, keeps } from "./keeps.js";
+import { keeps, layoutPx as px } from "./keeps.js";
 import { anchorElement, anchorName } from "./anchor-names.js";
 import { shownWindow } from "./geometry.js";
-
-const px = (value) => `${atLayoutPrecision(value)}px`;
 
 let floatingUiModule = null;
 export const floatingUi = () =>
@@ -100,8 +98,10 @@ export function floatingPlacement({ floating, update }) {
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the plane `planeOf`
     // reads from it; `beside` is the element the box stands beside in the page's plane.
-    // `stand` then writes a spot in that answer's plane.
+    // `stand` then writes a spot in that answer's plane. An answer a later placement
+    // superseded while it was computed is null, and writes nothing.
     async position(computePosition, reference, options, planeOf, beside) {
+      const placement = epoch;
       const anchor =
         beside && CSS.supports("anchor-name", "--lf-anchor")
           ? anchorElement(beside)
@@ -111,6 +111,7 @@ export function floatingPlacement({ floating, update }) {
         strategy: "fixed",
         middleware: [...options.middleware, anchorAt(reference, anchor)],
       });
+      if (placement !== epoch) return null;
       const at = answer.middlewareData.anchorAt;
       const plane =
         at?.x !== undefined && planeOf(answer) === "page" ? "page" : "window";

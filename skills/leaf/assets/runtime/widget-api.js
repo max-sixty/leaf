@@ -176,4 +176,4 @@ export {
   selectableOffer,
   worksInside,
 } from "./widget-elements.js";
-export { atLayoutPrecision, keeps, keepsHidden, keepsText } from "./keeps.js";
+export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

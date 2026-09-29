@@ -21,10 +21,13 @@
    so a boolean or a count compared raw is never equal to what already stands and
    rewrites on every pass.
 
-   A length measured off the page goes through `atLayoutPrecision` before it is written.
-   Layout resolves lengths to 1/64px, and a measurement repeated on an unmoved box can
-   differ below that; the style serializer rounds to six significant digits, so such a
-   length rewrites the style attribute to the text it already held. */
+   A length measured off the page is written to a style property through `layoutPx`.
+   Layout resolves lengths to 1/64px, but a length recombined from client coordinates and
+   a fractional scroll offset (geometry.js, `documentPoint`) differs below that from one
+   pass to the next on a box that has not moved. The style serializer keeps six
+   significant digits, so the property reads back the same while the set still rewrites
+   the style attribute. A custom property keeps its text verbatim instead, and the same
+   drift there is a write of different text, so it falls outside this rule. */
 
 export function keeps(node, name, value) {
   const said = String(value);
@@ -42,3 +45,5 @@ export function keepsText(node, text) {
 }
 
 export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+
+export const layoutPx = (length) => `${atLayoutPrecision(length)}px`;

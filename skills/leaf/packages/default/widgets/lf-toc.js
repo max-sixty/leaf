@@ -43,6 +43,7 @@ import {
   keeps,
   landingInsets,
   LAYOUT,
+  layoutPx,
   nextRender,
   once,
   PRESENTATION,
@@ -491,7 +492,7 @@ customElements.define(
         };
       };
       const transform = ({ start, size }) =>
-        `translateY(${atLayoutPrecision(start)}px) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
+        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
       if (reach <= 0) {
         this.#lensMotion?.cancel();
         this.#lensMotion = null;

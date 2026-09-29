@@ -128,7 +128,7 @@ import {
   placeChrome,
 } from "./focus.js";
 import { closeControl, el, offer } from "./widget-elements.js";
-import { atLayoutPrecision, keeps, keepsHidden, keepsText } from "./keeps.js";
+import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -627,8 +627,10 @@ export function createMarginProjection({
     floating: preview,
     update: () => scheduleThreadPreviewPosition(),
   });
-  // A card that stays open is placed afresh by forgetting where it stood: the next
-  // placement rewrites only what moved. Taking it off the page is for a card that closes.
+  // A card that stays open keeps its spot while its next placement is worked out from
+  // nothing it held: the edge it was held by, the frame queued, and any answer in flight
+  // are dropped, and the placement rewrites only what moved. A card with no spot yet is
+  // unplaced, and chrome.css keeps an unplaced card unseen and out of reach.
   function forgetThreadPreviewPlacement() {
     previewPlacement.supersede();
     cancelRender(previewPositionFrame);
@@ -636,14 +638,12 @@ export function createMarginProjection({
     previewHold = null;
     previewAway = false;
   }
-  function resetThreadPreviewPosition() {
+  function unplaceThreadPreview() {
     forgetThreadPreviewPlacement();
     previewPlacement.stop();
     delete preview.dataset.lfThreadPlacement;
     delete preview.dataset.lfThreadHeld;
     preview.style.removeProperty("clip-path");
-    preview.style.opacity = "0";
-    preview.style.pointerEvents = "none";
   }
   function scheduleWidthRender() {
     if (widthFrame) return;
@@ -851,13 +851,10 @@ export function createMarginProjection({
             (geometry.y + geometry.height - region.bottom) / scale.y,
             (region.left - geometry.x) / scale.x,
           ];
-          const length = (side) => `${atLayoutPrecision(side)}px`;
-          preview.style.clipPath = `inset(${inset.map(length).join(" ")})`;
+          preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", geometry.placement);
         preview.toggleAttribute("data-lf-thread-held", drafting);
-        preview.style.removeProperty("opacity");
-        preview.style.removeProperty("pointer-events");
         answerThreadPreviewPosition(true);
       })
       .catch((error) => {
@@ -2393,7 +2390,7 @@ export function createMarginProjection({
     previewMarginEntry = null;
     previewFocusPending = null;
     answerThreadPreviewPosition(false);
-    resetThreadPreviewPosition();
+    unplaceThreadPreview();
     if (previewOpen()) preview.hidden = true;
     if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
       setOptionsOpen(null, false);

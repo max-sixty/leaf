@@ -10,7 +10,7 @@
 import { cancelRender, nextRender } from "./rendering.js";
 import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
-import { atLayoutPrecision, keeps } from "./keeps.js";
+import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import { inChrome } from "./passages.js";
 
 // Persistent pointer-inert projections for every element target. A semantic visual
@@ -85,7 +85,7 @@ function geometryClone(source, left, top, property) {
   }
   clone.setAttribute(
     "transform",
-    `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e - left} ${matrix.f - top})`,
+    `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${atLayoutPrecision(matrix.e - left)} ${atLayoutPrecision(matrix.f - top)})`,
   );
   clone.style.setProperty("fill", property === "fill" ? "white" : "none", "important");
   clone.style.setProperty(
@@ -108,8 +108,8 @@ function geometryClone(source, left, top, property) {
 function paintShape(host, geometry, { left, top, right, bottom }, options = {}) {
   if (!geometry) return false;
   const { maskId = "", veil = false } = options;
-  const width = right - left;
-  const height = bottom - top;
+  const width = atLayoutPrecision(right - left);
+  const height = atLayoutPrecision(bottom - top);
   const fill = veil
     ? geometry.fill.map((shape) => geometryClone(shape, left, top, "fill"))
     : [];
@@ -159,13 +159,12 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
 // target that has not moved places it with the same words (keeps.js).
 function standOver(box, rect, borderRadius) {
   const at = documentPoint(rect.left, rect.top);
-  const px = (length) => `${atLayoutPrecision(length)}px`;
   Object.assign(box.style, {
     display: "block",
-    left: px(at.left),
-    top: px(at.top),
-    width: px(rect.right - rect.left),
-    height: px(rect.bottom - rect.top),
+    left: layoutPx(at.left),
+    top: layoutPx(at.top),
+    width: layoutPx(rect.right - rect.left),
+    height: layoutPx(rect.bottom - rect.top),
     borderRadius,
   });
 }

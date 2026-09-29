@@ -55,6 +55,7 @@ from render_harness import (
     comment_note,
     compare_with,
     consume_browser_errors,
+    holding,
     leaf_page,
     margins_laid_out,
     navigate,
@@ -6055,6 +6056,36 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     marker_page = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     assert page.evaluate("() => document.scrollingElement.scrollTop") > marker_page
+
+
+def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve):
+    """A card opened before it has anywhere to stand is neither seen nor pressed at the
+    corner it opens in, and appears once its placement lands."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    held = []
+    context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    page = open_page(
+        browser,
+        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        context=context,
+        upgraded=False,
+    )
+    preview = page.locator(".lf-margin-preview")
+    try:
+        holding(page, held, 1, "the positioning module")
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        expect(preview).not_to_have_attribute("hidden", "")
+        expect(preview).to_have_css("opacity", "0")
+        expect(preview).to_have_css("pointer-events", "none")
+
+        held.pop(0).continue_()
+        expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+        expect(preview).to_have_css("opacity", "1")
+        expect(preview).to_have_css("pointer-events", "auto")
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
 
 
 @pytest.mark.parametrize("width", [1440, 1920])

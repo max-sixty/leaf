@@ -108,10 +108,11 @@ export function sendLanding(input) {
 // flow grows downward, so the words above stay put and only its foot can leave the band,
 // which the landing brings back. A pinned row keeps its foot and grows upward: into the
 // room between it and the words above it first (the panel card's, standing at the list's
-// foot), then over those words, so the transcript moves by what the row now covers. The
-// cover is read now and the row's growth from its height, since only the user's words
-// change a row's height: a scroll or a reply arriving between keystrokes moves the cover
-// and must not be paid for.
+// foot), then over those words, so the transcript moves by the part of the growth that
+// now covers them. A row that shrinks uncovers words and moves none. The cover is read now
+// and the row's growth from its height, since only the user's words change a row's
+// height: a scroll or a reply arriving between keystrokes moves the cover and must not be
+// paid for.
 const rowHeights = new WeakMap();
 const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
@@ -124,8 +125,7 @@ export function followBoxGrowth(input) {
   const height = reply.getBoundingClientRect().height;
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
-  const now = covered(reply);
-  const by = Math.max(0, now) - Math.max(0, now - grew);
+  const by = Math.max(0, Math.min(grew, covered(reply)));
   if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");

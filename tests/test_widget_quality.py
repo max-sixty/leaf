@@ -69,8 +69,9 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
     holders that each grow by exactly that: `lf-holder` because what it holds grew, so
     it is not named beside it, and `lf-fixed` because it sets its own height 40px
-    taller, so it is. `lf-word` is inline and doubles its type, and the line holding
-    it is left to it. `lf-bare` has no worked example."""
+    taller, so it is. `lf-word` is inline and doubles its type: a line that grows only
+    because of it is left to it, and an `lf-fixed` holding it is still named for its
+    own height. `lf-bare` has no worked example."""
     package = tmp_path / "package"
     for widget in ("lf-grow", "lf-holder", "lf-fixed", "lf-word", "lf-bare"):
         made = CliRunner().invoke(
@@ -99,6 +100,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     )
     registry["lf-fixed"]["x-example"] = (
         '<lf-fixed id="fixed"><lf-grow id="inner">Inner.</lf-grow></lf-fixed>'
+        '<lf-fixed id="worded">A <lf-word id="uttered">word</lf-word>.</lf-fixed>'
     )
     del registry["lf-bare"]["x-example"]
     registry_path.write_text(json.dumps(registry))
@@ -113,7 +115,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert ran.returncode == 0, ran.stderr
     lines = ran.stdout.splitlines()
     assert lines[1] == (
-        f"widget quality: 7 finding(s) for 5 widget(s) in {headless_shell}, "
+        f"widget quality: 9 finding(s) for 5 widget(s) in {headless_shell}, "
         "advice for the widgets' author:"
     ), ran.stdout
     assert lines[2] == "  · <lf-bare> example: no worked example shows it"
@@ -124,5 +126,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     readings = [finding.fullmatch(line) for line in lines[3:]]
     assert all(readings), lines
     grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
-    assert grown.pop("word") > 0 and grown.pop("spoken") > 0, lines
-    assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, lines
+    assert all(grown.pop(word) > 0 for word in ("word", "spoken", "uttered")), lines
+    assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40, "worded": 40}, (
+        lines
+    )

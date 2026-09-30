@@ -329,8 +329,9 @@ const withFirstSizes = (holder, inside) => {
 // what its options grew is not named beside them, and one that also grew on its own
 // is, whether its own change is to its flow or to a size it sets itself. An inline
 // widget runs through its holder's lines, which no size puts back, so a holder with a
-// changed inline widget inside it is left to that widget. A widget hidden now is left
-// to the widget that hid it, whose own box carries the change.
+// changed inline widget inside it is named only where the styles that size its own box
+// changed (`sizing` in driver.js). A widget hidden now is left to the widget that hid
+// it, whose own box carries the change.
 export function changedBoxes() {
   const readings = globalThis.__leafRenderDriver
     .firstBoxes()
@@ -355,7 +356,9 @@ export function changedBoxes() {
     );
     if (!outermost.length) return true;
     if (outermost.some(({ element }) => getComputedStyle(element).display === "inline"))
-      return false;
+      return (
+        globalThis.__leafRenderDriver.sizing(holder.element) !== holder.first.sizing
+      );
     return differs(withFirstSizes(holder, outermost), holder.first);
   };
   return changed.filter(own).map(({ element, first, now }) => ({

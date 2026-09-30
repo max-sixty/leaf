@@ -1178,9 +1178,9 @@ and a blank image stands in for any media an example names. The checks:
   the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
   as its module will draw it. A widget holding others is named only for the change
   left once the changed widgets inside it are put back to their first sizes; one
-  holding a changed inline widget, whose old lines no size puts back, is left to that
-  widget. A widget the page hides once presented, such as an inactive tab, is left to
-  the widget that hid it.
+  holding a changed inline widget, whose old lines no size puts back, is named only
+  where the styles that size its own box changed. A widget the page hides once
+  presented, such as an inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

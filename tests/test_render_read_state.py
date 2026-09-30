@@ -22,6 +22,7 @@ from render_harness import (
     open_page,
     panel_settled,
     round_trip,
+    select,
     sending,
     take_browser_errors,
     told,
@@ -33,6 +34,33 @@ def _read_events(page_dir):
     return [
         event for event in events_model.read_events(page_dir) if event["kind"] == "read"
     ]
+
+
+def _select_new_route(page):
+    """Drag across "new route" on the diff's routes.py line 201, as a user selects it."""
+    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
+    row.scroll_into_view_if_needed()
+    points = row.evaluate("""element => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const nodes = [], starts = [];
+      let text = '';
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        starts.push(text.length); nodes.push(node); text += node.data;
+      }
+      const start = text.indexOf('new route');
+      if (start < 0) throw new Error('diff phrase missing');
+      const glyph = offset => {
+        const index = starts.findLastIndex(value => value <= offset);
+        const range = document.createRange();
+        range.setStart(nodes[index], offset - starts[index]);
+        range.setEnd(nodes[index], offset - starts[index] + 1);
+        return range.getBoundingClientRect();
+      };
+      const first = glyph(start), last = glyph(start + 'new route'.length - 1);
+      return [[first.left, first.top + first.height / 2],
+              [last.right, last.top + last.height / 2]];
+    }""")
+    select(page, *points)
 
 
 def _agent_metric_reply(page_dir, root, number, for_event=None):
@@ -592,27 +620,32 @@ def test_read_converges_across_two_tabs(browser, serve):
     ]
 
 
-def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
-    root = "a1b2c3d4"
+SAMPLE_READER = "a1b2c3d4"
+
+
+def _sample_reading_page(browser, serve, body, style):
+    """A page holding one live sample whose child page is taller than the window and
+    carries one agent message, so the thread panel it opens stands the message near the
+    frame's top. `style` places the sample; the returned child is its page."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Offscreen reading practice",
-                f"""
-<h1>Practice page</h1>
-<div id="read-clip">
-<lf-sample id="read-practice" label="Read practice">
-  <template id="read-source" data-sample data-sample-threads="{root}">
+                "Sample reading practice",
+                body.format(
+                    sample=f"""<lf-sample id="read-practice" label="Read practice">
+  <template id="read-source" data-sample data-sample-threads="{SAMPLE_READER}">
+    <style>#child-rest {{ height: 3000px; }}</style>
     <h1>Child page</h1>
+    <div id="child-rest"></div>
   </template>
-</lf-sample>
-</div>
-""",
+</lf-sample>"""
+                ),
+                head=f"<style>{style}</style>",
             ),
             events=[
                 {
-                    "id": root,
+                    "id": SAMPLE_READER,
                     "kind": "comment",
                     "author": "agent",
                     "agent": "Agent",
@@ -622,41 +655,57 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
             ],
         ),
     )
-    clip = page.locator("#read-clip")
-    sample = page.locator("#read-practice")
-    frame = sample.locator("iframe")
+    frame = page.locator("#read-practice iframe")
     child = frame.element_handle().content_frame()
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    child.locator(".lf-threads-toggle").focus()
-    frame.evaluate("element => element.style.transform = 'translateY(1200px)'")
-    child.locator(".lf-threads-toggle").evaluate("element => element.click()")
-    child.locator(".lf-first-unread").evaluate("element => element.click()")
-    page.wait_for_timeout(100)
-    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    assert frame.bounding_box()["y"] > 800
+    return page, frame, child
 
-    clip.evaluate(
-        "element => { element.style.height = '100px'; element.style.overflow = 'hidden'; }"
+
+def _go_to_first_unread(page, child):
+    """The user opens the sample's Threads from its focused toggle, goes to its first
+    unread message by key, and scrolls the containing page a little, which has the
+    sample read what it shows. The message stays unread."""
+    page.keyboard.press("Enter")
+    expect(child.locator(".lf-threads")).to_be_visible()
+    page.keyboard.press("u")
+    expect(child.locator(f'.lf-thread[data-id="{SAMPLE_READER}"]')).to_have_attribute(
+        "open", ""
     )
-    frame.evaluate("element => element.style.transform = ''")
-    page.set_viewport_size({"width": 1280, "height": 1400})
-    page.wait_for_timeout(100)
+    page.evaluate("scrollBy(0, 50)")
+    page.wait_for_timeout(200)
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    # Below the first screen and taller than the window, the sample is read through
-    # the band the containing page shows as it scrolls: its edge coming into view shows
-    # nothing, and a later scroll of the containing page shows the message.
-    clip.evaluate(
-        "element => { element.style.height = ''; element.style.overflow = '';"
-        " element.style.marginTop = '2000px'; }"
+
+
+def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
+    # On the first screen, inside a box that shows only its top, the sample's own page
+    # shows nothing.
+    page, _, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
+        "#read-clip { height: 100px; overflow: hidden; }",
     )
-    child.evaluate("""() => {
-        const spacer = document.createElement('div');
-        spacer.style.height = '3000px';
-        document.querySelector('main').append(spacer);
-    }""")
-    page.wait_for_function(
-        "() => document.querySelector('#read-practice iframe').offsetHeight > 3000"
+    child.locator(".lf-threads-toggle").focus()
+    _go_to_first_unread(page, child)
+
+
+def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
+    page, frame, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
+        "#read-gap { height: 2000px; }",
     )
+    # Below the first screen it shows nothing: the user focuses its Threads toggle and
+    # scrolls the containing page back to the top first.
+    child.locator(".lf-threads-toggle").focus()
+    page.evaluate("scrollTo(0, 0)")
+    _go_to_first_unread(page, child)
+    assert frame.bounding_box()["y"] > page.viewport_size["height"]
+
+    # Taller than the window, the sample is read through the band the containing page
+    # shows as it scrolls: its edge coming into view shows nothing, and a later scroll of
+    # the containing page shows the message.
     page.evaluate("""() => {
         const top = document.querySelector('#read-practice iframe')
             .getBoundingClientRect().top;
@@ -673,27 +722,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
-    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
-    row.scroll_into_view_if_needed()
-    row.evaluate("""element => {
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      const nodes = [], starts = [];
-      let text = '';
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        starts.push(text.length); nodes.push(node); text += node.data;
-      }
-      const start = text.indexOf('new route');
-      if (start < 0) throw new Error('diff phrase missing');
-      const at = offset => {
-        const index = starts.findLastIndex(value => value <= offset);
-        return [nodes[index], offset - starts[index]];
-      };
-      const range = document.createRange();
-      range.setStart(...at(start)); range.setEnd(...at(start + 'new route'.length));
-      const selection = getSelection();
-      selection.removeAllRanges(); selection.addRange(range);
-      document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-    }""")
+    _select_new_route(page)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
@@ -739,27 +768,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     page = open_page(browser, url)
     page.set_viewport_size({"width": width, "height": 900})
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
-    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
-    row.scroll_into_view_if_needed()
-    row.evaluate("""element => {
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      const nodes = [], starts = [];
-      let text = '';
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        starts.push(text.length); nodes.push(node); text += node.data;
-      }
-      const start = text.indexOf('new route');
-      if (start < 0) throw new Error('diff phrase missing');
-      const at = offset => {
-        const index = starts.findLastIndex(value => value <= offset);
-        return [nodes[index], offset - starts[index]];
-      };
-      const range = document.createRange();
-      range.setStart(...at(start)); range.setEnd(...at(start + 'new route'.length));
-      const selection = getSelection();
-      selection.removeAllRanges(); selection.addRange(range);
-      document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-    }""")
+    _select_new_route(page)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):

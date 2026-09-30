@@ -185,8 +185,8 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
-# Where a followed thread stands: its end, reply box included, at the list's foot, with
-# the arriving turn's newest words in view above it.
+# Without a focused editor, a followed thread stands at the list's foot, with the
+# arriving turn's newest words in view above its reply box.
 FOLLOWED = """id => {
   const list = document.querySelector('.lf-threads');
   const fold = list.getBoundingClientRect().bottom -
@@ -213,15 +213,16 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             },
         )
     page = open_page(browser, url)
-    page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads")
-    write(page.locator(".lf-thread[open] .lf-compose leaf-text"), "A short follow-up.")
+    editor = page.locator(".lf-thread[open] .lf-compose leaf-text")
+    write(editor, "A short follow-up.")
     assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     threads.evaluate("el => el.scrollTop -= 40")
     near_end = threads.evaluate("el => el.scrollTop")
+    editor_top = editor.evaluate("el => el.getBoundingClientRect().top")
 
     newest = events_model.append_event(
         serve.page_dir,
@@ -243,6 +244,9 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
         arg=near_end,
     )
     assert threads.evaluate("el => el.scrollTop") > near_end
+    assert editor.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+        editor_top, abs=2
+    )
     page.wait_for_function(
         """id => {
           const list = document.querySelector('.lf-threads');
@@ -273,7 +277,10 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             "before => document.querySelector('.lf-threads').scrollTop > before",
             arg=before_growth,
         )
-        page.wait_for_function(FOLLOWED, arg=newest["id"])
+        assert editor.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+            editor_top, abs=2
+        )
+        assert message.evaluate("el => el.getBoundingClientRect().bottom") <= editor_top
 
     threads.evaluate("el => el.scrollTop -= 160")
     earlier_place = threads.evaluate("el => el.scrollTop")
@@ -1816,16 +1823,22 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.hover()
     rendered(page)
-    before, after = page.evaluate(
+    # The reading on either side of the press: as it goes down, before any listener has
+    # answered it, and once its click has passed every listener.
+    page.evaluate(
         """() => {
           const settled = document.querySelector('script[data-lf-entry]').lfRenderingSettled;
-          const before = settled();
-          document.querySelector('.lf-threads-toggle').click();
-          return [before, settled()];
+          window.__lfPress = [];
+          const read = () => window.__lfPress.push(settled());
+          addEventListener('pointerdown', read, {capture: true, once: true});
+          addEventListener('click', read, {once: true});
         }"""
     )
-    assert (before, after) == (True, False)
+    toggle.click()
+    assert page.evaluate("window.__lfPress") == [True, False]
     rendered(page)
     assert page.evaluate(
         "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()"

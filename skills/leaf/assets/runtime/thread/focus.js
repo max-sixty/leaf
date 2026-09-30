@@ -2,6 +2,8 @@
 import { holdStanding } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
+import { nextRender } from "../rendering.js";
+import { repaint } from "../repaint.js";
 import { SAY_BOX, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
 
@@ -38,6 +40,39 @@ export function heldThreadId() {
   const thread = heldThread();
   return thread?.dataset.id ?? thread?.dataset.thread ?? null;
 }
+
+// The thread every painter of standing draws — the page's contour and wash, the margin
+// entry's selection — which is the held thread except across a pointer press. A press
+// moves focus to the page at mousedown, and only the gesture as a whole says where it
+// leaves the user: a press on the thread's own mark lands them back in it at its click.
+// Read from focus alone, standing blinked off under the hand for the length of every
+// such press. So the thread held at pointerdown stays the standing until the frame after
+// the press ends, when the standing repaint reads focus again. This is standing as drawn,
+// which lags focus across a press; a command acts on the held thread (`heldThreadId`).
+let pressed = null;
+let release = 0;
+document.addEventListener(
+  "pointerdown",
+  (ev) => {
+    if (ev.isPrimary && ev.button === 0) pressed = heldThreadId();
+  },
+  { capture: true },
+);
+// Every way a press can end: its release, the browser taking the pointer, a native menu
+// the press opened, which swallows the release, or the window losing it altogether.
+function releasePress() {
+  if (!pressed || release) return;
+  release = nextRender(() => {
+    release = 0;
+    pressed = null;
+    repaint();
+  });
+}
+for (const type of ["pointerup", "pointercancel", "contextmenu"])
+  document.addEventListener(type, releasePress, { capture: true });
+window.addEventListener("blur", releasePress);
+
+export const standingThreadId = () => heldThreadId() ?? pressed;
 
 // A pass that redraws threads hands the user writing a reply across itself, under the
 // thread's identity. A surface that stops drawing a thread takes its box with it: a

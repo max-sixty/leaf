@@ -182,9 +182,19 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       (scrolls && tailEnd < band.bottom - FOLLOW_ROOM)
     )
       return null;
+    const editor = card.querySelector(".lf-compose-field");
+    const editorBox = editor?.getBoundingClientRect();
+    const focusedEditor =
+      editor?.contains(document.activeElement) &&
+      editorBox.top < band.bottom &&
+      editorBox.bottom > band.top
+        ? editor
+        : null;
     return {
       id: incoming.at(-1)?.id ?? nextLatest.id,
       top: threadsBox.scrollTop,
+      editor: focusedEditor,
+      editorTop: focusedEditor ? editorBox.top : null,
       current: retainUserIntent({ available: panelIsOpen }),
     };
   }
@@ -194,16 +204,23 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // restores that reading through the same owners while preserving native identities.
   let renderGeneration = 0;
 
-  // Following lands the thread's end, its reply box included, at the band's foot: the
-  // place hold kept the card's top still, so the turn pushed the box the user may be
-  // typing in down past the foot. The turn's newest words stand just above the box, so a
-  // turn that keeps growing stays followed too.
-  function followThreadEnd(newest) {
+  // Following brings the newest words above the reply box into view. With no editor
+  // under focus, the card ends at the band's foot. A focused editor keeps the place
+  // the user left it in, including any gap below it.
+  function followThreadEnd(newest, incoming) {
     const band = landingBand(threadsBox);
     const end = newest.closest(".lf-thread")?.getBoundingClientRect().bottom;
     if (!band || end === undefined) return;
-    const by = end - band.bottom;
-    if (by > 0) threadsBox.scrollBy({ top: by, behavior: scrollBehavior() });
+    // A focused reply box is the user's place. The new turn may fill room above it,
+    // but following must not consume the gap the user left below the box.
+    const by = incoming.editor?.isConnected
+      ? incoming.editor.getBoundingClientRect().top - incoming.editorTop
+      : end - band.bottom;
+    if (by > 0)
+      threadsBox.scrollBy({
+        top: by,
+        behavior: incoming.editor ? "instant" : scrollBehavior(),
+      });
   }
 
   const rowModel = (all, commands) => {
@@ -413,7 +430,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
           ? threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
           : null;
-      if (newest) followThreadEnd(newest);
+      if (newest) followThreadEnd(newest, incoming);
     } catch (error) {
       if (!current()) return;
       await retainCommitted(current, reading, error);

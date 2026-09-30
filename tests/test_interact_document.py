@@ -5329,9 +5329,9 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     Every pair rather than the neighbours, because a stacked bar puts any two of them
     edge to edge, and both palettes, because the dark steps are stepped against a
     brown-black rather than lightened from the light ones. The registry's $series.steps
-    is counted against the tokens in the same breath: it is what a chart refuses a series
-    past, and a palette one step longer than the number it publishes would refuse a
-    series it has a colour for."""
+    is counted against the tokens in the same breath: it is how many series an author is
+    told a chart can colour apart, and a palette one step longer than the number it
+    publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "theme.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"

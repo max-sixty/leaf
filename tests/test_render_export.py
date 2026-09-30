@@ -40,6 +40,7 @@ from render_cases_navigation import (
 from render_harness import (
     REPLAYED_PAGE,
     consume_browser_errors,
+    example_media,
     leaf_page,
     open_page,
     restarting,
@@ -936,7 +937,7 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     media = source.parent / "media"
     media.mkdir()
     image = media / "051bee487bfb5d13.png"
-    expected = (ROOT / "examples" / "media" / image.name).read_bytes()
+    expected = (example_media() / image.name).read_bytes()
     image.write_bytes(expected)
     revised = source.read_text().replace(
         "</main>", f'<img src="/media/{image.name}" alt="Preview proof"></main>'
@@ -961,7 +962,7 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
 
     image.unlink()
     second = media / "a99a1b63048502d0.png"
-    second.write_bytes((ROOT / "examples" / "media" / second.name).read_bytes())
+    second.write_bytes((example_media() / second.name).read_bytes())
     wait_for(
         lambda: (directory / "media" / second.name).exists(),
         bool,
@@ -1550,6 +1551,30 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+
+
+def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
+    """An lf-chart body is a Plot expression the widget compiles, so the export's policy
+    admits compiling it as the served page's does. Refused, the chart shows an error
+    over its source in the file a user was sent, while it drew in the author's
+    preview."""
+    serve(
+        leaf_page(
+            "Exported chart",
+            '<h1>Exported chart</h1><lf-chart id="c"><pre>'
+            '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
+            "</pre></lf-chart>",
+        )
+    )
+    out = tmp_path / "chart.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#c svg[role=img]")).to_have_attribute(
+        "aria-label", "one bar of 3"
+    )
+    expect(page.locator("#c .lf-error")).to_have_count(0)
 
 
 def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):

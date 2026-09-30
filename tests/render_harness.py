@@ -42,6 +42,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
+from known_shifts import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -53,7 +54,12 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import (
+    example_media,
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+)
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -76,10 +82,6 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
 )
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 CORPUS_PAGE = ROOT / "examples" / "corpus.html"
-# The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
-# exactly as `leaf page media` names it in a real page directory. Every builder of
-# a page directory lays this beside the markup (examples/AGENTS.md, "Media").
-EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
@@ -494,7 +496,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             (d / "index.html").write_text(html)
             references = structure_model.SourceDocument(html).media_refs
             for reference in references:
-                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+                fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
@@ -1050,29 +1052,35 @@ def until_draft_settled(page, ctx: str) -> None:
 
 
 _BROWSER_PROBLEM_LISTS = None
+_WATCH_SHIFTS = True
 
 
 @contextmanager
-def clean_browser():
+def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves.
+    themselves. The fixture hands over its `test` node, for which `known_shifts` says
+    whether to watch for layout shifts (`shift_watch.js`) and which shift is its known
+    one: a defect waiting on its fix.
     """
-    global _BROWSER_PROBLEM_LISTS
+    global _BROWSER_PROBLEM_LISTS, _WATCH_SHIFTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
     captured = []
     _BROWSER_PROBLEM_LISTS = captured
+    _WATCH_SHIFTS = test is None or watches_shifts(test)
     try:
         yield
     finally:
         _BROWSER_PROBLEM_LISTS = None
+        _WATCH_SHIFTS = True
     problems = [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
+        if not (test and known(test, problem))
     ]
     assert problems == [], problems
 
@@ -1119,7 +1127,8 @@ def watched(page):
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
-    page.add_init_script(path=SHIFT_WATCH_SOURCE)
+    if _WATCH_SHIFTS:
+        page.add_init_script(path=SHIFT_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {

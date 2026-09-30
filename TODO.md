@@ -203,6 +203,16 @@ and its chrome coordinate.
   event changes the page's obligations or claims, not its kind. In this machine's
   page logs from the last 30 days, 40 of 204 deliveries held only resolves, and
   32 of those resolves closed a thread whose last word was already the agent's.
+- **Take every render-check reading at every width the check renders.** The check
+  lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
+  (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
+  the desktop width (`shrunk_label_advice`), though a narrower window scales a
+  drawing further still. Tiny text at 900px and on a phone recurs in the judge's
+  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
+  each reading the sweep can take at every swept
+  width, and report each fault at the narrowest width it starts, as
+  `swept_overflow` does for sideways overflow. The readings stay advice: which
+  widths a page answers for is the author's call.
 - **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and

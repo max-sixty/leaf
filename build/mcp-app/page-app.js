@@ -16,6 +16,7 @@ const app = new App(
   { availableDisplayModes: ["inline", "fullscreen"] },
   { autoResize: false },
 );
+const waiting = document.querySelector("#waiting");
 const shell = document.querySelector("#app");
 const frame = document.querySelector("#leaf-page");
 const pageLoading = document.querySelector("#page-loading");
@@ -80,9 +81,24 @@ function keepsText(node, text) {
   if (node.textContent !== text) node.textContent = text;
 }
 
-function showStatus(text, { error = false } = {}) {
+// The app's chrome first paints with the first payload it draws, or with a failure that
+// means none is coming: which controls the host offers, the page's title, and the mode
+// all arrive with the host's answers, and a bar painted before them would move as they
+// land. Until then the frame holds one line saying what it waits for.
+function reveal() {
+  waiting.toggleAttribute("hidden", true);
+  shell.toggleAttribute("hidden", false);
+}
+
+// One live region says what last happened. A state the user has to come back to, such
+// as a failure or a host that shows only part of Leaf, stands in it as a line after the
+// page. News the app already shows, such as a page opening, becoming ready, or
+// refreshing, is `quiet`: said to a listener, drawn nowhere, and so moves nothing
+// (skills/leaf/assets/AGENTS.md, "Stability").
+function showStatus(text, { error = false, quiet = false } = {}) {
+  reveal();
   keepsText(statusText, text);
-  status.classList.toggle("show", Boolean(text));
+  status.classList.toggle("show", Boolean(text) && !quiet);
   status.classList.toggle("error", error);
 }
 
@@ -328,9 +344,6 @@ function renderPage(state) {
     meta,
     `Complete page · ${state.active?.label ?? "no revision"} · event ${state.event_seq}`,
   );
-  commentPage.toggleAttribute("hidden", true);
-  snapshotButton.toggleAttribute("hidden", false);
-  keepsText(browser, "Open in browser");
   keeps(browser, "title", "Open the complete Leaf page outside this attachment");
   browser.toggleAttribute("disabled", !(state.browser_url || state.inline_url));
   const next = safePageUrl(state.inline_url);
@@ -341,8 +354,15 @@ function renderPage(state) {
   const ready = approved && readyUrl === next;
   pageHost.toggleAttribute("hidden", true);
   pageLoading.toggleAttribute("hidden", ready);
-  if (!ready) keepsText(pageLoading, "Opening the complete page…");
-  frame.toggleAttribute("hidden", !ready);
+  if (!ready)
+    keepsText(
+      pageLoading,
+      state.source_error
+        ? "Opening the last valid revision…"
+        : "Opening the complete page…",
+    );
+  frame.toggleAttribute("hidden", !approved);
+  frame.classList.toggle("opening", !ready);
   shadow.replaceChildren();
   resetComposer();
   if (!approved) {
@@ -360,12 +380,13 @@ function renderPage(state) {
   if (frame.src !== next) frame.src = next;
   if (ready) {
     clearReadyTimer();
-    showStatus("Complete Leaf page ready.");
+    showStatus("Complete Leaf page ready.", { quiet: true });
   } else {
     showStatus(
       state.source_error
         ? "Opening the last valid revision. If it remains unavailable, Leaf will show its snapshot."
         : "Opening the complete page. If it remains unavailable, Leaf will show its snapshot.",
+      { quiet: true },
     );
     waitForPageReady(state, next);
   }
@@ -386,9 +407,6 @@ function renderSnapshot(state) {
     meta,
     `Authored snapshot · comments only · r${state.revision} · event ${state.eventSeq}`,
   );
-  commentPage.toggleAttribute("hidden", false);
-  snapshotButton.toggleAttribute("hidden", true);
-  keepsText(browser, "Full page");
   keeps(browser, "title", "Open the full Leaf runtime for active controls");
   browser.toggleAttribute("disabled", false);
   pageLoading.toggleAttribute("hidden", true);
@@ -425,15 +443,11 @@ function renderSnapshot(state) {
 }
 
 function render(state) {
-  if (state?.format === PAGE_FORMAT && state?.mode === "page") {
-    renderPage(state);
-    return;
-  }
-  if (state?.format === SNAPSHOT_FORMAT && state?.mode === "snapshot") {
+  if (state?.format === PAGE_FORMAT && state?.mode === "page") renderPage(state);
+  else if (state?.format === SNAPSHOT_FORMAT && state?.mode === "snapshot")
     renderSnapshot(state);
-    return;
-  }
-  throw new Error("Leaf returned an unknown presentation payload");
+  else throw new Error("Leaf returned an unknown presentation payload");
+  reveal();
 }
 
 function acceptToolResult(result) {
@@ -651,6 +665,7 @@ refresh.addEventListener("click", async () => {
       currentMode === "page"
         ? "Refreshed the Leaf page."
         : "Refreshed the Leaf snapshot.",
+      { quiet: true },
     );
   } catch (error) {
     showStatus(errorText(error), { error: true });
@@ -664,7 +679,9 @@ snapshotButton.addEventListener("click", async () => {
   setBusy(true);
   try {
     await callTool("leaf_snapshot_refresh", { page: current.page });
-    showStatus("Showing the comments-only snapshot inside this app.");
+    showStatus("Showing the comments-only snapshot inside this app.", {
+      quiet: true,
+    });
   } catch (error) {
     showStatus(errorText(error), { error: true });
   } finally {
@@ -685,8 +702,8 @@ window.addEventListener("message", (event) => {
   readyUrl = url;
   clearReadyTimer();
   pageLoading.toggleAttribute("hidden", true);
-  frame.toggleAttribute("hidden", false);
-  showStatus("Complete Leaf page ready.");
+  frame.classList.toggle("opening", false);
+  showStatus("Complete Leaf page ready.", { quiet: true });
 });
 
 browser.addEventListener("click", async () => {
@@ -760,6 +777,7 @@ app
     hostCapabilities = app.getHostCapabilities() || {};
     applyHostContext(app.getHostContext());
     syncControls();
+    keepsText(waiting, "Waiting for the Leaf page…");
     reportSize();
   })
   .catch((error) => {

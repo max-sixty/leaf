@@ -60,7 +60,11 @@ must not move controls next to the gesture that caused it. News causes no layout
 shift: when a box's content changes without a gesture, that box may grow or shrink
 into free room, but no other element moves. A change the user requested may reflow
 the content it replaces, shown as motion the eye can follow. A hover, focus, or
-keyboard reveal never changes the space given to its ancestors or siblings.
+keyboard reveal never changes the space given to its ancestors or siblings. Typing
+may grow its field at the edge its layout grows, but never carries the field. The
+suite's browser fixture fails any test outside the nightly selection whose page makes a
+layout shift Chrome reports without recent input, or whose typing carries its field
+(`tests/shift_watch.js`).
 
 Generated interface first appears in its settled position. Reserve space before a
 generated control appears; transient feedback may repaint a control or briefly

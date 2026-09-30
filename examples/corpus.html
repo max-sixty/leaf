@@ -2559,12 +2559,11 @@ Run the online schema migration before deploying.
           This suggests a reduction, but four post-work observations and no control
           house cannot estimate its size.
         </p>
-        <lf-chart id="heat-response">
+        <lf-chart id="heat-response" data-height="300">
           <pre>
 {
   ariaLabel: "Weekly gas use against outside temperature: the four weeks after the work sit below the five before at similar temperatures",
   marginBottom: 40,
-  height: 260,
   grid: true,
   inset: 8,
   x: {label: "outside average, °C"},
@@ -2924,12 +2923,11 @@ export const summarize = checks =>
         </aside>
         <section class="panel" id="lp-traffic">
           <h2>Candidate traffic since deploy</h2>
-          <lf-chart id="lp-traffic-chart">
+          <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
 {
   ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
   marginBottom: 40,
-  height: 220,
   x: {label: "minutes since deploy", ticks: 7},
   y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
   marks: [
@@ -3376,12 +3374,11 @@ export const summarize = checks =>
                 settlement batch holds the ledger lock. The lag cleared by 03:20 each
                 night without anyone touching it.
               </p>
-              <lf-chart id="ar-export-hours">
+              <lf-chart id="ar-export-hours" data-height="220">
                 <pre>
 {
   ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
   marginBottom: 40,
-  height: 220,
   x: {
     domain: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
     ticks: ["22:00", "00:00", "02:00", "04:00", "06:00"],
@@ -7074,12 +7071,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
-                <lf-chart id="bg-chart">
+                <lf-chart id="bg-chart" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  height: 200,
   x: {label: "run", ticks: 3},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
@@ -7099,11 +7095,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-bars">
+                <lf-chart id="bg-chart-bars" data-height="200">
                   <pre>
 {
   ariaLabel: "Checks complete by run: first 5, second 9, third 12",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks complete"},
   marks: [
@@ -7116,11 +7111,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-stack">
+                <lf-chart id="bg-chart-stack" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks"},
   color: {

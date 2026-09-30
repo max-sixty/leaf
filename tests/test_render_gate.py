@@ -1634,6 +1634,24 @@ def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
 def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
     page = TYPED_PARTS_PAGE.replace(
         "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    ).replace(
+        "    Fetch --&gt; Build",
+        "    [*] --&gt; Fetch\n    Fetch --&gt; Build",
+        1,
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
+def test_state_diagram_parts_keep_authored_ids_that_resemble_markers(browser, serve):
+    page = leaf_page(
+        "authored state ids",
+        """<h1 id="title">Authored state ids</h1>
+<lf-diagram id="life" parts="node:_start2 node:_end2"><pre>
+stateDiagram-v2
+  [*] --&gt; _start2
+  _start2 --&gt; _end2
+  _end2 --&gt; [*]
+</pre></lf-diagram>""",
     )
     assert render_gate_model.render_version(browser, serve(page)).failures == []
 
@@ -3060,8 +3078,9 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
-# to follow it there.
-AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+# to follow it there. The list states the inline floor; the block floor is padding on
+# the controls a flex or grid container could squeeze, and min-height on the rest.
+AIM_FLOOR_RULE = "min-width: var(--aim-floor);"
 
 
 def aim_selectors():

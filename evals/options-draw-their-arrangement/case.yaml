@@ -1,0 +1,55 @@
+# From session cd29037f, whose layout-shift page drew each section's figure above its
+# Ask and wrote every option as a title, chips and a sentence, though the options
+# differed in where a reply box sits. No option on any page from the three weeks
+# before held a drawing; the lf-option entry and the lf-options example both showed
+# text faces. With the child reading those entries, base 4c29f3003 drew the options
+# in 0 of 3 runs and the rewritten entry and example in 3 of 3.
+schema_version: '1.0'
+name: options-draw-their-arrangement
+description: "Asks: when the alternatives differ in arrangement, each lf-option shows its own arrangement in a drawing, not only in words."
+tags:
+- asks
+- drawing
+execution:
+  prompt: |
+    You are writing a Leaf page that records the layout shifts left in Leaf's thread
+    panel, one section per item, each ending in a question for the user. Write the
+    section for this item, after reading the `lf-ask`, `lf-options` and `lf-option`
+    entries in `packages/default/registry.json` under the skill's base directory.
+
+    Your notes:
+    - Item #10: in the thread panel, an open card's reply box is the last thing in
+      the card. When a reply arrives, the card grows into the panel's free room and
+      carries the reply box down with it, 422px in the measured case, with the caret
+      when the user is typing.
+    - Chat apps keep the reply box fixed at the foot and grow the conversation above
+      it. Leaf's margin cards already do: their reply row is sticky at the bottom.
+    - The user decides where an open panel card's reply box sits:
+      - pinned at the panel's foot, with replies growing into the room above it
+        (your recommendation; later cards sit below the fold while a card is open);
+      - after the messages, as today, with the stability rule counting a box's
+        contents as its growth so the move is allowed.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-registry
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/packages/default/registry\.json
+- name: has-options
+  type: regex
+  pattern: <lf-option\b
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Find the `lf-options` group that asks where the reply box sits. Pass only if
+    every `lf-option` in it contains its own drawing (an inline `<svg>`, an `<img>`,
+    or an `lf-diagram`) that shows where the reply box sits under that option.
+    Fail if any option in the group is only words and chips, even when a figure
+    showing both arrangements stands elsewhere in the section.

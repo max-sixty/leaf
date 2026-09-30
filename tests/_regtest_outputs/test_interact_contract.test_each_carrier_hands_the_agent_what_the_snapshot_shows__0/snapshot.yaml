@@ -224,7 +224,7 @@ Claude Code hook:
                 for: 1946b466
     attention: |-
       Leaf needs attention:
-      - /path/to/page: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
+      - /path/to/page: no watcher. To watch all this session's pages, start an unnamed `leaf wait` as a background task with `timeout` 7200000 (milliseconds), the longest Claude Code allows; or run `leaf status <page> idle` if this page is done.
 
 Codex queue:
   codex queue --message: |-

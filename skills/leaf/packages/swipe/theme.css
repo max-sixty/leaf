@@ -224,12 +224,14 @@ lf-swipe-card.lf-swipe-dragging {
   margin: 0 auto;
 }
 
+/* The height is the padding, so a grid that squeezes its row squeezes no press under
+   its words: 2.5rem, or the aim floor where a finger raises it past that, less the
+   line and the 1px border. */
 .lf-swipe-pass.lf-ui,
 .lf-swipe-keep.lf-ui,
 .lf-swipe-return.lf-ui {
-  min-height: max(2.5rem, var(--aim-floor));
   min-width: var(--aim-floor);
-  padding: var(--sp-2) var(--sp-3);
+  padding: max(var(--sp-2), (max(2.5rem, var(--aim-floor)) - 1lh) / 2 - 1px) var(--sp-3);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);

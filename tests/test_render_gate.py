@@ -25,9 +25,9 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -447,12 +447,16 @@ def test_a_widget_drawn_at_a_height_its_first_paint_did_not_reserve_gets_advice(
 
     assert reading.failures == []
     assert reading.advice == [
-        "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
-        "reserves no height, so what follows it moves when it is drawn: state "
-        'data-height="120"',
-        "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
-        "reserves 40px, so what follows it moves when it is drawn: state "
-        'data-height="120"',
+        (
+            "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
+            "reserves no height, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
+        (
+            "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
+            "reserves 40px, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
     ]
 
 

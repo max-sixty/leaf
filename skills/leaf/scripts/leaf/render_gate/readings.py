@@ -634,7 +634,11 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
     lands moves what follows it."""
     return [
         f"<{w['tag']} id={w['id']!r}> draws {w['drawn']}px tall where its first paint "
-        + ("reserves no height" if w["reserved"] is None else f"reserves {w['reserved']}px")
+        + (
+            "reserves no height"
+            if w["reserved"] is None
+            else f"reserves {w['reserved']}px"
+        )
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]

@@ -627,37 +627,32 @@ DIAG_PROBE = """
 """
 
 
-def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
-    root = "a1b2c3d4"
+SAMPLE_READER = "a1b2c3d4"
 
-    # Each child is taller than the window, so its frame is too, and the thread panel it
-    # opens stands its message near the frame's top.
-    def sample(name):
-        return f"""<lf-sample id="{name}-practice" label="Read practice">
-  <template id="{name}-source" data-sample data-sample-threads="{root}">
+
+def _sample_reading_page(browser, serve, body, style):
+    """A page holding one live sample whose child page is taller than the window and
+    carries one agent message, so the thread panel it opens stands the message near the
+    frame's top. `style` places the sample; the returned child is its page."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sample reading practice",
+                body.format(
+                    sample=f"""<lf-sample id="read-practice" label="Read practice">
+  <template id="read-source" data-sample data-sample-threads="{SAMPLE_READER}">
     <style>#child-rest {{ height: 3000px; }}</style>
     <h1>Child page</h1>
     <div id="child-rest"></div>
   </template>
 </lf-sample>"""
-
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Offscreen reading practice",
-                f"""
-<h1>Practice page</h1>
-<div id="read-clip">{sample("clipped")}</div>
-<div id="read-gap"></div>
-{sample("far")}
-""",
-                head="<style>#read-clip { height: 100px; overflow: hidden; }"
-                " #read-gap { height: 2000px; }</style>",
+                ),
+                head=f"<style>{style}</style>",
             ),
             events=[
                 {
-                    "id": root,
+                    "id": SAMPLE_READER,
                     "kind": "comment",
                     "author": "agent",
                     "agent": "Agent",
@@ -668,53 +663,73 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         ),
         init_script=DIAG_PROBE,
     )
-    clipped = page.locator("#clipped-practice iframe")
-    far = page.locator("#far-practice iframe")
-    clipped_child = clipped.element_handle().content_frame()
-    far_child = far.element_handle().content_frame()
-    for child in (clipped_child, far_child):
-        expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
+    frame = page.locator("#read-practice iframe")
+    child = frame.element_handle().content_frame()
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
+    return page, frame, child
 
-    # The user opens a sample's Threads, goes to its first unread message by key, and
-    # scrolls the containing page a little, which has the sample read what it shows.
-    def first_unread(child):
-        page.keyboard.press("Enter")
-        expect(child.locator(".lf-threads")).to_be_visible()
-        page.keyboard.press("u")
-        expect(child.locator(f'.lf-thread[data-id="{root}"]')).to_have_attribute(
-            "open", ""
-        )
-        page.evaluate("scrollBy(0, 50)")
-        page.wait_for_timeout(200)
-        expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
 
+def _go_to_first_unread(page, child):
+    """The user opens the sample's Threads from its focused toggle, goes to its first
+    unread message by key, and scrolls the containing page a little, which has the
+    sample read what it shows. The message stays unread."""
+    page.keyboard.press("Enter")
+    expect(child.locator(".lf-threads")).to_be_visible()
+    page.keyboard.press("u")
+    expect(child.locator(f'.lf-thread[data-id="{SAMPLE_READER}"]')).to_have_attribute(
+        "open", ""
+    )
+    page.evaluate("scrollBy(0, 50)")
+    page.wait_for_timeout(200)
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
+
+
+def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
     # On the first screen, inside a box that shows only its top, the sample's own page
     # shows nothing.
-    clipped_child.locator(".lf-threads-toggle").focus()
-    first_unread(clipped_child)
+    page, _, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
+        "#read-clip { height: 100px; overflow: hidden; }",
+    )
+    child.locator(".lf-threads-toggle").focus()
+    _go_to_first_unread(page, child)
+    import json as diag_json
 
-    # Below the first screen it shows nothing either: the user focuses its Threads
-    # toggle and scrolls the containing page back to the top first.
-    far_child.locator(".lf-threads-toggle").focus()
+    page.evaluate("() => window.lfShiftsJudged?.()")
+    print("DIAG", diag_json.dumps(page.evaluate("window.__probe")))
+
+
+def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
+    page, frame, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
+        "#read-gap { height: 2000px; }",
+    )
+    # Below the first screen it shows nothing: the user focuses its Threads toggle and
+    # scrolls the containing page back to the top first.
+    child.locator(".lf-threads-toggle").focus()
     page.evaluate("scrollTo(0, 0)")
-    first_unread(far_child)
-    assert far.bounding_box()["y"] > page.viewport_size["height"]
+    _go_to_first_unread(page, child)
+    assert frame.bounding_box()["y"] > page.viewport_size["height"]
 
-    # Taller than the window, the far sample is read through the band the containing
-    # page shows as it scrolls: its edge coming into view shows nothing, and a later
-    # scroll of the containing page shows the message.
+    # Taller than the window, the sample is read through the band the containing page
+    # shows as it scrolls: its edge coming into view shows nothing, and a later scroll of
+    # the containing page shows the message.
     page.evaluate("""() => {
-        const top = document.querySelector('#far-practice iframe')
+        const top = document.querySelector('#read-practice iframe')
             .getBoundingClientRect().top;
         scrollBy(0, top - innerHeight + 20);
     }""")
     page.wait_for_timeout(200)
-    expect(far_child.locator(".lf-first-unread")).to_have_text("Next unread")
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     page.evaluate("scrollBy(0, 700)")
-    expect(far_child.locator(".lf-first-unread")).to_be_hidden()
-    page.evaluate("() => window.lfShiftsJudged?.()")
+    expect(child.locator(".lf-first-unread")).to_be_hidden()
     import json as diag_json
 
+    page.evaluate("() => window.lfShiftsJudged?.()")
     print("DIAG", diag_json.dumps(page.evaluate("window.__probe")))
 
 

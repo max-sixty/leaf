@@ -107,7 +107,7 @@ html[data-lf-live]
       inline-size: calc((100% - var(--sp-4)) * 2 / 3);
     }
 
-    & > :not(lf-playground-preview) {
+    & > :is(lf-playground-control, lf-playground-preset, lf-playground-output) {
       margin-inline-start: calc((100% - var(--sp-4)) * 2 / 3 + var(--sp-4));
     }
   }

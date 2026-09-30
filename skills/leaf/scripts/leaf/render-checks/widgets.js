@@ -325,7 +325,8 @@ const withFirstSizes = (holder, inside) => {
 // Each widget whose module draws at a height nothing ahead of it can lay out (x-height)
 // and whose border box, which is the box the theme reserves, changed height between the
 // page's first paint and now: `drawn` is the height to state as its data-height, and
-// `reserved` the height its first paint held (`data-lf-height`), if any.
+// `reserved` the height its first paint held (`data-lf-height`, empty where `x-height`
+// is `true` and the occurrence states none), if any.
 export function unreservedHeights(declarations) {
   return globalThis.__leafRenderDriver
     .firstBoxes()
@@ -341,7 +342,7 @@ export function unreservedHeights(declarations) {
               tag: element.localName,
               id: element.id,
               drawn: Math.round(now),
-              reserved: element.getAttribute("data-lf-height"),
+              reserved: element.getAttribute("data-lf-height") || null,
             },
           ];
     });

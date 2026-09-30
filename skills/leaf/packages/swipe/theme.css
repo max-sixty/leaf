@@ -13,6 +13,9 @@ lf-swipe-deck {
   gap: var(--sp-3);
   margin: var(--sp-4) 0;
   container: lf-swipe-deck / inline-size;
+  /* How tall a Pass or Keep press stands: 2.5rem, or the aim floor where a finger raises
+   * it past that, or its padded line where that is taller. */
+  --lf-swipe-press: max(2.5rem, var(--aim-floor), calc(2 * var(--sp-2) + var(--t-5) + 2px));
 }
 
 lf-swipe-deck > :is(lf-swipe-pile, .lf-swipe-controls) {
@@ -225,13 +228,16 @@ lf-swipe-card.lf-swipe-dragging {
 }
 
 /* The height is the padding, so a grid that squeezes its row squeezes no press under
-   its words: 2.5rem, or the aim floor where a finger raises it past that, less the
-   line and the 1px border. */
+   its words: the press's height, less the line and the 1px border. */
 .lf-swipe-pass.lf-ui,
 .lf-swipe-keep.lf-ui,
-.lf-swipe-return.lf-ui {
+.lf-swipe-return.lf-ui,
+html[data-lf-live]
+  lf-swipe-deck:not(:where([data-lf-exhibit]) *)
+  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+  > lf-swipe-card:not(:has(> .lf-swipe-return))::after {
   min-width: var(--aim-floor);
-  padding: max(var(--sp-2), (max(2.5rem, var(--aim-floor)) - 1lh) / 2 - 1px) var(--sp-3);
+  padding: calc((var(--lf-swipe-press) - 1lh) / 2 - 1px) var(--sp-3);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
@@ -259,7 +265,11 @@ lf-swipe-card.lf-swipe-dragging {
   color: var(--ok-ink);
 }
 
-.lf-swipe-return.lf-ui {
+.lf-swipe-return.lf-ui,
+html[data-lf-live]
+  lf-swipe-deck:not(:where([data-lf-exhibit]) *)
+  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+  > lf-swipe-card:not(:has(> .lf-swipe-return))::after {
   display: block;
   min-height: var(--aim-floor);
   margin: 0;
@@ -267,6 +277,27 @@ lf-swipe-card.lf-swipe-dragging {
   font-size: var(--t-6);
 }
 .lf-swipe-return[hidden] { display: none; }
+
+/* A ledger row keeps its Return's room while the Return is hidden, so neither the row's
+ * height nor its title's width depends on whether the card can go back yet. Before the
+ * deck upgrades, the words the Return will say hold that room unseen, drawn as the
+ * Return is (above), so the row the page first paints is the row it presents. */
+lf-swipe-pile:is([verdict="pass"], [verdict="keep"]) > lf-swipe-card > .lf-swipe-return[hidden] {
+  visibility: hidden;
+  display: block;
+}
+
+html[data-lf-live]
+  lf-swipe-deck:not(:where([data-lf-exhibit]) *)
+  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+  > lf-swipe-card:not(:has(> .lf-swipe-return))::after {
+  content: "Return to queue";
+  visibility: hidden;
+  box-sizing: border-box;
+  grid-column: 2;
+  grid-row: 1;
+  text-align: center;
+}
 
 .lf-swipe-pass:disabled,
 .lf-swipe-keep:disabled {
@@ -413,14 +444,13 @@ html[data-lf-live]
   content: "";
   grid-column: 1 / -1;
   grid-row: 2;
-  block-size: max(calc(2 * var(--sp-2) + var(--t-5) + 2px), 2.5rem, var(--aim-floor));
+  block-size: var(--lf-swipe-press);
 }
 
 @container lf-swipe-deck (max-width: 31rem) {
   html[data-lf-live]
     lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
-    block-size: calc(var(--t-6) * 1.3 + var(--sp-2)
-      + max(calc(2 * var(--sp-2) + var(--t-5) + 2px), 2.5rem, var(--aim-floor)));
+    block-size: calc(var(--t-6) * 1.3 + var(--sp-2) + var(--lf-swipe-press));
   }
 }
 

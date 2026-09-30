@@ -76,6 +76,14 @@ sentence in a reference saying that something relies on the current shape is
 a consumer to update, never a reason to keep the shape or to carve an
 exception around it.
 
+Leaf's own restrictions do not settle what a feature may do either. When a
+content security policy, a validator's refusal, an import allowlist, or a limit
+on what some markup may carry stands between the user and a feature, raise it
+with the user rather than dropping the feature or working around it quietly.
+Name the restriction, what it blocks, what it protects, and what lifting it
+would cost. It may guard something the user values, or it may be a side effect
+nobody chose, and only the user can weigh the feature against it.
+
 Coherent new features can be tried before every product detail is settled, so
 long as any architectural problem they leave remains easy to fix.
 

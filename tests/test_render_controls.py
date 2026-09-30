@@ -5738,7 +5738,6 @@ RING_CASES = (
                 (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
-                ("lf-code pre", "code-pre-light"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),

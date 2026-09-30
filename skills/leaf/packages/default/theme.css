@@ -2077,44 +2077,29 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
-/* The block's ring is drawn over its lines by the host rather than as the <pre>'s own
-   outline, which paints with the <pre>'s in-flow content: a note row is sticky, so it
-   paints after that and took the ring's side runs where it crosses them. The host's
-   pseudo-element is positioned and follows every row in tree order, so it paints over
-   them at the same level. The host is
-   the carrier because the <pre> scrolls, and a box positioned inside a scroller moves
-   with what it scrolls; the host holds nothing else and the <pre>'s margin collapses
-   through it, so the two boxes are one. */
-lf-code.lf-rendered { position: relative; }
-lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: none; }
-lf-code.lf-rendered:has(> pre:is(:focus-visible, .lf-focus-visible))::after {
-             content: ""; position: absolute; inset: 0; pointer-events: none;
-             border-radius: var(--r);
-             outline: var(--focus-ring); --lf-focus-ring: code-pre-light;
-             outline-offset: calc(-1 * var(--focus-ring-w)); }
-/* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
-   package answers the same question on its own rows, but from the track rather than the
-   line, because there every row has to end where the widest one does: this block's lines
-   are their own width, so a short hi line still stops at the scrollport rather than at
-   the block's own width.
-   TODO: give the rendered <pre> one column with that same floor, so every line ends
-   where the widest one does. A note shares the column and would need the diff outlet's
-   inline-size containment to stay out of its measure; notes also position sticky, which
-   is the part a grid could move. */
-lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
-             width: max-content; min-width: 100%; box-sizing: border-box; }
-/* max-content is the unwrapped line, so the sheet's wrap finds no break to take while
-   it stands and the row draws its full width through the block's border. Paper gives
-   the width back, and the line wraps inside the frame with its gutter on the first row.
-   Screen keeps the scroller: sideways is a gesture there and the column still means
-   something. */
-@media print { lf-code .lf-code-line { width: auto; } }
+/* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
+   frame hid its end behind a scrollbar at the block's foot, and the end is where a log
+   line says what happened; a reader in a narrow window or on a phone saw the start of
+   every line and nothing to say more was there. The gutter stands the full height of a
+   wrapped line with the number on its first row, and the rows after it hang two
+   characters past the line's own indent (`--lf-code-indent`, the module's count of its
+   leading columns), so they read as the same line and keep its place in the code's
+   structure. The hang stops at 24 characters, so a deep line in a narrow frame keeps
+   room to wrap into. A line that fits keeps its columns. `anywhere` because what runs
+   long is paths, URLs and hashes, none of which offer the line box a break. */
+lf-code .lf-code-line { display: block; position: relative;
+             --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+             padding: 0 14px 0 calc(var(--lf-code-gutter) + 8px + var(--lf-code-hang));
+             text-indent: calc(-1 * var(--lf-code-hang));
+             white-space: pre-wrap; overflow-wrap: anywhere; }
 lf-code :is(.lf-code-line, .lf-code-elided)::before {
              content: attr(data-line); display: inline-block; width: var(--lf-code-gutter);
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
              border-right: 1px solid var(--code-border); background: var(--code-chrome);
              text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
+lf-code .lf-code-line::before { position: absolute; inset-block: 0; inset-inline-start: 0;
+             text-indent: 0; }
 /* The lines an excerpt leaves out: a row of its own with a mark in the gutter and the
    count beside it, both painted, so the copy and the anchors see only quoted source.
    A note docked in the stretch follows the count as the row's caption, in the same
@@ -2143,9 +2128,8 @@ lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the gutter. Horizontal rules mark the insertion
-   without inventing author metadata the note does not carry. Sticky positioning holds
-   that row to a horizontal scrollport; unlike a max-content line, its prose still wraps. */
-lf-code .lf-code-note { position: sticky; inset-inline-start: 0;
+   without inventing author metadata the note does not carry. */
+lf-code .lf-code-note {
              margin: 5px 0 6px; padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
              background: var(--pre-bg); border: 0;
              border-block: 1px solid var(--code-border); border-radius: 0;

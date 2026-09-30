@@ -2844,6 +2844,10 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     chip = done.locator(":scope > .lf-key-badge")
     expect(chip).to_be_visible()
     frame = question.bounding_box()
+    done_row = question.locator(":scope > lf-options-done").bounding_box()
+    assert frame["y"] + frame["height"] - done_row["y"] - done_row["height"] == pytest.approx(
+        1, abs=1
+    )
     box = chip.bounding_box()
     assert (
         frame["x"] <= box["x"]

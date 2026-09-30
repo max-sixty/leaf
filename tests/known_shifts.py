@@ -470,8 +470,6 @@ KNOWN_UNASKED = {
         "test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted",
     },
     "test_render_read_state.py": {
-        # div.lf-ui.lf-bottom-status, div.lf-chrome
-        "test_offscreen_sample_cannot_acknowledge_child_viewport",
         # p#tail-2, p#tail-0
         "test_shadow_package_thread_registers_its_real_message_body",
     },

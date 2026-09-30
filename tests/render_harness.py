@@ -42,7 +42,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
-from known_shifts import known_reports, watches_shifts
+from known_shifts import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -1062,9 +1062,9 @@ def clean_browser(test=None):
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves. The fixture hands over its `test` node, which `known_shifts` says
-    whether to watch for layout shifts (`shift_watch.js`) and which reports it keeps:
-    each a defect waiting on its fix.
+    themselves. The fixture hands over its `test` node, for which `known_shifts` says
+    whether to watch for layout shifts (`shift_watch.js`) and which shift is its known
+    one: a defect waiting on its fix.
     """
     global _BROWSER_PROBLEM_LISTS, _WATCH_SHIFTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1076,12 +1076,11 @@ def clean_browser(test=None):
     finally:
         _BROWSER_PROBLEM_LISTS = None
         _WATCH_SHIFTS = True
-    known = known_reports(test) if test else ()
     problems = [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
-        if not any(report in problem for report in known)
+        if not (test and known(test, problem))
     ]
     assert problems == [], problems
 

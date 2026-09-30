@@ -168,10 +168,9 @@ both; the nightly-marked tests watch again once the defect most of their shifts 
 fixed (`known_shifts.watches_shifts`). Playwright's
 clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
 written by script, and the server's news are not. Fix what moved rather than consuming
-the report. `known_shifts.py` lists the tests whose pages still make one, each a
-defect waiting on its fix, by the report it keeps; fixing one deletes its line. Chrome
-names only the five nodes a frame moved most, which differ between runs and machines,
-so the list names tests, not elements.
+the report. `known_shifts.py` names the tests whose pages still shift without input,
+each with the region its known shift moves: a defect waiting on its fix, whose entry
+goes when it is fixed.
 
 ## A page is ready when it says what has finished
 

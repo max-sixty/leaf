@@ -96,11 +96,15 @@ and its chrome coordinate.
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
   the chrome — tokens it reads, named parts, or a layer the page ranks above — so a page
   can change the thread panel's format or hide one surface where it needs to.
-- **Give the workspace Layout a column setting.** Each workspace page writes the same
-  four-declaration pane grid that `columns="3fr 2fr"` used to say; a token such as
-  `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
-  panes outside a workspace also restates the Layout's pane scrolling (the feature
-  gallery), which could key on `--lf-full-height` instead.
+- **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
+  page, and since `layout-workspace` works only on `main`, it restates the Layout's
+  full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane
+  rules can't simply key on `--lf-full-height`: they say which panes the workspace sizes
+  by where they stand under `main`, and the property is inherited by every descendant.
+  Taking the Layout onto a block also means the runtime's layout region
+  (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
+  both look only at `main`, have to look at that block too. It waits for a page that
+  needs it; a workspace page's own pane grid stays plain CSS.
 - **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
   target that covers no words (`pinSpot`), which clears single markers on most pages,
   but under a finger Accept and Reject together are a 96×44px pair: that needs a line

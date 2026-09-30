@@ -15,6 +15,7 @@ import {
   segmentsIn,
   spanIn,
 } from "../passages.js";
+import { upFrom } from "../shadow.js";
 import { textUnits } from "../text-alignment.js";
 import { ADDRESSABLE, anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
 
@@ -40,7 +41,7 @@ export const selectionAnchor = (sel) => rangeAnchor(pageRange(sel));
 // element a pointing gesture landed on (pointed-place.js).
 export function rangeAnchor(range) {
   const node = range.commonAncestorContainer;
-  const holder = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm

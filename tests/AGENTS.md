@@ -161,6 +161,14 @@ vendored component or a focus borrow does, joins `EXPECTED` in `write_watch.js` 
 that reason. A test that reads the page by changing it and putting it back does so
 inside `lfUnwatched`.
 
+A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
+of those problems (`shift_watch.js`): one Chrome reports without recent input, and
+typing that carries the field it types in, so every test checks both. Playwright's
+clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
+written by script, and the server's news are not. Fix what moved rather than consuming
+the report. `EXPECTED` there lists the shifts the page makes today, each a defect
+waiting on its fix, and fixing one deletes its lines.
+
 ## A page is ready when it says what has finished
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)

@@ -15,6 +15,7 @@ from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.mcp_page import ProcessPageServer
+from leaf.render_gate import browser as browser_model
 from playwright.sync_api import sync_playwright
 
 # The canonical subprocess command. Tests of the installed host boundary invoke
@@ -516,10 +517,19 @@ def scrollbar_browser(_playwright, request):
         shown.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def headless_shell():
-    """The path of a browser that is not installed Chrome, for the tests that hand
-    one to a leaf process through LEAF_BROWSER_EXECUTABLE.
+    """Name the pinned headless shell as the host's browser for the rest of the run,
+    and return its path.
+
+    The run is a host, and names its browser the way one does, through
+    LEAF_BROWSER_EXECUTABLE, so every leaf it runs draws with the build the `_browser`
+    fixture drives. Left unnamed, each `page check` that runs a page's code or takes
+    `--render` would launch the installed Google Chrome afresh: about three seconds
+    apiece, and on macOS about a second of the keychain daemon's CPU for each new
+    process, where the shell costs neither. A test whose subject is how a host that
+    named no browser gets one clears every variable (`test_render_commands`,
+    `unnamed_browser`).
 
     Playwright reports where its full Chromium build would be whether or not that
     build is installed, and the documented setup installs the shell alone
@@ -558,10 +568,13 @@ def headless_shell():
     shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
         shell.glob("*/headless_shell")
     )
-    for candidate in (*shell_executables, chromium):
-        if candidate.is_file():
-            return str(candidate)
-    raise AssertionError(
-        f"no Playwright Chromium under {root}; run `uv run playwright install "
-        "chromium --only-shell` (tests/AGENTS.md)"
+    executable = next(
+        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
     )
+    if executable is None:
+        raise AssertionError(
+            f"no Playwright Chromium under {root}; run `uv run playwright install "
+            "chromium --only-shell` (tests/AGENTS.md)"
+        )
+    os.environ[browser_model.VARIABLE] = executable
+    return executable

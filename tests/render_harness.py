@@ -42,6 +42,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
+from known_shifts import known_reports
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -54,7 +55,6 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
-from known_shifts import KNOWN_SHIFTS
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1060,8 +1060,9 @@ def clean_browser(test=None):
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves. The fixture names its `test`, whose entry in `KNOWN_SHIFTS` keeps the
-    layout-shift reports it names (`shift_watch.js`): each a defect waiting on its fix.
+    themselves. The fixture hands over its `test` node, whose entries in `known_shifts`
+    keep the layout-shift reports they name (`shift_watch.js`): each a defect waiting on
+    its fix.
     """
     global _BROWSER_PROBLEM_LISTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1071,12 +1072,12 @@ def clean_browser(test=None):
         yield
     finally:
         _BROWSER_PROBLEM_LISTS = None
-    known = KNOWN_SHIFTS.get(test)
+    known = known_reports(test) if test else ()
     problems = [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
-        if not (known and known in problem)
+        if not any(report in problem for report in known)
     ]
     assert problems == [], problems
 

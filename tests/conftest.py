@@ -464,7 +464,7 @@ def browser(_browser, request):
     from render_harness import WatchedBrowser, clean_browser
 
     try:
-        with clean_browser(request.node.originalname):
+        with clean_browser(request.node):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
@@ -481,7 +481,7 @@ def iphone(_playwright, request):
 
     webkit = _playwright.webkit.launch()
     try:
-        with clean_browser(request.node.originalname):
+        with clean_browser(request.node):
             yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
@@ -499,7 +499,7 @@ def scrollbar_browser(_playwright, request):
 
     shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
     try:
-        with clean_browser(request.node.originalname):
+        with clean_browser(request.node):
             yield WatchedBrowser(shown)
     finally:
         shown.close()

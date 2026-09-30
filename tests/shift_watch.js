@@ -19,7 +19,7 @@
 //   Chrome reports without recent input moved something the user did not ask to move.
 //   It is reported for every element the frame moved, once per element, named by
 //   write_watch.js's `lfPlace`. The tests whose pages still do are
-//   `known_shifts.KNOWN_SHIFTS`.
+//   `known_shifts.py`.
 // - Typing never carries its field. A keystroke may grow its field, at whichever edge
 //   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
 //   never moves the field whole, as a "Draft" mark appearing in the header above a reply
@@ -182,7 +182,7 @@
     return others.length ? `; the same frame moved ${others.join(", ")}` : "";
   };
   // One known defect is every page's, so it is known here by when it happens rather than
-  // in `KNOWN_SHIFTS` by test: widgets upgrade after the authored document has painted,
+  // in `known_shifts.py` by test: widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
   // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the

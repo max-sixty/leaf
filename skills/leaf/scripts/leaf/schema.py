@@ -374,6 +374,14 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
+        # Selectors, each matched inside the element, for the painted boxes that draw
+        # its own face: a margin pin whose target is the element may stand on them.
+        "x-face": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+            "uniqueItems": True,
+        },
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},

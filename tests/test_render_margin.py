@@ -8735,16 +8735,12 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
 
 
 @pytest.mark.parametrize("target", ["rn-console-shot", "rn-sug-window"])
-def test_a_target_drawn_in_painted_parts_is_room_for_its_own_pin(
-    browser, serve, target
-):
+def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve, target):
     """A painted box inside a pin's target counts whole, as an option card does inside a
-    choice, unless the boxes inside the target fill it between them: then they are the
-    target drawn in parts, and a pin on one reads as the target's. On release-notes at
-    390px under a finger, the Console screenshot is a caption rail over its comparison,
-    and the Operations suggestion is its one tinted slot; each pin stands on its own
-    target's face, over none of the page's words, rather than over the words at its
-    corner."""
+    choice, unless the target's declaration names it as the target's own face
+    (`x-face`): a screenshot's caption rail, a suggestion's tinted slot. On
+    release-notes at 390px under a finger, each pin stands on its own target's face,
+    over none of the page's words, rather than over the words at its corner."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -8763,18 +8759,34 @@ def test_a_target_drawn_in_painted_parts_is_room_for_its_own_pin(
         assert not covered, (entry, covered)
 
 
-def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve):
+@pytest.mark.parametrize(
+    "options",
+    [
+        (
+            '<lf-option id="o-close"><strong>Close</strong> Point at the decline.'
+            "</lf-option>"
+            '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+        ),
+        # Fourteen one-word options, drawn as a column of cells that all but fill the
+        # group: a guess at whether a target is drawn by its parts once took them for
+        # the group's own face and stood the pin in the first cell.
+        '<lf-option id="o-close">Close</lf-option>'
+        '<lf-option id="o-leave">Leave open</lf-option>'
+        + "".join(f'<lf-option id="o-{n}">Option {n}</lf-option>' for n in range(12)),
+    ],
+    ids=["two", "fourteen"],
+)
+def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, options):
     """A choice is the group's, so its receipt pins to the options as a whole. The
     group's top-right corner lies on its first option's card, and a card reads as one
     thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
     the "Close" card, just below its radio. A painted box inside the target counts
-    whole as one outside it does, so the pin stands beside the group instead."""
+    whole as one outside it does, so the pin stands beside the group instead. The
+    group declares no face of its own (`x-face`), so however many cards it holds,
+    every one counts."""
     body = (
         '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
-        '<lf-options id="o" choose>'
-        '<lf-option id="o-close"><strong>Close</strong> Point at the decline.</lf-option>'
-        '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
-        "</lf-options></lf-ask>"
+        f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'
     )
     page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
     page.locator("#o-leave lf-option-control").click()

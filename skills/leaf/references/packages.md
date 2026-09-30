@@ -246,6 +246,7 @@ widget's role on the page:
 | `x-history`          | `lf-activity`                                                  |
 | `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
+| `x-face`             | `lf-suggestion` (its slots), `lf-shot` in `default` (its rail) |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns

@@ -23,9 +23,8 @@ primitive must give the user something that site would not:
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.
-- **Trust.** A page runs under a locked-down content policy, and an action
-  records its meaning when taken, so a control does what it says and the
-  record shows what the user decided.
+- **Trust.** An action records its meaning when taken, so a control does what
+  it says and the record shows what the user decided.
 - **Presentation craft.** Layout, type, and composition that hold at every
   width and beside every open panel, improved once and inherited by every
   page. A bespoke site starts from nothing each time.

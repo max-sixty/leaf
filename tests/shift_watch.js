@@ -63,6 +63,11 @@
   // machine, so each pattern names the region, and matches any node named in it. Each
   // is a defect to fix, not a behavior to keep: fixing one deletes its lines.
   const EXPECTED = [
+    // The shortcut line's More and its hints, when the scope the line reads changes
+    // without a press: More stands after hints whose words follow the scope, so a new
+    // pair moves it. Most are nightly tests that move focus or set a selection by script;
+    // some are news, such as a margin entry arriving beside the one focused.
+    /lf-shortcut/,
     // The section after a diff, 68px down, as the page first reads the log
     // (PANEL_PAGE, tests/render_cases_interaction.py).
     /section#s-merge/,

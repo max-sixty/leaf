@@ -7444,7 +7444,13 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
 
     dsc = page.locator("#dsc")
     head = page.locator("#dsc-head")
-    head.focus()
+    # The user tabs to the section's summary.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if head.evaluate("head => head === document.activeElement"):
+            break
+    else:
+        raise AssertionError("Tab never reached the section's summary")
     expect(dsc).not_to_have_attribute("open", "")
     expect(line).to_contain_text(re.compile(shut + r"\s*open"))
 
@@ -8261,11 +8267,19 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
             {id: 'test.outer-escape', keys: ['Escape'], does: 'Work the outer widget',
              line: 'work outer', run: () => { host.dataset.fired = 'Escape'; }},
           ]);
-          dialog.showModal();
-          trigger.focus();
-          trigger.click();
+          const opener = document.createElement('button');
+          opener.id = 'open-native-layer';
+          opener.textContent = 'Open the modal';
+          opener.onclick = () => {
+            dialog.showModal();
+            trigger.focus();
+            trigger.click();
+          };
+          host.prepend(opener);
         }"""
     )
+    # The user opens the modal, whose first control opens the popover inside it.
+    page.locator("#open-native-layer").click()
     modal = page.locator("#nested-modal")
     popover = page.locator("#shadow-popover")
     expect(modal).to_be_visible()
@@ -8284,12 +8298,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Reopened over the same modal, so the stack order below is read on the scene that
     # rule describes rather than on what the reference left standing.
-    page.evaluate(
-        """() => document
-          .querySelector('#nested-modal div')
-          .shadowRoot.querySelector('button')
-          .click()"""
-    )
+    page.locator("#nested-modal button").click()
     expect(popover).to_be_visible()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page

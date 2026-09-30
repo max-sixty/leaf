@@ -2029,13 +2029,13 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     ]
     # That id is the runtime's, so a passage in the heading is addressed by the
     # section the page wrote, which the file can resolve too.
-    anchor = page.locator("h3").evaluate(
-        """async heading => {
-          const selection = getSelection();
-          selection.selectAllChildren(heading);
+    # The user selects the heading's words.
+    page.locator("h3").click(click_count=3)
+    anchor = page.evaluate(
+        """async () => {
           const { selectionAnchor } = await window.__lfRuntimeImport(
             '/runtime/composing/capture.js');
-          return selectionAnchor(selection);
+          return selectionAnchor(getSelection());
         }"""
     )
     assert anchor["quote"] == "Move one cohort", anchor
@@ -11351,10 +11351,27 @@ fn merge_sort()
     assert page.evaluate("document.querySelector('#film').point('3')") is False
     expect(marked).to_have_count(0)
 
-    copied = page.evaluate(
-        """() => { getSelection().selectAllChildren(document.querySelector('#walk pre'));
-                   return getSelection().toString(); }"""
+    # The user drags from the excerpt's first word to its last.
+    ends = page.locator("#walk pre").evaluate(
+        """pre => {
+          const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT,
+            (node) => node.data.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP);
+          const texts = [];
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node);
+          const glyph = (node, at) => {
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + 1);
+            return range.getBoundingClientRect();
+          };
+          const first = texts[0], last = texts.at(-1);
+          const a = glyph(first, first.data.search(/\\S/));
+          const b = glyph(last, last.data.trimEnd().length - 1);
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
     )
+    select(page, *ends)
+    copied = page.evaluate("() => getSelection().toString()")
     # The notes come along on lines of their own, as authored text; the numbers,
     # the elided mark and its count do not.
     assert copied == (

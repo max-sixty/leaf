@@ -53,6 +53,7 @@ import { discussed, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
+import { restoreScrollerBy } from "../scrolling.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placement.js";
 import { threadSearchReading } from "./narrowing.js";
@@ -200,18 +201,14 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // however tall the turn has grown. The box stands at the list's foot (chrome.css), pinned
   // there while the card's end lies below it, so the words may reach past where it stood
   // by more than the card grew. The scroll lands in the render's own frame; where the
-  // list is too short to scroll that far, the end grows into the room below. The scroll
-  // is whole pixels, since a scroller that keeps only whole pixels truncates a fraction
-  // and would leave the box up to a pixel off where it stood.
+  // list is too short to scroll that far, the end grows into the room below.
   function followThreadEnd(newest, incoming) {
     const card = newest.closest(".lf-thread");
-    const by = Math.round(
-      Math.max(
-        card.getBoundingClientRect().bottom - incoming.end,
-        newest.getBoundingClientRect().bottom - (incoming.box ?? Infinity),
-      ),
+    const by = Math.max(
+      card.getBoundingClientRect().bottom - incoming.end,
+      newest.getBoundingClientRect().bottom - (incoming.box ?? Infinity),
     );
-    if (by > 0) threadsBox.scrollBy({ top: by, behavior: "instant" });
+    if (by > 0) restoreScrollerBy(threadsBox, by);
   }
 
   const rowModel = (all, commands) => {

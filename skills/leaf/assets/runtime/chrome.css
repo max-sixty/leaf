@@ -1098,8 +1098,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      pinned row as shown, `thread-list.js` follows a reply to its top). The card fills
      the band the stylesheet declares rather than a status's passing reservation, which
      would resize it for news, and rounds down to the whole pixels the band is measured
-     in, so it lands whole. A column does not collapse margins, so its boxes keep only
-     the space above them. */
+     in, so it lands whole. A column does not collapse margins, so the boxes that set
+     one below keep only the space above them. */
   .lf-thread-compact > .lf-compose { margin: auto 8px 0; padding: 16px 0 8px;
     position: sticky; bottom: calc(-1 * var(--lf-list-foot)); background: inherit; }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-compose) { display: flex;
@@ -1107,7 +1107,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
   .lf-thread-compact[open]:has(> .lf-compose)::details-content { display: flex;
     flex: 1; flex-direction: column; background: inherit; }
-  .lf-thread-compact[open]:has(> .lf-compose) > * { margin-block-end: 0; }
+  .lf-thread-compact[open]:has(> .lf-compose)
+    > :is(.lf-thread-head, .lf-msg, .lf-thread-checkpoint) { margin-block-end: 0; }
   .lf-thread-compact > .lf-compose .lf-compose-field {
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
   }

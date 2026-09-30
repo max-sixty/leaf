@@ -300,7 +300,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
 
 
 # Where an open card's reply box stands, the field the caret is drawn in, and the
-# caret itself: the field holding focus and the selection in it.
+# caret itself: the field holding focus and the selection in it; and the list's scroll.
 REPLY_BOX = """card => {
   const box = card.querySelector(':scope > .lf-compose');
   const field = box.querySelector('leaf-text');
@@ -309,6 +309,7 @@ REPLY_BOX = """card => {
     box: at(box),
     field: at(field),
     caret: [document.activeElement === field, field.selectionStart, field.selectionEnd],
+    scroll: card.parentElement.scrollTop,
   };
 }"""
 
@@ -406,8 +407,11 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
         # A scroll lands on a whole device pixel, so a follow may round by less than one.
         now = card.evaluate(REPLY_BOX)
         assert now["caret"] == standing["caret"]
-        assert now["box"] == pytest.approx(standing["box"], abs=0.5)
-        assert now["field"] == pytest.approx(standing["field"], abs=0.5)
+        assert now["box"] == pytest.approx(standing["box"], abs=0.5), (standing, now)
+        assert now["field"] == pytest.approx(standing["field"], abs=0.5), (
+            standing,
+            now,
+        )
         tail = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
             "el => el.getBoundingClientRect().bottom"
         )

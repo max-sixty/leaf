@@ -2,8 +2,7 @@
 
 The export packages the captured revision, its resources, and the page's authoritative
 state reading into one file, and Leaf's normal runtime boots from them. There is no
-second rendering: whatever the page draws when served, the file draws. Asset inlining
-is shared with the MCP App resource, which embeds a page the same way.
+second rendering: whatever the page draws when served, the file draws.
 """
 
 import base64
@@ -11,7 +10,6 @@ import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from leaf.event_log import read_events
 from leaf.files import (
@@ -21,7 +19,6 @@ from leaf.files import (
 )
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import (
-    RESOURCE_TYPES,
     Resource,
     RevisionArtifact,
     bind_imports,
@@ -36,35 +33,17 @@ from leaf.revision_delivery import (
     rebase_css,
 )
 from leaf.served_state.service import PageStateService
-from leaf.structure import (
-    EXTERNAL_SOURCES,
-    SourceDocument,
-)
+from leaf.structure import SourceDocument
 from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
-
-
-def _file_reader(page_dir: Path) -> ResourceReader:
-    def read(url: str) -> Resource:
-        parsed = urlsplit(url)
-        path = (page_dir / parsed.path.lstrip("/")).resolve()
-        if (
-            parsed.scheme
-            or parsed.netloc
-            or not path.is_relative_to(page_dir.resolve())
-        ):
-            raise ValueError(f"export resource is outside the page: {url}")
-        return Resource(path.read_bytes(), RESOURCE_TYPES[path.suffix])
-
-    return read
 
 
 def _data_url(resource: Resource) -> str:
     return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
 
-class _AssetInliner:
+class AssetInliner:
     """Embed a resource graph as `data:` URLs, each with its captured MIME type.
 
     Imports remain CSS imports with embedded stylesheet URLs: their namespaces,
@@ -114,42 +93,6 @@ class _AssetInliner:
         if resource.mime != "text/css":
             raise ValueError(f"export stylesheet has MIME {resource.mime}: {path}")
         return self.css(resource.data.decode("utf-8"), path, (path,))
-
-
-def inline_css_assets(
-    css: str,
-    page_dir: Path | None = None,
-    *,
-    read_resource: ResourceReader | None = None,
-    document_url: str = "/index.html",
-) -> str:
-    """Embed CSS dependencies from one page directory or exact revision reader."""
-    if read_resource is None:
-        assert page_dir is not None
-        read_resource = _file_reader(page_dir)
-    return _AssetInliner(read_resource).css(css, document_url)
-
-
-def embedding(
-    page_dir: Path | None = None, *, read_resource: ResourceReader | None = None
-) -> Delivery:
-    """Deliver a document with its styles and media embedded, its modules as named.
-
-    Resource readers own the authority boundary. A projection of the page directory
-    reads its files; a non-browser projection can supply the artifact's captured
-    resources. Delivery's own walk finds the references, so an embedded document names
-    exactly what a served one does.
-    """
-    if read_resource is None:
-        assert page_dir is not None
-        read_resource = _file_reader(page_dir)
-    assets = _AssetInliner(read_resource)
-    return Delivery(
-        address=lambda path: (
-            path if Path(path).suffix in {".js", ".mjs"} else assets.address(path)
-        ),
-        inline_stylesheet=assets.stylesheet,
-    )
 
 
 def _module_urls(
@@ -209,9 +152,8 @@ def export_document(
     The import map is an address table, not another runtime: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
     URL. The normal application publisher, widgets, and presentation coordinator boot
-    against the embedded authoritative reading. CSP admits embedded bytes and the
-    external origins a page may name, so the file reaches no other network and opens
-    offline wherever the page itself loads nothing from a CDN.
+    against the embedded authoritative reading, so the file opens offline wherever the
+    page itself names no other server.
     """
     modules = _module_urls(
         artifact,
@@ -224,7 +166,7 @@ def export_document(
             ),
         ],
     )
-    inliner = _AssetInliner(artifact.resources.__getitem__)
+    inliner = AssetInliner(artifact.resources.__getitem__)
     embedded_resources = {
         path: _data_url(resource)
         for path, resource in artifact.resources.items()
@@ -252,20 +194,12 @@ def export_document(
                 modules[path] if path in modules else inliner.address(path)
             ),
             inline_stylesheet=inliner.stylesheet,
-            policy=lambda nonce: (
-                "default-src 'none'; base-uri 'none'; form-action 'none'; "
-                f"object-src 'none'; connect-src data: {EXTERNAL_SOURCES}; "
-                f"img-src data: {EXTERNAL_SOURCES}; media-src data: {EXTERNAL_SOURCES}; "
-                f"font-src data: {EXTERNAL_SOURCES}; "
-                f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
-                f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
-            ),
             import_map={
                 "imports": {
                     f"leaf:{path}": url for path, url in sorted(modules.items())
                 }
             },
-            runtime=lambda _nonce: (
+            runtime=(
                 '<script type="application/json" data-lf-runtime data-lf-offline '
                 'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
                 f"{payload}</script>"

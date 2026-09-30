@@ -353,7 +353,10 @@ EXTENSION_SCHEMA = {
                 {"const": "whole"},
                 {
                     "type": "object",
-                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "properties": {
+                        "parts": _ATTRIBUTE_NAME,
+                        "complete": {"const": True},
+                    },
                     "required": ["parts"],
                     "additionalProperties": False,
                 },
@@ -374,6 +377,19 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
+        # Child selectors, each matched inside the element, for the painted boxes that
+        # draw its own face: a margin pin whose target is the element may stand on them.
+        # Only a light-DOM child by tag and classes, so a malformed selector is refused
+        # here rather than throwing in the browser's layout pass.
+        "x-face": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
+            },
+            "minItems": 1,
+            "uniqueItems": True,
+        },
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
@@ -438,9 +454,6 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# Outside the layer roots: an MCP host reads a resource here from the install over
-# the tool transport, so `page init` never copies one into a page directory.
-MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"

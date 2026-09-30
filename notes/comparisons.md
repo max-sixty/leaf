@@ -787,6 +787,9 @@ finding the passage again, so leaf writes its own — unique-context confirmatio
 detachment rather than a fallback to ordinals — and a shared field name would
 advertise a matcher that isn't shared.
 
+Leaf removed its MCP Apps transport on 2026-09-29; `notes/mcp-apps/PROJECT.md` says why
+and how to rebuild it. What follows is the research as it stood.
+
 The door worth opening is none of those, and it is not a format. [MCP Apps][mcp-apps] —
 the official extension informed by the earlier community MCP-UI — lets a server return a
 `ui://` resource, the host render it in a sandboxed iframe, and `callServerTool` carry a

@@ -11,10 +11,12 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
 from leaf import thread as thread_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
+    Traffic,
     _traffic,
     heard_back,
     holding,
@@ -626,7 +628,8 @@ SAMPLE_READER = "a1b2c3d4"
 def _sample_reading_page(browser, serve, body, style):
     """A page holding one live sample whose child page is taller than the window and
     carries one agent message, so the thread panel it opens stands the message near the
-    frame's top. `style` places the sample; the returned child is its page."""
+    frame's top. `style` places the sample; the returned child is its page, which keeps
+    a log and a ledger of trips of its own (`Traffic`)."""
     page = open_page(
         browser,
         serve(
@@ -657,36 +660,77 @@ def _sample_reading_page(browser, serve, body, style):
     )
     frame = page.locator("#read-practice iframe")
     child = frame.element_handle().content_frame()
-    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
+    child.lf_traffic = Traffic(child)
+    expect(child.locator(".lf-first-unread")).to_have_attribute(
+        "aria-label", "1 unread message. Go to first unread message"
+    )
     return page, frame, child
 
 
-def _go_to_first_unread(page, child):
-    """The user opens the sample's Threads from its focused toggle, goes to its first
-    unread message by key, and scrolls the containing page a little, which has the
-    sample read what it shows. The message stays unread."""
+def _message_body(child):
+    return child.locator(f'.lf-msg[data-mid="{SAMPLE_READER}"] .lf-msg-body')
+
+
+def _open_first_unread(page, child):
+    """The user opens the sample's Threads from its focused toggle and goes to its first
+    unread message by key. Once the panel's slide has ended, the message stands whole in
+    the child's own viewport, so what the containing page shows of the frame is all that
+    is left to keep it unread."""
     page.keyboard.press("Enter")
     expect(child.locator(".lf-threads")).to_be_visible()
     page.keyboard.press("u")
     expect(child.locator(f'.lf-thread[data-id="{SAMPLE_READER}"]')).to_have_attribute(
         "open", ""
     )
-    page.evaluate("scrollBy(0, 50)")
-    page.wait_for_timeout(200)
-    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
+    panel_settled(child)
+    assert _message_body(child).evaluate("""body => {
+        const box = body.getBoundingClientRect();
+        return box.top >= 0 && box.bottom <= innerHeight
+            && box.left >= 0 && box.right <= innerWidth;
+    }"""), "the message is not whole in the child's own viewport"
+
+
+def _still_unread(child):
+    """Read once, after the reading pass the last move scheduled has run (`rendered`).
+    The page draws a version read in the pass that sends it, so a pass that read the
+    message would have hidden Next unread and counted a send."""
+    rendered(child)
+    assert child.locator(".lf-first-unread").is_visible()
+    assert _traffic(child).sends == 0
+
+
+def _read_by_the_sample(page, child):
+    """The control: the child sends the message read, and its server holds it read."""
+    expect(child.locator(".lf-first-unread")).to_be_hidden()
+    round_trip(child)
+    state = page.request.get(f"{child.url}api/state").json()
+    (thread,) = state["browser"]["thread"]["threads"]
+    assert thread["id"] == SAMPLE_READER
+    assert thread["unread"] == []
 
 
 def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
-    # On the first screen, inside a box that shows only its top, the sample's own page
-    # shows nothing.
+    # On the first screen, inside a scrolling box that shows only its top, the sample's
+    # own page shows the message and the containing page does not.
     page, _, child = _sample_reading_page(
         browser,
         serve,
         '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
-        "#read-clip { height: 100px; overflow: hidden; }",
+        "#read-clip { height: 100px; overflow: auto; }",
     )
     child.locator(".lf-threads-toggle").focus()
-    _go_to_first_unread(page, child)
+    _open_first_unread(page, child)
+    _still_unread(child)
+
+    # Scrolling the box until the message stands 20px below its top shows it, and the
+    # same message is read.
+    top = _message_body(child).evaluate("body => body.getBoundingClientRect().top")
+    page.locator("#read-clip").evaluate(
+        """(clip, top) => clip.scrollBy(0, clip.querySelector('iframe')
+            .getBoundingClientRect().top + top - clip.getBoundingClientRect().top - 20)""",
+        top,
+    )
+    _read_by_the_sample(page, child)
 
 
 def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
@@ -700,8 +744,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     # scrolls the containing page back to the top first.
     child.locator(".lf-threads-toggle").focus()
     page.evaluate("scrollTo(0, 0)")
-    _go_to_first_unread(page, child)
+    _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
+    _still_unread(child)
 
     # Taller than the window, the sample is read through the band the containing page
     # shows as it scrolls: its edge coming into view shows nothing, and a later scroll of
@@ -711,10 +756,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
             .getBoundingClientRect().top;
         scrollBy(0, top - innerHeight + 20);
     }""")
-    page.wait_for_timeout(200)
-    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
+    _still_unread(child)
     page.evaluate("scrollBy(0, 700)")
-    expect(child.locator(".lf-first-unread")).to_be_hidden()
+    _read_by_the_sample(page, child)
 
 
 def test_shadow_package_thread_registers_its_real_message_body(browser, serve):

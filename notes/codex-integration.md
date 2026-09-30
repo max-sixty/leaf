@@ -9,11 +9,11 @@ owns the delivery and connection lifecycle. This note holds open design work.
 ## Start the adapter when the first page is claimed
 
 An App Server-backed task could ensure its adapter is running when `server start`
-or `leaf_present` claims the first page. The adapter already discovers later
+claims the first page. The adapter already discovers later
 pages held by that task. This would remove the separate startup step from the
 normal handoff, while retaining an explicit command for recovery and diagnostics.
 
-Check both claim paths and task-wide lease handling before making startup
+Check the claim path and task-wide lease handling before making startup
 automatic. The terminal remains the interactive client for approvals and input.
 
 ## Expose typed Leaf operations

@@ -1,7 +1,7 @@
 // Watches every page for layout shifts the "Stability" rule forbids
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it after write_watch.js
-// on every page a test opens (render_harness.watched), so every test checks it, except a
-// nightly-marked one (conftest.py, `_watches_shifts`).
+// on every page a test opens (render_harness.watched), so every test checks it, except
+// a nightly-marked one for now (known_shifts.py, `watches_shifts`).
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,
@@ -19,7 +19,8 @@
 //   server's answer changes may repaint a box or grow it into free room, but a shift
 //   Chrome reports without recent input moved something the user did not ask to move.
 //   It is reported for every element the frame moved, once per element, named by
-//   write_watch.js's `lfPlace`. `EXPECTED` holds the ones the page does today.
+//   write_watch.js's `lfPlace`. The tests whose pages still do are
+//   `known_shifts.py`.
 // - Typing never carries its field. A keystroke may grow its field, at whichever edge
 //   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
 //   never moves the field whole, as a "Draft" mark appearing in the header above a reply
@@ -44,8 +45,9 @@
 // may move the field: another key or press (a key the page answers without editing,
 // such as Enter sending a reply, fires no `beforeinput`); news, the page adopting a
 // server reading (`data-lf-reading`, runtime/presentation.js), after which a reply
-// arriving above the box moves it for its own reason; and a scroll of the document or
-// an element holding the field, which moves every box after the reading at the key. A
+// arriving above the box moves it for its own reason; a resize of the window; and a
+// scroll of the document or an element holding the field, which moves every box after
+// the reading at the key. A
 // frame that finds still running an animation that moves a box, one already running on
 // the field or an element holding it at the key, as a panel's slide is when the user
 // types into it before it stops, leaves the rest of the rendering to neither rule: that
@@ -58,38 +60,6 @@
   const RECENT = 500;
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
-  // Shifts without input the page makes today, by the region they move; typing that
-  // carries its field has none. Chrome names
-  // the five nodes a frame moved most, which differ from run to run and machine to
-  // machine, so each pattern names the region, and matches any node named in it. Each
-  // is a defect to fix, not a behavior to keep: fixing one deletes its lines.
-  const EXPECTED = [
-    // The shortcut line's More and its hints, when the scope the line reads changes
-    // without a press: More stands after hints whose words follow the scope, so a new
-    // pair moves it. Most are nightly tests that move focus or set a selection by script;
-    // some are news, such as a margin entry arriving beside the one focused.
-    /lf-shortcut/,
-    // The section after a diff, 68px down, as the page first reads the log
-    // (PANEL_PAGE, tests/render_cases_interaction.py).
-    /section#s-merge/,
-    // A package's Ask on a live page, the paragraphs after it, a margin cluster beside
-    // them, and a package's thread filter (tests/test_render_application_boundary.py).
-    /lf-ask#package-ask|p#live-lead-|lf-margin-cluster|lf-thread-filter/,
-    // The paragraphs at the foot of the live pages and of the page whose tail a thread
-    // reads (tests/render_cases_interaction.py).
-    /p#(live-)?tail-/,
-    // ship-review's tasks (examples/ship-review.html).
-    /lf-task#off-t-/,
-    // A screenshot on the process page, its margin entry, and the passage after it
-    // (tests/test_render_mcp.py).
-    /lf-shot#mcp-shot|lf-shot-toggle|section#plan/,
-    // The feature gallery's sections as its tabs and options draw after the page first
-    // paints (tests/test_render_semantic_news.py).
-    /#bg-/,
-    // Thread cards in the panel as a reply arrives above thirty later ones
-    // (test_incoming_reply_follows_a_selected_thread_before_later_cards).
-    /^details\.lf-thread-compact\.lf-thread moved/,
-  ];
   // An element's parent in the composed tree, crossing from a shadow root to its host.
   const up = (node) =>
     node.parentNode instanceof ShadowRoot ? node.parentNode.host : node.parentNode;
@@ -167,6 +137,8 @@
     },
     true,
   );
+  // A resize lays the page out anew, the field with it.
+  window.addEventListener("resize", () => close());
   document.addEventListener(
     "scroll",
     (event) => {
@@ -221,11 +193,32 @@
       .map((source) => name(source.node));
     return others.length ? `; the same frame moved ${others.join(", ")}` : "";
   };
+  // One known defect is every page's, so it is known here by when it happens rather than
+  // in `known_shifts.py` by test: widgets upgrade after the authored document has painted,
+  // and the frame that presents the page carries every box their upgrade reshaped. The
+  // page before it is presented runs until the second frame after the runtime stamps
+  // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the
+  // defect deletes this.
+  let presented = null;
+  new MutationObserver(() => {
+    if (presented !== null || !document.body?.hasAttribute("data-lf-presented")) return;
+    presented = Infinity;
+    requestAnimationFrame(() =>
+      requestAnimationFrame((at) => {
+        presented = at;
+      }),
+    );
+  }).observe(document, { subtree: true, attributeFilter: ["data-lf-presented"] });
+  const presenting = ({ startTime }) =>
+    document.querySelector("script[data-lf-entry]") &&
+    (presented === null || startTime < presented);
   const unasked = (entry) => {
+    if (presenting(entry)) return;
     for (const { node, previousRect, currentRect } of entry.sources) {
-      const what = `${name(node)} moved without input`;
-      if (!EXPECTED.some((known) => known.test(what)))
-        report(what, by(previousRect, currentRect) + beside(entry.sources, node));
+      report(
+        `${name(node)} moved without input`,
+        by(previousRect, currentRect) + beside(entry.sources, node),
+      );
     }
   };
   // Chrome's rects are what a node paints, clipped to the viewport, so they are held

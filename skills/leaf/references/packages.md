@@ -246,12 +246,17 @@ widget's role on the page:
 | `x-history`          | `lf-activity`                                                  |
 | `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
+| `x-face`             | `lf-suggestion` (its slots), `lf-shot` in `default` (its rail) |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns
 the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
 absent part when someone follows its thread; `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
+An `x-visual.parts` declaration may set `complete: true` when listing some drawn
+parts while leaving their peers unaddressable would confuse a reader. The render
+check then requires a nonempty authored list to name the full registered inventory;
+omitting the attribute keeps the visual as one target.
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry
@@ -263,7 +268,7 @@ theme.
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
-generated images or links. It uses the page's public root across ordinary, MCP, and
+generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
 Registry-declared inline Markdown formats authored text, not strings a module assigns
@@ -508,7 +513,10 @@ page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
-other contributions may reuse an ID. Leaf retains each projected control by the opaque
+other contributions may reuse an ID. `kind` names what the contribution is, as one of the
+margin's reading kinds (`change`, `comment`, `ask`, `action`, …; `action` where it
+declares none): where a pin with a primary and one more control finds no room for both,
+it stands folded to one control wearing that kind's face and name, which opens to them. Leaf retains each projected control by the opaque
 contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
 so crossing that semantic boundary replaces the host instead of emulating a button.
 `target` is an

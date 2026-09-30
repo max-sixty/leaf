@@ -475,15 +475,6 @@ def test_a_crawler_is_given_one_page_per_route(site):
                 assert card.size == (1200, 630), route
 
 
-def _one_nonce(document: bytes) -> bytes:
-    """Rewrite a document's CSP nonce to a fixed token, wherever it appears."""
-    # Read it off a script rather than the policy, which is escaped inside the meta
-    # attribute. A policy naming some other nonce keeps that one and still differs.
-    nonce = re.search(rb'<script nonce="([A-Za-z0-9_-]+)"', document)
-    assert nonce is not None, document[:400]
-    return document.replace(nonce.group(1), b"minted")
-
-
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     site, hosted
 ):
@@ -525,10 +516,6 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
             served = re.sub(
                 rb'data-lf-server="[^"]+"', b'data-lf-server="published"', served
             )
-            # The other value a delivery mints fresh. Each document is rewritten with
-            # its own nonce, so a document whose scripts carried a nonce its policy
-            # does not name still fails the comparison.
-            served, materialized = _one_nonce(served), _one_nonce(materialized)
         assert materialized == served, route
 
 
@@ -1043,14 +1030,14 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     tour = staged_docs / "index.html"
     tour.write_text(
         tour.read_text().replace(
-            "</head>", '<script src="https://evil.example/x.js"></script></head>'
+            "</head>", '<base href="https://evil.example/"></head>'
         )
     )
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
         site_build.build(tmp_path / "invalid-site")
-    assert "<script src>" in str(stopped.value)
+    assert "<base>" in str(stopped.value)
 
 
 def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(

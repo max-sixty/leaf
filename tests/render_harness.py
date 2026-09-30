@@ -42,6 +42,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
+from known_shifts import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -1055,23 +1056,21 @@ _WATCH_SHIFTS = True
 
 
 @contextmanager
-def clean_browser(*, shifts=True):
+def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves.
-
-    `shifts` says whether the pages it watches report layout shifts
-    (`shift_watch.js`); `conftest.py` turns it off for nightly-marked tests, whose
-    shifts `EXPECTED` does not yet list.
+    themselves. The fixture hands over its `test` node, for which `known_shifts` says
+    whether to watch for layout shifts (`shift_watch.js`) and which shift is its known
+    one: a defect waiting on its fix.
     """
     global _BROWSER_PROBLEM_LISTS, _WATCH_SHIFTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
     captured = []
     _BROWSER_PROBLEM_LISTS = captured
-    _WATCH_SHIFTS = shifts
+    _WATCH_SHIFTS = test is None or watches_shifts(test)
     try:
         yield
     finally:
@@ -1081,6 +1080,7 @@ def clean_browser(*, shifts=True):
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
+        if not (test and known(test, problem))
     ]
     assert problems == [], problems
 

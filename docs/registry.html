@@ -134,6 +134,7 @@
           <a href="#x-data"><code>x-data</code></a>
           <a href="#x-example"><code>x-example</code></a>
           <a href="#x-exhibit"><code>x-exhibit</code></a>
+          <a href="#x-face"><code>x-face</code></a>
           <a href="#x-guidance"><code>x-guidance</code></a>
           <a href="#x-history"><code>x-history</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
@@ -297,6 +298,30 @@
                 wiring any input, and the theme's affordance rules — the hand, the lift,
                 the joined shape — stand down inside it on their own.
               </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-face">
+            <h3><code>x-face</code></h3>
+            <div class="reference-copy">
+              <p>
+                Child selectors, each <code>:scope &gt; </code> and then a tag, classes,
+                or both (<code>:scope &gt; lf-new</code>,
+                <code>:scope &gt; .lf-shotrail</code>), naming the light-DOM children
+                that are painted boxes that draw the element's own face rather than
+                separate things it holds: a suggestion's tinted slots, a screenshot's
+                caption rail.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-face contract">Full contract</summary>
+                <p>
+                  A margin pin whose target is this element may stand on them, as it
+                  stands on the element itself, and still keeps off their words; every
+                  other box inside the target that paints its own extent counts whole,
+                  since a pin on it reads as that box's, as a choice's pin on its first
+                  option's card would read as that option's. Declare it only where a pin
+                  on the part reads as the whole element's.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-guidance">
@@ -845,7 +870,10 @@
                   or geometry change, including an in-place attribute or style change.
                   The render gate validates every record, requires each authored token
                   to resolve, in the current state or after its <code>reveal</code>, and
-                  refuses a registered id its prefixes do not admit.
+                  refuses a registered id its prefixes do not admit. A
+                  <code>{parts: ATTR, complete: true}</code> declaration also refuses a
+                  nonempty authored list that omits a registered part; omitting ATTR
+                  keeps the whole picture as one target.
                 </p>
               </details>
             </div>

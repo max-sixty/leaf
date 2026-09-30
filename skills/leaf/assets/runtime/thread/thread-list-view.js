@@ -198,7 +198,10 @@ class ThreadListView extends RetainedFace {
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
-    this.#rows = rows;
+    // The list says it shows nothing once the last card has given its room back. Said
+    // while that card still folds, the words stood above it and carried it down.
+    const giving = rows.some((row) => row.kind === "thread" && isFolding(row.node));
+    this.#rows = giving ? rows.filter((row) => row.kind !== "empty") : rows;
   }
 
   // A folded row says whether its reply holds a draft. A send empties the box and

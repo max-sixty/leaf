@@ -163,7 +163,7 @@ For every delivered event, read its `handling` clause ids in order from that bat
 `handling` object and follow those instructions and the `answer` it owes. No work
 claim is required.
 
-Do not call leaf_present or initialize another page. You may revise index.html and
+Do not initialize another page. You may revise index.html and
 use the page's normal Leaf controls. Saving valid index.html publishes its revision;
 there is no separate `leaf publish` command. Stamp a version only where an event's
 `answer` asks for one or the user requests a named checkpoint. Leave the page's

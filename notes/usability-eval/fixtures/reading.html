@@ -53,13 +53,25 @@
         <p id="rehearsal-note">
           The rehearsal replayed one day of production writes against the new cluster.
         </p>
-        <lf-chart id="rehearsal-errors" kind="bars" y="write errors">
+        <lf-chart id="rehearsal-errors">
           <pre>
-region, errors
-us-east, 212
-eu-west, 96
-ap-south, 1284
-sa-east, 58
+{
+  ariaLabel: "write errors: us-east 212, eu-west 96, ap-south 1284, sa-east 58",
+  y: {grid: true, label: "write errors"},
+  x: {domain: ["us-east", "eu-west", "ap-south", "sa-east"], label: null},
+  marks: [
+    Plot.barY(
+      [
+        {region: "us-east", errors: 212},
+        {region: "eu-west", errors: 96},
+        {region: "ap-south", errors: 1284},
+        {region: "sa-east", errors: 58},
+      ],
+      {x: "region", y: "errors", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
 </pre>
         </lf-chart>
       </section>

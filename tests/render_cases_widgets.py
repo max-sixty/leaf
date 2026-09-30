@@ -1,5 +1,7 @@
 """Shared widgets browser-integration cases and readings."""
 
+import html
+
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
@@ -255,7 +257,7 @@ TYPED_PARTS_PAGE = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="node:Queued node:Working node:Build"><pre>
+<lf-diagram id="life" parts="node:Queued node:Working node:Fetch node:Build node:Done"><pre>
 stateDiagram-v2
   [*] --&gt; Queued
   Queued --&gt; Working
@@ -264,7 +266,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="node:RUNNER"><pre>
+<lf-diagram id="shape" parts="node:RUNNER node:JOB"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -272,17 +274,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="node:A"><pre>
+<lf-diagram id="path" parts="node:A node:B"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:User"><pre>
+<lf-diagram id="exchange" parts="node:User node:Server"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="node:Job"><pre>
+<lf-diagram id="model" parts="node:Job node:Runner"><pre>
 classDiagram
   class Job {
     +run()
@@ -305,7 +307,7 @@ TYPED_PARTS_V2 = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="node:Queued node:Working node:Build"><pre>
+<lf-diagram id="life" parts="node:Fresh node:Queued node:Working node:Fetch node:Build node:Done"><pre>
 stateDiagram-v2
   [*] --&gt; Fresh
   Fresh --&gt; Queued
@@ -315,7 +317,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="node:RUNNER"><pre>
+<lf-diagram id="shape" parts="node:RUNNER node:JOB"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -323,13 +325,13 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:User"><pre>
+<lf-diagram id="exchange" parts="node:User node:Server"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="node:Job"><pre>
+<lf-diagram id="model" parts="node:Job node:Runner"><pre>
 classDiagram
   class Job {
     +run()
@@ -422,69 +424,140 @@ sankey-beta
 </pre></lf-diagram>
 """,
 )
-# Every chart kind on one page, each body small enough to count the marks it should have
-# produced by hand. A reading that only ever meets bars says nothing about the four other
-# routes through the module, and each of them hands Plot a different mark.
+
+
+def chart_markup(chart_id: str, body: str) -> str:
+    """An lf-chart whose body is `body`, a Plot expression for Plot.plot's options."""
+    return f'<lf-chart id="{chart_id}"><pre>\n{html.escape(body, quote=False)}\n</pre></lf-chart>'
+
+
+# One chart per shape of Plot call the body can make — a mark over rows, a faceted mark,
+# marks Plot stacks, a line over dates, dots — each small enough to count the marks it
+# should have produced by hand. Two use what only code can say: a function Plot calls,
+# and the width the host draws at.
 CHART_PAGE = leaf_page(
     "charts",
-    """
-<h1 id="t">Charts</h1>
-<lf-chart id="c-bars" kind="bars" y="merged"><pre>
-quarter, apps, infra
-Q1, 12, 7
-Q2, 19, 11
-Q3, 14, 17
-</pre></lf-chart>
-<lf-chart id="c-rows" kind="rows" y="open"><pre>
-area, open
-platform infrastructure, 42
-billing, 19
-</pre></lf-chart>
-<lf-chart id="c-stack" kind="stack" y="hours"><pre>
-week, features, fixes
-w1, 21, 9
-w2, 18, 14
-</pre></lf-chart>
-<lf-chart id="c-line" kind="line" y="hours to review"><pre>
-week, backend
-2026-06-01, 31
-2026-06-08, 26
-2026-06-15, 19
-</pre></lf-chart>
-<lf-chart id="c-dots" kind="dots" y="minutes"><pre>
-lines changed, review
-12, 4
-90, 26
-310, 71
-</pre></lf-chart>
-""",
+    "\n".join(
+        [
+            '<h1 id="t">Charts</h1>',
+            chart_markup(
+                "c-bars",
+                """{
+  ariaLabel: "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17",
+  fx: {label: null},
+  y: {grid: true, label: "merged"},
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [
+    Plot.barY(
+      [["apps", [12, 19, 14]], ["infra", [7, 11, 17]]].flatMap(([team, row]) =>
+        row.map((merged, i) => ({quarter: `Q${i + 1}`, team, merged})),
+      ),
+      {fx: "quarter", x: "team", y: "merged", fill: "team"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}""",
+            ),
+            chart_markup(
+                "c-rows",
+                """{
+  ariaLabel: "Open by area: platform infrastructure 42, billing 19",
+  marginLeft: 150,
+  marginBottom: 40,
+  x: {label: width > 500 ? "open issues" : "open"},
+  marks: [
+    Plot.barX(
+      [{area: "platform infrastructure", open: 42}, {area: "billing", open: 19}],
+      {x: "open", y: "area", fill: "var(--series-1)"},
+    ),
+  ],
+}""",
+            ),
+            chart_markup(
+                "c-stack",
+                """{
+  ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
+  color: {range: ["var(--series-1)", "var(--series-2)"]},
+  y: {tickFormat: (hours) => `${hours}h`},
+  marks: [
+    Plot.barY(
+      [
+        {week: "w1", kind: "features", hours: 21},
+        {week: "w2", kind: "features", hours: 18},
+        {week: "w1", kind: "fixes", hours: 9},
+        {week: "w2", kind: "fixes", hours: 14},
+      ],
+      {x: "week", y: "hours", fill: "kind"},
+    ),
+  ],
+}""",
+            ),
+            chart_markup(
+                "c-line",
+                """{
+  ariaLabel: "Hours to review by week: 31, 26, 19",
+  x: {type: "utc"},
+  marks: [
+    Plot.lineY(
+      [
+        {week: "2026-06-01", hours: 31},
+        {week: "2026-06-08", hours: 26},
+        {week: "2026-06-15", hours: 19},
+      ],
+      {x: "week", y: "hours", stroke: "var(--series-1)"},
+    ),
+  ],
+}""",
+            ),
+            chart_markup(
+                "c-dots",
+                # A continuous scale's legend is a colour ramp: an <svg> of its own beside
+                # the drawing.
+                """{
+  ariaLabel: "Review minutes against lines changed: 12 and 4, 90 and 26, 310 and 71",
+  marginBottom: 40,
+  color: {legend: true, scheme: "blues"},
+  marks: [
+    Plot.dot(
+      [{lines: 12, minutes: 4}, {lines: 90, minutes: 26}, {lines: 310, minutes: 71}],
+      {x: "lines", y: "minutes", fill: "minutes"},
+    ),
+  ],
+}""",
+            ),
+        ]
+    ),
 )
-# What a chart drew, read off the composed drawing rather than off the body it came from.
-# Marks are found by the class the module puts on each series, because that class is the
-# whole of its colour contract: nothing else in the drawing carries a series' identity,
-# and the colour itself is the stylesheet's answer to it.
+# What a chart drew, read off the composed drawing rather than off the body it came from:
+# each mark group Plot drew, by the name it gives the group, with the shapes in it and
+# the colours they wear, beside what each series token resolves to on this page now.
 CHART_MARKS = """(id) => {
-    const svg = document.getElementById(id).querySelector('svg');
+    const root = document.getElementById(id).querySelector('.lf-chart-drawing');
+    const svg = root && root.querySelector('svg[role="img"]');
     if (!svg) return null;
     const probe = document.createElement('span');
     document.body.append(probe);
-    const token = (n) => {
+    const tokens = [1, 2].map((n) => {
         probe.style.color = `var(--series-${n})`;
         return getComputedStyle(probe).color;
-    };
-    const series = [...svg.querySelectorAll('[class^="lf-series-"]')].map((g) => {
-        const n = Number(g.getAttribute('class').replace('lf-series-', ''));
-        const shapes = [...g.querySelectorAll('rect, circle, path')];
-        const paint = shapes.length ? getComputedStyle(shapes[0]) : null;
-        return { n, shapes: shapes.length, tag: shapes[0] && shapes[0].tagName,
-                 worn: paint && [paint.fill, paint.stroke], token: token(n) };
     });
     probe.remove();
+    const marks = {};
+    for (const g of svg.querySelectorAll('g[data-lf-part]')) {
+        const shapes = [...g.querySelectorAll('rect, path, circle')];
+        if (!shapes.length) continue;
+        const part = g.dataset.lfPart;
+        (marks[part] ??= []).push(...shapes.map((shape) => {
+            const paint = getComputedStyle(shape);
+            return [shape.tagName.toLowerCase(), paint.fill, paint.stroke];
+        }));
+    }
     return {
-        series,
-        // A colour the module wrote into the drawing, which would freeze the scheme this
-        // browser happened to be in when the drawing was made.
-        painted: svg.outerHTML.match(/(?:fill|stroke)="#[0-9a-fA-F]{3,8}"/g) || [],
+        marks,
+        tokens,
+        // A colour written into the drawing as a value, which would freeze the scheme
+        // this browser happened to be in when the drawing was made.
+        painted: root.innerHTML.match(/(?:fill|stroke)="#[0-9a-fA-F]{3,8}"/g) || [],
         // The painted box of the first tick label. Its computed font-size is the theme's
         // and cannot move; what a scaled drawing changes is the box.
         tick: (() => { const r = svg.querySelector('text').getBoundingClientRect();
@@ -493,91 +566,25 @@ CHART_MARKS = """(id) => {
         room: Math.round(document.getElementById(id).clientWidth),
     };
 }"""
-# What the axes have to do when the room runs out: five names that each take about as much
-# room as a band has, and a series whose numbers are wider than the axis they are labelled
-# on. Read at a phone's width, where the column is a third of what the corpus is drawn at.
-CROWDED_CHART_PAGE = leaf_page(
-    "crowded charts",
-    """
-<h1 id="t">Crowded</h1>
-<lf-chart id="crowd-band" kind="bars" y="gas, kWh a winter"><pre>
-winter, meter
-2021-22, 11840
-2022-23, 10920
-2023-24, 11510
-2024-25, 12260
-2025-26, 10480
-</pre></lf-chart>
-<lf-chart id="crowd-wide" kind="bars" y="bytes"><pre>
-tier, bytes
-cache, 128400000000
-disk, 291000000000
-</pre></lf-chart>
-<lf-chart id="crowd-rows" kind="rows" y="watts lost"><pre>
-element, loss
-the single-glazed bay window in the front room, 410
-uninsulated loft hatch, 265
-</pre></lf-chart>
-""",
-)
-# Every pair of words the drawing paints, and whether any two of them are in the same
-# place. Rectangles rather than a sort along one axis: a value axis stacks its labels at
-# one left edge, and a reading that compared neighbours by x alone called every one of
-# those a collision.
-CHART_COLLISIONS = """() => {
-    const hit = (a, b) =>
-        a.left < b.right - 0.5 && b.left < a.right - 0.5 &&
-        a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
-    const found = [];
-    for (const el of document.querySelectorAll('lf-chart')) {
-        const svg = el.querySelector('svg');
-        if (!svg) { found.push({chart: el.id, pair: 'drew nothing'}); continue; }
-        const words = [...svg.querySelectorAll('text')]
-            .map((t) => [t.textContent, t.getBoundingClientRect()]);
-        for (let i = 0; i < words.length; i++)
-            for (let j = i + 1; j < words.length; j++)
-                if (hit(words[i][1], words[j][1]))
-                    found.push({chart: el.id, pair: `${words[i][0]} / ${words[j][0]}`});
-    }
-    return found;
-}"""
-# The bodies the module refuses, each for its own reason. The last three are the ones a
-# count of marks cannot see: every one of them draws a chart that looks like a chart and
-# says something the body does not.
-BAD_CHART_PAGE = leaf_page(
-    "bad charts",
-    """
-<h1 id="t">Bad</h1>
-<lf-chart id="bad-cell" kind="bars" y="merged"><pre>
-quarter, merged
-Q1, 12
-Q2, twelve
-</pre></lf-chart>
-<lf-chart id="bad-count" kind="bars" y="merged"><pre>
-quarter, a, b, c, d, e, f
-Q1, 1, 2, 3, 4, 5, 6
-</pre></lf-chart>
-<lf-chart id="bad-twice" kind="bars" y="merged"><pre>
-quarter, merged
-Q1, 12
-Q1, 19
-</pre></lf-chart>
-<lf-chart id="bad-sign" kind="stack" y="hours"><pre>
-week, features, fixes
-w1, 21, -9
-</pre></lf-chart>
-<lf-chart id="bad-blank" kind="bars" y="merged"><pre>
-quarter, apps, infra
-Q1, 12,
-Q2, 19,
-</pre></lf-chart>
-""",
-)
+# The bodies the module refuses, each for its own reason and each on a page of its own:
+# the refusal is taller than the body it replaces, and a chart below it would move.
+BAD_CHARTS = {
+    "bad-syntax": '{ariaLabel: "merged", marks: [}',
+    "bad-label": "{marks: [Plot.ruleY([0])]}",
+    "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
+    "bad-shape": '[{ariaLabel: "merged", marks: []}]',
+    "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
+}
 # A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
-CHART_MARKUP = (
-    '<lf-chart id="{id}" kind="bars" y="merged"><pre>\n'
-    "quarter, merged\nQ1, 12\nQ2, 19\n</pre></lf-chart>"
-)
+MESSAGE_CHART = """{
+  ariaLabel: "Merged by quarter: Q1 12, Q2 19",
+  marks: [
+    Plot.barY(
+      [{quarter: "Q1", merged: 12}, {quarter: "Q2", merged: 19}],
+      {x: "quarter", y: "merged", fill: "var(--series-1)"},
+    ),
+  ],
+}"""
 CHART_IN_A_MESSAGE_PAGE = leaf_page(
     "chart in a message",
     """

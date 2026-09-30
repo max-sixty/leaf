@@ -28,7 +28,6 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
-import anyio
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -213,20 +212,6 @@ class ModelPage:
             "what a page still owes is read from its claims and its deliveries, "
             "which a stated page has none of: put that refusal on `page_dir`"
         )
-
-
-def run_async(entry):
-    """Run an async entry point on a thread of this test's own.
-
-    Playwright's sync API drives an asyncio loop and holds it running in the thread that
-    opened a browser for the whole life of `sync_playwright()`, and the `browser` fixture
-    is session-scoped per xdist worker. So `anyio.run` in a worker that has already run a
-    browser test raises "Already running asyncio in this thread", and the same call in a
-    worker that has not passes — leaving the scheduler to decide whether an MCP test can
-    start a loop at all. A thread with no loop on it answers for every schedule.
-    """
-    with ThreadPoolExecutor(max_workers=1) as loop_thread:
-        return loop_thread.submit(lambda: anyio.run(entry)).result()
 
 
 def spawn_probe(spawn, page_dir, body, **environment):

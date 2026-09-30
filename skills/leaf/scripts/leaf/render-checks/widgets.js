@@ -296,33 +296,52 @@ const ROUNDING = 1;
 const shown = (element) =>
   element.isConnected && !element.closest("[hidden]") && element.checkVisibility();
 
+// The holder's box with each widget inside it put back to the size it first painted
+// at, read and then taken back within one task. Only a page nothing reads again, such
+// as the report's page of worked examples, can be read this way.
+const withFirstSizes = (holder, inside) => {
+  const kept = inside.map(({ element }) => [element, element.getAttribute("style")]);
+  for (const { element, first } of inside)
+    for (const [property, value] of [
+      // No padding or border, which would hold the box open past the size given.
+      ["box-sizing", "border-box"],
+      ["padding", "0"],
+      ["border-width", "0"],
+      ["width", `${first.width}px`],
+      ["min-width", "0"],
+      ["max-width", "none"],
+      ["height", `${first.height}px`],
+      ["min-height", "0"],
+      ["max-height", "none"],
+    ])
+      element.style.setProperty(property, value, "important");
+  const { width, height } = holder.element.getBoundingClientRect();
+  for (const [element, style] of kept)
+    if (style === null) element.removeAttribute("style");
+    else element.setAttribute("style", style);
+  return { width, height };
+};
+
 // Each authored widget whose border box changed between the page's first paint and
 // now, with both sizes (`firstBoxes` in driver.js). A change is the innermost
-// widget's. The widgets inside a holder stack in its flow, so a change in the height
-// its changed widgets span changes the holder's height by the same amount, and a
-// holder is named for its height only where its change differs from that: an Ask that
-// grew by exactly what its options grew is not named beside them, and one that also
-// grew on its own is. Width is set from a holder down to what it holds, so a width
-// change is always the widget's own. A widget hidden now is left to the widget that
-// hid it, whose own box carries the change.
+// widget's: a holder is named only for what is left of its change once the changed
+// widgets inside it are put back to their first sizes, so an Ask that grew by exactly
+// what its options grew is not named beside them, and one that also grew on its own
+// is, whether its own change is to its flow or to a size it sets itself. A widget
+// hidden now is left to the widget that hid it, whose own box carries the change.
 export function changedBoxes() {
   const readings = globalThis.__leafRenderDriver
     .firstBoxes()
     .filter(({ element }) => shown(element))
     .map((first) => {
-      const { top, bottom, width, height } = first.element.getBoundingClientRect();
-      return { element: first.element, first, now: { top, bottom, width, height } };
+      const { width, height } = first.element.getBoundingClientRect();
+      return { element: first.element, first, now: { width, height } };
     });
-  const moved = (reading, axis) =>
-    Math.abs(reading.now[axis] - reading.first[axis]) >= ROUNDING;
-  const changed = readings.filter(
-    (reading) => moved(reading, "width") || moved(reading, "height"),
-  );
-  // The height a set of widgets spans at one reading, wherever the page has scrolled.
-  const span = (inside, when) =>
-    Math.max(...inside.map((reading) => reading[when].bottom)) -
-    Math.min(...inside.map((reading) => reading[when].top));
-  const ownHeight = (holder) => {
+  const differs = (box, first) =>
+    Math.abs(box.width - first.width) >= ROUNDING ||
+    Math.abs(box.height - first.height) >= ROUNDING;
+  const changed = readings.filter((reading) => differs(reading.now, reading.first));
+  const own = (holder) => {
     const inside = changed.filter(
       (reading) => reading !== holder && holder.element.contains(reading.element),
     );
@@ -332,18 +351,14 @@ export function changedBoxes() {
           (other) => other !== reading && other.element.contains(reading.element),
         ),
     );
-    const grew = holder.now.height - holder.first.height;
-    const spanned = outermost.length
-      ? span(outermost, "now") - span(outermost, "first")
-      : 0;
-    return Math.abs(grew - spanned) >= ROUNDING;
+    return (
+      !outermost.length || differs(withFirstSizes(holder, outermost), holder.first)
+    );
   };
-  return changed
-    .filter((reading) => moved(reading, "width") || ownHeight(reading))
-    .map(({ element, first, now }) => ({
-      tag: element.localName,
-      id: element.id,
-      first: { width: first.width, height: first.height },
-      now: { width: now.width, height: now.height },
-    }));
+  return changed.filter(own).map(({ element, first, now }) => ({
+    tag: element.localName,
+    id: element.id,
+    first: { width: first.width, height: first.height },
+    now,
+  }));
 }

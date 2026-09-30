@@ -105,8 +105,8 @@
       [...document.querySelectorAll("body > main *")]
         .filter((element) => element.localName.startsWith("lf-"))
         .map((element) => {
-          const { top, bottom, width, height } = element.getBoundingClientRect();
-          return Object.freeze({ element, top, bottom, width, height });
+          const { width, height } = element.getBoundingClientRect();
+          return Object.freeze({ element, width, height });
         }),
     );
     const main = document.querySelectorAll("body > main");

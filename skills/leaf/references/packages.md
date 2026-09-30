@@ -1176,9 +1176,10 @@ and a blank image stands in for any media an example names. The checks:
 - `keeps-first-box`: the widget's box once the page presents differs from its box at
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
-  as its module will draw it. A widget holding others is not named for growing by
-  exactly as much as the widgets inside it grew, and one the page hides once
-  presented, such as an inactive tab, is left to the widget that hid it.
+  as its module will draw it. A widget holding others is named only for the change
+  left once the changed widgets inside it are put back to their first sizes, and one
+  the page hides once presented, such as an inactive tab, is left to the widget that
+  hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

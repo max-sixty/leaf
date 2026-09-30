@@ -67,10 +67,11 @@ customElements.define(
 def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shell):
     """`package check --render` names each finding by tag, check and measured fact,
     and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
-    holders: `lf-holder` grows by exactly that and so is not named beside it, and
-    `lf-padded` grows 10px more on its own and is. `lf-bare` has no worked example."""
+    holders that each grow by exactly that: `lf-holder` because what it holds grew, so
+    it is not named beside it, and `lf-fixed` because it sets its own height 40px
+    taller, so it is. `lf-bare` has no worked example."""
     package = tmp_path / "package"
-    for widget in ("lf-grow", "lf-holder", "lf-padded", "lf-bare"):
+    for widget in ("lf-grow", "lf-holder", "lf-fixed", "lf-bare"):
         made = CliRunner().invoke(
             cli_model.cli, ["package", "init", str(package), "--widget", widget]
         )
@@ -79,21 +80,20 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     (widgets / "lf-grow.js").write_text(
         grows_at_upgrade("lf-grow", "padding-bottom: 40px")
     )
-    (widgets / "lf-padded.js").write_text(
-        grows_at_upgrade("lf-padded", "padding-bottom: 10px")
-    )
+    (widgets / "lf-fixed.js").write_text(grows_at_upgrade("lf-fixed", "height: 140px"))
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
     (package / "theme.css").write_text(
-        "lf-grow, lf-holder, lf-padded { display: block; }\n"
+        "lf-grow, lf-holder, lf-fixed { display: block; }\n"
+        "lf-fixed { height: 100px; }\n"
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-holder"]["x-example"] = (
         '<lf-holder id="holder"><lf-grow id="held">Held.</lf-grow></lf-holder>'
     )
-    registry["lf-padded"]["x-example"] = (
-        '<lf-padded id="padded"><lf-grow id="inner">Inner.</lf-grow></lf-padded>'
+    registry["lf-fixed"]["x-example"] = (
+        '<lf-fixed id="fixed"><lf-grow id="inner">Inner.</lf-grow></lf-fixed>'
     )
     del registry["lf-bare"]["x-example"]
     registry_path.write_text(json.dumps(registry))
@@ -110,7 +110,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert lines[1] == (
         f"widget quality: 5 finding(s) for 4 widget(s) in {headless_shell}, "
         "advice for the widgets' author:"
-    )
+    ), ran.stdout
     assert lines[2] == "  · <lf-bare> example: no worked example shows it"
     finding = re.compile(
         r"  · <(lf-[a-z]+) id='(\w+)'> keeps-first-box: "
@@ -119,4 +119,4 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     readings = [finding.fullmatch(line) for line in lines[3:]]
     assert all(readings), lines
     grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
-    assert grown == {"grow": 40, "held": 40, "padded": 50, "inner": 40}, lines
+    assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, lines

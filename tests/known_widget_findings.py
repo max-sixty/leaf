@@ -33,6 +33,7 @@ KNOWN = {
     "diff": {("lf-diff", "keeps-first-box")},
     "gallery": {("lf-margin-entry-gallery", "keeps-first-box")},
     "playground": {
+        ("lf-playground", "keeps-first-box"),
         ("lf-playground-control", "keeps-first-box"),
         ("lf-playground-output", "keeps-first-box"),
         ("lf-playground-preset", "example"),

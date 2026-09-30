@@ -74,6 +74,14 @@ suite's browser fixture fails any test outside the nightly selection whose page 
 layout shift Chrome reports without recent input, or whose typing carries its field
 (`tests/shift_watch.js`).
 
+A widget paints its final box before it upgrades. The theme gives each widget, under
+`html[data-lf-live]`, the size its module will draw it at, so first paint already has
+the page's geometry and upgrade adds behavior without moving what follows. The
+widget quality check `keeps-first-box` measures each widget's box at first paint and
+once the page presents (`leaf package check PACKAGE --render`,
+`scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
+package and fails on a change `tests/known_widget_findings.py` does not list.
+
 Generated interface first appears in its settled position. Reserve space before a
 generated control appears; transient feedback may repaint a control or briefly
 replace its label but never change its geometry (`reserve` sizes a control for

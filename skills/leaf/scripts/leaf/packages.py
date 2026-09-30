@@ -475,10 +475,14 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
         return package
 
 
-def cmd_package_check(package: Path) -> Path:
+def cmd_package_check(package: Path, render: bool = False) -> int:
     package, _, _ = check_package(package, require_exists=True)
-    print(f"checked {package}")
-    return package
+    print(f"checked {package}", flush=True)
+    if not render:
+        return 0
+    from .render_gate.command import widget_quality_report
+
+    return widget_quality_report(package)
 
 
 def cmd_package_install(source: Path) -> Path:

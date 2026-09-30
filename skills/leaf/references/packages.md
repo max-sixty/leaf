@@ -1176,6 +1176,25 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
+Before a page uses the package, `leaf package check PACKAGE --render` draws the worked
+examples of the widgets the package's own `registry.json` declares, in the browser
+`page check --render` uses, and prints one line per finding: the widget, the check,
+and what the check measured. A finding is advice for the widget's author: it refuses
+nothing, and the exit status ignores it. The command fails only where the package
+check does, no browser launches, or the examples cannot be drawn. Examples share a
+page where their ids allow, so one example may point at an element another declares,
+and a blank image stands in for any media an example names. The checks:
+
+- `example`: no worked example shows the tag, so no other check reads it.
+- `keeps-first-box`: the widget's box once the page presents differs from its box at
+  first paint. Upgrade should add behavior and move nothing, so size the widget in
+  the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
+  as its module will draw it. A widget holding others is named only for the change
+  left once the changed widgets inside it are put back to their first sizes. An
+  inline widget's old lines are more than a size, so a widget holding a changed
+  inline one is named beside it. A widget the page hides once presented, such as an
+  inactive tab, is left to the widget that hid it.
+
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses
 the replacement layer. Note the re-vendor in the next stamped version's changelog.

@@ -38,13 +38,20 @@ from .scheme import answer_reports, served
 
 
 def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
-    """Whether this revision runs what only a browser can judge: a script, a page
-    widget the document uses, or a data widget it places. A module a script imports
-    is reached through that script, and a widget the document never places never
-    loads."""
+    """Whether this revision runs what only a browser can judge: a script, or a
+    widget `places_judged_widget` names. A module a script imports is reached through
+    that script."""
     scripts = [*document.inline_scripts, *document.external_scripts]
     if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
+    return places_judged_widget(document, artifact)
+
+
+def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -> bool:
+    """Whether the document places a page widget or a data widget, the two whose
+    module reads what no static check has: the page's own code, and a body in a
+    notation only the module parses. A widget the document never places never
+    loads."""
     registry = artifact.registry
     judged = [
         tag
@@ -57,9 +64,11 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
 def message_page(fragment: SourceDocument) -> SourceDocument:
     """A message's widget markup as a page of its own, as a sample's template is one.
 
-    A message's widgets stand in the thread rather than the page, where one in a shut
-    panel has no room to draw, so the run gives them the column that the page's own
-    widgets have. The page's document stays out of it: an error here is the message's."""
+    A message's widgets stand in the thread rather than the page, where a chart in a
+    shut panel has no room to draw, so the run gives them the column that the page's
+    own widgets have. The page's document stays out of it: an error here is the
+    message's. A script in the markup runs here and never in a thread, which inserts
+    markup inertly, so a message is run only for the widgets it places."""
     return SourceDocument(
         '<!doctype html><html lang="en"><head><title>Message</title></head>'
         f'<body><main class="layout-column">{fragment.html}</main></body></html>'

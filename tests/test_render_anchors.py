@@ -70,6 +70,7 @@ from render_harness import (
     SAID_PAGE,
     _traffic,
     compare_with,
+    consume_browser_errors,
     hold_selection,
     holding,
     leaf_page,
@@ -2155,6 +2156,11 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         }))"""
     )
     assert result == expected
+    # Each refusal reaches the author too, naming the diff that could not draw.
+    reported = consume_browser_errors(
+        page, *(f'<lf-diff id="{identifier}"> failed: ' for identifier in identifiers)
+    )
+    assert len(reported) == len(identifiers), reported
 
 
 def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):

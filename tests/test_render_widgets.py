@@ -4900,6 +4900,11 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
     expect(page.locator("#card-playground .lf-error")).to_contain_text(
         "control radius has a value off its step"
     )
+    consume_browser_errors(
+        page,
+        '<lf-playground id="card-playground"> failed: '
+        "control radius has a value off its step",
+    )
 
 
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(

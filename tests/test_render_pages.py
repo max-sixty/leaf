@@ -1590,8 +1590,9 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
     anyway put a parse error across the whole window with its message on one line."""
-    # The console carries the renderer's refusal, which is what the fixture is for.
     page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    # The page reports the renderer's refusal, which is what the fixture is for.
+    consume_browser_errors(page, '<lf-diagram id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
         const box = document.getElementById('bad').querySelector('.lf-error');

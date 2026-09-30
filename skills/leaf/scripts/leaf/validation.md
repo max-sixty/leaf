@@ -50,9 +50,11 @@ in that time: the event `leaf wait` would deliver, intercepted rather than read 
 browser's own error channels, so the check and the watcher fail on one set in one
 wording. A widget that fails soft posts one too. A quick page never reaches `--render`,
 and no static reading says whether a module throws or whether a data body is one its
-module can read. Message markup that places either is run the same way, as a page of its
-own, before the thread command that carries it takes the log: the log freezes it, and a
-data widget in a shut thread has no room to draw in any later run.
+module can read. Message markup that places a data or page widget is run the same way,
+as a page of its own, before the thread command that carries it takes the log: the log
+freezes it, and a chart in a shut thread has no room to draw in any later run. A run
+serves the page's log, so what earlier messages place runs in it too; the post-time run
+is what keeps those clean.
 `render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,

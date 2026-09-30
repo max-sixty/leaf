@@ -416,8 +416,7 @@ presentation, and one frame after it. It fails on every error the page would rep
 you through the watcher, an uncaught exception or a rejected promise with the source
 location it came from, or a widget that could not draw its body, so a module that
 throws on its first paint or a chart that does not parse is found before the URL goes
-out. `--markup` on a thread message is run the same way before it is posted, since a
-message cannot be edited once sent. Code that runs only after a gesture or a timer is
+out. Code that runs only after a gesture or a timer is
 not reached; operate it in the pre-handover review. A page with neither is checked
 without a browser.
 

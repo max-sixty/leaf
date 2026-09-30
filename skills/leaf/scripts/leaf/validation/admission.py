@@ -6,6 +6,7 @@ from pathlib import Path
 from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
+from leaf.event_log import read_events
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
@@ -152,33 +153,18 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
 
 def run_markup(page_dir: Path, kind: str, markup: str) -> None:
     """Run a message's markup once where it places what only a browser can judge,
-    before the writer takes the page's log (`check_markup`). Exits with what's
-    wrong."""
+    before the writer takes the page's log (`check_markup`), once the markup itself
+    validates. Exits with what's wrong."""
     from leaf.render_gate.command import message_code_check
 
-    if message_code_check(page_dir, kind, SourceDocument(markup)):
+    fragment = _own_markup(page_dir, kind, markup, read_events(page_dir))
+    if message_code_check(page_dir, kind, fragment):
         sys.exit(1)
 
 
-def check_markup(
-    page_dir: Path,
-    kind: str,
-    markup: str,
-    events: list,
-    *,
-    page: SourceDocument | None = None,
-) -> SourceDocument:
-    """A message's widget markup, validated against the vendored registry at post
-    time — the discussion-side `page check`, and the field's one gate: the browser
-    door refuses `markup` outright, so nothing reaches the log under that name
-    unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
-    escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `read_text_arg` asks about wherever a body arrives. Exits with what's
-    wrong.
-
-    What only a browser can judge, a data widget's body or a page widget's code, its
-    writer runs first (`run_markup`), since the run reads the page's log and a writer
-    holds it from here to the append."""
+def _own_markup(page_dir: Path, kind: str, markup: str, events: list) -> SourceDocument:
+    """The markup, validated for what it says on its own, before it is placed among
+    the page's and the thread's ids. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = SourceDocument(markup)
     # Two gates beside the vocabulary contract rather than inside it. That contract is
@@ -223,6 +209,30 @@ def check_markup(
         sys.exit("--markup carries no widget; put prose in --text")
     if names := id_errors(frag):
         sys.exit(f"{kind} widget markup: " + "; ".join(names))
+    return frag
+
+
+def check_markup(
+    page_dir: Path,
+    kind: str,
+    markup: str,
+    events: list,
+    *,
+    page: SourceDocument | None = None,
+) -> SourceDocument:
+    """A message's widget markup, validated against the vendored registry at post
+    time — the discussion-side `page check`, and the field's one gate: the browser
+    door refuses `markup` outright, so nothing reaches the log under that name
+    unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
+    escaped, so it cannot claim a widget — but its Markdown can still point at a file,
+    which `read_text_arg` asks about wherever a body arrives. Exits with what's
+    wrong.
+
+    What only a browser can judge, a data widget's body or a page widget's code, its
+    writer runs first (`run_markup`), since the run reads the page's log and a writer
+    holds it from here to the append."""
+    frag = _own_markup(page_dir, kind, markup, events)
+    registry = require_registry(page_dir)
     thread = thread_structure(events)
     revisions = list_revisions(page_dir)
     if page is None:

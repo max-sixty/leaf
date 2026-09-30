@@ -1,11 +1,12 @@
 """Command boundary for browser-backed page validation."""
 
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from leaf.files import list_revisions
+from leaf.files import latest_revision
 from leaf.registry.storage import read_page_registry
-from leaf.revision_artifact import RevisionArtifact, capture_artifact
+from leaf.revision_artifact import RevisionArtifact, capture_artifact, read_artifact
 from leaf.structure import SourceDocument
 
 from .browser import (
@@ -15,7 +16,7 @@ from .browser import (
     launch_browser,
     playwright_driver,
 )
-from .page_code import message_page, needs_browser, run_page_code
+from .page_code import message_page, places_judged_widget, run_page_code
 from .preview import preview_server
 from .readings import SWEEP_WIDTHS
 from .screens import save_screens
@@ -31,7 +32,26 @@ def _in_browser(
     artifact: RevisionArtifact,
 ) -> tuple[list[str], str] | None:
     """Serve the candidate source to the host's browser and return what `read`
-    finds there, with the browser's name. A browser is part of the gate: where none launches, it reports that and returns None."""
+    finds there, with the browser's name. A browser is part of the gate: where none
+    launches, it reports that and returns None.
+
+    Playwright runs on a thread of its own. Its sync API refuses a thread that already
+    drives another instance or runs an event loop, and a thread command runs this from
+    whatever process called it."""
+    with ThreadPoolExecutor(1) as pool:
+        return pool.submit(
+            _browse, gate, read, page_dir, document, revision, artifact
+        ).result()
+
+
+def _browse(
+    gate: str,
+    read,
+    page_dir: Path,
+    document: SourceDocument,
+    revision: int,
+    artifact: RevisionArtifact,
+) -> tuple[list[str], str] | None:
     from playwright.sync_api import Error as PlaywrightError
 
     try:
@@ -118,18 +138,32 @@ def message_code_check(page_dir: Path, kind: str, fragment: SourceDocument) -> i
     moment its author can still fix it. Prints nothing when it passes: the thread
     command's output is the records it appends."""
     document = message_page(fragment)
-    page_registry = read_page_registry(page_dir)
+    # The markup is read under the active revision's vocabulary, as the live document
+    # that shows it reads it, and under the candidate's before the first activation.
+    active = latest_revision(page_dir)
+    if active is None:
+        candidate = read_page_registry(page_dir)
+        registry = candidate.registry
+        declarations = candidate.declaration_sources
+        widgets = candidate.widget_sources
+    else:
+        captured = read_artifact(page_dir, active)
+        registry = captured.registry
+        declarations = None
+        widgets = {
+            tag: implementation["path"].removeprefix("/")
+            for tag, implementation in captured.implementations.items()
+        }
     artifact = capture_artifact(
         page_dir,
         document,
-        page_registry.registry,
-        declaration_sources=page_registry.declaration_sources,
-        widget_sources=page_registry.widget_sources,
+        registry,
+        declaration_sources=declarations,
+        widget_sources=widgets,
     )
-    if not needs_browser(document, artifact):
+    if not places_judged_widget(document, artifact):
         return 0
-    revisions = list_revisions(page_dir)
-    revision = (revisions[-1] if revisions else 0) + 1
+    revision = (active or 0) + 1
     what = f"{kind} markup"
     return 0 if _code_errors(what, page_dir, document, revision, artifact) else 1
 

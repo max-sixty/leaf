@@ -223,6 +223,7 @@ customElements.define(
       try {
         records = snapshot?.value ? parse(snapshot.value) : [];
       } catch (error) {
+        this.classList.toggle("lf-rendered", true);
         projectData(
           this,
           [{ key: "invalid", invalid: error.message }],
@@ -237,6 +238,9 @@ customElements.define(
         );
         return;
       }
+      // Drawn from its data, which lifts the height the page reserved (x-reserve), and
+      // held at that height again while the data is absent.
+      this.classList.toggle("lf-rendered", records.length > 0);
       if (!records.length) {
         projectData(
           this,

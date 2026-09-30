@@ -323,6 +323,8 @@ customElements.define(
         result.hidden = true;
         projection.append(result);
         this.append(...GROUPS.map(groupNode), projection);
+        // Drawn, so the height the page reserved for it lifts (x-reserve).
+        this.classList.add("lf-rendered");
       }
       this.#registerProjection();
     }

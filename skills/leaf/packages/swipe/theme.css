@@ -74,7 +74,7 @@ lf-swipe-pile[verdict="unseen"] {
  * than `[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2)` kept `visibility: hidden`
  * through the reset, so paper printed the first card and 308px of void. */
 @media not print {
-  html:root lf-swipe-deck:not(.lf-swipe-quoted) {
+  html:root lf-swipe-deck:not(:where([data-lf-exhibit]) *) {
     /* The label heads the drawer on a row of its own, and the stack sits centred under
      * it at an index card's width. The bottom padding holds the ghosts' offset. */
     & lf-swipe-pile[verdict="unseen"] {
@@ -195,7 +195,7 @@ lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
  * did not keep the stack's centring. That reset is gone rather than dropped: the centring
  * is `margin-inline: auto` inside the guard above, which a quoted deck never enters, so
  * there is no longer a margin to take back. */
-lf-swipe-deck.lf-swipe-quoted
+:where([data-lf-exhibit]) lf-swipe-deck
   lf-swipe-pile[verdict="unseen"]
   > lf-swipe-card {
   margin-bottom: var(--sp-2);
@@ -376,7 +376,7 @@ lf-swipe-pile[verdict="keep"]
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */
 @container lf-swipe-deck (min-width: 43.5rem) {
-  lf-swipe-deck:not(.lf-swipe-quoted) {
+  lf-swipe-deck:not(:where([data-lf-exhibit]) *) {
     & > lf-swipe-pile[verdict="unseen"] {
       grid-column: 1 / span 4;
       grid-row: 1 / span 2;
@@ -396,6 +396,39 @@ lf-swipe-pile[verdict="keep"]
       grid-column: 1 / span 4;
       grid-row: 3;
     }
+  }
+}
+
+/* Before the deck upgrades, its generated parts already have their room, so the deck
+ * the page first paints is the deck it presents: each pile's verdict label, one line of
+ * `.lf-swipe-pile-label` with its margin, stands above the pile's cards as padding, and
+ * the row of controls a live, unquoted deck will hold stands where the controls go, one
+ * press high, or the progress line above the two presses where the deck is narrow. */
+html[data-lf-live] lf-swipe-pile:not(:has(> .lf-swipe-pile-label)) {
+  padding-top: calc(14px + var(--t-6) * 1.3 + 10px);
+}
+
+html[data-lf-live]
+  lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
+  content: "";
+  grid-column: 1 / -1;
+  grid-row: 2;
+  block-size: max(calc(2 * var(--sp-2) + var(--t-5) + 2px), 2.5rem, var(--aim-floor));
+}
+
+@container lf-swipe-deck (max-width: 31rem) {
+  html[data-lf-live]
+    lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
+    block-size: calc(var(--t-6) * 1.3 + var(--sp-2)
+      + max(calc(2 * var(--sp-2) + var(--t-5) + 2px), 2.5rem, var(--aim-floor)));
+  }
+}
+
+@container lf-swipe-deck (min-width: 43.5rem) {
+  html[data-lf-live]
+    lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
+    grid-column: 1 / span 4;
+    grid-row: 3;
   }
 }
 

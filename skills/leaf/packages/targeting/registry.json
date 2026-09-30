@@ -187,7 +187,8 @@
         "unit": "widget"
       }
     },
-    "x-example": "<lf-ask id=\"landing-change-ask\"><h2>Which landing-page changes should the agent make?</h2><lf-targeting id=\"landing-targeting\"><lf-target-preview id=\"landing-preview\"><section id=\"hero\" class=\"landing-section\"><h3 class=\"section-title\">Build the next release</h3><p>Keep the request path visible.</p><button type=\"button\">Start review</button></section><section class=\"landing-section\"><h3 class=\"section-title\">Inspect the evidence</h3></section></lf-target-preview></lf-targeting></lf-ask>"
+    "x-reserve": true,
+    "x-example": "<lf-ask id=\"landing-change-ask\"><h2>Which landing-page changes should the agent make?</h2><lf-targeting id=\"landing-targeting\" data-height=\"767\"><lf-target-preview id=\"landing-preview\"><section id=\"hero\" class=\"landing-section\"><h3 class=\"section-title\">Build the next release</h3><p>Keep the request path visible.</p><button type=\"button\">Start review</button></section><section class=\"landing-section\"><h3 class=\"section-title\">Inspect the evidence</h3></section></lf-target-preview></lf-targeting></lf-ask>"
   },
   "lf-target-preview": {
     "description": "The real authored markup a targeting workbench lets the user identify and adjust. Its descendants remain operable until selection is armed; while armed, pointer or keyboard selection offers the exact element and its complete authored ancestor chain. Stable authored ids identify Leaf elements directly, while core structural references identify elements without ids. Visible context describes a target but never identifies it.",

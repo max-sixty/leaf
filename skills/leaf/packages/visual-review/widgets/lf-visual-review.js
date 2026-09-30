@@ -530,6 +530,9 @@ customElements.define(
       try {
         this.#snapshot = snapshot;
         this.#run = snapshot?.value ?? null;
+        // Drawn from its data, which lifts the height the page reserved (x-reserve),
+        // and held at that height again while the data is absent.
+        this.classList.toggle("lf-rendered", this.#run !== null);
         if (!this.#run) {
           this.#renderMissing(snapshot);
           return;

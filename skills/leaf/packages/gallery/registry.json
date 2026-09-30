@@ -15,6 +15,7 @@
     "x-content": "empty",
     "x-exhibit": true,
     "x-upgrade": true,
-    "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
+    "x-reserve": true,
+    "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\" data-height=\"670\"></lf-margin-entry-gallery>"
   }
 }

@@ -29,25 +29,14 @@ KNOWN = {
         ("lf-toc", "keeps-first-box"),
         ("lf-tree", "keeps-first-box"),
     },
-    "diff": {("lf-diff", "keeps-first-box")},
-    "gallery": {("lf-margin-entry-gallery", "keeps-first-box")},
+    # The module builds each control's inputs and the instruction's current values,
+    # which it restores per viewer from the tab's storage, so neither the rail's
+    # members nor the words the instruction wraps exist before it runs. The
+    # playground's own height is reserved (x-reserve), and the stage stands in its
+    # region from first paint.
     "playground": {
-        ("lf-playground", "keeps-first-box"),
         ("lf-playground-control", "keeps-first-box"),
         ("lf-playground-output", "keeps-first-box"),
-        ("lf-playground-preset", "example"),
-        ("lf-playground-preview", "keeps-first-box"),
-        ("lf-playground-setting", "example"),
         ("lf-playground-value", "keeps-first-box"),
     },
-    "pr-review": {
-        ("lf-call-diff", "keeps-first-box"),
-        ("lf-pull-request", "keeps-first-box"),
-    },
-    "swipe": {
-        ("lf-swipe-deck", "keeps-first-box"),
-        ("lf-swipe-pile", "keeps-first-box"),
-    },
-    "targeting": {("lf-targeting", "keeps-first-box")},
-    "visual-review": {("lf-visual-review", "keeps-first-box")},
 }

@@ -405,7 +405,7 @@ stateDiagram-v2
               arrives as the turn ends goes into that turn; one that owes nothing waits
               for the watcher.
             </p>
-            <lf-diagram id="turn-end-check" parts="node:Hand node:Remind node:Ends">
+            <lf-diagram id="turn-end-check" parts="node:Stop node:New node:Hand node:Again node:Owed node:Claimed node:Watched node:Remind node:Ends">
               <pre>
 flowchart TD
   Stop(["the agent ends its turn"]) --&gt; New(["input owed an answer arrived?"])
@@ -523,7 +523,7 @@ flowchart TD
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
             >
               <pre>
 flowchart LR
@@ -769,7 +769,7 @@ flowchart LR
             </ul>
             <lf-diagram
               id="updates-decision"
-              parts="node:Closed node:Unheld node:Working node:Stalled node:Listening node:Nudge node:Away"
+              parts="node:Idle node:Alive node:Believed node:Taking node:Stale node:Stuck node:Closed node:Unheld node:Working node:Stalled node:Listening node:Nudge node:Away"
             >
               <pre>
 flowchart TD
@@ -2349,7 +2349,7 @@ flowchart TD
             </p>
             <lf-diagram
               id="data-flow"
-              parts="node:Agent node:You node:Cmd node:Proc node:Rev node:Log node:Data node:Read node:Browser node:PageState node:Local"
+              parts="node:Writers node:Agent node:You node:Cmd node:Proc node:Dir node:Rev node:Log node:Data node:Read node:Browser node:PageState node:Local"
             >
               <pre>
 flowchart TD

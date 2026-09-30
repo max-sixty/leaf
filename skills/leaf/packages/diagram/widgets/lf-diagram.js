@@ -106,9 +106,9 @@ customElements.define(
         );
         for (const [id, { element }] of boxes) {
           if (!element || !NAMEABLE.test(id)) continue;
-          // State diagrams draw pseudo-states as _start and _end; they have no
-          // authored identity and cannot be comment targets.
-          if (stateDiagram && (id === "_start" || id === "_end")) continue;
+          // Nested states number their generated start/end markers. None has an
+          // authored identity or can be a comment target.
+          if (stateDiagram && /^_(?:start|end)\d*$/.test(id)) continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           const label = element.getAttribute("data-label") || says || id;
           this.visualParts.set(`node:${id}`, { element, label });

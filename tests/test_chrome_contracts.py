@@ -185,16 +185,13 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
-# Without a focused editor, a followed thread stands at the list's foot, with the
-# arriving turn's newest words in view above its reply box.
+# A followed thread shows the arriving turn's newest words in the list's landing band.
 FOLLOWED = """id => {
   const list = document.querySelector('.lf-threads');
-  const fold = list.getBoundingClientRect().bottom -
-    parseFloat(getComputedStyle(list).scrollPaddingBottom);
-  const message = list.querySelector(`.lf-msg[data-mid="${id}"]`);
-  const end = message.closest('.lf-thread').getBoundingClientRect().bottom;
-  const tail = message.getBoundingClientRect().bottom;
-  return tail <= fold + 2 && Math.abs(end - fold) <= 2;
+  const box = list.getBoundingClientRect();
+  const fold = box.bottom - parseFloat(getComputedStyle(list).scrollPaddingBottom);
+  const tail = list.querySelector(`.lf-msg[data-mid="${id}"]`).getBoundingClientRect().bottom;
+  return tail > box.top && tail <= fold + 2;
 }"""
 
 
@@ -491,6 +488,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     assert (
         threads.evaluate("el => el.scrollHeight - el.clientHeight - el.scrollTop") > 80
     )
+    end = card.evaluate("el => el.getBoundingClientRect().bottom")
 
     newest = events_model.append_event(
         serve.page_dir,
@@ -510,11 +508,19 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
         arg=before,
     )
     assert page.evaluate(FOLLOWED, newest["id"])
+    # The turn grew up into the room scrolled past: its reply box and the cards after it
+    # stand where they stood.
+    assert card.evaluate("el => el.getBoundingClientRect().bottom") == pytest.approx(
+        end, abs=2
+    )
 
     card.locator(".lf-msg").last.evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
-    reading_later = threads.evaluate("el => el.scrollTop")
+    # The first later card is what I read: the replies that land above it grow the
+    # selected thread into the room scrolled past, and move nothing after them.
+    later = page.locator(f'.lf-thread[data-id="{selected}"] + .lf-thread')
+    reading_later = later.evaluate("el => el.getBoundingClientRect().top")
     also_visible = events_model.append_event(
         serve.page_dir,
         {
@@ -530,7 +536,9 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     )
     arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
     expect(arriving).to_be_visible()
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(reading_later, abs=2)
+    assert later.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+        reading_later, abs=2
+    )
     assert arriving.evaluate(
         "el => el.getBoundingClientRect().bottom"
     ) < threads.evaluate(
@@ -539,7 +547,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
 
     if later_cards == 30:
         threads.evaluate("el => el.scrollTop += 160")
-        reading_later = threads.evaluate("el => el.scrollTop")
+        reading_later = later.evaluate("el => el.getBoundingClientRect().top")
         assert card.evaluate(
             "el => el.getBoundingClientRect().bottom"
         ) < threads.evaluate(
@@ -558,7 +566,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
         page.evaluate(
             "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
         )
-        assert threads.evaluate("el => el.scrollTop") == pytest.approx(
+        assert later.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
             reading_later, abs=2
         )
 

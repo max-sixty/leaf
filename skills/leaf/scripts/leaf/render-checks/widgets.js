@@ -300,21 +300,9 @@ const shown = (element) =>
 // at, read and then taken back within one task. Only a page nothing reads again, such
 // as the report's page of worked examples, can be read this way.
 const withFirstSizes = (holder, inside) => {
-  const kept = inside.map(({ element, first }) => ({
-    element,
-    first,
-    style: element.getAttribute("style"),
-    inline: getComputedStyle(element).display === "inline",
-  }));
-  for (const { element, first, inline } of kept)
+  const kept = inside.map(({ element }) => [element, element.getAttribute("style")]);
+  for (const { element, first } of inside)
     for (const [property, value] of [
-      // An inline box takes no size, so it stands as one at the top of its line.
-      ...(inline
-        ? [
-            ["display", "inline-block"],
-            ["vertical-align", "top"],
-          ]
-        : []),
       // No padding or border, which would hold the box open past the size given.
       ["box-sizing", "border-box"],
       ["padding", "0"],
@@ -328,7 +316,7 @@ const withFirstSizes = (holder, inside) => {
     ])
       element.style.setProperty(property, value, "important");
   const { width, height } = holder.element.getBoundingClientRect();
-  for (const { element, style } of kept)
+  for (const [element, style] of kept)
     if (style === null) element.removeAttribute("style");
     else element.setAttribute("style", style);
   return { width, height };
@@ -339,8 +327,10 @@ const withFirstSizes = (holder, inside) => {
 // widget's: a holder is named only for what is left of its change once the changed
 // widgets inside it are put back to their first sizes, so an Ask that grew by exactly
 // what its options grew is not named beside them, and one that also grew on its own
-// is, whether its own change is to its flow or to a size it sets itself. A widget
-// hidden now is left to the widget that hid it, whose own box carries the change.
+// is, whether its own change is to its flow or to a size it sets itself. An inline
+// widget runs through its holder's lines, which no size puts back, so a holder with a
+// changed inline widget inside it is left to that widget. A widget hidden now is left
+// to the widget that hid it, whose own box carries the change.
 export function changedBoxes() {
   const readings = globalThis.__leafRenderDriver
     .firstBoxes()
@@ -363,9 +353,10 @@ export function changedBoxes() {
           (other) => other !== reading && other.element.contains(reading.element),
         ),
     );
-    return (
-      !outermost.length || differs(withFirstSizes(holder, outermost), holder.first)
-    );
+    if (!outermost.length) return true;
+    if (outermost.some(({ element }) => getComputedStyle(element).display === "inline"))
+      return false;
+    return differs(withFirstSizes(holder, outermost), holder.first);
   };
   return changed.filter(own).map(({ element, first, now }) => ({
     tag: element.localName,

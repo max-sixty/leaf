@@ -69,8 +69,8 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
     holders that each grow by exactly that: `lf-holder` because what it holds grew, so
     it is not named beside it, and `lf-fixed` because it sets its own height 40px
-    taller, so it is. `lf-word` is inline and doubles its type, which grows the line
-    holding it and not that line's own box. `lf-bare` has no worked example."""
+    taller, so it is. `lf-word` is inline and doubles its type, and the line holding
+    it is left to it. `lf-bare` has no worked example."""
     package = tmp_path / "package"
     for widget in ("lf-grow", "lf-holder", "lf-fixed", "lf-word", "lf-bare"):
         made = CliRunner().invoke(

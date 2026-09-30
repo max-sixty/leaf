@@ -291,6 +291,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
+/* The replies a thread holds while they would move the page under the reader
+   (thread/held-news.js). The row it appears in already stands at its settlement
+   control's height, and centred rather than on the row's baseline it asks for none of
+   the depth below the words. */
+.lf-thread-news { flex: none; align-self: center; }
 .lf-page-thread-head time { color: var(--muted-2); }
 .lf-page-thread-head .lf-edited { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */

@@ -131,10 +131,11 @@ export function readBoxPlace(input) {
   if (pinned(reply)) pinnedTops.set(input, pinnedTop(reply));
 }
 
-// A render that inserts above the control the user stands on, such as a turn arriving
-// above the box they are writing in, moves it by what it inserted. `holdBox` reads where
-// the focused control stands and returns the step that puts it back, so news moves no
-// control under the user's hands. Only one on screen is under their hands: a user who
+// A render that inserts above the control the user stands on, such as an edit growing a
+// turn above the box they are writing in, moves it by what it inserted; an agent's turn
+// arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
+// reads where the focused control stands and returns the step that puts it back, so
+// news moves no control under the user's hands. Only one on screen is under their hands: a user who
 // has scrolled away from it is reading something else, which the news must not move. A
 // pinned row stands still by itself, and a control the render replaced has nothing to
 // hold. The box scrolling the control takes the move first and the boxes around it

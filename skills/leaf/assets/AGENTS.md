@@ -65,7 +65,12 @@ inspection layer.
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. News causes no layout
 shift: when a box's content changes without a gesture, that box may grow or shrink
-into free room, but no other element moves. A change the user requested may reflow
+into free room, but no other element moves. News grows where the reader isn't
+looking: above the screen, where scroll anchoring takes the growth into what they
+scrolled past, or below it. Where it would move what they are reading, it waits
+behind a control of fixed size until they open it, as a reply arriving in a thread in
+the page's flow waits behind its head row's notice (`thread/held-news.js`). A change
+the user requested may reflow
 the content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The

@@ -179,21 +179,32 @@
     attributeFilter: ["data-lf-reading"],
   });
   // Chrome credits no input to a frame nested in another page, so a trusted key or
-  // press in this document counts for as long as Chrome counts one (`hadRecentInput`).
-  let pressed = -Infinity;
-  for (const type of ["keydown", "pointerdown"])
-    document.addEventListener(
-      type,
-      (event) => {
-        if (!event.isTrusted) return;
-        pressed = event.timeStamp;
-        close();
-      },
-      true,
+  // press in this document, or in a same-origin document holding it, counts for as long
+  // as Chrome counts one (`hadRecentInput`). Every recent one is kept: the observer may
+  // judge a frame after a later key.
+  const presses = [];
+  const heard = (view) => (event) => {
+    if (!event.isTrusted) return;
+    presses.push(
+      event.timeStamp + view.performance.timeOrigin - performance.timeOrigin,
     );
+    if (presses.length > 50) presses.shift();
+    if (view === window) close();
+  };
+  for (let view = window; ; view = view.parent) {
+    let held;
+    try {
+      held = view.document;
+    } catch {
+      break;
+    }
+    for (const type of ["keydown", "pointerdown"])
+      held.addEventListener(type, heard(view), true);
+    if (view === view.parent) break;
+  }
   const input = (entry) =>
     entry.hadRecentInput ||
-    (pressed <= entry.startTime && entry.startTime - pressed < RECENT);
+    presses.some((at) => at <= entry.startTime && entry.startTime - at < RECENT);
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;

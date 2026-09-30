@@ -65,8 +65,11 @@ inspection layer.
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. News causes no layout
 shift: when a box's content changes without a gesture, that box may grow or shrink
-into free room, but no other element moves. A change the user requested may reflow
-the content it replaces, shown as motion the eye can follow. A hover, focus, or
+into free room, but no other element moves. So a thread's reply box stands at the
+foot of the scroller that shows the thread, in the Threads panel as in the margin card,
+and a reply grows the thread above it without moving the box or its caret. A change
+the user requested may reflow the content it replaces, shown as motion the eye can
+follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
 suite's browser fixture fails any test outside the nightly selection whose page makes a

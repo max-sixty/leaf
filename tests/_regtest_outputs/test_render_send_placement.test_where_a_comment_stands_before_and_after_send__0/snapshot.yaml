@@ -9,7 +9,7 @@ column-passage-first-line:
     side: right
     stands: level with the words
   moves:
-    across: near right
+    across: still
     down: still
 
 column-passage-deep-line:
@@ -19,10 +19,10 @@ column-passage-deep-line:
     stands: level with the words
   thread card:
     side: right
-    stands: away over the words
+    stands: level with the words
   moves:
-    across: near right
-    down: away up
+    across: still
+    down: still
 
 column-element:
   expected: right
@@ -33,7 +33,7 @@ column-element:
     side: right
     stands: level with the words
   moves:
-    across: near right
+    across: still
     down: still
 
 wide-passage-deep-line:
@@ -43,10 +43,34 @@ wide-passage-deep-line:
     stands: level with the words
   thread card:
     side: right
-    stands: away over the words
+    stands: level with the words
   moves:
-    across: away right
-    down: away up
+    across: still
+    down: still
+
+laptop-passage:
+  expected: below or above
+  comment box:
+    side: below
+    stands: clear under the block
+  thread card:
+    side: below
+    stands: clear under the block
+  moves:
+    across: still
+    down: still
+
+laptop-element:
+  expected: below or above
+  comment box:
+    side: above
+    stands: clear over the block
+  thread card:
+    side: above
+    stands: clear over the block
+  moves:
+    across: still
+    down: still
 
 narrow-rail-passage:
   expected: below or above
@@ -57,7 +81,7 @@ narrow-rail-passage:
     side: below
     stands: clear under the block
   moves:
-    across: away right
+    across: still
     down: still
 
 beside-passage:
@@ -69,7 +93,7 @@ beside-passage:
     side: below
     stands: clear under the block
   moves:
-    across: near right
+    across: still
     down: still
 
 beside-element:
@@ -78,11 +102,11 @@ beside-element:
     side: above
     stands: clear over the block
   thread card:
-    side: below
-    stands: clear under the block
+    side: above
+    stands: clear over the block
   moves:
-    across: near right
-    down: away down
+    across: still
+    down: still
 
 phone-passage:
   expected: below or above
@@ -93,7 +117,7 @@ phone-passage:
     side: above
     stands: clear over the block
   moves:
-    across: near left
+    across: still
     down: still
 
 phone-touch-passage:
@@ -103,7 +127,31 @@ phone-touch-passage:
     stands: clear under the block
   thread card:
     side: below
-    stands: away off the block
+    stands: clear under the block
   moves:
-    across: near left
-    down: away up
+    across: still
+    down: still
+
+beside-tall-element-clipped:
+  expected: below or above
+  comment box:
+    side: below
+    stands: clear under the block
+  thread card:
+    side: below
+    stands: clear under the block
+  moves:
+    across: still
+    down: still
+
+wide-passage-with-a-thread:
+  expected: right
+  comment box:
+    side: right
+    stands: level with the words
+  thread card:
+    side: right
+    stands: level with the words
+  moves:
+    across: still
+    down: still

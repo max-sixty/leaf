@@ -130,35 +130,77 @@ class Passage:
 
 
 class Element:
-    """An element pointed at on its first line with ⌥-click."""
+    """An element pointed at with ⌥-click, on its first line or, `from_foot`, that far
+    over its last."""
 
-    def __init__(self, block):
+    def __init__(self, block, from_foot=None):
         self.block = block
+        self.from_foot = from_foot
 
     def open(self, page, touch):
-        page.locator(self.block).click(modifiers=["Alt"], position={"x": 40, "y": 8})
+        target = page.locator(self.block)
+        y = (
+            8
+            if self.from_foot is None
+            else target.bounding_box()["height"] - self.from_foot
+        )
+        target.click(modifiers=["Alt"], position={"x": 40, "y": y})
 
     def line(self, page):
-        return page.evaluate(RECT, self.block)
+        """Its top as the window shows it, which a scroll may have clipped."""
+        return page.evaluate(
+            """([selector, head]) => {
+              const {left, top, right, bottom} = document.querySelector(selector)
+                .getBoundingClientRect();
+              return {left, top: Math.max(top, head), right, bottom};
+            }""",
+            [self.block, page.evaluate(BANNER_FOOT) + 8],
+        )
 
 
 FIRST_LINE = Passage("replace the Actions")
 DEEP_LINE = Passage("supervisor alone decides")
 STEP = Element("#step-workspace")
+# The long paragraph as a whole, pointed at on its last line.
+TALL = Element("#long", from_foot=12)
 
 # name: (window size, under a finger, what the comment is on, the side both should
-# take). Each case first scrolls its block's top to 40% of the window's height.
+# take, and optionally how the case differs: `top`, the fraction of the window's height
+# its block's top is scrolled to, 0.4 unless it says; `again`, a thread already there,
+# so its margin row stands before the box opens).
 CASES = {
     "column-passage-first-line": ((1440, 900), False, FIRST_LINE, "right"),
     "column-passage-deep-line": ((1440, 900), False, DEEP_LINE, "right"),
     "column-element": ((1440, 900), False, STEP, "right"),
     "wide-passage-deep-line": ((1920, 1080), False, DEEP_LINE, "right"),
+    # Room right of the paragraph for the box's minimum but not the card's.
+    "laptop-passage": ((1300, 900), False, FIRST_LINE, "below or above"),
+    "laptop-element": ((1240, 900), False, STEP, "below or above"),
     "narrow-rail-passage": ((1100, 800), False, FIRST_LINE, "below or above"),
     "beside-passage": ((900, 900), False, FIRST_LINE, "below or above"),
     "beside-element": ((900, 900), False, STEP, "below or above"),
     "phone-passage": ((390, 844), False, FIRST_LINE, "below or above"),
     "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below"),
+    # A block whose top the window has scrolled past.
+    "beside-tall-element-clipped": (
+        (900, 500),
+        False,
+        TALL,
+        "below or above",
+        {"top": -0.3},
+    ),
+    "wide-passage-with-a-thread": (
+        (1920, 1080),
+        False,
+        FIRST_LINE,
+        "right",
+        {"again": True},
+    ),
 }
+
+BANNER_FOOT = (
+    "() => document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+)
 
 SIDES = {
     "right-start": "right",
@@ -232,10 +274,24 @@ def picture(name, before, after, box):
     pair.save(SHOTS / f"{name}.png")
 
 
+def send_one(page, on, touch):
+    """A thread on what the case's comment is on, its card put away."""
+    on.open(page, touch)
+    page.keyboard.insert_text("An earlier comment")
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    page.keyboard.press("Escape")
+    page.mouse.click(4, 300)
+    expect(card).to_be_hidden()
+    rendered(page)
+
+
 def sent(browser, serve, name):
     """The case's reading: where the box stood with the comment typed, and where the
     card stands once the comment is sent, both in the page as it stood before Send."""
-    size, touch, on, expected = CASES[name]
+    size, touch, on, expected, *rest = CASES[name]
+    differs = rest[0] if rest else {}
     context = browser.new_context(
         viewport={"width": size[0], "height": size[1]},
         reduced_motion="reduce",
@@ -243,8 +299,11 @@ def sent(browser, serve, name):
         is_mobile=touch,
     )
     page = open_page(browser, serve(PAGE), context=context)
+    if differs.get("again"):
+        send_one(page, on, touch)
     page.locator(on.block).evaluate(
-        "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * 0.4)"
+        "(el, at) => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * at)",
+        differs.get("top", 0.4),
     )
     rendered(page)
     on.open(page, touch)

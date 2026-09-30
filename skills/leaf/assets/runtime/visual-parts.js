@@ -88,8 +88,8 @@ export function revealRegisteredVisualPart(source, id) {
 
 /** Why one source's registration breaks its `x-visual` declaration: an authored part
  * it does not register, and under `prefixes` a registered id no prefix admits. Under
- * `parts` the module may register more than the author named; the declaration picks
- * from that inventory. The current state's inventory is read; a declared part it lacks
+ * `parts` the module may register more than the author named unless the declaration
+ * requires a complete list. The current state's inventory is read; a declared part it lacks
  * is a problem only when the visual cannot reveal it, and `unrevealedVisualParts` asks
  * the reveal once nothing else needs the state the page opened in. */
 export function visualPartProblems(source, declaration) {
@@ -104,12 +104,18 @@ export function visualPartProblems(source, declaration) {
     const outside = declaration.prefixes
       ? ids.filter((id) => admission.rank(id) < 0)
       : [];
+    const unlisted = declaration.complete && admission.declared.length
+      ? ids.filter((id) => admission.rank(id) < 0)
+      : [];
     return [
       ...(missing.length
         ? [`did not register declared parts ${missing.join(", ")}`]
         : []),
       ...(outside.length
         ? [`registered parts its prefixes do not admit ${outside.join(", ")}`]
+        : []),
+      ...(unlisted.length
+        ? [`leaves nameable parts unlisted ${unlisted.join(", ")}`]
         : []),
     ];
   } catch (error) {

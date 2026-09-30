@@ -442,7 +442,6 @@ class Delivery:
     page_root: str | None = None
     html_attributes: Mapping[str, str] = field(default_factory=dict)
     body_attributes: Mapping[str, str] = field(default_factory=dict)
-    body_end: str = ""
 
 
 def compose_document(
@@ -542,9 +541,6 @@ def compose_document(
                 _attributes(delivery.body_attributes),
             )
         )
-    if delivery.body_end:
-        close = document.body_close if document.body_close is not None else len(source)
-        insertions.append((close, delivery.body_end))
     for offset, text in sorted(insertions, key=lambda item: item[0], reverse=True):
         source = source[:offset] + text + source[offset:]
     return UTF8_BOM + source

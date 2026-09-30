@@ -2,8 +2,8 @@
 
 Leaf shipped an experimental MCP Apps transport until 2026-09-29 and removed it. It
 was opt-in, Codex's default handoff opens the page in its browser pane instead, and
-it had to follow every change to delivery, anchoring and the runtime: 31 commits
-touched it in its last two weeks. The last tree that carries it is `a8ed55e68`:
+it had to follow every change to delivery, anchoring and the runtime. The last tree
+that carries it is `a8ed55e68`:
 
 ```sh
 git ls-tree -r --name-only a8ed55e68 -- skills/leaf/mcp-app skills/leaf/scripts/leaf build/mcp-app tests notes/mcp-apps | grep -i mcp
@@ -27,8 +27,12 @@ resource and routed its reads and writes through MCP tools to the same
 host the real design-decision page rendered, a keyboard choice and an anchored comment
 reached the page's log and showed in the Threads panel, and the resource made no
 network requests. `ui/message` was accepted, which is not evidence that it wakes an
-idle Codex task. It was never tried in Codex's own inline renderer, and by 2026-09-27
-the probe no longer passed against the runtime.
+idle Codex task. It was never tried in Codex's own inline renderer. By 2026-09-27
+the probe no longer passed: the page rendered, but a pressed choice never reached the
+log (`observe-direct.mjs` stopped at "No new matching durable event"). The next step
+was to compare the fetch and `EventSource` stand-ins in
+`a8ed55e68:notes/mcp-apps/probe/direct-entry.js` with how the runtime now sends a
+gesture.
 
 ## Rebuilding it
 

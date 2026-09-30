@@ -158,13 +158,10 @@ Page expectations stop at the rendered revision; frozen thread markup has no lat
 authored version and uses the thread's whole action window.
 Runtime anchors are already resolved against rendered words, including widget
 labels and module output unavailable to the file reading, so admission does not
-recapture them. Browser `quoteFrom` and Python's
-`COLLAPSE_CHARS` define matching whitespace collapse. A recaptured quote must
-match the canonical quote exactly.
-Where the capture does run, a transport may omit optional context for a quote that
-is unique in its declared section; when a quote repeats, its supplied prefix and
-suffix must resolve exactly one current occurrence. Widget source, retired text,
-and unresolved ambiguous passages are refused before append.
+recapture them. Browser `quoteFrom` and Python's `COLLAPSE_CHARS` define matching
+whitespace collapse. `leaf thread open` captures its quote against the file reading
+before it writes: a quote must be unique in its declared section, and widget source,
+retired text, and repeated passages are refused.
 
 ## Parsed source
 

@@ -109,8 +109,7 @@ page to the running adapter, prints `started: false`, and reports that adapter's
 every page this task owns, and a completed turn does not stop it.
 
 A `leaf wait` this task already runs, or a watcher task, carries input without the
-adapter, as that contract's "Routes without
-the adapter" describes; on those routes there is no App Server turn to bind, so
+adapter, as `references/host-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
 answer with `leaf thread reply`.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its

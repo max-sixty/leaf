@@ -44,8 +44,6 @@ def capture_anchor(
     decided=None,
     rewrites=None,
     part: str | None = None,
-    prefix: str | None = None,
-    suffix: str | None = None,
     additions: dict | None = None,
 ) -> dict:
     """The anchor a quote makes, written the way a selection's is. Raises ValueError with
@@ -142,32 +140,6 @@ def capture_anchor(
             "diagram's body is a picture by the time it is read), so name that element "
             "as the section instead."
         )
-    # A stored browser anchor may legitimately carry a repeated quote: its neighbours
-    # are what identify the occurrence. Resolution gives one exact-context occurrence
-    # priority, then falls back only when the quote itself has one candidate. This is the
-    # browser's `findQuote` rule; capture callers omit both fields and retain the stricter
-    # instruction to quote more of the surrounding text or name a section.
-    if prefix is not None or suffix is not None:
-        pre = collapse(prefix or "")
-        post = collapse(suffix or "")
-        exact = []
-        for at in hits:
-            stop = at + len(wanted)
-            before = text[max([0] + [f for f in fences if f <= at]) : at].strip()
-            after = text[
-                stop : min([len(text)] + [f for f in fences if stop <= f])
-            ].strip()
-            prefix_holds = before == "" if pre == "" else before.endswith(pre)
-            suffix_holds = after == "" if post == "" else after.startswith(post)
-            if prefix_holds and suffix_holds:
-                exact.append(at)
-        if len(exact) == 1:
-            hits = exact
-        elif len(exact) != 0 or len(hits) != 1:
-            raise ValueError(
-                f"{where} says {wanted!r} more than once and its stored context "
-                "does not identify one current passage"
-            )
     if len(hits) > 1:
         around = [
             f"  - …{text[max(lo_bound, at - 30) : at + len(wanted) + 30]}…"

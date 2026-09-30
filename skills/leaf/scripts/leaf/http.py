@@ -212,8 +212,7 @@ class PageEndpoint:
     banner has to be able to show.
     """
 
-    # A page refuses every frame; a sample's child answers into its parent page's
-    # frame, so it admits its own origin (`_sample_request`).
+    # A page refuses every frame; `SampleEndpoint` answers into its parent page's.
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def __init__(
@@ -696,7 +695,6 @@ class PageEndpoint:
         child.parent = self
         child.passive = sample.passive
         child.asset_root = sample.asset_root
-        child.frame_ancestors_policy = "frame-ancestors 'self'"
         with sample.lock:
             if sample.closed:
                 return self._not_found()
@@ -1089,6 +1087,9 @@ class PageEndpoint:
 
 class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
+
+    # Drawn in a frame on its parent page, which is the same origin.
+    frame_ancestors_policy = "frame-ancestors 'self'"
 
     def authorized(self) -> bool:
         return True

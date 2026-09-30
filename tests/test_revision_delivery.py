@@ -328,7 +328,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
             page_root=PAGE_ROOT,
             html_attributes={"data-lf-contained": ""},
             body_attributes={"inert": ""},
-            body_end='<script type="module" src="/ready.js"></script>',
         ),
     )
 
@@ -336,7 +335,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    assert served.tree.find("body").find_all("script")[-1].attrs["src"] == "/ready.js"
     policy = served.http_equivs[0]["content"]
     nonce = policy.removeprefix("script-src 'nonce-").removesuffix("'")
     assert [script["attrs"].get("nonce") for script in served.inline_scripts] == [

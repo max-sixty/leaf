@@ -436,8 +436,8 @@
      steps are stepped against the dark ground, not lightened from these (9.2 and 17.2).
      The floors are a test rather than a note asking to be remembered
      (test_the_series_palette_clears_the_floors_it_claims_to), and it counts the steps
-     against $series.steps in the same breath, that being what a chart refuses a sixth
-     series against. */
+     against $series.steps in the same breath, that being how many series a chart can
+     colour apart. */
   --series-1: light-dark(#4589d2, #2b8ecd); --series-2: light-dark(#b77114, #ce7600);
   --series-3: light-dark(#25966a, #50a069); --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);

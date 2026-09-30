@@ -9766,10 +9766,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert (
-        page.evaluate(
-            "() => getComputedStyle(document.body).paddingBottom"
-        )
-        == "0px"
+        page.evaluate("() => getComputedStyle(document.body).paddingBottom") == "0px"
     ), "a transient notice reserved document space"
 
     # And the page is still whole underneath. Everything that asks how far down the

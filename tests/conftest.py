@@ -248,6 +248,17 @@ def pytest_addoption(parser):
     )
 
 
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """A test body that returns has its last shifts judged before its fixtures end
+    (`render_harness.judge_shifts`)."""
+    from render_harness import judge_shifts
+
+    result = yield
+    judge_shifts()
+    return result
+
+
 def pytest_collection_modifyitems(config, items):
     """Broad discovery stays cheap; explicit selections run what they name.
 

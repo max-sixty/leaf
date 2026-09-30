@@ -76,6 +76,7 @@
     "condition": null,
     "next_actor": "agent",
     "response": null,
+    "claimed_by": [],
     "thread": "e4",
     "holds_thread": true
   },
@@ -167,6 +168,7 @@
           "condition": null,
           "next_actor": "agent",
           "response": null,
+          "claimed_by": [],
           "thread": "e1",
           "holds_thread": false
         }

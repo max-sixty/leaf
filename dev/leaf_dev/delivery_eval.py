@@ -101,12 +101,12 @@ def claims(ran: str) -> bool:
 
 
 def stop_blocked(record: dict) -> bool:
-    """Whether one stream record is the Stop hook holding a turn open."""
+    """Whether one stream record is the Stop hook holding a turn open: any output
+    it gives does, whether through a block or Claude Code's non-error context."""
     return (
         record.get("subtype") == "hook_response"
         and record["hook_event"] == "Stop"
-        and bool(record["output"])
-        and json.loads(record["output"]).get("decision") == "block"
+        and bool(record["output"].strip())
     )
 
 

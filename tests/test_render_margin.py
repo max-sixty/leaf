@@ -113,6 +113,14 @@ COMMENT_ON_ASK = {
     "text": "Check whether these jobs can share one visit.",
     "anchor": {"section": "bracket"},
 }
+# A comment whose lines take the card's whole measure, for a case about the room a
+# placement gives the card rather than the width a short thread takes inside it.
+PARAGRAPH_ON_ASK = {
+    **COMMENT_ON_ASK,
+    "text": "Check whether these jobs can share one visit: the mounts, the bracket and "
+    "the cable run all need the same ladder and the same afternoon, and one visit would "
+    "halve the call-out charge.",
+}
 ACTION_ON_ASK = {
     "kind": "action",
     "author": "user",
@@ -6093,7 +6101,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width
 ):
     """The anchored thread is a complete thread clear of its source controls."""
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -6148,7 +6156,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     assert placed["top"] == pytest.approx(
         float(placed["placedTop"].removesuffix("px")), abs=0.5
     ), placed
-    expect(thread.locator(".lf-page-thread-body")).to_have_text(COMMENT_ON_ASK["text"])
+    expect(thread.locator(".lf-page-thread-body")).to_have_text(
+        PARAGRAPH_ON_ASK["text"]
+    )
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-page-thread-open")).to_have_count(0)
     geometry = page.evaluate(
@@ -6916,9 +6926,11 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
         "textbox", name="Reply", exact=True
     ).click()
 
+    # With room to spare, the card takes only the width its short thread needs.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] >= 379, wide
-    assert wide["cardLeft"] >= wide["wordsRight"] + 7.5, wide
+    assert wide["cardWidth"] == pytest.approx(wide["minimum"], abs=0.5), wide
+    assert wide["replyWidth"] >= 160, wide
+    assert wide["cardLeft"] >= wide["controlsRight"] + 7.5, wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
@@ -8064,7 +8076,7 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     the fixed card, so a spot or a length written as a client one would be moved or
     scaled by the transform; carried across, the card stays where and as wide as the
     rule put it."""
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -8096,6 +8108,13 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     rendered(page)
     after = page.evaluate(offset)
+    if transform == "scale(0.25)":
+        # The thread's words shrink with the transform, so the card takes its minimum,
+        # a client length too, which leaves room to stand clear of its cluster.
+        controls = marker.evaluate(
+            "node => node.closest('[data-lf-margin-for]').getBoundingClientRect().width"
+        )
+        before = {"left": controls + 8, "top": 0, "width": 320}
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 
@@ -8464,6 +8483,53 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
         stands[painted] = any(_meets(entry, heading) for entry in entries)
         page.close()
     assert stands == {False: True, True: False}, stands
+
+
+def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve):
+    """A choice is the group's, so its receipt pins to the options as a whole. The
+    group's top-right corner lies on its first option's card, and a card reads as one
+    thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
+    the "Close" card, just below its radio. A painted box inside the target counts
+    whole as one outside it does, so the pin stands beside the group instead."""
+    body = (
+        '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
+        '<lf-options id="o" choose>'
+        '<lf-option id="o-close"><strong>Close</strong> Point at the decline.</lf-option>'
+        '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
+    page.locator("#o-leave lf-option-control").click()
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    margins_laid_out(page)
+    reading = page.evaluate(
+        """() => {
+          const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+          return {
+            cards: [...document.querySelectorAll('lf-option')]
+              .map((card) => edges(card.getBoundingClientRect())),
+            entries: [...document.querySelectorAll(
+              '[data-lf-margin-for="o"] .lf-margin-entry')]
+              .filter((entry) => entry.checkVisibility())
+              .map((entry) => edges(entry.getBoundingClientRect())),
+            group: edges(document.getElementById('o').getBoundingClientRect()),
+          };
+        }"""
+    )
+    assert reading["entries"], reading
+    for entry in reading["entries"]:
+        assert not any(_meets(entry, card) for card in reading["cards"]), reading
+        group = reading["group"]
+        apart = max(
+            0,
+            group["left"] - entry["right"],
+            entry["left"] - group["right"],
+            group["top"] - entry["bottom"],
+            entry["top"] - group["bottom"],
+        )
+        # Within the 12px `pinSpot` reaches from its target.
+        assert apart <= 12, reading
 
 
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):

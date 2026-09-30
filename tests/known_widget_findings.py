@@ -17,7 +17,6 @@ KNOWN = {
     },
     "default": {
         ("lf-activity", "keeps-first-box"),
-        ("lf-chart", "keeps-first-box"),
         ("lf-code", "keeps-first-box"),
         ("lf-gloss", "keeps-first-box"),
         ("lf-milestone", "keeps-first-box"),

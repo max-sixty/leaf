@@ -254,6 +254,10 @@ widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
+A widget whose entry declares `x-height`, such as `lf-chart`, is drawn at a stated
+height that the page holds before the drawing arrives. Give an occurrence another
+height with `data-height`, in CSS pixels.
+
 Show evidence at the scale needed to judge it. For a local change, supply an aligned
 detail view with the complete object available for context; use whole frames when their
 composition is the subject. A fitted thumbnail is an overview, not a substitute for

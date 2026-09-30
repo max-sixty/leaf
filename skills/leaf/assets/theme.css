@@ -973,6 +973,18 @@ main {
     overscroll-behavior: contain;
     --lf-top: 0px;
   }
+  /* A widget with a stated height (x-height, or data-height on an occurrence) has that
+   * box from the first paint until its module has drawn (`lf-rendered`), so the drawing
+   * lands in room the page already laid out. What the element holds before then is its
+   * source, which the box clips rather than grows around. Once drawn, the box is the
+   * drawing's: one drawn at the stated height keeps it, and one whose content has a
+   * height of its own takes that. A failure is shown whole, since the user has to read
+   * it. */
+  html[data-lf-live] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+    box-sizing: border-box;
+    block-size: attr(data-lf-height px);
+    overflow: clip;
+  }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {

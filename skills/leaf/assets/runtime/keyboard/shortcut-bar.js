@@ -86,6 +86,7 @@ import {
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
+import { pagePresented } from "../presentation.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
@@ -327,6 +328,11 @@ export function collapseShortcutBar({ silent = false } = {}) {
   if (!silent) announce("Shortcut bar collapsed.");
 }
 export function renderShortcutBar(goToStatus) {
+  // The line says what the page's keys do, and until the page presents none of them does
+  // anything: the bootstrap holds every press for the presented page (controller.js). A
+  // line drawn from the commands live before then named a different pair, and More moved
+  // when presentation replaced it, so the band stands empty until its first true reading.
+  if (!pagePresented()) return;
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
   // ask every one of them again for the same frame.
   const scopes = stack();

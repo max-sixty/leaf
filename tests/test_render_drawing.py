@@ -17,9 +17,9 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
-    EXAMPLE_MEDIA,
     FEATURE_GALLERY,
     draft_key,
+    example_media,
     leaf_page,
     nudge,
     open_page,
@@ -519,7 +519,7 @@ def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser,
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     field = page.locator(".lf-general leaf-text")
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         field.evaluate(
             """(box, encoded) => {

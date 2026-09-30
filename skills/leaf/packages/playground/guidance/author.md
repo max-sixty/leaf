@@ -37,8 +37,17 @@ the key in the complete typed value map sent by the final `choose` action. A ran
 attribute and public `values` entry stay numeric. A range requires `max`; `min` defaults
 to zero and `step` defaults to one.
 
-When you have recommendations, offer two to four presets as coherent starting points.
-Name the outcome—`Status strip`, not `Preset 2`—and let the user tune it afterward.
+Controls and presets do different jobs. Controls span the space the user explores: give
+each part or parameter they might want to vary a control of its own, even when that
+makes many, and put candidates that differ only as wholes in one `choice`. Presets are
+the candidates you put forward: one for each proposal you would build, commonly three to
+six, none a variant of another. Design each preset as one look, composing its parts so
+they read together on every surface they change, rather than taking each control's best
+value on its own. Free combinations of controls may clash; a preset may not, because the
+user judges its idea by how it looks. Before handoff, look at each preset where the user
+will see it, on every surface it changes and in both themes, and rework or drop any you
+would not ship. A preset sets every control its look depends on, since a control it
+leaves out keeps the user's last value. Name the outcome—`Status strip`, not `Preset 2`.
 
 In this comparison, `format` identifies which of the two candidates to build:
 
@@ -62,6 +71,7 @@ In this comparison, `format` identifies which of the two candidates to build:
 
     <lf-playground-preset label="Status strip">
       <lf-playground-setting for="format" value="status strip"></lf-playground-setting>
+      <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
 

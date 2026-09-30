@@ -38,7 +38,7 @@ graders:
 - name: reads-authoring-evidence
   type: tool_used
   tool: Read
-  input_match: authoring-evidence
+  input_match: skills/leaf/references/authoring-evidence\.md
 - name: pair-outlined
   type: regex
   pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))

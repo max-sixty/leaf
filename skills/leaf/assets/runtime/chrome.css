@@ -2,10 +2,12 @@
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it. */
-/* `.lf-chrome` is one fixed runtime root containing the banner, drawer panel, thread panel,
+/* `.lf-chrome` is one runtime root containing the banner, drawer panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
-   inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
-   regions.
+   inspection paint, legend, and Go-to hint layer. It stands after the document and takes
+   no room there, since a box after the content moves whenever the content grows; the
+   theme reserves the chrome's room (html[data-lf-live]). The page and panel are separate
+   scroll regions.
 
    The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
    names do not escape that root. The global vocabulary is deliberately small: shared
@@ -235,18 +237,18 @@ html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main .lf-thread-seat,
 html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
-   box means "this, now". A contour appears for a moment — a draft on it, the pointer on
-   its thread, the thread the user stands in — and is one hollow line. Unlike a text
-   highlight, an element mark is projected above everything the target draws, so any
-   interior paint can obscure the target's own words or picture. The target painter
-   keeps the contour above those descendants; the declarations below are the no-JS
-   fallback. The element still takes a press that opens its thread. */
+   box means "this, now". A contour appears for a moment — a draft on it, the pointer
+   on its row in Threads, the thread the user stands in — and is one hollow line.
+   Unlike a text highlight, an element mark is projected above everything the target
+   draws, so any interior paint can obscure the target's own words or picture. The
+   target painter keeps the contour above those descendants; the declarations below
+   are the no-JS fallback. The element still takes a press that opens its thread. */
 .lf-mark-el { cursor: pointer; }
 /* The annotation layer hidden (`o`): the element's threads are out of reach, so the
    hand that promises one goes too, while a gesture's own contour stays. */
 :root[data-lf-annotations="hidden"]
-  .lf-mark-el:not(.lf-pending, .lf-mark-hover, .lf-mark-here,
-    :focus-visible, .lf-focus-visible) { cursor: auto; }
+  .lf-mark-el:not(.lf-pending, .lf-mark-here, :focus-visible, .lf-focus-visible) {
+    cursor: auto; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -254,10 +256,8 @@ html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
    whenever this is. */
 .lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
   cursor: auto; }
-/* Hover and the current thread use one accent contour. A press can temporarily move
-   focus from the thread to the page; keeping hover visually equivalent means that
-   ordinary pointer transition does not make selection flicker. Keyboard focus is the
-   distinct state that earns a complete outer ring. */
+/* The pointer on the thread's row in Threads and the current thread use one accent
+   contour. Keyboard focus is the distinct state that earns a complete outer ring. */
 .lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring);
@@ -362,9 +362,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
-  /* The document can scroll its last line above the bottom bar. A root workspace
-     ends above the bar, so this room fills the rest of the window after it. */
-  :scope { padding-bottom: var(--lf-bottom-bar-h); }
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening
@@ -543,9 +540,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-width: 0; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
     font: inherit; text-align: left; cursor: pointer; }
+  /* The disclosure's chevron stands beside the leaf, ahead of the sentence, so the
+     sentence is the one part of the press that changes: trailing it, the chevron moved
+     with every status the page's news wrote. */
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
-    transform: rotate(45deg); margin: -3px 3px 0 0; }
+    transform: rotate(45deg); margin: -3px 0 0 -4px; }
+  .lf-status-button > .lf-status-text { order: 1; }
   .lf-status-button:hover { color: var(--ink); }
   .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }
@@ -1695,7 +1696,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       - var(--lf-safe-left) - var(--lf-safe-right));
     width: max-content; min-height: calc(var(--lf-key-badge-size) + 12px); align-content: center;
     white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; }
+    overflow: hidden; text-overflow: ellipsis;
+    /* The status stands at the bar's end and grows away from it, so that end is its
+       inline start: a new sentence of a new width moves no edge it stood by, where a
+       left-to-right box held at its right end moved its start with every notice. Each
+       sentence still reads in its own direction. */
+    direction: rtl; }
+  .lf-bottom-status, .lf-bottom-status > * { unicode-bidi: plaintext; }
   .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
       > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
   .lf-walk-position { font-variant-numeric: tabular-nums; }

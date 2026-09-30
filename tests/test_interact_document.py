@@ -219,11 +219,37 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     inlined = activate()
     assert inlined.executable != rewidgeted.executable
 
+    # A script's attributes decide whether it runs, and a src on another server is
+    # named nowhere else.
+    document = document.replace(
+        '<script type="module">window.inlineRan = 2;</script>',
+        '<script type="text/plain">window.inlineRan = 2;</script>',
+    )
+    retyped = activate()
+    assert retyped.executable != inlined.executable
+
+    document = document.replace(
+        "</head>", '<script defer src="https://esm.sh/chart.js@4"></script></head>'
+    )
+    linked = activate()
+    assert linked.executable != retyped.executable
+    document = document.replace("chart.js@4", "chart.js@5")
+    relinked = activate()
+    assert relinked.executable != linked.executable
+
+    # Scripts run in document order, so moving one past another is new code too.
+    chart = '<script defer src="https://esm.sh/chart.js@5"></script>'
+    document = document.replace(chart, "").replace(
+        '<script type="text/plain">', chart + '<script type="text/plain">'
+    )
+    reordered = activate()
+    assert reordered.executable != relinked.executable
+
     declaration = json.loads((page_dir / "registry.json").read_text())["lf-options"]
     declaration["description"] = "Options this page declares for itself."
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
-    assert redeclared.executable != inlined.executable
+    assert redeclared.executable != reordered.executable
 
     files_model.replace_files(
         [(page_dir / "leaf.js", b"// re-vendored runtime", False)]
@@ -402,12 +428,11 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
     )
     for source, diagnostic in [
         ('import "./missing.js";', "cannot capture dependency"),
-        ('import "https://outside.example/module.js";', "local URL"),
+        ('import "ftp://outside.example/module.js";', "http(s) URL"),
         ('import "../../outside.js";', "public layer entry point"),
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
-        ("import(window.modulePath);", "literal local module URL"),
         ('import "./data\\u002ejson";', "unescaped string literals"),
         ("export const = ;", "invalid JavaScript"),
     ]:
@@ -476,7 +501,7 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     )
     previous = files_model.latest_revision(page_dir)
     for css, diagnostic in [
-        ('@import "https://outside.example/style.css";', "local URL"),
+        ('@import "ftp://outside.example/style.css";', "http(s) URL"),
         ('@import "./data.json";', "CSS MIME"),
         ('@import url("./data.json");', "CSS MIME"),
         ('main { background: url("../../private.svg"); }', "escapes"),
@@ -488,45 +513,33 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         assert refused.revision == previous and not refused.created
 
 
-def test_an_image_loads_only_from_an_origin_the_policy_admits(page_dir):
-    image = '<p><img src="{}" alt="logo"></p>\n</section>'
-    admitted = "https://cdn.jsdelivr.net/gh/twitter/twemoji/assets/svg/1f600.svg"
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", image.format(admitted), 1)
+def test_an_image_loads_from_any_server(page_dir):
+    images = (
+        '<p><img src="https://outside.example/a.png?s=40" alt="a">'
+        '<img src="//outside.example/b.png" alt="b"></p>\n</section>'
     )
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", images, 1))
     assert revisioning_model.activate_source(page_dir).error is None
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", image.format("https://outside.example/a.png"), 1)
-    )
-    refused = revisioning_model.activate_source(page_dir).error
-    assert refused and "https://cdn.jsdelivr.net" in refused, refused
 
 
 @pytest.mark.parametrize(
     "authored, expected",
     [
-        ("<script>window.hiddenPath = true;</script>", "must be an authored module"),
+        ("<script>window.x = 1;</script>", "still parsing"),
         (
-            '<button onclick="window.hiddenPath = true">Run</button>',
-            "uses executable attribute onclick",
+            '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
+            "still parsing",
         ),
         (
-            '<a href="javascript:window.hiddenPath=true">Run</a>',
-            "uses executable attribute href",
-        ),
-        (
-            '<a href="jav&#9;ascript:window.hiddenPath=true">Run</a>',
-            "uses executable attribute href",
+            '<script type="module" async src="https://unpkg.com/d3"></script>',
+            "runs whenever it arrives",
         ),
     ],
-    ids=[
-        "classic-script",
-        "event-handler",
-        "javascript-url",
-        "encoded-javascript-url",
-    ],
+    ids=["inline-classic", "blocking-classic", "async-module"],
 )
-def test_check_keeps_authored_code_in_module_blocks(page_dir, authored, expected):
+def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, expected):
+    """A page's scripts are its author's, classic or module, from any server, but
+    each runs after Leaf reads the page."""
     version = page_dir / "index.html"
     version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
 
@@ -1204,20 +1217,6 @@ def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypa
         for revision in range(1, 4)
     ]
     assert scans == 1
-
-
-def test_check_leaves_the_layers_policy_to_delivery(page_dir):
-    """The served boundary owns policy, so source cannot compete with it."""
-    version = page_dir / "index.html"
-    authored = version.read_text().replace(
-        "</head>",
-        '<meta http-equiv="Content-Security-Policy" content="default-src *">\n</head>',
-    )
-    version.write_text(authored)
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "Content-Security-Policy" in result.output
-    assert "belongs to delivery" in result.output
 
 
 def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
@@ -2385,10 +2384,16 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            "must have exactly rel and href",
+            "escapes /page/ and /media/",
         ),
+        ('<base href="https://outside.example/">', "<base> (line"),
+        (
+            '<meta http-equiv="Content-Security-Policy" content="default-src none">',
+            "<meta> (line",
+        ),
+        ('<script type="importmap">{"imports": {}}</script>', "<script> (line"),
     ],
-    ids=["runtime-module", "theme"],
+    ids=["runtime-module", "theme", "base", "policy", "import-map"],
 )
 def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     (page_dir / "index.html").write_text(PAGE.replace("</head>", f"{asset}\n</head>"))

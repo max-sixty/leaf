@@ -462,11 +462,11 @@ export function createResponseSurface({
       const above = verticalRoom("top");
       // Prefer below on touch screens. This keeps Leaf away from a native selection menu
       // above the passage, but the browser does not expose that menu's actual bounds.
-      if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-end";
+      if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-start";
       return below > above ||
         (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))
-        ? "bottom-end"
-        : "top-end";
+        ? "bottom-start"
+        : "top-start";
     };
     // Choose once for the target's horizontal geometry within a reading boundary. Its
     // vertical position moves whenever the user scrolls, but its reachable room does
@@ -519,10 +519,10 @@ export function createResponseSurface({
     const requestedSide = requestedPlacement.split("-", 1)[0];
     const quotedVertical = block && /^(top|bottom)$/.test(requestedSide);
     const fallbackPlacements = {
-      "right-start": ["left-start", "top-end", "bottom-end"],
-      "left-start": ["right-start", "top-end", "bottom-end"],
-      "top-end": ["bottom-end", "right-start", "left-start"],
-      "bottom-end": ["top-end", "right-start", "left-start"],
+      "right-start": ["left-start", "top-start", "bottom-start"],
+      "left-start": ["right-start", "top-start", "bottom-start"],
+      "top-start": ["bottom-start", "right-start", "left-start"],
+      "bottom-start": ["top-start", "right-start", "left-start"],
     }[requestedPlacement];
     if (fabPlacement === null) setWidth(boundary.width);
     const room = quotedVertical ? verticalRoom(requestedSide) : boundary.height;
@@ -621,7 +621,7 @@ export function createResponseSurface({
                     // grows downward; above or below, preserve the initial inline start.
                     crossAxis: beside
                       ? target.top - 6 - keepClear.top
-                      : inlineConnection() + rects.floating.width,
+                      : rects.reference.width + inlineConnection(),
                   };
                 }),
                 // Size precedes the one initial flip so the decision sees the width into
@@ -686,14 +686,14 @@ export function createResponseSurface({
       )
       .then((position) => {
         if (!position) return;
-        const { x, y, placement } = position;
+        const { x, placement } = position;
         if (!stillCurrent()) return;
         fabPlacement ??= placement;
         if (!/^(left|right)/.test(placement))
           fabInlineConnection ??= x - keepClear.right;
         fabPlacementInput = placementInput;
         keeps(fabBar, "data-lf-placement", fabPlacement);
-        fabPosition.stand(x, y);
+        fabPosition.stand(position);
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
         return true;

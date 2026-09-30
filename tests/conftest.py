@@ -432,17 +432,6 @@ def _browser(_playwright):
     b.close()
 
 
-def _watches_shifts(request):
-    """Whether a test's pages report layout shifts (`render_harness.clean_browser`).
-
-    `EXPECTED` in `shift_watch.js` lists the shifts without input the broad
-    selection's pages make today. The nightly-marked tests' pages make hundreds more,
-    such as an `lf-options` growing its write-in row as it upgrades under authored HTML
-    that already painted, and a few where typing carries its field. Until those are fixed or listed, the
-    nightly-marked tests do not watch for shifts."""
-    return request.node.get_closest_marker("nightly") is None
-
-
 @pytest.fixture
 def browser(_browser, request):
     """The shared browser process, with context ownership scoped to one test.
@@ -460,7 +449,7 @@ def browser(_browser, request):
     from render_harness import WatchedBrowser, clean_browser
 
     try:
-        with clean_browser(shifts=_watches_shifts(request)):
+        with clean_browser(request.node):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
@@ -477,7 +466,7 @@ def iphone(_playwright, request):
 
     webkit = _playwright.webkit.launch()
     try:
-        with clean_browser(shifts=_watches_shifts(request)):
+        with clean_browser(request.node):
             yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
@@ -495,7 +484,7 @@ def scrollbar_browser(_playwright, request):
 
     shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
     try:
-        with clean_browser(shifts=_watches_shifts(request)):
+        with clean_browser(request.node):
             yield WatchedBrowser(shown)
     finally:
         shown.close()

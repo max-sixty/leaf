@@ -3,11 +3,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  KINDS,
   marginEntry,
   normalizeMarginReading,
 } from "../../skills/leaf/assets/runtime/margin-entry-model.js";
 import {
-  KINDS,
+  canFold,
   clusterProjection,
   marginInventory,
   readingChoices,
@@ -79,6 +80,64 @@ test("one peer stays directly usable; two peers earn More", () => {
   const open = clusterProjection(threeEntry, { expandedKey: threeEntry.key });
   assert.equal(open.options.hidden, false);
   assert.deepEqual(choiceNames(open.options.visible), ["cancel", "details"]);
+});
+
+test("a folded cluster stands as its toggle and opens to every control", () => {
+  const entry = inventory({
+    offers: [
+      offer("widget", [control("accept", { rank: "complete" }), control("reject")], {
+        kind: "change",
+      }),
+    ],
+  });
+  assert.equal(canFold(entry), true);
+  const folded = clusterProjection(entry, { folded: true });
+  assert.equal(folded.folded, true);
+  assert.equal(folded.hasOptions, true);
+  assert.equal(folded.hasPrimary, false);
+  assert.deepEqual(folded.direct, []);
+  assert.equal(folded.options.hidden, true);
+  // Its toggle wears the face of the kind its contribution declares, and says it.
+  assert.deepEqual(folded.toggle, { icon: "change", label: "Change" });
+  assert.equal(folded.moreLabel, "Change, Decision");
+  // Opened, the primary leads its options.
+  const open = clusterProjection(entry, { folded: true, expandedKey: entry.key });
+  assert.equal(open.options.hidden, false);
+  assert.deepEqual(choiceNames(open.options.visible), ["accept", "reject"]);
+  // Placement's fold is only a request: unfolded, the face is the pair.
+  const whole = clusterProjection(entry);
+  assert.equal(whole.folded, false);
+  assert.deepEqual(whole.toggle, { icon: "more", label: "More options" });
+  assert.equal(whole.primary.record.key, "accept");
+  assert.deepEqual(choiceNames(whole.options.visible), ["reject"]);
+});
+
+test("a folded contribution with no kind is an action, and an unknown kind refused", () => {
+  const plain = inventory({
+    offers: [offer("widget", [control("accept"), control("reject")])],
+  });
+  assert.equal(clusterProjection(plain, { folded: true }).toggle.icon, "dot");
+  assert.throws(
+    () => offer("widget", [control("accept")], { kind: "suggestion" }),
+    /Unknown margin kind "suggestion"/,
+  );
+});
+
+test("a cluster whose face is one control, a reading, or engaged does not fold", () => {
+  const lone = inventory({ offers: [offer("widget", [control("edit")])] });
+  assert.equal(canFold(lone), false);
+  assert.equal(clusterProjection(lone, { folded: true }).folded, false);
+  const read = inventory({
+    offers: [offer("widget", [control("accept"), control("reject")])],
+    items: [marker("thread", "comment")],
+  });
+  assert.equal(canFold(read), false);
+  const busy = inventory({
+    offers: [
+      offer("widget", [control("accept"), control("reject")], { state: "busy" }),
+    ],
+  });
+  assert.equal(canFold(busy), false);
 });
 
 test("interaction urgency outranks completion; completion leads equal-state peers", () => {

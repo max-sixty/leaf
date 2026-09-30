@@ -1219,13 +1219,17 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
           const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
           const boxes = (nodes) => nodes.map((node) => {
             const box = node.getBoundingClientRect();
-            return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+            return {x: box.left + box.width / 2, y: box.top + box.height / 2,
+                    half: box.width / 2};
           });
           const controls = [...item.querySelectorAll('.lf-margin-entry')].filter((button) => {
             const box = button.getBoundingClientRect();
             return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
           });
           return {
+            folded: Boolean(
+              item.closest('[data-lf-folded]') || item.querySelector('[data-lf-folded]')
+            ),
             controls: controls.map((control) => {
               const box = control.getBoundingClientRect();
               return {x: box.left, right: box.right, y: box.top, bottom: box.bottom};
@@ -1242,20 +1246,31 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         }"""
     )
     assert len(geometry["controls"]) == 2, geometry
+    # Inside the window across too: where the pin stands folded, Ask travel standing at
+    # it opens it leftward from its toggle.
+    for control in geometry["controls"]:
+        assert 0 <= control["x"] < control["right"] <= width, geometry
     for control in geometry["controls"]:
         assert 0 < control["y"] < control["bottom"] <= geometry["foot"], geometry
     assert len(geometry["chips"]) == 2, geometry
+
     # Each chip hangs off its own control's upper corner, the left one unless that would
     # lay it over the control beside it: the pair stand 4px apart, so the second's digit
-    # takes its right corner.
+    # takes its right corner. A folded pin opens with its toggle right of Reject, so
+    # every corner of Reject lays its digit over a control and the digit keeps the first
+    # (key-badge-placement.js, `paint`). Whether the pin at 390px finds room for its pair
+    # or folds depends on the line's width in the platform's fonts, so the case reads it.
+    # A chip is pulled inside the window, which moves one whose corner stands under half
+    # its width in.
+    def hangs(corner, chip):
+        return abs(max(corner, chip["half"]) - chip["x"]) <= 2
+
+    first, second = geometry["chips"]
+    accept, reject = geometry["controls"]
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
         assert abs(control["y"] - chip["y"]) <= 2, geometry
-        assert (
-            min(abs(control["x"] - chip["x"]), abs(control["right"] - chip["x"])) <= 2
-        ), geometry
-    first, second = geometry["chips"]
-    assert abs(first["x"] - geometry["controls"][0]["x"]) <= 2, geometry
-    assert abs(second["x"] - geometry["controls"][1]["right"]) <= 2, geometry
+    assert hangs(accept["x"], first), geometry
+    assert hangs(reject["x" if geometry["folded"] else "right"], second), geometry
 
 
 def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
@@ -1284,6 +1299,12 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     ).to_have_attribute("data-lf-target-selected", "")
 
 
+def _unfold(item):
+    """Open a pin folded for want of room, as a user does to reach its actions."""
+    if item.get_attribute("data-lf-folded") is not None:
+        item.locator(".lf-margin-more").click()
+
+
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and dense overflow."""
@@ -1297,6 +1318,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         controls = item
+        _unfold(item)
         item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         round_trip(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
@@ -1304,6 +1326,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
             page.locator('[aria-label^="Undo "]')
         ).click()
         round_trip(page)
+        _unfold(item)
         expect(
             item.get_by_role("button", name=re.compile("^Accept the "))
         ).to_be_visible()
@@ -1369,6 +1392,68 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]
     assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
+
+
+# Each suggestion's pin, folded or not, where its controls stand on the page, and where
+# its words end.
+SUGGESTION_PINS = """(ids) => ids.map((id) => {
+  const row = document.querySelector(`[data-lf-margin-for="${id}"]`);
+  const end = [...document.getElementById(id).getClientRects()].at(-1);
+  return [id, row.hasAttribute('data-lf-folded'),
+    [...row.querySelectorAll('.lf-margin-entry')].filter((e) => e.checkVisibility())
+      .map((e) => { const b = e.getBoundingClientRect();
+        return [e.getAttribute('data-lf-margin-entry-key'), b.left, b.top + scrollY]; }),
+    end.right];
+})"""
+
+
+def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, serve):
+    """On the feature gallery at 390px the three suggestions share one paragraph, so a
+    decision reflows the words the others stand by, and their pins follow those words,
+    folding where a pair loses its room. Undoing the decision puts the words back, and
+    with them every pin: each stands where it stood, folded as it was, with the same
+    controls. The words put back can shape up to two pixels narrower than they first
+    did, with the same markup and style, so a pin may move by as much as its words'
+    end did and no more."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 390, 900)
+    margins_laid_out(page)
+    ids = ["bg-replace", "bg-insert", "bg-delete"]
+    before = page.evaluate(SUGGESTION_PINS, ids)
+    for target, outcome in (
+        ("bg-replace", "accept"),
+        ("bg-insert", "reject"),
+        ("bg-delete", "accept"),
+    ):
+        item = page.locator(f'[data-lf-margin-for="{target}"]')
+        _unfold(item)
+        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
+        round_trip(page)
+        suggestion_control(page, target, visible=False).and_(
+            page.locator('[aria-label^="Undo "]')
+        ).click()
+        round_trip(page)
+        # The pin just pressed is held under the pointer; let it go so it folds back.
+        page.mouse.move(0, 0)
+        page.evaluate(RELEASE_FOCUS)
+        rendered(page)
+        margins_laid_out(page)
+        after = page.evaluate(SUGGESTION_PINS, ids)
+        faces = [
+            [(i, f, [k for k, *_ in e]) for i, f, e, _ in pins]
+            for pins in (before, after)
+        ]
+        assert faces[0] == faces[1], (target, before, after)
+        drift = max(
+            abs(w0 - w1) for (*_, w0), (*_, w1) in zip(before, after, strict=True)
+        )
+        for (_, _, was, _), (_, _, now, _) in zip(before, after, strict=True):
+            for (_, x0, y0), (_, x1, y1) in zip(was, now, strict=True):
+                assert abs(x0 - x1) <= drift + 0.5 and abs(y0 - y1) < 0.5, (
+                    target,
+                    before,
+                    after,
+                )
 
 
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
@@ -3427,7 +3512,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(draft_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
-    # On a narrow screen each item stands near its target in room where it finds some.
+    # On a narrow screen each item stands near its target in room where it finds some:
+    # within 12px, or a line of its words further out where none lies nearer, as the
+    # suggestion's pin does at the end of the heading above its paragraph.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
@@ -3439,10 +3526,15 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         stands = item.evaluate(
             """item => {
               const row = item.getBoundingClientRect();
-              const box = item.lfTarget.getBoundingClientRect();
+              const target = item.lfTarget;
+              const box = target.getBoundingClientRect();
+              const block = getComputedStyle(target).display.startsWith('inline')
+                ? target.parentElement : target;
+              const line = parseFloat(getComputedStyle(block).lineHeight) || 0;
               return {near: Math.hypot(
                         Math.max(0, row.left - box.right, box.left - row.right),
-                        Math.max(0, row.top - box.bottom, box.top - row.bottom)) <= 12,
+                        Math.max(0, row.top - box.bottom, box.top - row.bottom))
+                        <= 12 + line,
                       inPage: row.left >= 0 && row.right <= innerWidth};
             }"""
         )
@@ -8451,6 +8543,166 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
     assert apart <= 12, (pair, reading["parts"])
 
 
+def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, serve):
+    """On release-notes at 390px under a finger, the API section's deletion starts on
+    its paragraph's second line, below a first line full of words, and ends where a
+    96px Accept/Reject pair has no room before the next block. No room lies within
+    12px of the run, so the pair reaches one line further out, to the empty end of the
+    section's heading, rather than covering the words it decides."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = page.evaluate(PIN_READING, "rn-sug-dry")
+    heading, line = page.evaluate(
+        """() => {
+          const {left, top, right, bottom} =
+            document.querySelector('#rn-api-section > h2').getBoundingClientRect();
+          return [{left, top, right, bottom},
+            parseFloat(getComputedStyle(document.getElementById('rn-api-why')).lineHeight)];
+        }"""
+    )
+    # Accept and Reject.
+    assert len(reading["entries"]) == 2, reading["entries"]
+    for entry in reading["entries"]:
+        covered = [word for word in reading["words"] if _meets(word, entry)]
+        assert not covered, (entry, covered)
+        assert _meets(entry, heading), (entry, heading)
+    # The pair stands above the run, no further out than `pinSpot`'s 12px and one line
+    # of the paragraph.
+    apart = min(part["top"] for part in reading["parts"]) - max(
+        entry["bottom"] for entry in reading["entries"]
+    )
+    assert 12 < apart <= 12 + line, (reading["entries"], reading["parts"], line)
+
+
+FOLDING_PAGE = leaf_page(
+    "a folded pin",
+    '<h1 id="t">Notes</h1>'
+    # Justified to 300px, every line but the last ends 324px into a 390px window, which
+    # leaves room right of the column for one 44px control but not for a pair.
+    '<p id="p" style="width: 300px; text-align: justify">The survey covered the north '
+    "field, the south field and the orchard, and found the same two dead zones in "
+    "each of them over the three weeks it ran. The status column is the "
+    '<lf-suggestion id="s"><lf-old>release\'s only visual change</lf-old>'
+    "<lf-new>only change anyone will notice in the run list</lf-new></lf-suggestion>"
+    ", and the rest of the release is internal work that nobody should see at all, "
+    "so the notes say nothing about it beyond the one line in the changelog that "
+    "links the pull request for anyone who wants to read the diff.</p>",
+)
+
+
+def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
+    browser, serve
+):
+    """Under a finger a suggestion's Accept and Reject are a 96px pair. Where no room
+    for the pair lies within reach of its run, the pin folds to one 44px control, the
+    toggle to its actions, seated as any pin is, so it takes the room right of the
+    paragraph and covers none of its words. A tap unfolds the actions leftward with the
+    toggle staying where it was pressed, and Accept decides; the keyboard reaches the
+    same actions by arriving on the toggle."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(FOLDING_PAGE), context=context)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="s"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_have_attribute("data-lf-folded", "")
+    toggle = row.locator(".lf-margin-more")
+    expect(toggle).to_have_attribute("aria-expanded", "false")
+    reading = page.evaluate(PIN_READING, "s")
+    # The toggle alone, over no word of the page.
+    assert len(reading["entries"]) == 1, reading["entries"]
+    (entry,) = reading["entries"]
+    covered = [word for word in reading["words"] if _meets(word, entry)]
+    assert not covered, (entry, covered)
+    apart = min(
+        max(
+            0,
+            part["left"] - entry["right"],
+            entry["left"] - part["right"],
+            part["top"] - entry["bottom"],
+            entry["top"] - part["bottom"],
+        )
+        for part in reading["parts"]
+    )
+    assert apart <= 12, (entry, reading["parts"])
+
+    pressed = toggle.bounding_box()
+    toggle.tap()
+    accept = row.locator(".lf-sug-accept")
+    expect(accept).to_be_visible()
+    expect(row.locator(".lf-sug-reject")).to_be_visible()
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+    assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
+    assert accept.bounding_box()["x"] < pressed["x"]
+    accept.tap()
+    expect(page.locator("#s")).to_have_attribute("data-lf-state", "accept")
+    page.close()
+
+    keyboard = open_page(browser, serve(FOLDING_PAGE), context=context)
+    margins_laid_out(keyboard)
+    row = keyboard.locator('.lf-margin-cluster[data-lf-margin-for="s"]')
+    expect(row).to_have_attribute("data-lf-folded", "")
+    # Tab through the page until focus arrives in the pin, which it does on the toggle,
+    # the one control it shows; arriving unfolds it onto Accept.
+    for _ in range(40):
+        keyboard.keyboard.press("Tab")
+        if row.evaluate("row => row.contains(document.activeElement)"):
+            break
+    accept = row.locator(".lf-sug-accept")
+    expect(accept).to_be_focused()
+    keyboard.keyboard.press("Enter")
+    expect(keyboard.locator("#s")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_a_folded_pin_at_the_window_s_left_edge_opens_inside_the_window(browser, serve):
+    """On the feature gallery at 390px under a finger, the Replace suggestion's run ends
+    102px in, and its pair finds no room, so its pin stands folded. It opens leftward
+    from the toggle to Accept, Reject and the toggle, 140px, so the toggle is seated
+    only where that fits: a tap leaves the toggle where the finger pressed it, every
+    action it opens stands inside the window, and focus lands on an Accept the user
+    can see. Folded, the toggle wears the face of what it folds, a change, and its name
+    says so and names the rewrite, where a bare More would say only "Actions"."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-replace"]')
+    expect(row).to_have_attribute("data-lf-folded", "")
+    toggle = row.locator(".lf-margin-more")
+    expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
+    expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
+    toggle.scroll_into_view_if_needed()
+    pressed = toggle.bounding_box()
+    toggle.tap()
+    accept = row.locator(".lf-sug-accept")
+    expect(accept).to_be_focused()
+    assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
+    opened = row.locator(".lf-margin-entry:visible").evaluate_all(
+        "els => els.map(el => { const b = el.getBoundingClientRect();"
+        " return [el.getAttribute('aria-label'), b.left, b.right]; })"
+    )
+    assert len(opened) == 3, opened
+    for label, left, right in opened:
+        assert 0 <= left < right <= 390, (label, opened)
+    # What the finger finds at Accept's middle is Accept.
+    assert accept.evaluate(
+        "el => { const b = el.getBoundingClientRect();"
+        " return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)"
+        "?.closest('.lf-margin-entry') === el; }"
+    )
+
+
 def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, serve):
     """A block that draws its own box, with a fill, a rule or a shadow, reads as one
     thing, so a pin anywhere on it reads as that block's: the heading's empty end is
@@ -8481,24 +8733,67 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
             " return {left, top, right, bottom}; }"
         )
         entries = page.evaluate(PIN_READING, "s")["entries"]
-        assert len(entries) == 2, entries
+        # Accept and Reject on the heading's end; folded to their toggle beside a
+        # painted heading, which leaves no room for the pair.
+        assert len(entries) == (1 if painted else 2), entries
         stands[painted] = any(_meets(entry, heading) for entry in entries)
         page.close()
     assert stands == {False: True, True: False}, stands
 
 
-def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve):
+@pytest.mark.parametrize("target", ["rn-console-shot", "rn-sug-window"])
+def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve, target):
+    """A painted box inside a pin's target counts whole, as an option card does inside a
+    choice, unless the target's declaration names it as the target's own face
+    (`x-face`): a screenshot's caption rail, a suggestion's tinted slot. On
+    release-notes at 390px under a finger, each pin stands on its own target's face,
+    over none of the page's words, rather than over the words at its corner."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = page.evaluate(PIN_READING, target)
+    assert reading["entries"], reading
+    for entry in reading["entries"]:
+        covered = [word for word in reading["words"] if _meets(word, entry)]
+        assert not covered, (entry, covered)
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        (
+            '<lf-option id="o-close"><strong>Close</strong> Point at the decline.'
+            "</lf-option>"
+            '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+        ),
+        # Fourteen one-word options, drawn as a column of cells that all but fill the
+        # group: a guess at whether a target is drawn by its parts once took them for
+        # the group's own face and stood the pin in the first cell.
+        '<lf-option id="o-close">Close</lf-option>'
+        '<lf-option id="o-leave">Leave open</lf-option>'
+        + "".join(f'<lf-option id="o-{n}">Option {n}</lf-option>' for n in range(12)),
+    ],
+    ids=["two", "fourteen"],
+)
+def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, options):
     """A choice is the group's, so its receipt pins to the options as a whole. The
     group's top-right corner lies on its first option's card, and a card reads as one
     thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
     the "Close" card, just below its radio. A painted box inside the target counts
-    whole as one outside it does, so the pin stands beside the group instead."""
+    whole as one outside it does, so the pin stands beside the group instead. The
+    group declares no face of its own (`x-face`), so however many cards it holds,
+    every one counts."""
     body = (
         '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
-        '<lf-options id="o" choose>'
-        '<lf-option id="o-close"><strong>Close</strong> Point at the decline.</lf-option>'
-        '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
-        "</lf-options></lf-ask>"
+        f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'
     )
     page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
     page.locator("#o-leave lf-option-control").click()

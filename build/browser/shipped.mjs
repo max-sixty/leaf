@@ -7,7 +7,7 @@
  * published. So one parser decides whether an output loads in an export, and one
  * writer states the licenses of the packages that reached it.
  *
- * The interactive export's CSP admits no module it did not embed, and that is one
+ * An export loads only the modules it embeds, and a module it cannot embed is one
  * careless import away: a bundler splits a chunk out behind every `import()`, and a
  * CommonJS dependency left unbundled reaches for `require`. A bundle that does either
  * draws in a developer's served page, which serves every module, and fails in a user's

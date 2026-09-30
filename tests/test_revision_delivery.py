@@ -304,8 +304,7 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
 @pytest.mark.parametrize("explicit_html", [True, False])
 def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     """A host's marks land on the document's own wrapper tags, whether or not the
-    source spells `<html>`, and a policy's nonce reaches every inline script, the
-    author's and delivery's alike, while the rest of the source stays as written."""
+    source spells `<html>`, while the rest of the source stays as written."""
     source = (
         '<!doctype html><html lang="en"><head><title>T</title></head>'
         '<body><main><script type="module">window.ran = 1;</script>'
@@ -323,7 +322,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         registry={},
         delivery=Delivery(
             address=ADDRESS,
-            policy=lambda nonce: f"script-src 'nonce-{nonce}'",
             import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
             page_root=PAGE_ROOT,
             html_attributes={"data-lf-contained": ""},
@@ -335,12 +333,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    policy = served.http_equivs[0]["content"]
-    nonce = policy.removeprefix("script-src 'nonce-").removesuffix("'")
-    assert [script["attrs"].get("nonce") for script in served.inline_scripts] == [
-        nonce,
-        nonce,
-    ]
     assert served.title == "T" and "<p>Text.</p>" in delivered
 
 

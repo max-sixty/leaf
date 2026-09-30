@@ -615,6 +615,22 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
+    /* The authored options paint before their generated Add and Done cells. Keep
+     * their rows occupied until upgrade so the next block stays put. The form
+     * needs more room in a card because its action seat sits inside the card inset. */
+    --lf-add-cell-height: 32px;
+    --lf-done-cell-height: 32px;
+    &:has(> lf-option > strong) { --lf-add-cell-height: 44px; }
+    &::after { content: ""; display: block; height: var(--lf-missing-cells, 0px); }
+    &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
+      --lf-missing-cells: var(--lf-add-cell-height);
+      --lf-missing-add: var(--lf-add-cell-height);
+    }
+    &[multiple]:not(:has(> lf-options-done)) {
+      --lf-missing-cells: calc(var(--lf-done-cell-height) + var(--lf-missing-add, 0px));
+    }
+    & > .lf-another { min-height: var(--lf-add-cell-height); }
+    & > lf-options-done { min-height: var(--lf-done-cell-height); }
     /* The joined group draws a frame, so it says so, like every box that draws one
      * (--lf-block-frame, theme.css). Its cells declare their own; this covers what stands
      * beside them. */

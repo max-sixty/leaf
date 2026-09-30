@@ -7,10 +7,14 @@
    the platform's, and native scroll anchoring holds it.
 
    The place is one reference node and its offset in the scroller's content. The
-   reference is chosen by what the user last named: a visible item under the pointer
-   or holding focus, whichever input came last, then the other, then the items in the
+   reference is chosen by what the user last named: an item under the pointer or
+   holding focus, whichever input came last, then the other, then the items in the
    scroller's visible band (`visibleBand`, so an item wholly under a stuck heading is not
-   where anyone is reading) from the top down. Every candidate is recorded, so when the
+   where anyone is reading) from the top down. Only an item whose top stands in the band
+   can be named or lead. Holding a top the user cannot see keeps nothing they see still:
+   the item's growth pushes everything after it, where holding the next item grows it
+   up into the room scrolled past. The item the band's top cuts holds the place only
+   where no item begins in view. Every candidate is recorded, so when the
    first leaves, hides, or is renamed out of `items`, the next one still standing holds
    the place without recovering an old position. A candidate the render replaced is
    handed across to the node now rendered under its identity; that is how a keyed
@@ -173,19 +177,23 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
         );
       })
       .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
+    // Only an item beginning in view can be named or lead; the one the band's top cuts
+    // is the last resort.
+    const beginning = visible.filter((node) => boxes.get(node).top >= band.top);
     const shown = new Set(visible);
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
     const focus = focused()?.closest?.(items);
     const named = (
       recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]
-    ).filter((node) => shown.has(node));
-    const references = placeCandidates({
+    ).filter((node) => beginning.includes(node));
+    const candidates = placeCandidates({
       inherited: prior?.references.find(
         (candidate) => live(candidate) && shown.has(candidate.node),
       )?.node,
       named,
-      visible,
-    })
+      visible: beginning,
+    });
+    const references = [...new Set([...candidates, ...visible])]
       .filter((node) => scroller.contains(node))
       .map((node) => ({
         node,

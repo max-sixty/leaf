@@ -1742,6 +1742,27 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
 
 
+def test_message_markup_may_not_declare_the_document(page_dir):
+    """A message renders in every revision of its page, so a base, header, or import
+    map in one would redirect, navigate, or break that page for good. Handlers are the
+    author's to write, as in the page itself."""
+    published(page_dir)
+    widget = (
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+    )
+    for declaration in (
+        '<base href="https://outside.example/">',
+        '<meta http-equiv="refresh" content="0;url=https://outside.example/">',
+        '<script type="importmap">{"imports": {}}</script>',
+    ):
+        refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
+        assert refused.exit_code != 0, declaration
+        assert "declares something about the whole document" in refused.output
+    handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
+    assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
+
+
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     """A Claude comment's markup lands in the panel exactly as a reply's does, so it
     validates the same way and claims ids from the same pool."""

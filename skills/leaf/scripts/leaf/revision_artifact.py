@@ -49,10 +49,10 @@ from leaf.files import (
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.structure import (
-    EXTERNAL_ORIGINS,
     SourceDocument,
-    external_reference,
     links_with_rel,
+    remote_reference,
+    script_kind,
 )
 
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
@@ -167,15 +167,13 @@ class RevisionArtifact:
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
-    """Resolve an authored URL without giving it a filesystem or network escape.
+    """Resolve an authored URL to the page file a revision holds for it, without a
+    filesystem escape.
 
-    None is a reference the revision does not hold, which stays as written: one to
-    an external origin, and for a stylesheet or media reference a fragment of this
-    document or a data: URL.
+    None is a reference the revision does not hold, which stays as written: one on
+    another server, a fragment of this document, or a data: URL.
     """
-    if external_reference(specifier) or (
-        not module and specifier.startswith(("#", "data:"))
-    ):
+    if remote_reference(specifier) or specifier.startswith(("#", "data:")):
         return None
     where = f"{importer}: {specifier!r}"
     try:
@@ -192,8 +190,8 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         or any(ord(char) < 33 for char in specifier)
     ):
         raise ArtifactError(
-            f"{where}: dependency must be a local URL without a query, or a URL "
-            f"on one of {', '.join(EXTERNAL_ORIGINS)}"
+            f"{where}: dependency must be a local URL without a query, or an "
+            "http(s) URL"
         )
     path = unquote(parsed.path)
     if unquote(path) != path or "\\" in path or any(ord(char) < 33 for char in path):
@@ -222,13 +220,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def _javascript_imports(
-    data: bytes,
-    path: str,
-    *,
-    allow_computed_imports: bool = False,
-):
-    """Yield exact string-literal spans of static exports/imports and import()."""
+def _javascript_imports(data: bytes, path: str):
+    """Yield exact string-literal spans of static exports/imports and import().
+
+    A computed import() binds when it runs, so capture neither follows nor refuses it:
+    a CDN module named that way loads, and a page file it names is in the revision
+    only if something imports it literally."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -262,12 +259,7 @@ def _javascript_imports(
             function = node.child_by_field_name("function")
             if function.type == "import":
                 arguments = node.child_by_field_name("arguments").named_children
-                if len(arguments) != 1 or arguments[0].type != "string":
-                    if not allow_computed_imports:
-                        raise ArtifactError(
-                            f"{path}:{node.start_point.row + 1}: import() requires a literal local module URL"
-                        )
-                else:
+                if len(arguments) == 1 and arguments[0].type == "string":
                     literal = arguments[0]
         if literal is not None:
             if any(child.type != "string_fragment" for child in literal.named_children):
@@ -287,7 +279,7 @@ def _css_meaningful(tokens) -> list:
 
 
 def _is_stylesheet_url(url: str) -> bool:
-    return external_reference(url) or Path(urlsplit(url).path).suffix == ".css"
+    return remote_reference(url) or Path(urlsplit(url).path).suffix == ".css"
 
 
 def _css_references(tokens):
@@ -532,6 +524,8 @@ def _capture_artifact(
     for authored in documents:
         documents.extend(sample["document"] for sample in authored.samples)
         for script in authored.inline_scripts:
+            if script_kind(script["attrs"]) not in {"module", "classic"}:
+                continue
             for _, _, specifier in _javascript_imports(
                 script["body"].encode("utf-8"), "/index.html"
             ):
@@ -539,15 +533,15 @@ def _capture_artifact(
                     resolve_dependency(specifier, "/index.html", module=True)
                 )
         for script in authored.external_scripts:
+            if script_kind(script["attrs"]) not in {"module", "classic"}:
+                continue
             path = resolve_dependency(
                 script["attrs"]["src"], "/index.html", module=True
             )
             if path is None:
                 continue
             if not path.startswith("/page/"):
-                raise ArtifactError(
-                    f"{path}: authored module sources must be under /page/"
-                )
+                raise ArtifactError(f"{path}: authored scripts must be under /page/")
             entries.append(path)
         for link in links_with_rel(authored.links, "stylesheet"):
             path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
@@ -609,9 +603,19 @@ def _capture_artifact(
                     for path, resource in resources.items()
                     if resource.mime == "application/javascript"
                 },
-                "inline": [
-                    _digest(script["body"].encode("utf-8"))
-                    for script in document.inline_scripts
+                # Every script element, whole and in document order: its attributes
+                # and place decide whether and when it runs, a data block's body is
+                # read at boot, and a src no capture holds, such as a CDN library's,
+                # is named only here.
+                "scripts": [
+                    {
+                        "attrs": script["attrs"],
+                        "body": _digest(script.get("body", "").encode("utf-8")),
+                    }
+                    for script in sorted(
+                        [*document.inline_scripts, *document.external_scripts],
+                        key=lambda script: script["position"],
+                    )
                 ],
             }
         )
@@ -938,11 +942,7 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     if logical_path.startswith("/page/"):
         yield from authored_imports(data, logical_path)
         return
-    for start, end, specifier in _javascript_imports(
-        data,
-        logical_path,
-        allow_computed_imports=True,
-    ):
+    for start, end, specifier in _javascript_imports(data, logical_path):
         parsed = urlsplit(specifier)
         if (
             not specifier

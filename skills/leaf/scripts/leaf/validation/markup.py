@@ -125,6 +125,18 @@ def structure_errors(parser: SourceDocument) -> list:
     return errors
 
 
+def document_declaration_errors(parser: SourceDocument) -> list:
+    """Delivery declares the document's base, headers, and import map, and addresses
+    every request Leaf's runtime makes by them. Markup that declares its own, in a page
+    or in a message quoted into one, sends those requests elsewhere, navigates the page,
+    or leaves its modules unable to resolve, and a message does so in every revision."""
+    return [
+        f"<{item['tag']}> (line {item['line']}) declares something about the whole "
+        "document, which delivery owns"
+        for item in parser.document_declarations
+    ]
+
+
 def page_boundary_errors(parser: SourceDocument) -> list:
     """Authored content lies under the page's one main content boundary."""
     errors = []

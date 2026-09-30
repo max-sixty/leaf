@@ -177,12 +177,16 @@ Step 1 settled the foundation A describes, and each contract now lives beside it
   `@property`; `packages.md` for a package's header). The page tab strip is one row of
   a stated height with presses at its edges in place of a scrollbar (lf-tabs.js), and
   a diff's file header is one line of a stated height whose path gives way from its
-  folders (diff `shadow.css`). A header over a whole scroller joins its
+  folders, with the whole path in its title (diff `shadow.css`). A keyboard user who
+  focuses the header does not see the whole path. A header over a whole scroller joins its
   `scroll-padding`; one over part of it gives its rows `scroll-margin-top`.
 - The runtime reads what the headers stand over from `--lf-top` (geometry.js,
   `headerInset`), which replaced `declareStickyHeaders` and the measured rooms.
-- Every box the theme makes scroll that can hold a header starts `--lf-top` from 0: a
-  bounded block, a table, a board, and the workspace's scrollers.
+- Every box the theme makes scroll that can hold a header starts `--lf-top` again: a
+  bounded block, a table and a board from 0, a workspace pane's body from minus its top
+  padding. A box an author makes scroll does not, so a diff inside one still pins its
+  header that far below the box's top; `lf-diff` could pin only where its scroller is
+  one of these or the root.
 - The workspace's row rule applies only to a body holding panes (layouts.css), and the
   hit floor is padding where a flex or grid container could squeeze a control.
 

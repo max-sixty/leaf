@@ -603,6 +603,46 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
+def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
+    """A workspace pane's body starts `--lf-top` at minus its top padding and a table
+    starts it at 0, since each scrolls; neither stacks a header, so a cell scrolled to
+    just below the pane's top edge reads as shown from where it stands."""
+    filler = "<p>Filler.</p>" * 40
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Pane table",
+                '<header><h1>Pane table</h1></header><lf-pane id="p1" label="Detail">'
+                "<header><h2>Detail</h2></header><div><p>Lead paragraph.</p>"
+                '<table id="t1"><tbody><tr><td id="c1">one</td><td>1</td></tr>'
+                "<tr><td>two</td><td>2</td></tr></tbody></table>"
+                + filler
+                + "</div></lf-pane>",
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    read = page.evaluate(
+        """async () => {
+        const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const body = document.querySelector('#p1 > div');
+        const cell = document.querySelector('#c1');
+        const band = geometry.shownBand(body);
+        body.scrollTop += cell.getBoundingClientRect().top - band.top - 5;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {
+            band: geometry.shownBand(body).top,
+            cell: cell.getBoundingClientRect().top,
+            shown: geometry.shownRect(cell, new Map())?.top,
+        };
+    }"""
+    )
+    assert read["cell"] == pytest.approx(read["band"] + 5, abs=1), read
+    assert read["shown"] == pytest.approx(read["cell"], abs=0.5), read
+
+
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
     source = (
         ROOT_TABS_PAGE.read_text()

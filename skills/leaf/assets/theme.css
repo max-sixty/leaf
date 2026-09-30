@@ -143,6 +143,11 @@
      document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
+  /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
+     floor where that is taller, and its 1px rule. The default package draws the strip
+     at it, and the root's `scroll-padding` adds it where a page tab strip stands over
+     the root (`--lf-root-headers`, lf-tabs.js). */
+  --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
@@ -795,11 +800,14 @@ main {
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
- * scroller, stacked. On the root it starts at the banner's height (above); every box that
- * scrolls starts it again from its own top. A sticky header (a page tab strip, a diff's
- * file header) has a stated height and sticks at the `--lf-top` it inherits; what it
- * stands over takes that value plus its height, which the header's holder passes on
- * under a second name, since a custom property cannot read itself. A landing clears the
+ * scroller, stacked. On the root it starts at the banner's height (above); a box the
+ * theme makes scroll that can hold a header starts it again from its own top (a bounded
+ * block, a table, a board; a workspace pane's body from minus its top padding,
+ * layouts.css). A sticky header (a page tab strip, a diff's file header) has a stated
+ * height and sticks at the `--lf-top` it inherits; what it stands over takes that value
+ * plus its height, which the header's holder passes on under a second name, since a
+ * custom property cannot read itself. The stacked value goes on a box that does not
+ * itself scroll, since a box that scrolls is read where it stands. A landing clears the
  * headers over a whole scroller through its `scroll-padding` and one over part of it
  * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
  * screen takes the value at each element (geometry.js, `headerInset`). Registered so

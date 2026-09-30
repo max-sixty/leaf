@@ -424,13 +424,15 @@ read itself:
 .file { --lf-top-outer: var(--lf-top); }
 .file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
 .file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
-.file > .rows > * { scroll-margin-top: var(--head-h); }
+.file .row { scroll-margin-top: var(--head-h); }
 ```
 
-The rows' `scroll-margin-top` has every landing, native or the runtime's, arrive below
-the header. The runtime reads what passes under it as off screen from `--lf-top`, for
-read acknowledgement, arrival checks, and chrome placement, so nothing is declared. A box
-a package makes scroll starts `--lf-top` again at `0px`.
+The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
+below the header. The runtime reads what passes under it as off screen from `--lf-top`,
+for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
+The stacked value goes on a box that does not itself scroll, since the runtime reads a
+box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
+at `0px`, on the box that scrolls and only there.
 
 A composition allocates a Leaf element's outer box. The package owns how the element's
 contents use that allocation, based on its available inline size rather than the page

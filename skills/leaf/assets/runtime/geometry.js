@@ -203,18 +203,20 @@ const scrolls = (el) => {
 // scroller's own, headers stand over `el`, and their foot is that value below the
 // scroller's padding edge, where a sticky box is measured from. The root's own value is
 // the banner, which is left to `shownWindow`, so with no header over `el` nothing is
-// taken. A header that is not stuck stands above its content anyway, so the reading
-// holds whether it is stuck or not. A header sticks in a box that scrolls, so a box that
-// only clips (`overflow: clip`, paint containment) has none over it. A stack only grows
-// inward, except where a box that scrolls starts it again for what it holds, so `el`
-// stands under the larger of its own value and its parent's.
+// taken. A header that is not stuck stands above its content, so the reading holds
+// whether it is stuck or not, except at the end of what the header stands over, where
+// the header is pushed up with it and the reading still counts its height as covered. A
+// header sticks in a box that scrolls, so a box that only clips (`overflow: clip`, paint
+// containment) has none over it. A box that scrolls starts `--lf-top` again for what it
+// holds, so it is read where it stands, at its parent; a header's holder puts the
+// stacked value on a box that does not scroll (theme.css, at `--lf-top`).
 const lfTop = (el) =>
   Number.parseFloat(getComputedStyle(el).getPropertyValue("--lf-top")) || 0;
 const holdsHeaders = (el) => el === el.ownerDocument?.scrollingElement || scrolls(el);
 export function headerInset(el, scroller) {
   if (!holdsHeaders(scroller) || el === scroller) return 0;
-  const parent = upFrom(el);
-  const top = Math.max(lfTop(el), parent?.nodeType === 1 ? lfTop(parent) : 0);
+  const at = el.nodeType === 1 && scrolls(el) ? upFrom(el) : el;
+  const top = at?.nodeType === 1 ? lfTop(at) : 0;
   if (top <= lfTop(scroller)) return 0;
   return (Number.parseFloat(getComputedStyle(scroller).paddingTop) || 0) + top;
 }

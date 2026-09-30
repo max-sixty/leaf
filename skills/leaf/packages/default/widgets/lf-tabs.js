@@ -61,6 +61,10 @@ import {
   watchAsks,
 } from "/runtime/widget-api.js";
 
+// The page's navigation strip, where one stands: the first tab set in main, drawn as
+// a row (`#syncRootContext`).
+const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
+
 const TAB_KEY = "lf-tabs:";
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
@@ -171,7 +175,6 @@ customElements.define(
         // The strip is always on screen; focus scrolling a stuck tab back to its place
         // in flow would move the view being left before the switch records it.
         next.focus({ preventScroll: true });
-        this.#showTab(next);
         next.click();
         beginWalk("tab", "Tab", () =>
           listWalkPosition([...this.#buttons.values()], document.activeElement),
@@ -260,7 +263,8 @@ customElements.define(
       this.#stopAsks = null;
       if (this.#covering) {
         this.#covering = false;
-        removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+        if (!document.querySelector(PAGE_STRIP))
+          removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
       }
     }
 
@@ -401,24 +405,19 @@ customElements.define(
     }
 
     // A page-flow strip sticks under the banner over the whole document, so it is a
-    // sticky header of the root: its stated height (`--lf-tabstrip-h`, the package
-    // theme) joins the root's `scroll-padding` as `--lf-root-headers` (theme.css), and
-    // every landing arrives below it. A package's rules reach only its widgets, so the
-    // root takes the height from here. What the strip stands over inside its panels
-    // stacks through `--lf-top` (the package theme). Only the set whose strip stands
-    // over the root withdraws it.
+    // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
+    // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
+    // below it. What the strip stands over inside its panels stacks through `--lf-top`
+    // (the package theme). A set that stops being the page's strip withdraws it only
+    // where no other set has become that strip.
     #declareHeader() {
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
       if (covering === this.#covering) return;
       this.#covering = covering;
       const root = document.documentElement;
-      if (covering)
-        setRuntimeRootStyle(
-          root,
-          "--lf-root-headers",
-          getComputedStyle(this).getPropertyValue("--lf-tabstrip-h").trim(),
-        );
-      else removeRuntimeRootStyle(root, "--lf-root-headers");
+      if (covering) setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
+      else if (!document.querySelector(PAGE_STRIP))
+        removeRuntimeRootStyle(root, "--lf-root-headers");
     }
 
     // A press at one edge of the strip, which pages the names that run past it (the
@@ -430,26 +429,32 @@ customElements.define(
       edge.dataset.to = to;
       edge.setAttribute("aria-hidden", "true");
       const face = document.createElement("span");
-      face.onclick = () =>
-        this.#strip.scrollBy({
-          left: (to === "start" ? -0.8 : 0.8) * this.#strip.clientWidth,
+      face.onclick = () => {
+        const strip = this.#strip;
+        const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
+        strip.scrollBy({
+          left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
           behavior: "smooth",
         });
+      };
       edge.append(face);
       return edge;
     }
 
     // A tab the row runs past is scrolled into the strip, and only the strip: the
-    // strip sticks, and scrolling the page to it would move the view being read.
+    // strip sticks, and scrolling the page to it would move the view being read. It
+    // stops clear of the edge's press, which the strip states as its inline
+    // `scroll-padding` (the package theme).
     #showTab(btn) {
       if (!this.#pageFlow || !btn) return;
       const strip = this.#strip;
       const room = strip.getBoundingClientRect();
       const box = btn.getBoundingClientRect();
-      const edge = 36;
-      if (box.left < room.left + edge) strip.scrollLeft -= room.left + edge - box.left;
-      else if (box.right > room.right - edge)
-        strip.scrollLeft += box.right - (room.right - edge);
+      const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
+      const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
+      const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
+      if (box.left < left) strip.scrollLeft -= left - box.left;
+      else if (box.right > right) strip.scrollLeft += box.right - right;
     }
 
     #listenForHistory() {

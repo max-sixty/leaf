@@ -15,18 +15,16 @@ KNOWN = {
         ("lf-worktree", "keeps-first-box"),
     },
     "default": {
+        # What these draw is the page's state, which arrives with the first state
+        # answer after the first paint and which the served document does not carry:
+        # the activity feed's rows are the log's history, and a text document's lines
+        # are its bound source's value, wrapped at the column's width.
         ("lf-activity", "keeps-first-box"),
-        ("lf-code", "keeps-first-box"),
-        ("lf-gloss", "keeps-first-box"),
-        ("lf-milestone", "keeps-first-box"),
-        ("lf-note", "keeps-first-box"),
-        ("lf-option", "keeps-first-box"),
-        ("lf-shot", "keeps-first-box"),
-        ("lf-tab", "keeps-first-box"),
-        ("lf-tabs", "keeps-first-box"),
         ("lf-text-document", "keeps-first-box"),
+        # Which form the contents takes, the fixed map in the margin or the outline in
+        # the flow, is the margin pass's residency decision (`data-lf-margin`,
+        # margin-layout.js), made from the room it measures after the first paint.
         ("lf-toc", "keeps-first-box"),
-        ("lf-tree", "keeps-first-box"),
     },
     "diagram": {("lf-diagram", "keeps-first-box")},
     "diff": {("lf-diff", "keeps-first-box")},

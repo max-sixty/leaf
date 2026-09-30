@@ -285,6 +285,36 @@ test("a node with no identity passes the place to the next candidate, not a stra
   scroller.remove();
 });
 
+test("an item the band's top cuts holds the place only where none begins in view", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const nodes = ["a", "b"].map((id, index) => item(id, 950 + index * 100));
+  for (const node of nodes) node.tabIndex = 0;
+  scroller.append(...nodes);
+  scrollTo(1000);
+  const place = placeKeeper(scroller, {
+    items: ".item",
+    identity: (node) => node.dataset.id,
+  });
+  // Focus in "a", whose top stands above the band, names no place: "b" holds it.
+  nodes[0].focus();
+  const hold = place.take();
+  assert.equal(hold.named, null);
+  assert.equal(hold.references[0].node, nodes[1]);
+  // "a" grows by 60px at its end, and so grows up into the room scrolled past.
+  at.set(nodes[1], 1110);
+  place.finish(hold);
+  assert.equal(scrolled(), 1060);
+  assert.equal(nodes[1].getBoundingClientRect().top, 50);
+
+  // With nothing else in view, the cut item still holds it.
+  nodes[1].remove();
+  scrollTo(1000);
+  const alone = place.take();
+  assert.equal(alone.references[0].node, nodes[0]);
+  place.finish(alone);
+  scroller.remove();
+});
+
 test("a synchronous hold claims no anchoring and absorbs the browser's", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
   const nodes = ["a", "b"].map((id, index) => item(id, 1000 + index * 150));

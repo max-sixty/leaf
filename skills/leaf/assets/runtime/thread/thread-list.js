@@ -9,8 +9,8 @@
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
-   Following lands the thread's end, reply box included, so the turn's newest words
-   stand just above the box, however tall the turn has grown.
+   Following keeps the thread's end, reply box included, where it stood, so the turn's
+   newest words take the room above the box however tall the turn has grown.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
 
@@ -46,7 +46,6 @@
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
 import { nextRender } from "../rendering.js";
-import { scrollBehavior } from "../motion.js";
 import { placeKeeper } from "../user-place.js";
 import { landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -182,19 +181,10 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       (scrolls && tailEnd < band.bottom - FOLLOW_ROOM)
     )
       return null;
-    const editor = card.querySelector(".lf-compose-field");
-    const editorBox = editor?.getBoundingClientRect();
-    const focusedEditor =
-      editor?.contains(document.activeElement) &&
-      editorBox.top < band.bottom &&
-      editorBox.bottom > band.top
-        ? editor
-        : null;
     return {
       id: incoming.at(-1)?.id ?? nextLatest.id,
       top: threadsBox.scrollTop,
-      editor: focusedEditor,
-      editorTop: focusedEditor ? editorBox.top : null,
+      end: tailEnd,
       current: retainUserIntent({ available: panelIsOpen }),
     };
   }
@@ -204,23 +194,15 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // restores that reading through the same owners while preserving native identities.
   let renderGeneration = 0;
 
-  // Following brings the newest words above the reply box into view. With no editor
-  // under focus, the card ends at the band's foot. A focused editor keeps the place
-  // the user left it in, including any gap below it.
+  // Following grows the thread up into the room scrolled past: the card's end, reply box
+  // included, stays where it stood, so the newest words stand where the latest ones
+  // did, however tall the turn has grown, and nothing after them moves. The scroll
+  // lands in the render's own frame; where the list is too short to scroll that far,
+  // the end grows into the room below.
   function followThreadEnd(newest, incoming) {
-    const band = landingBand(threadsBox);
     const end = newest.closest(".lf-thread")?.getBoundingClientRect().bottom;
-    if (!band || end === undefined) return;
-    // A focused reply box is the user's place. The new turn may fill room above it,
-    // but following must not consume the gap the user left below the box.
-    const by = incoming.editor?.isConnected
-      ? incoming.editor.getBoundingClientRect().top - incoming.editorTop
-      : end - band.bottom;
-    if (by > 0)
-      threadsBox.scrollBy({
-        top: by,
-        behavior: incoming.editor ? "instant" : scrollBehavior(),
-      });
+    if (end > incoming.end)
+      threadsBox.scrollBy({ top: end - incoming.end, behavior: "instant" });
   }
 
   const rowModel = (all, commands) => {

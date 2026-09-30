@@ -13,11 +13,8 @@ import re
 
 KNOWN_UNASKED = {
     "test_chrome_contracts.py": {
-        # A thread's cards and the composer under them as a reply lands above later
-        # ones, and the shortcut line's More as its hints change.
-        "test_incoming_reply_follows_a_selected_thread_before_later_cards": (
-            r"details\.lf-thread-compact|lf-compose-field|lf-shortcut"
-        ),
+        # The shortcut line's More as its hints change.
+        "test_incoming_reply_follows_a_selected_thread_before_later_cards": r"lf-shortcut",
         "test_a_repaint_unsettles_the_rendering_until_it_lands": r"lf-shortcut",
     },
     "test_render_application_boundary.py": {

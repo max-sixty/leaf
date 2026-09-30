@@ -1227,6 +1227,9 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
             return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
           });
           return {
+            folded: Boolean(
+              item.closest('[data-lf-folded]') || item.querySelector('[data-lf-folded]')
+            ),
             controls: controls.map((control) => {
               const box = control.getBoundingClientRect();
               return {x: box.left, right: box.right, y: box.top, bottom: box.bottom};
@@ -1243,8 +1246,8 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         }"""
     )
     assert len(geometry["controls"]) == 2, geometry
-    # Inside the window across too: at 390px the pin stands folded, and Ask travel
-    # standing at it opens it leftward from its toggle.
+    # Inside the window across too: where the pin stands folded, Ask travel standing at
+    # it opens it leftward from its toggle.
     for control in geometry["controls"]:
         assert 0 <= control["x"] < control["right"] <= width, geometry
     for control in geometry["controls"]:
@@ -1253,10 +1256,12 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
 
     # Each chip hangs off its own control's upper corner, the left one unless that would
     # lay it over the control beside it: the pair stand 4px apart, so the second's digit
-    # takes its right corner. At 390px the pin stands folded and opens with its toggle
-    # right of Reject, so every corner of Reject lays its digit over a control and the
-    # digit keeps the first (key-badge-placement.js, `paint`). A chip is pulled inside
-    # the window, which at 390px moves Accept's, whose corner stands 6px in, by 3px.
+    # takes its right corner. A folded pin opens with its toggle right of Reject, so
+    # every corner of Reject lays its digit over a control and the digit keeps the first
+    # (key-badge-placement.js, `paint`). Whether the pin at 390px finds room for its pair
+    # or folds depends on the line's width in the platform's fonts, so the case reads it.
+    # A chip is pulled inside the window, which moves one whose corner stands under half
+    # its width in.
     def hangs(corner, chip):
         return abs(max(corner, chip["half"]) - chip["x"]) <= 2
 
@@ -1265,7 +1270,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
         assert abs(control["y"] - chip["y"]) <= 2, geometry
     assert hangs(accept["x"], first), geometry
-    assert hangs(reject["x" if width == 390 else "right"], second), geometry
+    assert hangs(reject["x" if geometry["folded"] else "right"], second), geometry
 
 
 def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):

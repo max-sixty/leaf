@@ -17,8 +17,8 @@
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, within a moment of the words going: Escape, Send, Cancel, a press
 // elsewhere, choosing another target. What only moves the user around the words does
-// not count: a key that typed (one a trusted `beforeinput` followed), a modifier, a key
-// that moves the caret, the focus or the page, and a press on the field itself. A wheel,
+// not count: a key that typed (one a trusted `beforeinput` followed), a modifier, the
+// caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
 // with no such key or press are reported on the console as a browser problem, which
 // fails the test like any other; a test whose words go for a reason the rule allows, as
@@ -131,7 +131,8 @@
   };
   // Losses waiting out AFTER for the key or press that may still answer for them.
   const pending = new Map();
-  const look = (at) => {
+  const look = () => {
+    const at = performance.now();
     for (const [field, typedAt] of edited) {
       const words = text(field);
       if (words.trim()) holding.set(field, { words, typedAt });
@@ -155,8 +156,8 @@
   // One frame at a time while there is anything to watch, and none on a page nobody has
   // typed in.
   let looking = false;
-  const watch = (at) => {
-    look(at);
+  const watch = () => {
+    look();
     looking = holding.size > 0 || edited.size > 0;
     if (looking) frame(watch);
   };
@@ -168,7 +169,7 @@
   // Every loss so far judged now, with no more keys or presses to wait for: the browser
   // fixture awaits this as the test body returns (`render_harness.judge_watches`).
   window.lfWordsJudged = () => {
-    look(performance.now());
+    look();
     for (const [due, timer] of pending) {
       cancel(timer);
       due();

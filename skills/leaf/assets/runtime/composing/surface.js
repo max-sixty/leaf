@@ -808,6 +808,8 @@ export function createResponseSurface({
         else {
           fabAnchor = null;
           fabOrigin = null;
+          fabWithheld = false;
+          fabWithheldFocus = null;
           stopFabPositioning({ reset: true });
           resetResponseOptions();
           fabBar.removeAttribute("data-lf-target-only");
@@ -865,8 +867,8 @@ export function createResponseSurface({
     withholdFab();
     return false;
   }
-  // Hidden, keeping everything that says what it is, the side it stood on included, so
-  // that it comes back where it was. Hiding a focused bar drops the focus to nowhere, so
+  // Hidden, keeping everything that says what it is: where its target lost its box, the
+  // side it stood on too, so that it comes back where it was. Hiding a focused bar drops the focus to nowhere, so
   // the bar holds the user's place, caret included, whether they stand in it or a
   // repositioning that hid it just dropped them (`holdFocus`), and takes them back when
   // it stands again unless they have stood somewhere since. Where a covering panel took
@@ -1332,6 +1334,7 @@ export function createResponseSurface({
     // inline, it is in flow and the browser's own reveals reach it.
     declareOffFlowSurface(fabBar, {
       floats: () => Boolean(fabAnchor && fabFloating),
+      away: () => fabWithheld,
       bringBack: (behavior) => {
         const found = resolveAnchor(fabAnchor, pageText());
         const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;

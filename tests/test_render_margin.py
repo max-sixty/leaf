@@ -5934,7 +5934,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
-    status = options.get_by_role("status", name=re.compile(r"Sent for"))
+    # The move's delivery status, whatever its stage has reached: the pickup grace can
+    # run out during this journey, turning "Sent" to "Waiting for pickup".
+    status = options.get_by_role("status")
     expect(status).to_be_visible()
     expect(preview).to_be_hidden()
     status.click()
@@ -8483,6 +8485,53 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
         stands[painted] = any(_meets(entry, heading) for entry in entries)
         page.close()
     assert stands == {False: True, True: False}, stands
+
+
+def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve):
+    """A choice is the group's, so its receipt pins to the options as a whole. The
+    group's top-right corner lies on its first option's card, and a card reads as one
+    thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
+    the "Close" card, just below its radio. A painted box inside the target counts
+    whole as one outside it does, so the pin stands beside the group instead."""
+    body = (
+        '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
+        '<lf-options id="o" choose>'
+        '<lf-option id="o-close"><strong>Close</strong> Point at the decline.</lf-option>'
+        '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
+    page.locator("#o-leave lf-option-control").click()
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    margins_laid_out(page)
+    reading = page.evaluate(
+        """() => {
+          const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+          return {
+            cards: [...document.querySelectorAll('lf-option')]
+              .map((card) => edges(card.getBoundingClientRect())),
+            entries: [...document.querySelectorAll(
+              '[data-lf-margin-for="o"] .lf-margin-entry')]
+              .filter((entry) => entry.checkVisibility())
+              .map((entry) => edges(entry.getBoundingClientRect())),
+            group: edges(document.getElementById('o').getBoundingClientRect()),
+          };
+        }"""
+    )
+    assert reading["entries"], reading
+    for entry in reading["entries"]:
+        assert not any(_meets(entry, card) for card in reading["cards"]), reading
+        group = reading["group"]
+        apart = max(
+            0,
+            group["left"] - entry["right"],
+            entry["left"] - group["right"],
+            group["top"] - entry["bottom"],
+            entry["top"] - group["bottom"],
+        )
+        # Within the 12px `pinSpot` reaches from its target.
+        assert apart <= 12, reading
 
 
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):

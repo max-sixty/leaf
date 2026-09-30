@@ -1634,6 +1634,24 @@ def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
 def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
     page = TYPED_PARTS_PAGE.replace(
         "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    ).replace(
+        "    Fetch --&gt; Build",
+        "    [*] --&gt; Fetch\n    Fetch --&gt; Build",
+        1,
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
+def test_state_diagram_parts_keep_authored_ids_that_resemble_markers(browser, serve):
+    page = leaf_page(
+        "authored state ids",
+        """<h1 id="title">Authored state ids</h1>
+<lf-diagram id="life" parts="node:_start2 node:_end2"><pre>
+stateDiagram-v2
+  [*] --&gt; _start2
+  _start2 --&gt; _end2
+  _end2 --&gt; [*]
+</pre></lf-diagram>""",
     )
     assert render_gate_model.render_version(browser, serve(page)).failures == []
 

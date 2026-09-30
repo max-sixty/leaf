@@ -122,9 +122,9 @@ def _screen_lines(screens) -> list[str]:
             for names, label in runs
         ]
         + [
-            "  then read its words as the user will: the headings on their own, each "
-            "name introduced where it is first used, and each Ask whole where `a` "
-            'lands on it (page-authoring.md, "Pre-handover review")'
+            "  then have a subagent with the user's request and these screens, and "
+            "none of your notes, work the page as the user would "
+            '(page-authoring.md, "Pre-handover review")'
         ]
     )
 

@@ -297,7 +297,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert {"1200px-ask-1.png", "1200px-ask-2.png"} <= set(names)
     assert "1200px-ask-3.png" not in names
     assert any("each press of `a`" in line for line in listed)
-    assert any("the headings on their own" in line for line in listed)
+    assert any("none of your notes" in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
     assert any("<div id=2026-numbers> 4 → " in line for line in listed)

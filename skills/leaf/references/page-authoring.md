@@ -216,8 +216,7 @@ A queue whose items open one at a time beside it, such as tickets, cases or find
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
 `lf-tab`, so one opens beside the list, a link or an Ask opens its own, and each tab counts
 the Asks its item still holds. Write no script to select, hide or mark an item; the tab
-set does all three. The user works a queue from Ask to Ask, so an item's panel opens
-with its `lf-ask` ("Asks and sign-off").
+set does all three.
 
 Each pane's body scrolls on its own, and a widget that fills the body of a full-height
 workspace, such as a playground's stage, grows to the window's height. The `lf-pane`
@@ -513,9 +512,7 @@ state, over a list, a table, or a board that speaks for itself.
 
 Write for what the user has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
-claim they could doubt, and drop the journey once the conclusion replaces it. A
-possibility you checked and ruled out is journey too: say what holds rather than
-what does not, since the user never held the guess.
+claim they could doubt, and drop the journey once the conclusion replaces it.
 
 ## Pre-handover review
 
@@ -542,11 +539,15 @@ one, a row that wraps to leave one tile alone, a pin over the end of a heading, 
 summary the phone puts after everything else. Fix what the page can fix, and check
 again.
 
-Then read the page as the user will. Take the headings on their own first, and
-check that none of them promises a finding it does not give. Confirm that
-referents are introduced, claims have evidence, decisions have controls, each
-drawing adds information, no passage describes a shape the page could draw, and
-everything standing open in the column is there because the user needs it.
+Then have the page read as the user will meet it. You wrote it from research,
+notes and questions the user never saw, so its names and shorthand resolve for you
+and not for them. Give a subagent the user's request and the saved screens, and
+none of your notes, and have it work the page as the user would, reporting each
+place it could not follow, had to guess, or had to look elsewhere to act. Fix what
+it reports. Your own reading still checks that each heading gives the finding it
+promises, each claim has its evidence and each decision its control,
+each drawing adds information, no passage describes a shape the page could draw,
+and everything standing open in the column is there because the user needs it.
 
 Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user
@@ -554,10 +555,10 @@ oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with Asks, the check also saves the window at each of the first eight
 as `a` reaches it from the top, which is how a user working the page meets each
-question. At each arrival, confirm that what the question is about, its shared
-premise, the alternatives, and the evidence that distinguishes them are visible
-together, the displayed numbers match the available actions, and the next press of
-`a` reaches the next open Ask while the complete page remains visible.
+question. At each arrival, confirm that the question, shared premise, alternatives,
+and evidence that distinguishes them are visible together, the displayed numbers
+match the available actions, and the next press of `a` reaches the next open Ask
+while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and

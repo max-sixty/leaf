@@ -2,12 +2,9 @@
 
 The user answers an Ask from what is on screen when they reach it, and `a`
 brings its heading to the top with everything above it out of view. So the
-`lf-ask` holds what answering takes: its question heading, then what the question
-is about, the short shared premise and the evidence that tells the alternatives
-apart, then the control. What it is about is the item or finding the heading names,
-said for a user who has read nothing above the Ask, however the notes it came from
-were ordered. Backing detail and reproductions of the current behavior follow the
-Ask.
+`lf-ask` holds what answering takes: its question heading, then the short shared
+premise and the evidence that tells the alternatives apart, then the control.
+Backing detail and reproductions of the current behavior follow the Ask.
 
 On a quick-answer page, open with the Ask and put its backing in a disclosure
 after it. The first viewport should show the objective, current state, and

@@ -994,7 +994,7 @@
       "example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
     },
     ".tag": {
-      "description": "An inline chip label, read at a glance and apart from any prose that would explain it, so its words say what they describe on their own: a count names what it counts, and a status names what is in that state and what it waits on. Add `ok`, `warn` or `danger` to draw it in that status tone.",
+      "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
       "example": "<span class=\"tag\">experimental</span>"
     },
     ".callout": {

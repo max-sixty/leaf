@@ -4,9 +4,11 @@ Research on main at `5ed41df4b`, 29 September 2026, from a user review of a 21-i
 triage queue page, then reviewed against alternatives at `ef3cea8b3`. The plan keeps
 the document scrolling on the root, gives the banner a stated height, gives every box
 that sticks over content a stated height stacked through `--lf-top`, and stops the
-workspace Layout from writing inside the widget it arranges. One decision follows the
-first step: whether a workspace keeps panes that scroll on their own, or its regions
-stick to the root scroller instead (option E below).
+workspace Layout from writing inside the widget it arranges. That first step has landed
+("Step 1, landed"); the sections before it describe main as it stood. What remains is
+one decision, whether a workspace keeps panes that scroll on their own or its regions
+stick to the root scroller instead (option E), and then the bottom bar and the phone
+banner.
 
 ## What went wrong on the queue page
 
@@ -159,116 +161,32 @@ E costs more than the Layout:
 - **Phones.** Where the regions stack, they stop sticking and drop their maximum height,
   or a stacked queue becomes a window-tall inner scroller.
 
-Neither the mechanical parts of step 1 below nor the two causes of the queue failure
-depend on E. So decide E after step 1, from `alert-review` built both ways in a
+Neither the mechanical step (step 1, below) nor the two causes of the queue failure
+depended on E, so they came first; decide E from `alert-review` built both ways in a
 playground.
 
-## The foundation
+## Step 1, landed
 
-- **The root scrolls on the live page, print, export and the MCP page frame.** A live
-  page adds a fixed banner and top padding of its height. A block sample is an iframe
-  whose root does not scroll, so nothing sticks in it. The MCP inline snapshot renders
-  the page in a shadow host inside the app's scroller, under the app's sticky 48px bar,
-  and sets no `--lf-top` today; the host sets it to the bar's height.
-- **The banner has a stated height:** a value CSS computes from the pointer type, the
-  window's width and the page's declared sign-off (`data-lf-review`, which arrives with
-  the document). What the row holds may still be measured to decide which controls go
-  into its menu, since that changes the row's content and not its height; the rows
-  observer and the guesses go. The banner is one row down to about 600px with Approve
-  on it (`ship-review`) and about 440px without (`rust-sort`), read from
-  `data-lf-banner-rows` in `leaf-dev probe`; below those it takes a stated second row.
-  One row there is a separate design (step 3).
-- **Covers stack through `--lf-top`.** On the root it is the banner's height; in a
-  bounded region it is 0. A cover has a stated height, sticks at `var(--lf-top)`, and
-  adds that height to `--lf-top` for what it covers. A custom property cannot reference
-  itself, so the cover's holder passes the incoming value on under a second name, and
-  only a cover's holder and a bounded region write it:
+Step 1 settled the foundation A describes, and each contract now lives beside its code
+(the glossary's name for a cover is a sticky header):
 
-  ```css
-  lf-tabs[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
-  lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
-    position: sticky; top: var(--lf-top); block-size: var(--lf-tabstrip-h); }
-  lf-tabs[data-lf-tabs-flow="page"] > lf-tab {
-    --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h)); }
-  ```
+- The banner's height is stated: `theme.css` computes its rows from the pointer, the
+  window's width and the declared sign-off (`data-lf-review`), and the rows observer
+  and the pre-runtime guesses are gone.
+- Sticky headers stack through `--lf-top`, a registered length (`theme.css`, at its
+  `@property`; `packages.md` for a package's header). The page tab strip is one row of
+  a stated height with presses at its edges in place of a scrollbar (lf-tabs.js), and
+  a diff's file header is one line of a stated height whose path gives way from its
+  folders (diff `shadow.css`). A header over a whole scroller joins its
+  `scroll-padding`; one over part of it gives its rows `scroll-margin-top`.
+- The runtime reads what the headers stand over from `--lf-top` (geometry.js,
+  `headerInset`), which replaced `declareStickyHeaders` and the measured rooms.
+- Every box the theme makes scroll that can hold a header starts `--lf-top` from 0: a
+  bounded block, a table, a board, and the workspace's scrollers.
+- The workspace's row rule applies only to a body holding panes (layouts.css), and the
+  hit floor is padding where a flex or grid container could squeeze a control.
 
-- **Landings keep today's two mechanisms with stated heights.** A cover over a whole
-  scroller, the banner and the page tab strip on the root, goes into that scroller's
-  `scroll-padding-top`, which native landings and the runtime's `landingBand` both read.
-  A cover over part of the content, the diff file header, goes into `scroll-margin-top`
-  on what it covers, as `lf-diff` already writes it from `--lf-head-room`, combined with
-  the focus ring's room in one value. Landing already clears both on main (a diff row in
-  a page tab lands at 136px, below the strip and the header); what changes is that both
-  values are stated instead of measured. Moving the tab strip into `scroll-margin` fails:
-  `scrollIntoView` applies the target's margin at every ancestor scroller, so a line in
-  a bounded block inside a page tab landed under the strip, and every runtime landing
-  reading `landingBand` would too.
-- **Readings of what the user sees read the same stack.** The clip walk behind
-  `shownRect`, `seenRect` and the read and arrival checks takes, at each scroller, the
-  `--lf-top` computed at the box just inside it (the element itself at its own scroller,
-  the inner scroller's box at each outer one) off that scroller's top. Under a stuck
-  diff header an element inside that diff inherits the header's height, and an element
-  above the diff is not under it. That replaces `headersByScroller`. The one scroller-wide reading,
-  `visibleBand(scroller)` for the reading place (`user-place.js`), subtracts only the
-  scroller's `scroll-padding`, so a place taken while a diff header is stuck counts the
-  lines under the header as shown.
-- **Bounded regions own the reset.** Covers stick in the root or a bounded region (a
-  pane body where panes scroll, a panel, a block marked bounded), and each of those
-  starts `--lf-top` from 0. A box the theme makes scroll only sideways (`table`, `pre`,
-  `lf-board`, `lf-diagram`) is still the scroller for anything sticky inside it, so
-  `lf-diff` pins its header only where its scroller is the root or a bounded region.
-- **A Layout sets a box's outer size and whether it scrolls, never its inner tracks.**
-  A widget fills the box it is given with `height: 100%` or `fr` tracks, which CSS
-  resolves to content height where no height is given (probed), and keeps its
-  content's minimum on both axes. A widget written that way needs no
-  `--lf-full-height` query to tell it which case it is in.
-- **A hit floor never removes a content minimum on the block axis.** A control a flex
-  or grid container can squeeze states its block floor as padding,
-  `padding-block: max(<its padding>, (<its minimum> - 1lh) / 2)`, where its minimum is
-  `var(--aim-floor)` or the rule's own `max(Npx, var(--aim-floor))`, rather than as
-  `min-height`. In a 60px flex column a three-line button
-  with that padding stayed 88px tall where `min-height` crushed it to 44px (probed). A
-  multi-line control on a coarse pointer grows by the whole padding, 12px a side at a
-  20px line. Inline floors (`min-width: var(--aim-floor)` on an item in a row) stay
-  squeezable; the page tab strip's `flex: none` is what holds its buttons.
-
-## Plan
-
-Step 1, which does not depend on E:
-
-- Compute the banner's row count in CSS from the pointer type, the width and the
-  declared sign-off, and delete the rows observer and the guesses.
-- Give the page tab strip a stated height, one row that scrolls sideways with its
-  scrollbar hidden. A hidden scrollbar leaves a mouse with a vertical wheel no way to
-  reach a tab past the edge, so the strip needs a pointer route: edge buttons, or the
-  tabs it cannot show in an overflow menu. Give the diff file header one line, its path
-  ellipsized at the start so the file name stays, with the whole path on hover or focus.
-- Stack covers through `--lf-top`, put the tab strip's stated height in the root's
-  `scroll-padding-top` and the diff header's in its rows' `scroll-margin-top`, and
-  delete `declareStickyHeaders` (with `lf-diff`'s `declareHeadRoom`),
-  `headersByScroller`, `measureUnseenHeaders`, `insetBand`'s sticky-inset case and
-  `--lf-root-tab-clear`.
-- Make `lf-diff` hold its file header as a cover: each file's body sets `--lf-top` to
-  the incoming value plus the header's stated height, and its rows' `scroll-margin-top`
-  derives from the header's height with the focus ring's room.
-- Set `--lf-top` on the MCP inline snapshot's host to the app bar's height.
-- Move the `--lf-top` reset from the two workspace rules to the bounded-region
-  primitive, so a `data-bound` block gets it too, and pin a diff header only where its
-  scroller is one of those or the root.
-- State the hit floor as padding in each rule, of the twenty (twelve that read
-  `var(--aim-floor)` alone, eight that read `max(Npx, var(--aim-floor))` in
-  `chrome.css`, `theme.css`, the visual-review, playground and swipe themes and
-  `diff/shadow.css`), whose control a flex or grid container can squeeze. The page-flow strip's `flex: none` stays, since it keeps a tab
-  from shrinking along the row and cutting its name; the side list needs no second copy.
-- Apply the workspace's row rule only to a body that holds panes
-  (`:has(> [data-lf-reading-role="pane"])`), and give `lf-tabs list="side"` one form
-  that fills a definite height and takes its content's otherwise. On a flowing page its
-  list sticks at `var(--lf-top)` with the root's view as its maximum; inside a pane body
-  it stays in flow until the open question on its height there is settled. E replaces
-  this form in step 2 if chosen.
-
-`771b3d72c` then keeps its landing rule and `.tag { align-self: center }`, and drops
-`#fitList`, `--lf-list-top` and `--lf-list-view`.
+## Remaining plan
 
 Step 2, E if chosen: rewrite the workspace Layout as a grid whose side regions stick at
 `var(--lf-top)` and scroll within `--lf-view-height`, with `lf-tabs list="side"` as one
@@ -282,6 +200,15 @@ lane, side-region landing and per-item place costs above; move the pages
 `--lf-full-height` queries, `syncLayoutRegion` and `heldPanes`. This is the largest
 step in the plan.
 
+Without E, `lf-tabs list="side"` needs a full-height form of its own: its list and item
+each scroll inside a full-height workspace body, and the item's scroller is registered
+as a reading region, as a generated pane is. Today, after step 1, the whole body
+scrolls with the list and the item together, which holds its rows at their height but
+lets the list scroll away.
+
+`771b3d72c` then keeps its landing rule and `.tag { align-self: center }`, and drops
+`#fitList`, `--lf-list-top` and `--lf-list-view`.
+
 Step 3: drop the bottom bar, and give the phone banner one row. Removing the bar deletes
 `--lf-bottom-bar-h` and its readers (`theme.css`, `chrome.css`, `shortcut-bar.js`,
 `lf-toc`), `declareBottomBar`, and the bottom edge in `shownWindow`. Its key hints move
@@ -292,11 +219,6 @@ which is a product choice to make on its own.
 
 ## Checks
 
-- The queue page from the user's review, written as `page-authoring.md` prescribes,
-  passes `page check --render`.
-- The diff-in-tab probe above reads the diff header starting at the strip's foot.
-- A fragment, a Go-to travel and a thread landing into a diff line inside a page tab,
-  and into a line of a bounded block inside a page tab, each land below every cover.
 - With E: on `alert-review`, PageDown on load scrolls the page and reload restores its
   place; a margin row in a stuck region stays with its target after a root scroll; a
   landing into the queue leaves the root where it was; the playground and visual-review
@@ -310,7 +232,5 @@ which is a product choice to make on its own.
 - What the one-row banner holds on a phone, and what goes behind its menu. A candidate:
   the status mark alone, opening the status detail; the gesture step or Approve; Threads
   as an icon with its count; More.
-- Without E, the visible height a sticky side list takes as its maximum inside a pane
-  body. A pane body the workspace sizes can be a size container (`100cqb`); a generated
-  pane sized by its content cannot, since size containment collapsed one in
-  `notification-playground` from 158px to 28px.
+- Without E, whether the side list's full-height form is worth registering its item as
+  a reading region, or whether the list scrolling away with the body is acceptable.

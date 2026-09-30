@@ -3,11 +3,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  KINDS,
   marginEntry,
   normalizeMarginReading,
 } from "../../skills/leaf/assets/runtime/margin-entry-model.js";
 import {
-  KINDS,
   canFold,
   clusterProjection,
   marginInventory,
@@ -118,10 +118,7 @@ test("a folded contribution with no kind is an action, and an unknown kind refus
   });
   assert.equal(clusterProjection(plain, { folded: true }).toggle.icon, "dot");
   assert.throws(
-    () =>
-      inventory({
-        offers: [offer("widget", [control("accept")], { kind: "suggestion" })],
-      }),
+    () => offer("widget", [control("accept")], { kind: "suggestion" }),
     /Unknown margin kind "suggestion"/,
   );
 });

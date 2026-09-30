@@ -100,10 +100,9 @@ const inSeatingOrder = (rows) =>
 // bounds, folds, folded }`, `rect` its home, `held` the rect it holds or null, `folds`
 // the same pin folded, `{ rect, seat, open }` with `open` its width opened, where it can
 // fold, and `folded` whether it stands folded now, which a held pin keeps. A pin seated
-// first is a wall to the next, and every
-// other pin's target is one a pin reaching further out must not stand nearer to, unless
-// the two targets meet, as a passage in a commented block does. The answer maps each key
-// to its seat, `{ rect, folded }`.
+// first is a wall to the next, and every other pin's target is one a pin reaching
+// further out must not stand nearer to, unless the two targets meet, as a passage in a
+// commented block does. The answer maps each key to its seat, `{ rect, folded }`.
 export function seatRows(pins, { reach, gap }) {
   const seats = new Map();
   const seated = [];

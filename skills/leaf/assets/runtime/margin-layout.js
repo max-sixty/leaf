@@ -383,12 +383,14 @@ function blockOf(target) {
   return el;
 }
 
-// What a pin may not stand on across a band of the page (`cover`): every run of words,
-// each box that paints what no text node says (an image, a drawing, a widget's shadow
-// tree, the target's own if it is one), every control, and, whole, every other box that
-// paints its own extent (`paintsItsBox`). A box that draws a fill, a rule or a shadow
-// reads as one thing, so a pin anywhere on it, even over its empty end, reads as that
-// box's: a card, a callout, a framed table or code block. Every other block that paints
+// What a pin may not stand on across a band of the page (`cover`): every run of words, as
+// far as the boxes holding it show it (a word clipped to nothing for a screen reader
+// alone, as `.lf-quiet` is, covers nothing), each box that paints what no text node says
+// (an image, a drawing, a widget's shadow tree, the target's own if it is one), every
+// control, and, whole, every other box that paints its own extent (`paintsItsBox`). A
+// box that draws a fill, a rule or a shadow reads as one thing, so a pin anywhere on it,
+// even over its empty end, reads as that box's: a card, a callout, a framed table or
+// code block. Every other block that paints
 // nothing is a `neighbour`: it covers only by its words, so the empty end of a short
 // heading or line beside the target is room, but a pin there can read as that block's,
 // and `pinSpot` takes it only where the target has no room of its own. Everything that
@@ -442,8 +444,12 @@ function coverIn(root, band, target, block, bands, stop) {
         if (!node.data.trim()) continue;
         const words = document.createRange();
         words.selectNodeContents(node);
-        for (const box of words.getClientRects())
-          if (box.width > 1 && box.height > 1 && meets(box)) cover.push(edges(box));
+        for (const box of words.getClientRects()) {
+          if (!meets(box)) continue;
+          const shown = clippedBand(node, box, bands, stop);
+          if (shown && shown.right - shown.left > 1 && shown.bottom - shown.top > 1)
+            cover.push(shown);
+        }
         continue;
       }
       if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;

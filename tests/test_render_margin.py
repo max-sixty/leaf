@@ -1389,6 +1389,68 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
 
 
+# Each suggestion's pin, folded or not, where its controls stand on the page, and where
+# its words end.
+SUGGESTION_PINS = """(ids) => ids.map((id) => {
+  const row = document.querySelector(`[data-lf-margin-for="${id}"]`);
+  const end = [...document.getElementById(id).getClientRects()].at(-1);
+  return [id, row.hasAttribute('data-lf-folded'),
+    [...row.querySelectorAll('.lf-margin-entry')].filter((e) => e.checkVisibility())
+      .map((e) => { const b = e.getBoundingClientRect();
+        return [e.getAttribute('data-lf-margin-entry-key'), b.left, b.top + scrollY]; }),
+    end.right];
+})"""
+
+
+def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, serve):
+    """On the feature gallery at 390px the three suggestions share one paragraph, so a
+    decision reflows the words the others stand by, and their pins follow those words,
+    folding where a pair loses its room. Undoing the decision puts the words back, and
+    with them every pin: each stands where it stood, folded as it was, with the same
+    controls. The words put back can shape up to two pixels narrower than they first
+    did, with the same markup and style, so a pin may move by as much as its words'
+    end did and no more."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 390, 900)
+    margins_laid_out(page)
+    ids = ["bg-replace", "bg-insert", "bg-delete"]
+    before = page.evaluate(SUGGESTION_PINS, ids)
+    for target, outcome in (
+        ("bg-replace", "accept"),
+        ("bg-insert", "reject"),
+        ("bg-delete", "accept"),
+    ):
+        item = page.locator(f'[data-lf-margin-for="{target}"]')
+        _unfold(item)
+        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
+        round_trip(page)
+        suggestion_control(page, target, visible=False).and_(
+            page.locator('[aria-label^="Undo "]')
+        ).click()
+        round_trip(page)
+        # The pin just pressed is held under the pointer; let it go so it folds back.
+        page.mouse.move(0, 0)
+        page.evaluate(RELEASE_FOCUS)
+        rendered(page)
+        margins_laid_out(page)
+        after = page.evaluate(SUGGESTION_PINS, ids)
+        faces = [
+            [(i, f, [k for k, *_ in e]) for i, f, e, _ in pins]
+            for pins in (before, after)
+        ]
+        assert faces[0] == faces[1], (target, before, after)
+        drift = max(
+            abs(w0 - w1) for (*_, w0), (*_, w1) in zip(before, after, strict=True)
+        )
+        for (_, _, was, _), (_, _, now, _) in zip(before, after, strict=True):
+            for (_, x0, y0), (_, x1, y1) in zip(was, now, strict=True):
+                assert abs(x0 - x1) <= drift + 0.5 and abs(y0 - y1) < 0.5, (
+                    target,
+                    before,
+                    after,
+                )
+
+
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     browser, serve
 ):

@@ -78,7 +78,12 @@
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { cancelRender, nextRender } from "./rendering.js";
-import { excerptWords, labelWords, spokenSubject } from "./margin-entry-model.js";
+import {
+  KINDS,
+  excerptWords,
+  labelWords,
+  spokenSubject,
+} from "./margin-entry-model.js";
 import {
   mountMarginLayer,
   registerMarginRow,
@@ -102,7 +107,6 @@ import {
   watchMarginContributions,
 } from "./margin-entries.js";
 import {
-  KINDS,
   entryEngaged,
   choosePrimary,
   readingKey,

@@ -19,6 +19,7 @@
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
  */
 import {
+  KINDS,
   spokenSubject,
   marginItemKey,
   compareMarginContributions,
@@ -27,62 +28,6 @@ import {
   marginEntryStateRank,
 } from "./margin-entry-model.js";
 
-export const KINDS = Object.freeze(
-  Object.fromEntries(
-    Object.entries({
-      action: { label: "Action", icon: "dot", priority: -1 },
-      change: { label: "Change", icon: "change", priority: 0 },
-      restated: {
-        label: "Rewritten",
-        icon: "change",
-        priority: 0,
-        indication: true,
-      },
-      comment: { label: "Thread", icon: "comment", priority: 1 },
-      ask: { label: "Ask", icon: "question", priority: 2 },
-      sent: {
-        label: "Sent",
-        icon: "sent",
-        priority: 3,
-        indication: true,
-      },
-      queued: {
-        label: "Queued",
-        icon: "pickup",
-        priority: 3,
-        indication: true,
-      },
-      pickup: {
-        label: "Picked up",
-        icon: "pickup",
-        priority: 3,
-        indication: true,
-      },
-      // Every receipt whose progress stopped short: one past the pickup grace, one
-      // whose turn ended or went quiet, one the host failed. A single receipt reads
-      // under its own label; this names a group of them.
-      waiting: {
-        label: "Stalled update",
-        icon: "waiting",
-        priority: 3,
-        indication: true,
-      },
-      user: {
-        label: "Your change",
-        icon: "change",
-        priority: 4,
-        indication: true,
-      },
-      reported: {
-        label: "Reported update",
-        icon: "activity",
-        priority: 4,
-        indication: true,
-      },
-      activity: { label: "Working", icon: "activity", priority: 4 },
-    }).map(([kind, face]) => [kind, Object.freeze(face)]),
-  ),
-);
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
 // one each, so a view that painted a face knows it by identity.
@@ -427,11 +372,6 @@ export function clusterProjection(
 export function marginInventory(groups) {
   return Object.freeze(
     groups.map((group) => {
-      for (const offered of group.offers)
-        if (offered.reading.kind && !KINDS[offered.reading.kind])
-          throw new TypeError(
-            `Unknown margin kind "${offered.reading.kind}" in contribution "${offered.key}"`,
-          );
       const represented = new Set(
         group.items
           .filter((item) => item.marker === false && item.represents)

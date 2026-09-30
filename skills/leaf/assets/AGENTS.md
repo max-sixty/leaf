@@ -18,23 +18,24 @@ theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row stands in the
-free room measured beside its target, in a rail the page declares, or as a pin by
-its target: in room found where it covers no words and no other box that paints its
-own extent, clear of neighbouring blocks where its target has room of its own, and
-reaching one line of words further out only where it has none within reach
-(`pinSpot`, `coverIn`), and otherwise inside its target's corner. A pin whose face is a
-primary and one more control that finds no room for both stands folded to its options'
-toggle, wearing the face of the kind its contribution declares, seated at that size
-where the actions it opens to fit inside its bounds
-(`seatRows`); a press on the toggle, or the keyboard arriving on it or standing at its
-target, opens it, spreading the actions over what stands beside it with the toggle
-left under the press, and moves nothing else.
+Nothing Leaf draws at run time moves the page's content. A margin row sits in the
+rail beside its target (`rowPosture`), or as a pin by its target: in room found where
+it covers no words and no other box that paints its own extent, clear of neighbouring
+blocks where its target has room of its own, and reaching one line of words further
+out only where it has none within reach (`pinSpot`, `coverIn`), and otherwise inside
+its target's corner. A pin whose face is a primary and one more control that finds no
+room for both stands folded to its options' toggle, wearing the face of the kind its
+contribution declares, seated at that size where the actions it opens to fit inside its
+bounds (`seatRows`); a press on the toggle, or the keyboard arriving on it or standing
+at its target, opens it, spreading the actions over what stands beside it with the
+toggle left under the press, and moves nothing else.
 
-The rail and a pin are different kinds. The rail is room: a strip beside the column,
-which the column may move over to leave (`settleResidency`) but never narrows or
-indents for. A pin, a passage mark, and everything else in the annotation layer is an
-overlay: it covers what lies under it and takes no room. No rule pads, indents,
+The rail and a pin are different kinds. The rail is room: a strip right of `main`
+that sits wherever the window has room for it. It never moves, narrows, or indents
+the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency`). A pin,
+a passage mark, and everything else in the annotation layer is an overlay: it covers
+what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
 its target, such as an Ask's. Reserved room would make the page's geometry depend on
@@ -205,8 +206,9 @@ several packages' widgets need is the kernel's. The page's rules skip the chrome
 every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`), and the chrome's root and `.lf-ui` state the whole face they
 would otherwise inherit from the page.
-`runtime/chrome.css` and `runtime/marks.css` stay unlayered: their paint lies over
-the page, so they are adopted after page and package sheets and win by their
+`runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
+`chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
+Their paint lies over the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class

@@ -135,9 +135,10 @@ Two arrange a box's children, on `main` or on any block:
 | `layout-tiles` | equal cells, as many to a row as fit |
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, text keeps the reading
-measure, and the title is set larger. `layout-column` on a block keeps the measure but
-gives it no room to break out into, since that room is the page's.
+included, starts at one left edge and takes the page's width, and text keeps the
+reading measure. The title is set larger, and a workspace sets it smaller so its
+header stays one row. `layout-column` on a block keeps the measure but gives it no
+room to break out into, since that room is the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -238,7 +239,7 @@ its last line, keeps that line in view while the user is at the end, and leaves 
 where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens it at the top, as the page's own activity feed
 does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
-CSS: Leaf keeps no reading position in a scroller it did not make, and `version
+CSS: Leaf keeps no reading position in a scroller it did not make, and `page
 check` advises against one.
 
 An individual block or section may request a responsive allocation with
@@ -277,9 +278,10 @@ geometry without them:
   in the margin on `main` as `data-lf-margin` (`rail`, `map`, `sidebar`, `note`), so page
   CSS that should follow the margin keys on it, such as
   `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
-- A wide page fills the window up to its cap and keeps no rail there. Its
-  markers stand as pins over the page by their targets, as every marker does where the
-  rail does not stand: in a narrower window, and in a pane that scrolls on its own. A
+- A wide page fills the window up to its cap, so the rail stands beside it only in a
+  window of about 1920px or wider. Elsewhere its markers stand as pins over the page by
+  their targets, as every marker does where the rail does not stand: in a narrower
+  window, and in a pane that scrolls on its own. A
   block's pin stands inside its top-right corner and a run of text's just after its
   last word, unless that covers words, a control, or another block; then it takes the
   nearest room beside its target that covers none, such as the free end of a line or

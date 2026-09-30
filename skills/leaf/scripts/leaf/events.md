@@ -83,9 +83,11 @@ through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
-Everything downstream turns on `author`: `leaf wait` prints user events and the
-banner counts only input that requires agent attention, so a `read` neither wakes
-the watcher nor reads as unanswered. An agent's own comment does neither. Either
+`service.requires_agent_attention` decides what needs the agent, from `author` and
+the kind's `$events` declaration: a user event of a kind not declared bookkeeping, or
+any `report` or `error`. `leaf wait` prints those, and the banner counts only the
+user events among them, so a `read`, declared bookkeeping, neither wakes the watcher
+nor reads as unanswered. An agent's own comment does neither. Either
 side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's

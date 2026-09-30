@@ -213,7 +213,11 @@ shapes:
 - A sequence of direct watchers the model itself runs. Under Claude Code each
   `leaf wait` exits to open a turn, and the host's prompt or Stop hook puts the
   batch in that turn's context and advances the cursors; the model starts the next
-  watcher. Where the wait prints the batch instead (a Codex task's own loop, a bare
+  watcher. Claude Code stops a background command at its `timeout`, two hours at
+  most, so a wait there also ends itself shortly before that with no input
+  (`Harness.wait_lifetime`). Either end wakes the session; the wait's own end
+  reads as an ordinary completion, and the prompt hook's "no watcher" asks for
+  the next. Where the wait prints the batch instead (a Codex task's own loop, a bare
   shell), `leaf wait --ack <delivery-id>` advances the captured cursors and becomes
   the next watcher.
 - One detached process, which a Codex task uses on either transport: it holds the same task-wide wait lease

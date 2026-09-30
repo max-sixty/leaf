@@ -7,7 +7,7 @@ from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
-from leaf.structure import AUTHORED_ALLOCATIONS, RESERVED_HEIGHT, SourceDocument
+from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import at, structure_errors
 
@@ -113,26 +113,6 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                     f"{where}: must contain exactly one direct <{member_tag}> for "
                     f"each `{attribute}` value; missing {missing}, repeated {repeated}"
                 )
-    return errors
-
-
-def reserved_height_errors(parser: SourceDocument, registry: dict) -> list:
-    """A reserved height stands on a widget whose declaration says its module draws at
-    a height the theme cannot know ahead of it (x-reserve), as whole CSS pixels. The
-    theme holds whatever carries one at that height until a module marks it drawn, so
-    on anything else it would hold the box there for good."""
-    errors = []
-    for item in parser.authored_allocations:
-        if item["attr"] != RESERVED_HEIGHT:
-            continue
-        where = at(item, f"{RESERVED_HEIGHT}={item['value']!r}")
-        if not registry.get(item["tag"], {}).get("x-reserve"):
-            errors.append(
-                f"{where}: {RESERVED_HEIGHT} reserves the height a widget's module "
-                f"draws at, and <{item['tag']}> declares none (x-reserve)"
-            )
-        elif not re.fullmatch(r"[1-9][0-9]*", item["value"] or ""):
-            errors.append(f"{where}: expected a whole number of CSS pixels, such as 360")
     return errors
 
 
@@ -536,5 +516,4 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
         + ask_surface_errors(parser.lf_elements, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
-        + reserved_height_errors(parser, registry)
     )

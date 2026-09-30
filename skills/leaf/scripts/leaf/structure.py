@@ -66,18 +66,14 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
-# The height a widget declaring x-reserve draws at, in whole CSS pixels, which the theme
-# holds from first paint until the drawing lands (`reserved_height_errors`).
-RESERVED_HEIGHT = "data-height"
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow and whether it bounds its own height, and, on
 # `body` alone, whether the page claims the rail its margin rows stand in or keeps that
-# margin for its own residents. The reserved height is a number rather than a name.
+# margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
     "data-rail": ("right", "none"),
-    RESERVED_HEIGHT: None,
 }
 # The allocations only the page's `body` states, being about the page as a whole.
 PAGE_ALLOCATIONS = frozenset({"data-rail"})

@@ -149,7 +149,6 @@
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
           <a href="#x-required-members"><code>x-required-members</code></a>
-          <a href="#x-reserve"><code>x-reserve</code></a>
           <a href="#x-retired-when"><code>x-retired-when</code></a>
           <a href="#x-says"><code>x-says</code></a>
           <a href="#x-shadow"><code>x-shadow</code></a>
@@ -574,33 +573,6 @@
                   without teaching Leaf its tags or roles. The owner uses
                   <code>x-content: members</code>, and the member names the owner in
                   <code>x-owners</code>.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-reserve">
-            <h3><code>x-reserve</code></h3>
-            <div class="reference-copy">
-              <p>
-                <code>true</code>: the module draws this widget at a height the theme
-                cannot know before the module runs, such as a drawing made from its body
-                or a view of its external data, so the page occurrence states that
-                height as data-height, in whole CSS pixels of the widget's block size.
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-reserve contract">Full contract</summary>
-                <p>
-                  From first paint the theme holds the widget at that height, clipping
-                  what it shows until then, and releases it when the module marks the
-                  widget drawn with the class <code>lf-rendered</code> or the upgrade
-                  fails soft; a height that matches the drawing moves nothing when the
-                  drawing lands. Without data-height the widget keeps the size of what
-                  it holds before it is drawn, and the page moves when the drawing
-                  replaces it. <code>page check --render</code> advises the height to
-                  state wherever an occurrence draws at a height its first paint did not
-                  reserve. The module adds <code>lf-rendered</code> once its drawing is
-                  in and takes it off while it shows none, as while its data is absent,
-                  when the reservation holds again.
                 </p>
               </details>
             </div>

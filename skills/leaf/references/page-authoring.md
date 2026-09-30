@@ -254,12 +254,6 @@ widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
-A widget whose entry declares `x-reserve`, such as `lf-diagram`, is drawn by its module
-at a height the page cannot lay out beforehand, so what follows it moves when the
-drawing lands unless the occurrence reserves that height with `data-height`, in whole
-CSS pixels. `page check --render` advises the height each such widget draws at wherever
-the page reserved another; state that number.
-
 Show evidence at the scale needed to judge it. For a local change, supply an aligned
 detail view with the complete object available for context; use whole frames when their
 composition is the subject. A fitted thumbnail is an overview, not a substitute for

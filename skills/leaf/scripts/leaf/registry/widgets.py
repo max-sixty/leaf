@@ -442,7 +442,6 @@ def _validate_widget_interactions(
             "x-thread-surface",
             "x-thread-seat",
             "x-history",
-            "x-reserve",
         )
         if entry.get(key) and not entry["x-upgrade"]
     ]

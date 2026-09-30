@@ -243,7 +243,6 @@ widget's role on the page:
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
-| `x-reserve`          | `lf-diagram` in `diagram`                                      |
 | `x-history`          | `lf-activity`                                                  |
 | `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
@@ -1190,14 +1189,11 @@ and a blank image stands in for any media an example names. The checks:
 - `keeps-first-box`: the widget's box once the page presents differs from its box at
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
-  as its module will draw it. Where no rule can know that size, as for a drawing made
-  from the widget's body or a view of its data, declare `x-reserve`: the page
-  occurrence states the height (`data-height`), the theme holds it, and the module
-  adds the class `lf-rendered` once its drawing is in. A widget holding others is
-  named only for the change left once the changed widgets inside it are put back to
-  their first sizes. An inline widget's old lines are more than a size, so a widget
-  holding a changed inline one is named beside it. A widget the page hides once
-  presented, such as an inactive tab, is left to the widget that hid it.
+  as its module will draw it. A widget holding others is named only for the change
+  left once the changed widgets inside it are put back to their first sizes. An
+  inline widget's old lines are more than a size, so a widget holding a changed
+  inline one is named beside it. A widget the page hides once presented, such as an
+  inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

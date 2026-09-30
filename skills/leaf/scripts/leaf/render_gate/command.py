@@ -177,7 +177,7 @@ def render_check(
 def widget_quality_report(package: Path) -> int:
     """Print what the widget quality checks find in the package's own widgets
     (`widget_quality`). A finding is advice and leaves the status 0; a page of worked
-    examples that never presents leaves nothing to read, and is 1."""
+    examples that cannot be drawn leaves nothing to read, and is 1."""
     from .widget_quality import CHECKS, UnreadablePage, own_tags, widget_findings
 
     try:
@@ -186,7 +186,7 @@ def widget_quality_report(package: Path) -> int:
         )
     except UnreadablePage as error:
         print(
-            f"✗ widget quality failed — a page of worked examples never presented: "
+            f"✗ widget quality failed — a page of worked examples could not be drawn: "
             f"{error}",
             file=sys.stderr,
         )

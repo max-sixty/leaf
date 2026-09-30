@@ -25,6 +25,7 @@ Each check has one name in `CHECKS`, which a finding carries:
   at first paint, which the pre-upgrade proof keeps (`scheme.start_with_pre_upgrade_proof`).
 """
 
+import re
 import struct
 import tempfile
 import zlib
@@ -42,7 +43,8 @@ from leaf.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
-from leaf.revision_artifact import capture_artifact
+from leaf.revision_artifact import ArtifactError, capture_artifact
+from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.structure import SourceDocument
 from leaf.vendoring import start_throwaway_page
 
@@ -50,6 +52,8 @@ from .preview import preview_server
 from .scheme import arm_interception, served, start_with_pre_upgrade_proof
 
 CHECKS = ("example", "keeps-first-box")
+
+MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +72,8 @@ class Finding:
 
 
 class UnreadablePage(Exception):
-    """A page of worked examples the browser could not bring to presentation."""
+    """A page of worked examples that could not be drawn and brought to
+    presentation."""
 
 
 def own_tags(package: Path) -> list[str]:
@@ -160,18 +165,27 @@ def _changed_box_findings(
         page_dir = Path(temporary)
         start_throwaway_page(page_dir, composition)
         candidate = read_page_registry(page_dir)
+        (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
         for document in pages:
-            for reference in document.media_refs:
+            for reference in sorted(document.media_refs):
+                # Only a name the server serves gets a stand-in, which also keeps
+                # every write inside the page: a name cannot hold a directory.
+                if not MEDIA_REFERENCE.fullmatch(reference):
+                    raise UnreadablePage(
+                        f"{reference} isn't a media name a page serves"
+                    )
                 image = page_dir / reference.lstrip("/")
-                image.parent.mkdir(exist_ok=True)
                 image.write_bytes(_blank_image(image.suffix))
-            artifact = capture_artifact(
-                page_dir,
-                document,
-                candidate.registry,
-                declaration_sources=candidate.declaration_sources,
-                widget_sources=candidate.widget_sources,
-            )
+            try:
+                artifact = capture_artifact(
+                    page_dir,
+                    document,
+                    candidate.registry,
+                    declaration_sources=candidate.declaration_sources,
+                    widget_sources=candidate.widget_sources,
+                )
+            except ArtifactError as error:
+                raise UnreadablePage(str(error)) from error
             with preview_server(page_dir, document, 1, artifact=artifact) as url:
                 changed = _changed_boxes(browser, url)
             findings += [
@@ -191,7 +205,7 @@ def _changed_box_findings(
 def widget_findings(browser, package: Path) -> list[Finding]:
     """Every check's findings for the widgets `package` declares, read in `browser`.
 
-    Raises `UnreadablePage` where a page of its examples never presents, which leaves
+    Raises `UnreadablePage` where a page of its examples cannot be drawn, which leaves
     nothing to read."""
     package = package.resolve()
     tags = own_tags(package)

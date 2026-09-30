@@ -298,29 +298,31 @@ const shown = (element) =>
 
 // Each authored widget whose border box changed between the page's first paint and
 // now, with both sizes (`firstBoxes` in driver.js). A change is the innermost
-// widget's: a holder is named only for the part of its change the widgets inside it
-// that changed do not account for, so an Ask that grew by exactly what its options
-// grew is not named beside them. A widget hidden now is left to the widget that hid
-// it, whose own box carries the change.
+// widget's. The widgets inside a holder stack in its flow, so a change in the height
+// its changed widgets span changes the holder's height by the same amount, and a
+// holder is named for its height only where its change differs from that: an Ask that
+// grew by exactly what its options grew is not named beside them, and one that also
+// grew on its own is. Width is set from a holder down to what it holds, so a width
+// change is always the widget's own. A widget hidden now is left to the widget that
+// hid it, whose own box carries the change.
 export function changedBoxes() {
   const readings = globalThis.__leafRenderDriver
     .firstBoxes()
     .filter(({ element }) => shown(element))
-    .map(({ element, width, height }) => {
-      const now = element.getBoundingClientRect();
-      return {
-        element,
-        width: now.width - width,
-        height: now.height - height,
-        first: { width, height },
-        now: { width: now.width, height: now.height },
-      };
+    .map((first) => {
+      const { top, bottom, width, height } = first.element.getBoundingClientRect();
+      return { element: first.element, first, now: { top, bottom, width, height } };
     });
+  const moved = (reading, axis) =>
+    Math.abs(reading.now[axis] - reading.first[axis]) >= ROUNDING;
   const changed = readings.filter(
-    (reading) =>
-      Math.abs(reading.width) >= ROUNDING || Math.abs(reading.height) >= ROUNDING,
+    (reading) => moved(reading, "width") || moved(reading, "height"),
   );
-  const own = (holder, axis) => {
+  // The height a set of widgets spans at one reading, wherever the page has scrolled.
+  const span = (inside, when) =>
+    Math.max(...inside.map((reading) => reading[when].bottom)) -
+    Math.min(...inside.map((reading) => reading[when].top));
+  const ownHeight = (holder) => {
     const inside = changed.filter(
       (reading) => reading !== holder && holder.element.contains(reading.element),
     );
@@ -330,18 +332,18 @@ export function changedBoxes() {
           (other) => other !== reading && other.element.contains(reading.element),
         ),
     );
-    const accounted = outermost.reduce(
-      (sum, reading) => sum + Math.abs(reading[axis]),
-      0,
-    );
-    return Math.abs(holder[axis]) - accounted >= ROUNDING;
+    const grew = holder.now.height - holder.first.height;
+    const spanned = outermost.length
+      ? span(outermost, "now") - span(outermost, "first")
+      : 0;
+    return Math.abs(grew - spanned) >= ROUNDING;
   };
   return changed
-    .filter((reading) => own(reading, "width") || own(reading, "height"))
+    .filter((reading) => moved(reading, "width") || ownHeight(reading))
     .map(({ element, first, now }) => ({
       tag: element.localName,
       id: element.id,
-      first,
-      now,
+      first: { width: first.width, height: first.height },
+      now: { width: now.width, height: now.height },
     }));
 }

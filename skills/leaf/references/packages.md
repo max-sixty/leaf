@@ -1168,7 +1168,7 @@ examples of the widgets the package's own `registry.json` declares, in the brows
 `page check --render` uses, and prints one line per finding: the widget, the check,
 and what the check measured. A finding is advice for the widget's author: it refuses
 nothing, and the exit status ignores it. The command fails only where the package
-check does, no browser launches, or the examples never present. Examples share a
+check does, no browser launches, or the examples cannot be drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
 and a blank image stands in for any media an example names. The checks:
 
@@ -1176,9 +1176,9 @@ and a blank image stands in for any media an example names. The checks:
 - `keeps-first-box`: the widget's box once the page presents differs from its box at
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
-  as its module will draw it. A widget holding others is named only for the part of
-  its change theirs does not account for, and one the page hides once presented, such
-  as an inactive tab, is left to the widget that hid it.
+  as its module will draw it. A widget holding others is not named for growing by
+  exactly as much as the widgets inside it grew, and one the page hides once
+  presented, such as an inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

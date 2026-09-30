@@ -48,42 +48,52 @@ def test_bundled_widgets_meet_the_widget_quality_checks(browser, package):
     assert not fixed, f"fixed, so delete from known_widget_findings.py: {sorted(fixed)}"
 
 
-GROWS_AT_UPGRADE = """\
-import { once } from "/runtime/widget-api.js";
+def grows_at_upgrade(tag: str, style: str) -> str:
+    """A widget module that writes `style` onto its element when it upgrades."""
+    return f"""\
+import {{ once }} from "/runtime/widget-api.js";
 
 customElements.define(
-  "lf-grow",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      const grown = document.createElement("div");
-      grown.style.height = "40px";
-      this.append(grown);
-    }
-  },
+  "{tag}",
+  class extends HTMLElement {{
+    connectedCallback() {{
+      if (once(this)) this.style.cssText = "{style}";
+    }}
+  }},
 );
 """
 
 
 def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shell):
     """`package check --render` names each finding by tag, check and measured fact,
-    and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside
-    `lf-holder`, which grows by exactly that and so is not named beside it; `lf-bare`
-    has no worked example."""
+    and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
+    holders: `lf-holder` grows by exactly that and so is not named beside it, and
+    `lf-padded` grows 10px more on its own and is. `lf-bare` has no worked example."""
     package = tmp_path / "package"
-    for widget in ("lf-grow", "lf-holder", "lf-bare"):
+    for widget in ("lf-grow", "lf-holder", "lf-padded", "lf-bare"):
         made = CliRunner().invoke(
             cli_model.cli, ["package", "init", str(package), "--widget", widget]
         )
         assert made.exit_code == 0, made.output
-    (package / "widgets" / "lf-grow.js").write_text(GROWS_AT_UPGRADE)
-    # An element the theme does not style is inline, and a block it gains at
-    # upgrade would widen it as well as grow it.
-    (package / "theme.css").write_text("lf-grow, lf-holder { display: block; }\n")
+    widgets = package / "widgets"
+    (widgets / "lf-grow.js").write_text(
+        grows_at_upgrade("lf-grow", "padding-bottom: 40px")
+    )
+    (widgets / "lf-padded.js").write_text(
+        grows_at_upgrade("lf-padded", "padding-bottom: 10px")
+    )
+    # An element the theme does not style is inline, whose box a padding would not
+    # grow the way a block's grows.
+    (package / "theme.css").write_text(
+        "lf-grow, lf-holder, lf-padded { display: block; }\n"
+    )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-holder"]["x-example"] = (
         '<lf-holder id="holder"><lf-grow id="held">Held.</lf-grow></lf-holder>'
+    )
+    registry["lf-padded"]["x-example"] = (
+        '<lf-padded id="padded"><lf-grow id="inner">Inner.</lf-grow></lf-padded>'
     )
     del registry["lf-bare"]["x-example"]
     registry_path.write_text(json.dumps(registry))
@@ -98,17 +108,15 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert ran.returncode == 0, ran.stderr
     lines = ran.stdout.splitlines()
     assert lines[1] == (
-        f"widget quality: 3 finding(s) for 3 widget(s) in {headless_shell}, "
+        f"widget quality: 5 finding(s) for 4 widget(s) in {headless_shell}, "
         "advice for the widgets' author:"
     )
     assert lines[2] == "  · <lf-bare> example: no worked example shows it"
-    grew = re.compile(
-        r"  · <lf-grow id='(\w+)'> keeps-first-box: "
+    finding = re.compile(
+        r"  · <(lf-[a-z]+) id='(\w+)'> keeps-first-box: "
         r"first painted (\d+)x(\d+), (\d+)x(\d+) once presented"
     )
-    readings = [grew.fullmatch(line) for line in lines[3:]]
+    readings = [finding.fullmatch(line) for line in lines[3:]]
     assert all(readings), lines
-    assert [reading[1] for reading in readings] == ["grow", "held"]
-    for reading in readings:
-        first_height, now_height = int(reading[3]), int(reading[5])
-        assert now_height - first_height == 40, reading[0]
+    grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
+    assert grown == {"grow": 40, "held": 40, "padded": 50, "inner": 40}, lines

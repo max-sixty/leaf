@@ -8572,6 +8572,40 @@ def test_one_wait_watches_every_page_the_session_holds(
     assert session_model.cmd_wait() == 2
 
 
+def test_a_claude_code_wait_ends_itself_before_the_hosts_time_limit(
+    claimed, monkeypatch, capsys
+):
+    """Claude Code stops a background command at its timeout, and the stop reaches
+    the model beside advice not to restart a command that had the longest one. So
+    a wait with no input ends first, as an ordinary completion, and the next turn's
+    prompt hook asks for the next wait, naming the timeout that keeps it longest."""
+    leases_model.mark_hooks("s1")  # its host runs Leaf's hooks
+    monkeypatch.setattr(host_model.ClaudeCodeHarness, "wait_lifetime", 0.3)
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "")
+
+    started = time.monotonic()
+    assert session_model.cmd_wait() == 0
+    assert time.monotonic() - started < session_model.REVIVAL_CHECK_S
+    lapsed = capsys.readouterr().out
+    assert lapsed.startswith("no input in ")
+    assert f"`timeout` {host_model.BACKGROUND_LIMIT_MS}" in lapsed
+    assert not leases_model.wait_is_live(claimed, "s1")
+
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert f"{claimed.resolve()}: no watcher" in context["additionalContext"]
+    assert host_model.START_WAIT in context["additionalContext"]
+
+    # Input waiting when the lifetime runs out is delivered, not left for the next.
+    monkeypatch.setattr(host_model.ClaudeCodeHarness, "wait_lifetime", 0)
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    assert session_model.cmd_wait() == 0
+    assert capsys.readouterr().out.startswith(f"{claimed} has new input")
+
+
 def test_a_page_served_mid_wait_joins_the_running_watch(
     page_dir, tmp_path, monkeypatch, capsys
 ):
@@ -11326,8 +11360,8 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     }
     compose = hook_carrier_model.compose
 
-    def compose_then_transfer(batches, attention):
-        composed = compose(batches, attention)
+    def compose_then_transfer(batches, attention, harness):
+        composed = compose(batches, attention, harness)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
         assert service_model.claim_page(moved)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
@@ -11387,6 +11421,8 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
     pointer = delivery_model.read_delivery(delivery_id)
     assert pointer["carrier"] == "hook"
     assert f"leaf wait --ack {delivery_id}" in pointer["acknowledge"]
+    # Rearmed the way this session's host runs a wait, so it is not cut short.
+    assert f"`timeout` {host_model.BACKGROUND_LIMIT_MS}" in pointer["acknowledge"]
     [batch] = pointer["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     # Confirming it is what `leaf wait --ack` does first.

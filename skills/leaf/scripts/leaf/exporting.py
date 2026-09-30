@@ -36,7 +36,7 @@ from leaf.revision_delivery import (
     rebase_css,
 )
 from leaf.served_state.service import PageStateService
-from leaf.structure import SourceDocument, page_policy
+from leaf.structure import SourceDocument
 from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
@@ -206,9 +206,8 @@ def export_document(
     The import map is an address table, not another runtime: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
     URL. The normal application publisher, widgets, and presentation coordinator boot
-    against the embedded authoritative reading. The page policy admits embedded bytes
-    and the external URLs a page may name, so the file opens offline wherever the
-    page itself names none.
+    against the embedded authoritative reading, so the file opens offline wherever the
+    page itself names no other server.
     """
     modules = _module_urls(
         artifact,
@@ -249,13 +248,12 @@ def export_document(
                 modules[path] if path in modules else inliner.address(path)
             ),
             inline_stylesheet=inliner.stylesheet,
-            policy=lambda nonce: page_policy(nonce, ""),
             import_map={
                 "imports": {
                     f"leaf:{path}": url for path, url in sorted(modules.items())
                 }
             },
-            runtime=lambda _nonce: (
+            runtime=(
                 '<script type="application/json" data-lf-runtime data-lf-offline '
                 'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
                 f"{payload}</script>"

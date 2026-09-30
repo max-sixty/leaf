@@ -82,40 +82,16 @@ PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The public CDNs a page may run code and read data from: Google Fonts' stylesheets and
-# font files, and the script CDNs, the set a Claude artifact page is given less
-# Tailwind's, which serves only a script that must block the parser. What a
-# page only shows (an image, media, a frame, a font, a stylesheet) may come from any
-# https: origin (`shown_reference`). A reference to either is served from there as
-# written; capture neither reads nor refuses it.
-EXTERNAL_ORIGINS = (
-    "https://fonts.googleapis.com",
-    "https://fonts.gstatic.com",
-    "https://cdnjs.cloudflare.com",
-    "https://cdn.jsdelivr.net",
-    "https://unpkg.com",
-    "https://code.jquery.com",
-)
-EXTERNAL_SOURCES = " ".join(EXTERNAL_ORIGINS)
 
 
-def external_reference(reference: str) -> bool:
-    """Whether a URL names one of the EXTERNAL_ORIGINS."""
+def remote_reference(reference: str) -> bool:
+    """Whether a URL names another server, which the page loads from as written:
+    capture neither reads nor refuses it."""
     try:
         parsed = urlsplit(reference)
     except ValueError:
         return False
-    return f"{parsed.scheme}://{parsed.netloc}" in EXTERNAL_ORIGINS
-
-
-def shown_reference(reference: str) -> bool:
-    """Whether a URL names something a page may show from another origin: any https:
-    URL with a host."""
-    try:
-        parsed = urlsplit(reference)
-    except ValueError:
-        return False
-    return parsed.scheme == "https" and bool(parsed.netloc)
+    return parsed.scheme in {"", "http", "https"} and bool(parsed.netloc)
 
 
 # The script types a browser runs as JavaScript, per the HTML standard: no type, or a
@@ -153,50 +129,15 @@ def script_kind(attrs: dict) -> str:
     return "classic" if kind in JAVASCRIPT_TYPES else "data"
 
 
-def page_policy(nonce: str, origin: str) -> str:
-    """The one CSP every page runs under, served or exported.
-
-    `origin` is where the page's own files come from: `'self'`, the immutable page
-    layer, for a served page, and nothing for an export, which embeds every file as a
-    data: URL and must not reach the reader's disk.
-
-    The runtime entry and every script the page's source places carry the delivery's
-    nonce, and every module they import inherits it. Every such script is the page
-    author's, and message markup is inserted where no script runs. Beyond the nonce,
-    script-src names only the page's own files and EXTERNAL_ORIGINS; data: and blob:
-    stay out, since either would let a string become a script element. base-uri and
-    form-action need their own directives because default-src governs only fetches.
-
-    What the page shows (images, media, frames, fonts, stylesheets) may come from
-    any https: origin. What its code fetches, and the code itself, comes from the
-    page's own files, data: and blob: URLs, and EXTERNAL_ORIGINS: data a page reads
-    arrives through its `data/` sources, where the log and an export can hold it.
-    The author's code may compile at run time (eval, Function, WebAssembly, a blob:
-    worker): it is trusted, and markup reaches a compiler only through a library the
-    author chose that evaluates markup. 'unsafe-inline' admits the <style> block a
-    page writes its CSS in.
-    """
-    own = f"{origin} " if origin else ""
-    fetches = f"{own}data: blob: {EXTERNAL_SOURCES}"
-    shown = f"{own}data: blob: https:"
-    return (
-        f"default-src {fetches}; base-uri 'none'; form-action 'none'; "
-        f"object-src 'none'; img-src {shown}; media-src {shown}; "
-        f"font-src {shown}; frame-src {shown}; style-src {shown} 'unsafe-inline'; "
-        f"script-src {own}'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}; "
-        f"worker-src {own}blob:"
-    )
-
-
-# A meta policy cannot govern the document's ancestors. The ordinary server adds this
-# separate header policy, and the site manifest carries it to the Worker; the
+# The one policy a page is delivered under: no other site may frame a live page, where it
+# could lay its own content over a decision and take the user's click. The ordinary
+# server sends it as a header, and the site manifest carries it to the Worker; the
 # capability-scoped MCP transport is deliberately frameable.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.
 DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
 HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
-SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
 def _srcset_urls(value: str):
@@ -307,23 +248,19 @@ class SourceDocument:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        # Exact text of each inline script: the capture digests it. Every script
-        # records where its start tag ends, where delivery inserts the CSP nonce that
-        # authorizes it.
+        # Exact text of each inline script: the capture digests it.
         self.inline_scripts = []
-        # Executable behavior has one visible source form: a script. Event attributes
-        # and javascript: URLs, which the page policy never runs, are recorded here so
-        # the static door can refuse them before a user discovers them by acting.
-        self.executable_attributes = []
         # Every <link>, whatever relation it declares. Two checks read these — the one
         # stylesheet a page dresses itself with, and the canonical address only
         # delivery may name — and indexing the tag answers both from one parse.
         self.links = []
+        # {tag, line} per element that declares something about the whole document:
+        # a <base>, an http-equiv <meta>, an import map.
+        self.document_declarations = []
         # {name, content, line} per <meta name>, lf- declarations and ordinary
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        self.http_equivs = []  # {equiv, content, line, position, raw} per meta
         self.encoding_metas = []  # {charset, line} per authored encoding declaration
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
@@ -478,30 +415,23 @@ class SourceDocument:
         in_head = "head" in ancestors
         in_main = "main" in ancestors
         if tag == "script":
-            start_tag = element.source_location.start_tag
             script = {
                 "attrs": attrs,
                 "parent": parent_tag,
                 "position": (line, column),
                 "early_head": in_head and before_body,
                 "line": line,
-                "start_tag_end": self._source_index(
-                    start_tag.end_line, start_tag.end_col
-                ),
             }
             if attrs.get("src"):
                 self.external_scripts.append(script)
             else:
                 self.inline_scripts.append({**script, "body": element.text})
-        for name, value in attrs.items():
-            if (len(name) > 2 and name.startswith("on")) or (
-                name in SCRIPT_URL_ATTRIBUTES
-                and isinstance(value, str)
-                and "".join(value.split()).lower().startswith("javascript:")
-            ):
-                self.executable_attributes.append(
-                    {"tag": tag, "line": line, "name": name, "value": value}
-                )
+        if (
+            tag == "base"
+            or (tag == "meta" and "http-equiv" in attrs)
+            or (tag == "script" and script_kind(attrs) == "importmap")
+        ):
+            self.document_declarations.append({"tag": tag, "line": line})
         if tag == "link":
             self.links.append(
                 {
@@ -514,17 +444,6 @@ class SourceDocument:
         if tag == "meta" and attrs.get("name"):
             self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
-            )
-        if tag == "meta" and attrs.get("http-equiv"):
-            location = element.source_location
-            self.http_equivs.append(
-                {
-                    "equiv": attrs["http-equiv"],
-                    "content": attrs.get("content"),
-                    "line": line,
-                    "position": (line, column),
-                    "raw": self._span_source(location.start_tag),
-                }
             )
         if tag == "meta" and attrs.get("charset"):
             self.encoding_metas.append({"charset": attrs["charset"], "line": line})
@@ -559,9 +478,7 @@ class SourceDocument:
         self.page_resource_refs.update(
             reference
             for _, reference in references
-            # A page file, or an absolute URL, which capture leaves as written when
-            # it is https: and refuses otherwise.
-            if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
+            if reference.startswith(("/page/", "page/", "./page/"))
         )
 
         if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):

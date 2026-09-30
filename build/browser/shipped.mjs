@@ -13,8 +13,8 @@
  * `require` needs a package resolver no page has. A bundle that breaks either rule draws in a
  * developer's served page and fails in a user's export. So the check reads the parsed
  * module rather than its text: a grammar that carries `import(` as data, as Pierre's
- * TextMate grammars do, is ordinary. Compiling at run time is not refused: the page
- * policy admits it (`structure.page_policy`).
+ * TextMate grammars do, is ordinary. Compiling at run time is the bundle's own
+ * business.
  *
  * A static import may name only a local path. Whether its target exists is a fact of
  * the served layout rather than of the bundle, and capturing a revision refuses a

@@ -19,7 +19,6 @@ from leaf.mcp_page import (
 from leaf.mcp_server import make_mcp_server
 from leaf.revision_delivery import json_script, layer_import_map
 from leaf.revisioning import activate_source
-from leaf.structure import EXTERNAL_ORIGINS
 
 
 def activate(page_dir, html=PAGE):
@@ -192,7 +191,7 @@ def test_registered_server_uses_one_adaptive_resource_for_every_presentation(
         "ui": {
             "csp": {
                 "connectDomains": [],
-                "resourceDomains": list(EXTERNAL_ORIGINS),
+                "resourceDomains": [],
                 "frameDomains": [page_server.origin],
             },
             "prefersBorder": False,

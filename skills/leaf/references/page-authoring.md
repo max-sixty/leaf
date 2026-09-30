@@ -52,7 +52,7 @@ other role.
 ## Document scaffold
 
 Write a complete HTML document. The authored head names and describes the page;
-Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address when it
+Leaf adds the encoding, identity, theme, runtime, and canonical address when it
 delivers the document. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
@@ -371,7 +371,7 @@ or comparison rather than shrinking its source solely to fit the prose column.
 
 Write page-specific behavior in an inline `<script type="module">` or in browser-ready
 modules below `page/`, referenced through `/page/…`. A library that ships only a classic
-script loads with `<script defer src>`, from `page/` or a CDN; every script runs after
+script loads with `<script defer src>`, from `page/` or any server; every script runs after
 Leaf has read the page, so an inline classic, parser-blocking, or `async` script is
 refused. Page stylesheets and their local dependencies may live below `page/` too.
 Relative imports stay within `page/`; a module that integrates with Leaf may import the
@@ -414,15 +414,16 @@ Both choices are fixed in the revision manifest.
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
 explorer or playground keeps its code in `page/`. Leaf captures the local files a
 page's scripts and stylesheets name literally, so import a page file by a literal URL;
-a computed `import()` reaches only a CDN module, named by its full URL. Leaf refuses
-unresolved imports, filesystem escapes, event-handler attributes, and `javascript:`
-URLs, which the page policy would never run.
+a computed `import()` reaches a module on another server, named by its full URL. Leaf
+refuses unresolved imports, filesystem escapes, and anything declared about the whole
+document (a `<base>`, an http-equiv `<meta>`, an import map), which would send the
+runtime's requests elsewhere or leave its modules unresolved.
 
-A script, and data a page's code fetches, may also come from Google Fonts or a public
-script CDN: jsdelivr, cdnjs, unpkg, and jQuery's. What the page shows, whether an image,
-audio or video, a frame, a font, or a stylesheet, may come from any `https://` URL. The
-page loads either as written, so it arrives only while the user is online. A script
-from any other origin is refused, and the refusal names the ones admitted.
+A script, stylesheet, font, image, or frame may also come from another server, named
+by its absolute `http(s)://` URL, and a page's code may fetch from anywhere. The page
+loads it as written, so it arrives only while the user is online. Data the page
+presents belongs in a `data/` source instead (`references/packages.md`, "External or
+derived data"), where the log and an export hold it.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.

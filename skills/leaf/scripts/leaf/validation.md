@@ -13,14 +13,14 @@ re-vendoring.
 (no browser, near-free; activation and `page stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
 runs after the runtime has read the page, as inline modules, deferred classic script
-files, or their literal local graphs rooted below `/page/`, with scripts from the page
-policy's CDNs; never parser-blocking or `async` scripts, event-handler attributes, or
-`javascript:` URLs; page-specific presentation appears inline or in captured `/page/`
-stylesheets, and what a page shows may come from any https: URL. The encoding, CSP,
-import map, script nonces, runtime, theme, page identity, and canonical address belong
-to delivery and are rejected in source. Delivery inserts them at the start of `<head>`,
-before authored executable content, and marks each authored script with the nonce its
-policy names. Every lf-* element validates against the effective registry
+files, or their literal local graphs rooted below `/page/`, never parser-blocking or
+`async` scripts; page-specific presentation appears inline or in captured `/page/`
+stylesheets; anything on another server is named by its http(s) URL and loaded as
+written. The encoding, runtime, theme, page identity, canonical address, and anything
+declared about the whole document (a `<base>`, an http-equiv `<meta>`, an import map)
+belong to delivery and are rejected in source, and the last three in message markup
+too, which renders in every revision. Delivery inserts them at the start of
+`<head>`, before authored executable content. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a comment
@@ -62,10 +62,11 @@ thread the log lacks is a mistake in the declaration, and refuses it.
 
 ## Delivery policy
 
-The document policy cannot restrict ancestors when delivered through `<meta>`. Every
-ordinary served HTML response therefore adds `frame-ancestors 'none'`
-(`structure.FRAME_ANCESTORS_CSP`). Historical version routes receive the current
-document policy and the same header. The published site's Worker adds the same header
+A page carries no content policy of its own: its code is its author's, and may load,
+fetch, and compile what it likes. Every ordinary served HTML response adds one header,
+`frame-ancestors 'none'` (`structure.FRAME_ANCESTORS_CSP`), so no other site can frame
+a live page and take a click meant for one of its decisions. Historical version routes
+receive the same header. The published site's Worker adds the same header
 to the HTML it serves from its own assets, reading it from the site manifest. A standalone
 file has no response header and cannot make this framing guarantee. The process-scoped
 MCP page server omits the header because its exact, ephemeral origin is intentionally

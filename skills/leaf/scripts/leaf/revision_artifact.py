@@ -49,12 +49,10 @@ from leaf.files import (
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.structure import (
-    EXTERNAL_ORIGINS,
     SourceDocument,
-    external_reference,
     links_with_rel,
+    remote_reference,
     script_kind,
-    shown_reference,
 )
 
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
@@ -169,17 +167,13 @@ class RevisionArtifact:
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
-    """Resolve an authored URL without giving it a filesystem or network escape.
+    """Resolve an authored URL to the page file a revision holds for it, without a
+    filesystem escape.
 
-    None is a reference the revision does not hold, which stays as written: a module
-    on one of EXTERNAL_ORIGINS, and for anything the page only shows, any https: URL,
-    a fragment of this document, or a data: URL.
+    None is a reference the revision does not hold, which stays as written: one on
+    another server, a fragment of this document, or a data: URL.
     """
-    if (
-        external_reference(specifier)
-        if module
-        else shown_reference(specifier) or specifier.startswith(("#", "data:"))
-    ):
+    if remote_reference(specifier) or specifier.startswith(("#", "data:")):
         return None
     where = f"{importer}: {specifier!r}"
     try:
@@ -196,11 +190,8 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         or any(ord(char) < 33 for char in specifier)
     ):
         raise ArtifactError(
-            f"{where}: a script must be a local URL without a query, or a URL on "
-            f"one of {', '.join(EXTERNAL_ORIGINS)}"
-            if module
-            else f"{where}: dependency must be a local URL without a query, or an "
-            "https: URL"
+            f"{where}: dependency must be a local URL without a query, or an "
+            "http(s) URL"
         )
     path = unquote(parsed.path)
     if unquote(path) != path or "\\" in path or any(ord(char) < 33 for char in path):
@@ -288,7 +279,7 @@ def _css_meaningful(tokens) -> list:
 
 
 def _is_stylesheet_url(url: str) -> bool:
-    return shown_reference(url) or Path(urlsplit(url).path).suffix == ".css"
+    return remote_reference(url) or Path(urlsplit(url).path).suffix == ".css"
 
 
 def _css_references(tokens):

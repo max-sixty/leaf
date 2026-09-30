@@ -125,15 +125,15 @@ def structure_errors(parser: SourceDocument) -> list:
     return errors
 
 
-def refresh_errors(parser: SourceDocument) -> list:
-    """A refresh navigates wherever it is inserted, a message body included, so markup
-    quoting one would send what its URL holds to another origin with no gesture, past
-    every fetch the page policy refuses."""
+def document_declaration_errors(parser: SourceDocument) -> list:
+    """Delivery declares the document's base, headers, and import map, and addresses
+    every request Leaf's runtime makes by them. Markup that declares its own, in a page
+    or in a message quoted into one, sends those requests elsewhere, navigates the page,
+    or leaves its modules unable to resolve, and a message does so in every revision."""
     return [
-        f"<meta http-equiv=refresh> (line {meta['line']}) navigates the page by "
-        "itself; link to where the reader should go"
-        for meta in parser.http_equivs
-        if meta["equiv"].strip().lower() == "refresh"
+        f"<{item['tag']}> (line {item['line']}) declares something about the whole "
+        "document, which delivery owns"
+        for item in parser.document_declarations
     ]
 
 

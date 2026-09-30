@@ -91,7 +91,7 @@ test("the bundle gate reads the parsed module, not its text", () => {
     );
   }
   checkModule('import { html } from "./lit.js";');
-  // The page policy admits compiling at run time, as d3-dsv and Vega do.
+  // A bundle may compile at run time, as d3-dsv and Vega do.
   checkModule(
     'new Function("row", "return row")(1); eval("1"); setTimeout("tick()", 9);',
   );

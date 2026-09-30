@@ -79,7 +79,6 @@ from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
-from leaf.structure import EXTERNAL_ORIGINS
 from leaf_dev.example_data import patch_manifest
 from leaf_dev.page_fixtures import package_selection_args
 
@@ -1123,10 +1122,11 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     assert reading["source_error"] is None
 
 
-def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
-    """Google Fonts and the script CDNs pass capture and delivery untouched."""
+def test_a_page_loads_from_other_servers_as_written(server, page_dir):
+    """A stylesheet, font, script or module on another server passes capture and
+    delivery untouched, whichever server it is."""
     font = "https://fonts.googleapis.com/css2?family=Instrument+Sans&display=swap"
-    chart = "https://cdn.jsdelivr.net/npm/chart.js@4/+esm"
+    chart = "https://esm.sh/chart.js@4"
     tailwind = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "app.js").write_text(f'import "{chart}";\n')
@@ -1150,18 +1150,6 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
     assert status == 200
     for url in (html.escape(font), font, tailwind):
         assert url.encode() in body
-    policy = html.unescape(
-        re.search(rb'http-equiv="Content-Security-Policy" content="([^"]*)"', body)
-        .group(1)
-        .decode()
-    )
-    directives = {
-        name: sources for name, *sources in (part.split() for part in policy.split(";"))
-    }
-    for name in ("default-src", "script-src"):
-        assert set(EXTERNAL_ORIGINS) <= set(directives[name]), name
-    for name in ("img-src", "media-src", "font-src", "frame-src", "style-src"):
-        assert "https:" in directives[name], name
     module = re.search(rb'src="([^"]*/page/app\.js)"', body).group(1).decode()
     assert fetch(f"{server}{module}")[1].decode() == f'import "{chart}";\n'
 
@@ -1213,15 +1201,10 @@ def test_server_round_trip(server, page_dir):
         '<meta name="lf-version" data-lf-runtime content="1">'
     ).encode()
     artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
-    # The runtime entry carries the delivery's nonce, which every module it imports
-    # inherits.
-    nonce = re.search(rb"nonce-([A-Za-z0-9_-]+)", body).group(1)
     entry = (
-        f'<script type="module" nonce="{nonce.decode()}" src="{artifact_root}/leaf.js" '
-        "data-lf-runtime></script>"
+        f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
     assert marker in body
-    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
     assert body.index(marker) < body.index(entry) < body.index(b"</style>")
     # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
@@ -1229,7 +1212,6 @@ def test_server_round_trip(server, page_dir):
         assert response.status == 200
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
     assert b"lf-board" in pinned and marker in pinned
-    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
     for path in [
@@ -1583,8 +1565,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
 
     The revision address used to fall through to the static file branch, which
     returned the authored bytes. The module that source names still started a
-    runtime, but without the layer's policy, the bootstrap that policy hashes, or
-    the revision identity that tells the runtime which document it is showing. Each
+    runtime, but without the layer's bootstrap or the revision identity that tells the runtime which document it is showing. Each
     address names the page root as canonical, which is how a user sent to one of
     them, and a crawler that finds all three, arrive at one page.
     """

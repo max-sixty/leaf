@@ -402,7 +402,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
     )
     for source, diagnostic in [
         ('import "./missing.js";', "cannot capture dependency"),
-        ('import "https://outside.example/module.js";', "local URL"),
+        ('import "ftp://outside.example/module.js";', "http(s) URL"),
         ('import "../../outside.js";', "public layer entry point"),
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
@@ -475,7 +475,7 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     )
     previous = files_model.latest_revision(page_dir)
     for css, diagnostic in [
-        ('@import "http://outside.example/style.css";', "https: URL"),
+        ('@import "ftp://outside.example/style.css";', "http(s) URL"),
         ('@import "./data.json";', "CSS MIME"),
         ('@import url("./data.json");', "CSS MIME"),
         ('main { background: url("../../private.svg"); }', "escapes"),
@@ -487,29 +487,18 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         assert refused.revision == previous and not refused.created
 
 
-def test_an_image_loads_from_any_https_origin(page_dir):
-    image = '<p><img src="{}" alt="logo"></p>\n</section>'
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</section>", image.format("https://outside.example/a.png?s=40"), 1
-        )
+def test_an_image_loads_from_any_server(page_dir):
+    images = (
+        '<p><img src="https://outside.example/a.png?s=40" alt="a">'
+        '<img src="//outside.example/b.png" alt="b"></p>\n</section>'
     )
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", images, 1))
     assert revisioning_model.activate_source(page_dir).error is None
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", image.format("http://outside.example/a.png"), 1)
-    )
-    refused = revisioning_model.activate_source(page_dir).error
-    assert refused and "https: URL" in refused, refused
 
 
 @pytest.mark.parametrize(
     "authored, expected",
     [
-        (
-            '<script type="importmap">{"imports": {}}</script>',
-            "belongs to delivery",
-        ),
-        ('<script nonce="guess">window.x = 1;</script>', "nonce belongs to delivery"),
         ("<script>window.x = 1;</script>", "still parsing"),
         (
             '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
@@ -519,35 +508,12 @@ def test_an_image_loads_from_any_https_origin(page_dir):
             '<script type="module" async src="https://unpkg.com/d3"></script>',
             "runs whenever it arrives",
         ),
-        (
-            '<button onclick="window.hiddenPath = true">Run</button>',
-            "uses executable attribute onclick",
-        ),
-        (
-            '<a href="javascript:window.hiddenPath=true">Run</a>',
-            "uses executable attribute href",
-        ),
-        (
-            '<a href="jav&#9;ascript:window.hiddenPath=true">Run</a>',
-            "uses executable attribute href",
-        ),
     ],
-    ids=[
-        "import-map",
-        "nonce",
-        "inline-classic",
-        "blocking-classic",
-        "async-module",
-        "event-handler",
-        "javascript-url",
-        "encoded-javascript-url",
-    ],
+    ids=["inline-classic", "blocking-classic", "async-module"],
 )
-def test_check_leaves_delivery_its_script_boundary(page_dir, authored, expected):
-    """A page's scripts are its author's, classic or module, but each runs after Leaf
-    reads the page. Delivery owns the nonce that authorizes them and the import map
-    ahead of them, and an inline handler or javascript: URL would never run under the
-    page policy."""
+def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, expected):
+    """A page's scripts are its author's, classic or module, from any server, but
+    each runs after Leaf reads the page."""
     version = page_dir / "index.html"
     version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
 
@@ -1225,20 +1191,6 @@ def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypa
         for revision in range(1, 4)
     ]
     assert scans == 1
-
-
-def test_check_leaves_the_layers_policy_to_delivery(page_dir):
-    """The served boundary owns policy, so source cannot compete with it."""
-    version = page_dir / "index.html"
-    authored = version.read_text().replace(
-        "</head>",
-        '<meta http-equiv="Content-Security-Policy" content="default-src *">\n</head>',
-    )
-    version.write_text(authored)
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "Content-Security-Policy" in result.output
-    assert "belongs to delivery" in result.output
 
 
 def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
@@ -2408,8 +2360,14 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
             '<link rel="stylesheet" href="/theme.css" media="print">',
             "escapes /page/ and /media/",
         ),
+        ('<base href="https://outside.example/">', "<base> (line"),
+        (
+            '<meta http-equiv="Content-Security-Policy" content="default-src none">',
+            "<meta> (line",
+        ),
+        ('<script type="importmap">{"imports": {}}</script>', "<script> (line"),
     ],
-    ids=["runtime-module", "theme"],
+    ids=["runtime-module", "theme", "base", "policy", "import-map"],
 )
 def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     (page_dir / "index.html").write_text(PAGE.replace("</head>", f"{asset}\n</head>"))

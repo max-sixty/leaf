@@ -37,10 +37,10 @@ from leaf.validation.instances import (
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
+    document_declaration_errors,
     id_errors,
     media_errors,
     page_boundary_errors,
-    refresh_errors,
     structure_errors,
     unarranged_main,
     unpointable_blocks,
@@ -105,18 +105,10 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     # listens for errors from the moment its module runs, and a deferred script or a
     # module runs after it, in document order. A parser-blocking or async script can
     # run first, changing what Leaf reads as authored and throwing where no check
-    # hears it. Delivery owns the nonce that authorizes scripts and the one import map,
-    # which it writes ahead of every script.
+    # hears it.
     for script in [*parser.inline_scripts, *parser.external_scripts]:
         attrs, where = script["attrs"], f"(line {script['line']})"
         kind = script_kind(attrs)
-        if "nonce" in attrs:
-            errors.append(f"<script nonce> {where}: the nonce belongs to delivery")
-        if kind == "importmap":
-            errors.append(
-                f'<script type="importmap"> {where} belongs to delivery; import a '
-                "module by its URL"
-            )
         if kind not in {"module", "classic"}:
             continue
         if "async" in attrs:
@@ -130,12 +122,8 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
                 'reads it; write inline JavaScript as <script type="module">, and '
                 "load a classic script file with <script defer src>"
             )
-    for executable in parser.executable_attributes:
-        errors.append(
-            f"<{executable['tag']}> (line {executable['line']}) uses executable "
-            f"attribute {executable['name']}, which the page policy never runs; "
-            "attach the behavior from a script"
-        )
+
+    errors.extend(document_declaration_errors(parser))
 
     for link in links_with_rel(parser.links, "canonical"):
         errors.append(
@@ -144,18 +132,6 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             "leaves a crawler to choose between them. Write the title and description; "
             "the address is delivery's."
         )
-
-    declared_policies = [
-        meta
-        for meta in parser.http_equivs
-        if meta["equiv"].lower() == "content-security-policy"
-    ]
-    for policy in declared_policies:
-        errors.append(
-            f"<meta http-equiv=Content-Security-Policy> (line {policy['line']}) "
-            "belongs to delivery"
-        )
-    errors.extend(refresh_errors(parser))
 
     for encoding in parser.encoding_metas:
         errors.append(

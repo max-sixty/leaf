@@ -30,7 +30,6 @@ import html
 import json
 import posixpath
 import re
-import secrets
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -423,20 +422,17 @@ class Delivery:
 
     Every host delivers a document the same way (`compose_document`), and these fields
     are the whole of what hosts differ in: where the document's references go, whether
-    its stylesheets are embedded, the policy and runtime script a served or exported
-    page starts under, and the marks a host puts on the document around its source.
+    its stylesheets are embedded, the runtime script a served or exported page starts
+    under, and the marks a host puts on the document around its source.
     """
 
     address: Address
     # Embeds stylesheets in place of linking them: a stylesheet's CSS by its path.
     inline_stylesheet: Callable[[str], str] | None = None
-    # The content security policy naming one delivery's script nonce. A document with
-    # none carries no nonce, and its host supplies the policy.
-    policy: Callable[[str], str] | None = None
     import_map: dict | None = None
-    # The runtime's own inline script, given the nonce. A document with one runs the
-    # layer, so it also carries the layer's adopted sheets (`delivery_sheets`).
-    runtime: Callable[[str | None], str] | None = None
+    # The runtime's own inline script. A document with one runs the layer, so it also
+    # carries the layer's adopted sheets (`delivery_sheets`).
+    runtime: str | None = None
     # The host's own head metadata, such as a published page's link card.
     head: str = ""
     # The page root the document names as canonical: the live root, each stamped
@@ -464,17 +460,13 @@ def compose_document(
     The source is marked with what its `registry` declares (`mark_declared`) and
     re-addressed (`rebase_document`), and then receives delivery's head
     right after the head's start tag, ahead of any authored executable content: the
-    prelude, the policy, the import map, the runtime script, the theme, the adopted
+    prelude, the import map, the runtime script, the theme, the adopted
     sheets, the host's metadata, the runtime entry, and the canonical address, each
     where the host has one. The root carries the host's attributes and the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
     reserve the banner a sign-off page will draw before the runtime draws it. The
-    import map precedes every script, since a browser
-    reads no map once a module has begun to load. With a policy, one nonce per
-    document marks delivery's scripts and every script the source arrived
-    with, placed after addressing so its offsets are the ones the browser reads. A
-    document written once and served many times (`live_shell`) shares its nonce with
-    every reader, so it keeps out only markup that cannot read the page.
+    import map precedes every script, since a browser reads no map once a module has
+    begun to load.
     """
     source = rebase_document(
         mark_declared(source, registry),
@@ -484,8 +476,6 @@ def compose_document(
     document = SourceDocument(source)
     if "head" not in document.wrapper_tags:
         raise ValueError("document has no explicit <head>")
-    nonce = secrets.token_urlsafe(16) if delivery.policy is not None else None
-    marked = f' nonce="{nonce}"' if nonce else ""
     theme = (
         f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
         if delivery.inline_stylesheet is not None
@@ -494,18 +484,12 @@ def compose_document(
     head = (
         delivery_prelude(document, revision, version, executable, widgets)
         + (
-            '<meta http-equiv="Content-Security-Policy" '
-            f'content="{html.escape(delivery.policy(nonce), quote=True)}">'
-            if nonce
-            else ""
-        )
-        + (
-            f'<script type="importmap"{marked} data-lf-runtime>'
+            '<script type="importmap" data-lf-runtime>'
             f"{json_script(delivery.import_map)}</script>"
             if delivery.import_map is not None
             else ""
         )
-        + (delivery.runtime(nonce) if delivery.runtime is not None else "")
+        + (delivery.runtime or "")
         + theme
         + (
             delivery_sheets(resources, delivery.address)
@@ -513,7 +497,7 @@ def compose_document(
             else ""
         )
         + delivery.head
-        + f'<script type="module"{marked} src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
+        + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
         + (
             f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
             if delivery.page_root is not None
@@ -522,11 +506,6 @@ def compose_document(
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]
-    if nonce:
-        insertions += [
-            (script["start_tag_end"] - 1, marked)
-            for script in document.inline_scripts + document.external_scripts
-        ]
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review

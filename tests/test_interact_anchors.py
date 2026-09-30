@@ -1744,24 +1744,25 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
 
 
-def test_neither_a_page_nor_a_message_may_refresh_itself_elsewhere(page_dir):
-    """A refresh navigates wherever it is inserted, a message body included, and the
-    page policy governs fetches rather than navigation. Quoted markup carrying one
-    would send what its URL holds to another origin with no gesture."""
+def test_message_markup_may_not_declare_the_document(page_dir):
+    """A message renders in every revision of its page, so a base, header, or import
+    map in one would redirect, navigate, or break that page for good. Handlers are the
+    author's to write, as in the page itself."""
     published(page_dir)
-    refresh = '<meta http-equiv="Refresh" content="0;url=https://outside.invalid/?q=x">'
     widget = (
         '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
-    refused = comment(page_dir, "--text", "look:", "--markup", refresh + widget)
-    assert refused.exit_code != 0 and "refresh" in refused.output
-    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
-
-    version = page_dir / "index.html"
-    version.write_text(version.read_text().replace("</main>", refresh + "</main>"))
-    result = check(page_dir)
-    assert result.exit_code == 1 and "http-equiv=refresh" in result.output
+    for declaration in (
+        '<base href="https://outside.example/">',
+        '<meta http-equiv="refresh" content="0;url=https://outside.example/">',
+        '<script type="importmap">{"imports": {}}</script>',
+    ):
+        refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
+        assert refused.exit_code != 0, declaration
+        assert "declares something about the whole document" in refused.output
+    handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
+    assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

@@ -39,7 +39,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     REPLAYED_PAGE,
-    consume_browser_errors,
     leaf_page,
     open_page,
     restarting,
@@ -1830,7 +1829,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     )
 
 
-# What a page's own module may do and what it may not, attempted in turn.
+# What a page's own module does, attempted in turn.
 POLICY_ATTEMPTS = """\
 const image = (src) => new Promise((resolve) => {
   const img = new Image();
@@ -1840,31 +1839,15 @@ const image = (src) => new Promise((resolve) => {
 });
 const attempts = {
   eval: () => eval("'ran'"),
-  wasm: async () => {
-    await WebAssembly.compile(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
-    return "ran";
-  },
   "blob worker": () => new Promise((resolve) => {
     const source = new Blob(["postMessage('ran')"], {type: "text/javascript"});
     const worker = new Worker(URL.createObjectURL(source));
     worker.onmessage = (event) => resolve(event.data);
     worker.onerror = () => resolve("refused");
   }),
-  "blob image": async () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 1;
-    return image(URL.createObjectURL(await new Promise((r) => canvas.toBlob(r))));
-  },
   "classic script": () => window.classicRan,
   "remote image": () => image("https://outside.invalid/pixel.png"),
-  "remote fetch": async () => (await fetch("https://outside.invalid/data.json")).status,
-  "unmarked script": () => new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "data:text/javascript,window.unmarkedRan=true";
-    script.onload = () => resolve(window.unmarkedRan ? "ran" : "loaded");
-    script.onerror = () => resolve("refused");
-    document.head.append(script);
-  }),
+  "remote fetch": async () => (await fetch("https://outside.invalid/data.json")).text(),
 };
 window.policyOutcomes = (async () => {
   const outcomes = {};
@@ -1878,24 +1861,20 @@ window.policyOutcomes = (async () => {
   return outcomes;
 })();
 """
-
-
-# One transparent pixel, what another origin serves as an image.
+# One transparent pixel, what another server answers with.
 PIXEL = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
     "1f15c4890000000d49444154789c63000100000500010d0a2db40000000049454e44ae426082"
 )
 
 
-def test_served_and_exported_pages_run_under_one_policy(browser, serve, tmp_path):
-    """The page's own scripts, a deferred classic one and a module, each loaded from
-    its own file, run in the served page and its export alike, so a library draws in both or
-    neither. The module may compile at run time, run a blob: worker, draw a blob:
-    image, and show an image from any https: origin. A data: script element runs in
-    neither, and the page's code fetches nothing from an origin off the CDN list."""
+def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
+    """A page's scripts, a deferred classic file and a module, run the same in the
+    served page and its export, so a library draws in both or neither: its code may
+    compile at run time, start a blob: worker, and reach any server."""
     source = leaf_page(
-        "One policy",
-        "<h1>One policy</h1>",
+        "One page",
+        "<h1>One page</h1>",
         head='<script defer src="/page/classic.js"></script>\n'
         '<script type="module" src="/page/attempts.js"></script>',
     )
@@ -1910,83 +1889,22 @@ def test_served_and_exported_pages_run_under_one_policy(browser, serve, tmp_path
     exporting_model.cmd_export(serve.page_dir, out, None)
     expected = {
         "eval": "ran",
-        "wasm": "ran",
         "blob worker": "ran",
-        "blob image": "ran",
         "classic script": "ran",
         "remote image": "ran",
-        "remote fetch": "TypeError",
-        "unmarked script": "refused",
+        "remote fetch": "data",
     }
-    reached = []
 
     def outside(route):
-        reached.append(route.request.url)
-        route.fulfill(body=PIXEL, content_type="image/png")
+        is_image = route.request.url.endswith(".png")
+        route.fulfill(
+            body=PIXEL if is_image else b"data",
+            content_type="image/png" if is_image else "text/plain",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
 
     for url in (live_url(version), out.as_uri()):
-        reached.clear()
         context = browser.new_context(viewport={"width": 1200, "height": 900})
         context.route("https://outside.invalid/**", outside)
-        page = open_page(
-            browser,
-            url,
-            context=context,
-            init_script="""
-              window.refusedBy = [];
-              document.addEventListener('securitypolicyviolation', (event) => {
-                window.refusedBy.push(event.effectiveDirective);
-              });
-            """,
-        )
+        page = open_page(browser, url, context=context)
         assert page.evaluate("() => window.policyOutcomes") == expected, url
-        assert sorted(page.evaluate("() => window.refusedBy")) == [
-            "connect-src",
-            "script-src-elem",
-        ], url
-        assert reached == ["https://outside.invalid/pixel.png"], url
-        consume_browser_errors(page, "Content Security Policy")
-
-
-def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
-    source = leaf_page(
-        "Export CSP",
-        """
-<h1>Export CSP</h1>
-<a id="relative" href="relative-target">Relative target</a>
-<form id="escape" action="https://outside.invalid/collect" method="post">
-  <input name="page-state" value="user decision">
-  <button type="submit">Send page state</button>
-</form>
-""",
-        head='<base href="https://outside.invalid/rebased/">',
-    )
-    serve(source)
-    out = tmp_path / "offline.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """
-          window.__cspViolations = [];
-          document.addEventListener('securitypolicyviolation', event => {
-            window.__cspViolations.push(event.effectiveDirective);
-          });
-        """
-    )
-    escaped = []
-    page.route(
-        "https://outside.invalid/**",
-        lambda route: (
-            escaped.append(route.request.url),
-            route.fulfill(status=204, body=""),
-        ),
-    )
-    page.goto(out.as_uri(), wait_until="load")
-    page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
-    assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
-    page.locator("#escape").evaluate("form => form.requestSubmit()")
-    page.wait_for_function("() => window.__cspViolations.includes('form-action')")
-    assert escaped == []
-    # Both refusals asserted above are reported on the console as well.
-    consume_browser_errors(page, "violates the following Content Security Policy")

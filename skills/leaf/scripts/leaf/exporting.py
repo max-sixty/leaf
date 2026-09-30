@@ -258,7 +258,7 @@ def export_document(
                 f"img-src data: {EXTERNAL_SOURCES}; media-src data: {EXTERNAL_SOURCES}; "
                 f"font-src data: {EXTERNAL_SOURCES}; "
                 f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
-                f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
+                f"script-src data: 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
             ),
             import_map={
                 "imports": {

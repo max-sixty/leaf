@@ -974,7 +974,7 @@
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
   },
   "$series": {
-    "description": "The categorical steps this layer paints a chart's series in, and how many of them there are. It is a property of the page rather than of any widget: the colours are --series-1 through --series-N in the theme, so a project that restates the palette with a step more says so once, here and beside the tokens, and every consumer reads the same number. `steps` is what a chart refuses a series past — two series in one colour is worse than a drawing that says it will not draw — and what the palette's own check counts the tokens against. The list is short on purpose: past five, the steps stop clearing the separation a user with colour-vision deficiency needs, and a sixth is a chart that lies to some users and to no others.",
+    "description": "The categorical steps this layer paints a chart's series in, and how many of them there are. It is a property of the page rather than of any widget: the colours are --series-1 through --series-N in the theme, so a project that restates the palette with a step more says so once, here and beside the tokens, and every consumer reads the same number. `steps` is how many series a chart can colour apart, and what the palette's own check counts the tokens against. A chart with more series than steps folds the small ones together or splits, since two series in one colour is worse than either. The list is short on purpose: past five, the steps stop clearing the separation a user with colour-vision deficiency needs, and a sixth is a chart that lies to some users and to no others.",
     "steps": 5
   },
   "$reactions": {

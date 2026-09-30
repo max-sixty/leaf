@@ -30,7 +30,7 @@ graders:
 - name: reads-threads
   type: tool_used
   tool: Read
-  input_match: threads
+  input_match: skills/leaf/references/threads\.md
 - name: titles-in-the-reply
   type: regex
   pattern: leaf thread reply\b[^\n]*--title\b

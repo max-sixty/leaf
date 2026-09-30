@@ -885,7 +885,7 @@ def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
 
     assert [
         f
-        for f in render_gate_model.render_version(browser, url).failures
+        for f in render_gate_model.render_version(browser.unwatched, url).failures
         if "600px" in f and "400px" in f
     ], "the gate has to hear about a mismatch, since nobody else will"
 

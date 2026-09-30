@@ -415,7 +415,8 @@ customElements.define(
       if (covering === this.#covering) return;
       this.#covering = covering;
       const root = document.documentElement;
-      if (covering) setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
+      if (covering)
+        setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
       else if (!document.querySelector(PAGE_STRIP))
         removeRuntimeRootStyle(root, "--lf-root-headers");
     }

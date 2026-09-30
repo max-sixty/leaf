@@ -1992,7 +1992,9 @@ BANNER_ROWS = """() => {
           clipped, controls: shown.map((control) => control.textContent.trim()),
           main: document.querySelector('body > main').getBoundingClientRect().top};
 }"""
-BANNER_HEIGHT = "() => document.querySelector('.lf-banner').getBoundingClientRect().height"
+BANNER_HEIGHT = (
+    "() => document.querySelector('.lf-banner').getBoundingClientRect().height"
+)
 
 
 def signed_off(html):

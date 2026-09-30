@@ -193,18 +193,25 @@ function renderedLines(file, rendered) {
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
 // opportunity, and the title holds the whole path wherever the row cuts it.
 function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), { className, title: path });
+  const node = Object.assign(document.createElement("span"), {
+    className,
+    title: path,
+  });
   const parts = path.split("/");
   const base = parts.pop();
   if (parts.length) {
-    const dir = Object.assign(document.createElement("span"), { className: "lf-diff-dir" });
+    const dir = Object.assign(document.createElement("span"), {
+      className: "lf-diff-dir",
+    });
     for (const part of parts) dir.append(`${part}/`, document.createElement("wbr"));
     node.append(dir);
   }
-  node.append(Object.assign(document.createElement("span"), {
-    className: "lf-diff-base",
-    textContent: base,
-  }));
+  node.append(
+    Object.assign(document.createElement("span"), {
+      className: "lf-diff-base",
+      textContent: base,
+    }),
+  );
   return node;
 }
 

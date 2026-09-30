@@ -35,7 +35,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
             print(f"  · {line}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: parses, widgets, authored modules, and styles validate, "
+        "✓ index.html: parses, widgets, authored scripts, and styles validate, "
         "protected ids and decisions carried over",
         # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
         flush=True,

@@ -1,4 +1,4 @@
-// The server places this exact hashed script before any loadable page resource.
+// The server places this script before any loadable page resource.
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
   const arrived = new URL(location.href);

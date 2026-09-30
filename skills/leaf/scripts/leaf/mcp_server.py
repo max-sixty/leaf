@@ -14,7 +14,6 @@ from .mcp_page import (
     ProcessPageServer,
     page_result,
 )
-from .structure import EXTERNAL_ORIGINS
 
 
 class LeafApps(Apps):
@@ -43,7 +42,7 @@ def make_mcp_server(
         ),
         csp=ResourceCsp(
             connect_domains=[],
-            resource_domains=list(EXTERNAL_ORIGINS),
+            resource_domains=[],
             frame_domains=[pages.origin],
         ),
         prefers_border=False,

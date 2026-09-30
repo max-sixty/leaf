@@ -33,13 +33,12 @@ from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE
+from render_cases_interaction import ASK_PAGE, live_url
 from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
     REPLAYED_PAGE,
-    consume_browser_errors,
     example_media,
     leaf_page,
     open_page,
@@ -1855,45 +1854,82 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     )
 
 
-def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
+# What a page's own module does, attempted in turn.
+POLICY_ATTEMPTS = """\
+const image = (src) => new Promise((resolve) => {
+  const img = new Image();
+  img.onload = () => resolve("ran");
+  img.onerror = () => resolve("refused");
+  img.src = src;
+});
+const attempts = {
+  eval: () => eval("'ran'"),
+  "blob worker": () => new Promise((resolve) => {
+    const source = new Blob(["postMessage('ran')"], {type: "text/javascript"});
+    const worker = new Worker(URL.createObjectURL(source));
+    worker.onmessage = (event) => resolve(event.data);
+    worker.onerror = () => resolve("refused");
+  }),
+  "classic script": () => window.classicRan,
+  "remote image": () => image("https://outside.invalid/pixel.png"),
+  "remote fetch": async () => (await fetch("https://outside.invalid/data.json")).text(),
+};
+window.policyOutcomes = (async () => {
+  const outcomes = {};
+  for (const [name, attempt] of Object.entries(attempts)) {
+    try {
+      outcomes[name] = await attempt();
+    } catch (error) {
+      outcomes[name] = error.name;
+    }
+  }
+  return outcomes;
+})();
+"""
+# One transparent pixel, what another server answers with.
+PIXEL = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c63000100000500010d0a2db40000000049454e44ae426082"
+)
+
+
+def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
+    """A page's scripts, a deferred classic file and a module, run the same in the
+    served page and its export, so a library draws in both or neither: its code may
+    compile at run time, start a blob: worker, and reach any server."""
     source = leaf_page(
-        "Export CSP",
-        """
-<h1>Export CSP</h1>
-<a id="relative" href="relative-target">Relative target</a>
-<form id="escape" action="https://outside.invalid/collect" method="post">
-  <input name="page-state" value="user decision">
-  <button type="submit">Send page state</button>
-</form>
-""",
-        head='<base href="https://outside.invalid/rebased/">',
+        "One page",
+        "<h1>One page</h1>",
+        head='<script defer src="/page/classic.js"></script>\n'
+        '<script type="module" src="/page/attempts.js"></script>',
     )
-    serve(source)
+    version = serve(
+        source,
+        page_files={
+            "classic.js": "window.classicRan = 'ran';\n",
+            "attempts.js": POLICY_ATTEMPTS,
+        },
+    )
     out = tmp_path / "offline.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
+    expected = {
+        "eval": "ran",
+        "blob worker": "ran",
+        "classic script": "ran",
+        "remote image": "ran",
+        "remote fetch": "data",
+    }
 
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """
-          window.__cspViolations = [];
-          document.addEventListener('securitypolicyviolation', event => {
-            window.__cspViolations.push(event.effectiveDirective);
-          });
-        """
-    )
-    escaped = []
-    page.route(
-        "https://outside.invalid/**",
-        lambda route: (
-            escaped.append(route.request.url),
-            route.fulfill(status=204, body=""),
-        ),
-    )
-    page.goto(out.as_uri(), wait_until="load")
-    page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
-    assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
-    page.locator("#escape").evaluate("form => form.requestSubmit()")
-    page.wait_for_function("() => window.__cspViolations.includes('form-action')")
-    assert escaped == []
-    # Both refusals asserted above are reported on the console as well.
-    consume_browser_errors(page, "violates the following Content Security Policy")
+    def outside(route):
+        is_image = route.request.url.endswith(".png")
+        route.fulfill(
+            body=PIXEL if is_image else b"data",
+            content_type="image/png" if is_image else "text/plain",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    for url in (live_url(version), out.as_uri()):
+        context = browser.new_context(viewport={"width": 1200, "height": 900})
+        context.route("https://outside.invalid/**", outside)
+        page = open_page(browser, url, context=context)
+        assert page.evaluate("() => window.policyOutcomes") == expected, url

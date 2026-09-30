@@ -52,9 +52,9 @@ other role.
 ## Document scaffold
 
 Write a complete HTML document. The authored head names and describes the page;
-Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address when it
-delivers the document. Put page-specific CSS in `<style>` and JavaScript in inline
-module blocks. Every `lf-*` element has an explicit end tag.
+Leaf adds the encoding, identity, theme, runtime, and canonical address when it
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in
+`<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
 when the head has no viewport meta. This lets Leaf's chrome use the device's
@@ -377,9 +377,12 @@ or comparison rather than shrinking its source solely to fit the prose column.
 ## Page behavior
 
 Write page-specific behavior in an inline `<script type="module">` or in browser-ready
-modules below `page/`, referenced through `/page/…`. Page stylesheets and their local
-dependencies may live there too. Relative imports stay within `page/`; code that
-integrates with Leaf may import the public `/runtime/widget-api.js` module. Leaf captures
+modules below `page/`, referenced through `/page/…`. A library that ships only a classic
+script loads with `<script defer src>`, from `page/` or any server; every script runs after
+Leaf has read the page, so an inline classic, parser-blocking, or `async` script is
+refused. Page stylesheets and their local dependencies may live below `page/` too.
+Relative imports stay within `page/`; a module that integrates with Leaf may import the
+public `/runtime/widget-api.js`. Leaf captures
 the complete local dependency graph, effective registry, and selected layer bytes in the
 same immutable revision as the markup they control.
 
@@ -400,7 +403,7 @@ Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 
-`leaf page check` runs a page's own code, a module script or a page widget the
+`leaf page check` runs a page's own code, a script or a page widget the
 document places, once in the host's browser: through upgrade, presentation, and one
 frame after it. It fails on every error the page would report to you through the
 watcher, an uncaught exception or a rejected promise with the source location it came
@@ -416,16 +419,18 @@ page widget may replace the package implementation without restating its declara
 Both choices are fixed in the revision manifest.
 
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
-explorer or playground keeps its code in `page/`. Leaf captures literal local module
-and stylesheet dependencies, and refuses unresolved imports, filesystem escapes, classic
-scripts, event-handler attributes, and `javascript:` URLs.
+explorer or playground keeps its code in `page/`. Leaf captures the local files a
+page's scripts and stylesheets name literally, so import a page file by a literal URL;
+a computed `import()` reaches a module on another server, named by its full URL. Leaf
+refuses unresolved imports, filesystem escapes, and anything declared about the whole
+document (a `<base>`, an http-equiv `<meta>`, an import map), which would send the
+runtime's requests elsewhere or leave its modules unresolved.
 
-A stylesheet, font, module, or image may also come from Google Fonts or a public script
-CDN, the set a Claude artifact page may use: jsdelivr, cdnjs, unpkg, Tailwind's, and
-jQuery's. Name it by its absolute `https://` URL; the page loads it as written, so it
-arrives only while the user is online. Load a library as a module — jsdelivr's
-`/+esm` builds one from any npm package — since a classic script is refused. A
-reference to any other origin is refused, and the refusal names the ones admitted.
+A script, stylesheet, font, image, or frame may also come from another server, named
+by its absolute `http(s)://` URL, and a page's code may fetch from anywhere. The page
+loads it as written, so it arrives only while the user is online. Data the page
+presents belongs in a `data/` source instead (`references/packages.md`, "External or
+derived data"), where the log and an export hold it.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.

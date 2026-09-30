@@ -224,8 +224,8 @@ def build_codemirror(work: Path) -> list[Path]:
 def build_agentic_mermaid(work: Path) -> list[Path]:
     """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
 
-    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf loads one
-    self-contained file under its self-only CSP, so esbuild resolves the locked
+    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf pages have no
+    package resolver and load one self-contained file, so esbuild resolves the locked
     dependency set and leaves no runtime chunk or package lookup behind. The package
     entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
     keeps the native rasterizer and the code-mode parser out of the bundle.
@@ -258,8 +258,8 @@ def build_floating_ui(work: Path) -> list[Path]:
     """Bundle the browser's anchored-positioning primitive.
 
     Floating UI's DOM package publishes browser ESM, but leaves its core and utility
-    packages as bare imports. Leaf pages run under a self-only CSP and have no package
-    resolver, so the three packages become one browser-native module. Only the
+    packages as bare imports. Leaf pages have no package resolver,
+    so the three packages become one browser-native module. Only the
     positioning and lifecycle middleware used by Leaf's floating chrome are exported;
     esbuild drops the rest.
     """
@@ -305,7 +305,7 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
+    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",

@@ -15,6 +15,7 @@ from leaf.thread_context import thread_names, thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
+    document_declaration_errors,
     fragment_style_errors,
     id_errors,
     media_errors,
@@ -190,6 +191,7 @@ def check_markup(
             else []
         )
         + fragment_style_errors(frag)
+        + document_declaration_errors(frag)
         + media_errors(frag, page_dir)
         + data_binding_errors(
             page_dir,

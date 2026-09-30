@@ -4724,6 +4724,45 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     ]
 
 
+def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
+    browser, serve
+):
+    """A CSS framework such as Tailwind builds its sheet in the head after the page
+    loads and rewrites it as classes change, and each rewrite is a new sheet. Its
+    element rules reach the page's prose and stop at Leaf's controls, as the page's
+    own stylesheet's do: Tailwind's reset once took the family of every chrome
+    button."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
+                head="""<script type="module">
+const sheet = document.createElement("style");
+document.head.append(sheet);
+sheet.textContent = "button, a { font-family: fantasy; }";
+setTimeout(() => {
+  sheet.textContent = "button, a { font-family: cursive; }";
+  window.rewritten = true;
+}, 50);
+</script>""",
+            )
+        ),
+    )
+    page.wait_for_function("() => window.rewritten")
+    faces = page.evaluate("""() => {
+        const family = el => getComputedStyle(el).fontFamily;
+        return {
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(family),
+            prose: family(document.getElementById('prose')),
+        };
+    }""")
+    assert faces["prose"] == "cursive", faces
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
+
+
 def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
     """A package that declares widgets styles those widgets and nothing else, whatever
     its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves

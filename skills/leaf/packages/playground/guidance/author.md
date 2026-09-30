@@ -24,7 +24,7 @@ Start from the real artifact. Wrap the existing component, document, or generate
 instead of rebuilding its appearance in page-local markup. A companion package may carry
 browser-ready code and fixtures under `vendor/`; page images go through `leaf page media`
 (`references/authoring-evidence.md`). Load those assets from the page's same origin,
-retain its CSP, and keep imports from Leaf's runtime to `/runtime/widget-api.js`.
+and keep imports from Leaf's runtime to `/runtime/widget-api.js`.
 
 When exploring changes to an existing interface, include its current state as a labeled
 baseline. Derive each candidate from that baseline and change only the behavior or

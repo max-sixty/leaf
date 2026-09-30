@@ -353,7 +353,10 @@ EXTENSION_SCHEMA = {
                 {"const": "whole"},
                 {
                     "type": "object",
-                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "properties": {
+                        "parts": _ATTRIBUTE_NAME,
+                        "complete": {"const": True},
+                    },
                     "required": ["parts"],
                     "additionalProperties": False,
                 },

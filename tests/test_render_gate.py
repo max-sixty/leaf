@@ -78,6 +78,7 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
+    PART_DIAGRAM_PAGE,
     PREFIXED_VISUAL_PAGE,
     STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
@@ -1618,6 +1619,23 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
         render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)).failures
         == []
     )
+
+
+def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
+    page = PART_DIAGRAM_PAGE
+    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
+    assert failures == [
+        f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
+        "but its module leaves nameable parts unlisted node:U"
+        for scheme in ("light", "dark")
+    ]
+
+
+def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
+    page = TYPED_PARTS_PAGE.replace(
+        "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
 
 
 def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):

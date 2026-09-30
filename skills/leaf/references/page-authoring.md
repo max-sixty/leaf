@@ -339,6 +339,10 @@ things form a board. Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
 
+For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
+individual boxes need their own targets, list every nameable box in `parts`;
+`page check --render` reports a partial list so adjacent boxes do not behave differently.
+
 The prose beside a shape says only what the shape cannot. What is left for prose is
 the claim, the reason it holds, and the question the page is asking. A few sentences
 hold all three. A section that runs longer is carrying either a structure with a

@@ -1,25 +1,22 @@
-/* lf-chart: a chart drawn by Observable Plot, written in Plot's own API. The body is the
- * options object an author would hand `Plot.plot`, as JSON, and every mark, scale, format
- * and time zone in it is Plot's. Leaf keeps no chart vocabulary of its own for an author
- * to learn or for Plot to outgrow.
+/* lf-chart: a chart drawn by Observable Plot, written in Plot's own API. The body is a
+ * JavaScript expression for the options object an author would hand `Plot.plot`, with
+ * `Plot` and the drawing's `width` in scope, so every mark, transform, scale, format and
+ * function in it is Plot's. Leaf keeps no chart vocabulary of its own for an author to
+ * learn or for Plot to outgrow.
  *
- * JSON rather than a script, because a chart has to stand wherever markup does: in a page
- * with no module of its own, in a reply an agent sends into a thread, in an export. The one
- * thing JSON cannot say is a call, and Plot's marks and transforms are calls, so an object
- * whose only key names a Plot export is that call: {"Plot.barY": [data, options]} is
- * Plot.barY(data, options), its value always the argument list. The prefix keeps a field
- * or a domain value that happens to share a mark's name ("line", "text") from being read
- * as one. Plot draws strings as categories and coerces ISO strings to dates only on a scale
- * the options say is time ("utc", or "time" for the reader's own zone), so what a column
- * holds is the author's to say, in Plot's words.
+ * The body is source in the markup rather than a page module, because a chart has to
+ * stand wherever markup does: in a reply an agent sends into a thread, which carries no
+ * module, and in any version of the page. It is compiled with `Function`, which each
+ * policy a page is delivered under admits, and it runs with the page's own authority:
+ * the body is the author's code, as a page module is.
  *
  * What the host adds is what a drawing needs from the page it sits in. It is drawn for the
  * room it has and drawn again when that room changes, since a drawing scaled into a new
- * box takes its labels below legibility with it: the width is the host's. Its type and ink
- * are the theme's, and so are its series colours, because Plot takes `var(--series-N)`
- * wherever it takes a colour. A user who cannot see it hears Plot's `ariaLabel` in its
- * place. It is one comment target, through `x-visual: whole`. And a chart that cannot
- * draw says why over its own source.
+ * box takes its labels below legibility with it: the width is the host's, and the body
+ * reads it to fit its ticks to the room. Its type and ink are the theme's, and so are its
+ * series colours, because Plot takes `var(--series-N)` wherever it takes a colour. A user
+ * who cannot see it hears Plot's `ariaLabel` in its place. It is one comment target,
+ * through `x-visual: whole`. And a chart that cannot draw says why over its own source.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -38,46 +35,36 @@ import {
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
 
-const CALL = "Plot.";
-
-const XLINK = "http://www.w3.org/1999/xlink";
-
-/* The body's JSON as the value it stands for, with each call made. */
-function evaluate(Plot, value) {
-  if (Array.isArray(value)) return value.map((item) => evaluate(Plot, item));
-  if (value === null || typeof value !== "object") return value;
-  const keys = Object.keys(value);
-  if (keys.length === 1 && keys[0].startsWith(CALL)) {
-    const name = keys[0].slice(CALL.length);
-    const args = value[keys[0]];
-    if (typeof Plot[name] !== "function") throw new Error(`Plot has no ${name}`);
-    if (!Array.isArray(args))
-      throw new Error(
-        `${keys[0]} takes its arguments as a list: {"${keys[0]}": [...]}`,
-      );
-    return Plot[name](...args.map((arg) => evaluate(Plot, arg)));
-  }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, evaluate(Plot, item)]),
-  );
-}
-
-function read(source) {
-  let spec;
+/* The body as a function of Plot and the width, which returns the chart's options. The
+ * newline before the closing parenthesis ends a trailing line comment. */
+function compile(source) {
   try {
-    spec = JSON.parse(source);
+    return new Function("Plot", "width", `"use strict";\nreturn (\n${source}\n);`);
   } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err;
     throw new Error(
-      `the body is Plot's options as JSON, and it does not parse: ${err.message}`,
+      `the body is a JavaScript expression for Plot.plot's options, and it does not parse: ${err.message}`,
     );
   }
+}
+
+/* The options one drawing is made from, made afresh for each so that no mark Plot has
+ * already rendered is handed to it a second time. */
+function drawOptions(body, Plot, width) {
+  const spec = body(Plot, width);
+  // Plot's own examples end in Plot.plot(...), which returns the drawing rather than
+  // its options, at a width the body chose.
+  if (spec instanceof Node)
+    throw new Error(
+      "give the options rather than Plot.plot(...): lf-chart calls Plot.plot itself, at the width it has",
+    );
   if (spec === null || typeof spec !== "object" || Array.isArray(spec))
-    throw new Error("the body is one JSON object: the options Plot.plot takes");
+    throw new Error("the body gives one object: the options Plot.plot takes");
   if (!spec.ariaLabel)
     throw new Error(
       "give Plot an ariaLabel: it is what a user who cannot see the chart hears",
     );
-  return spec;
+  return { ...spec, width };
 }
 
 customElements.define(
@@ -105,7 +92,7 @@ customElements.define(
       let source = "";
       try {
         source = bodyText(this);
-        const spec = read(source);
+        const body = compile(source);
         const Plot = await loadPlot();
         // The box each drawing goes in. A redraw replaces what is in it and nothing else,
         // because by then the runtime may have hung its own words on the widget — the
@@ -113,7 +100,7 @@ customElements.define(
         this.drawing = document.createElement("div");
         this.drawing.className = "lf-chart-drawing";
         this.replaceChildren(this.drawing);
-        this.paint(Plot, spec);
+        this.paint(Plot, body);
         this.classList.add("lf-rendered");
         // Only the width is watched, and only when it lands on a new whole pixel. The
         // redraw is scheduled after ResizeObserver delivery: painting changes the height,
@@ -129,7 +116,7 @@ customElements.define(
             this.paintFrame = 0;
             if (!this.isConnected || pending === this.drawn) return;
             try {
-              this.paint(Plot, spec);
+              this.paint(Plot, body);
             } catch (err) {
               this.watching.disconnect();
               failSoft(this, err, source);
@@ -142,11 +129,9 @@ customElements.define(
       }
     }
 
-    paint(Plot, spec) {
+    paint(Plot, body) {
       const width = Math.round(this.clientWidth);
-      // Evaluated afresh for each drawing, so no mark Plot has already rendered is handed
-      // to it a second time.
-      let built = Plot.plot({ ...evaluate(Plot, spec), width });
+      let built = Plot.plot(drawOptions(body, Plot, width));
       // With a legend, Plot returns a <figure> holding it and the drawing. The page gives
       // its own figures margins and reads them as blocks a comment can stand on, and this
       // one is neither: the chart is the comment target and its box is the widget's. So
@@ -190,15 +175,6 @@ customElements.define(
         legend.style.fontFamily ||= "inherit";
       if (!drawing.style.getPropertyValue("--plot-background"))
         drawing.style.setProperty("--plot-background", "var(--paper)");
-      // A mark's `href` channel wraps it in a link to whatever its data says. The door that
-      // admits markup reads a javascript: link as code the page runs; one written into
-      // this body's data is past it, so it draws as the mark alone.
-      for (const link of built.querySelectorAll("a")) {
-        const href =
-          link.getAttributeNS(XLINK, "href") ?? link.getAttribute("href") ?? "";
-        if (href.replace(/\s/g, "").toLowerCase().startsWith("javascript:"))
-          link.replaceWith(...link.childNodes);
-      }
       this.drawing.replaceChildren(built);
       this.drawn = width;
     }

@@ -184,15 +184,11 @@ def page_delivery(
             f"{bootstrap}</script>"
         )
 
-    # 'unsafe-eval' is delivered for the drivers rather than for the page. An
-    # automated browser compiles a wait predicate with eval on each poll — Playwright
-    # keeps a compiled function but recompiles a bare expression — and only the poll
-    # that runs inside the driver's own evaluate call inherits permission from it. A
-    # script-src without the allowance therefore refuses any wait whose fact is not
-    # already true when the poll is installed, which surfaces as an intermittent red
-    # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs. Published documents carry the allowance
-    # to users no driver polls.
+    # 'unsafe-eval' is the page's, as the export's is: an lf-chart body is a Plot
+    # expression the widget compiles. An automated browser needs it too, compiling a
+    # wait predicate with eval on each poll, which refused would surface as an
+    # intermittent red suite rather than as a policy refusal. The nonce still decides
+    # which script elements run.
     return Delivery(
         address=address,
         policy=lambda nonce: (

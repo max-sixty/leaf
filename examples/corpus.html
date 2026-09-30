@@ -2484,26 +2484,24 @@ Run the online schema migration before deploying.
         <lf-chart id="heat-elements">
           <pre>
 {
-  "ariaLabel": "Estimated watts lost by element: bay window 410, loft hatch 265, timber floor 240, front door 155, chimney 120",
-  "marginBottom": 40,
-  "marginLeft": 150,
-  "x": {"grid": true, "label": "estimated watts lost"},
-  "y": {"label": null},
-  "marks": [
-    {
-      "Plot.barX": [
-        [
-          {"element": "single-glazed bay window", "loss": 410},
-          {"element": "uninsulated loft hatch", "loss": 265},
-          {"element": "suspended timber floor", "loss": 240},
-          {"element": "front door and letterbox", "loss": 155},
-          {"element": "chimney with no cap", "loss": 120}
-        ],
-        {"x": "loss", "y": "element", "fill": "var(--series-1)", "sort": {"y": "-x"}}
-      ]
-    },
-    {"Plot.ruleX": [[0]]}
-  ]
+  ariaLabel: "Estimated watts lost by element: bay window 410, loft hatch 265, timber floor 240, front door 155, chimney 120",
+  marginBottom: 40,
+  marginLeft: 150,
+  x: {grid: true, label: "estimated watts lost"},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {element: "single-glazed bay window", loss: 410},
+        {element: "uninsulated loft hatch", loss: 265},
+        {element: "suspended timber floor", loss: 240},
+        {element: "front door and letterbox", loss: 155},
+        {element: "chimney with no cap", loss: 120},
+      ],
+      {x: "loss", y: "element", fill: "var(--series-1)", sort: {y: "-x"}},
+    ),
+    Plot.ruleX([0]),
+  ],
 }
 </pre>
         </lf-chart>
@@ -2550,36 +2548,34 @@ Run the online schema migration before deploying.
         <lf-chart id="heat-response">
           <pre>
 {
-  "ariaLabel": "Weekly gas use against outside temperature: the four weeks after the work sit below the five before at similar temperatures",
-  "marginBottom": 40,
-  "height": 260,
-  "grid": true,
-  "inset": 8,
-  "x": {"label": "outside average, °C"},
-  "y": {"label": "gas, kWh a week"},
-  "color": {
-    "legend": true,
-    "domain": ["before", "after"],
-    "range": ["var(--series-1)", "var(--series-2)"]
+  ariaLabel: "Weekly gas use against outside temperature: the four weeks after the work sit below the five before at similar temperatures",
+  marginBottom: 40,
+  height: 260,
+  grid: true,
+  inset: 8,
+  x: {label: "outside average, °C"},
+  y: {label: "gas, kWh a week"},
+  color: {
+    legend: true,
+    domain: ["before", "after"],
+    range: ["var(--series-1)", "var(--series-2)"],
   },
-  "marks": [
-    {
-      "Plot.dot": [
-        [
-          {"outside": 2.1, "gas": 604, "period": "before"},
-          {"outside": 3.0, "gas": 588, "period": "before"},
-          {"outside": 3.4, "gas": 561, "period": "before"},
-          {"outside": 5.0, "gas": 512, "period": "before"},
-          {"outside": 6.1, "gas": 470, "period": "before"},
-          {"outside": 2.6, "gas": 542, "period": "after"},
-          {"outside": 3.8, "gas": 498, "period": "after"},
-          {"outside": 5.2, "gas": 470, "period": "after"},
-          {"outside": 6.4, "gas": 449, "period": "after"}
-        ],
-        {"x": "outside", "y": "gas", "fill": "period", "r": 3.5}
-      ]
-    }
-  ]
+  marks: [
+    Plot.dot(
+      [
+        {outside: 2.1, gas: 604, period: "before"},
+        {outside: 3.0, gas: 588, period: "before"},
+        {outside: 3.4, gas: 561, period: "before"},
+        {outside: 5.0, gas: 512, period: "before"},
+        {outside: 6.1, gas: 470, period: "before"},
+        {outside: 2.6, gas: 542, period: "after"},
+        {outside: 3.8, gas: 498, period: "after"},
+        {outside: 5.2, gas: 470, period: "after"},
+        {outside: 6.4, gas: 449, period: "after"},
+      ],
+      {x: "outside", y: "gas", fill: "period", r: 3.5},
+    ),
+  ],
 }
 </pre>
         </lf-chart>
@@ -2915,28 +2911,26 @@ export const summarize = checks =>
           <lf-chart id="lp-traffic-chart">
             <pre>
 {
-  "ariaLabel": "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
-  "marginBottom": 40,
-  "height": 220,
-  "x": {"label": "minutes since deploy", "ticks": 7},
-  "y": {"grid": true, "label": "share of checkout traffic (%)", "domain": [0, 30]},
-  "marks": [
-    {
-      "Plot.lineY": [
-        [
-          {"minute": 0, "share": 0},
-          {"minute": 1, "share": 5},
-          {"minute": 2, "share": 10},
-          {"minute": 3, "share": 25},
-          {"minute": 4, "share": 25},
-          {"minute": 5, "share": 25},
-          {"minute": 6, "share": 25}
-        ],
-        {"x": "minute", "y": "share", "stroke": "var(--series-1)", "strokeWidth": 2}
-      ]
-    },
-    {"Plot.ruleY": [[0]]}
-  ]
+  ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
+  marginBottom: 40,
+  height: 220,
+  x: {label: "minutes since deploy", ticks: 7},
+  y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
+  marks: [
+    Plot.lineY(
+      [
+        {minute: 0, share: 0},
+        {minute: 1, share: 5},
+        {minute: 2, share: 10},
+        {minute: 3, share: 25},
+        {minute: 4, share: 25},
+        {minute: 5, share: 25},
+        {minute: 6, share: 25},
+      ],
+      {x: "minute", y: "share", stroke: "var(--series-1)", strokeWidth: 2},
+    ),
+    Plot.ruleY([0]),
+  ],
 }
 </pre>
           </lf-chart>
@@ -3369,34 +3363,32 @@ export const summarize = checks =>
               <lf-chart id="ar-export-hours">
                 <pre>
 {
-  "ariaLabel": "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
-  "marginBottom": 40,
-  "height": 220,
-  "x": {
-    "domain": ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
-    "ticks": ["22:00", "00:00", "02:00", "04:00", "06:00"],
-    "label": "hour (UTC)"
+  ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
+  marginBottom: 40,
+  height: 220,
+  x: {
+    domain: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
+    ticks: ["22:00", "00:00", "02:00", "04:00", "06:00"],
+    label: "hour (UTC)",
   },
-  "y": {"grid": true, "label": "pages"},
-  "marks": [
-    {
-      "Plot.barY": [
-        [
-          {"hour": "22:00", "pages": 0},
-          {"hour": "23:00", "pages": 0},
-          {"hour": "00:00", "pages": 0},
-          {"hour": "01:00", "pages": 7},
-          {"hour": "02:00", "pages": 9},
-          {"hour": "03:00", "pages": 2},
-          {"hour": "04:00", "pages": 0},
-          {"hour": "05:00", "pages": 0},
-          {"hour": "06:00", "pages": 0}
-        ],
-        {"x": "hour", "y": "pages", "fill": "var(--series-1)"}
-      ]
-    },
-    {"Plot.ruleY": [[0]]}
-  ]
+  y: {grid: true, label: "pages"},
+  marks: [
+    Plot.barY(
+      [
+        {hour: "22:00", pages: 0},
+        {hour: "23:00", pages: 0},
+        {hour: "00:00", pages: 0},
+        {hour: "01:00", pages: 7},
+        {hour: "02:00", pages: 9},
+        {hour: "03:00", pages: 2},
+        {hour: "04:00", pages: 0},
+        {hour: "05:00", pages: 0},
+        {hour: "06:00", pages: 0},
+      ],
+      {x: "hour", y: "pages", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
 }
 </pre>
               </lf-chart>
@@ -7067,81 +7059,71 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 <lf-chart id="bg-chart">
                   <pre>
 {
-  "ariaLabel": "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
-  "marginBottom": 40,
-  "height": 200,
-  "x": {"label": "run", "ticks": 3},
-  "y": {"grid": true, "label": "checks complete"},
-  "color": {"legend": true, "range": ["var(--series-1)", "var(--series-2)"]},
-  "marks": [
-    {
-      "Plot.lineY": [
-        [
-          {"run": 1, "arm": "baseline", "checks": 4},
-          {"run": 2, "arm": "baseline", "checks": 7},
-          {"run": 3, "arm": "baseline", "checks": 9},
-          {"run": 1, "arm": "candidate", "checks": 5},
-          {"run": 2, "arm": "candidate", "checks": 9},
-          {"run": 3, "arm": "candidate", "checks": 12}
-        ],
-        {"x": "run", "y": "checks", "stroke": "arm", "marker": true}
-      ]
-    }
-  ]
+  ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
+  marginBottom: 40,
+  height: 200,
+  x: {label: "run", ticks: 3},
+  y: {grid: true, label: "checks complete"},
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [
+    Plot.lineY(
+      [
+        {run: 1, arm: "baseline", checks: 4},
+        {run: 2, arm: "baseline", checks: 7},
+        {run: 3, arm: "baseline", checks: 9},
+        {run: 1, arm: "candidate", checks: 5},
+        {run: 2, arm: "candidate", checks: 9},
+        {run: 3, arm: "candidate", checks: 12},
+      ],
+      {x: "run", y: "checks", stroke: "arm", marker: true},
+    ),
+  ],
 }
 </pre>
                 </lf-chart>
                 <lf-chart id="bg-chart-bars">
                   <pre>
 {
-  "ariaLabel": "Checks complete by run: first 5, second 9, third 12",
-  "height": 200,
-  "x": {"domain": ["first", "second", "third"], "label": null},
-  "y": {"grid": true, "label": "checks complete"},
-  "marks": [
-    {
-      "Plot.barY": [
-        [
-          {"run": "first", "checks": 5},
-          {"run": "second", "checks": 9},
-          {"run": "third", "checks": 12}
-        ],
-        {"x": "run", "y": "checks", "fill": "var(--series-1)"}
-      ]
-    },
-    {"Plot.ruleY": [[0]]}
-  ]
+  ariaLabel: "Checks complete by run: first 5, second 9, third 12",
+  height: 200,
+  x: {domain: ["first", "second", "third"], label: null},
+  y: {grid: true, label: "checks complete"},
+  marks: [
+    Plot.barY(
+      [{run: "first", checks: 5}, {run: "second", checks: 9}, {run: "third", checks: 12}],
+      {x: "run", y: "checks", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
 }
 </pre>
                 </lf-chart>
                 <lf-chart id="bg-chart-stack">
                   <pre>
 {
-  "ariaLabel": "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
-  "height": 200,
-  "x": {"domain": ["first", "second", "third"], "label": null},
-  "y": {"grid": true, "label": "checks"},
-  "color": {
-    "legend": true,
-    "domain": ["passed", "failed"],
-    "range": ["var(--series-1)", "var(--series-2)"]
+  ariaLabel: "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
+  height: 200,
+  x: {domain: ["first", "second", "third"], label: null},
+  y: {grid: true, label: "checks"},
+  color: {
+    legend: true,
+    domain: ["passed", "failed"],
+    range: ["var(--series-1)", "var(--series-2)"],
   },
-  "marks": [
-    {
-      "Plot.barY": [
-        [
-          {"run": "first", "outcome": "passed", "checks": 5},
-          {"run": "first", "outcome": "failed", "checks": 3},
-          {"run": "second", "outcome": "passed", "checks": 9},
-          {"run": "second", "outcome": "failed", "checks": 2},
-          {"run": "third", "outcome": "passed", "checks": 12},
-          {"run": "third", "outcome": "failed", "checks": 0}
-        ],
-        {"x": "run", "y": "checks", "fill": "outcome"}
-      ]
-    },
-    {"Plot.ruleY": [[0]]}
-  ]
+  marks: [
+    Plot.barY(
+      [
+        {run: "first", outcome: "passed", checks: 5},
+        {run: "first", outcome: "failed", checks: 3},
+        {run: "second", outcome: "passed", checks: 9},
+        {run: "second", outcome: "failed", checks: 2},
+        {run: "third", outcome: "passed", checks: 12},
+        {run: "third", outcome: "failed", checks: 0},
+      ],
+      {x: "run", y: "checks", fill: "outcome"},
+    ),
+    Plot.ruleY([0]),
+  ],
 }
 </pre>
                 </lf-chart>

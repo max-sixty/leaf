@@ -13,8 +13,8 @@ the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
 Either way, what comes out passes through `build/browser/shipped.mjs`, the
-owner `build/browser/build.mjs` shares: it refuses a module the page CSP
-forbids and writes the bundle's license notices (`vendor`).
+owner `build/browser/build.mjs` shares: it refuses a module an export cannot
+load and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
@@ -467,7 +467,7 @@ def vendor(name: str) -> list[Path]:
     """Make one bundle, then pass it through `build/browser/shipped.mjs`.
 
     That module owns what a committed bundle must be and carry: it refuses a module
-    the page CSP forbids, and writes `<bundle>.LICENSES.txt` from the packages the
+    an export cannot load, and writes `<bundle>.LICENSES.txt` from the packages the
     build's `meta.json` says reached it. The MCP App's resource is HTML that its host
     reads under the host's own policy, so it has no module to check and still takes
     notices.

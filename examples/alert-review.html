@@ -307,34 +307,32 @@
               <lf-chart id="ar-export-hours">
                 <pre>
 {
-  "ariaLabel": "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
-  "marginBottom": 40,
-  "height": 220,
-  "x": {
-    "domain": ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
-    "ticks": ["22:00", "00:00", "02:00", "04:00", "06:00"],
-    "label": "hour (UTC)"
+  ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
+  marginBottom: 40,
+  height: 220,
+  x: {
+    domain: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
+    ticks: ["22:00", "00:00", "02:00", "04:00", "06:00"],
+    label: "hour (UTC)",
   },
-  "y": {"grid": true, "label": "pages"},
-  "marks": [
-    {
-      "Plot.barY": [
-        [
-          {"hour": "22:00", "pages": 0},
-          {"hour": "23:00", "pages": 0},
-          {"hour": "00:00", "pages": 0},
-          {"hour": "01:00", "pages": 7},
-          {"hour": "02:00", "pages": 9},
-          {"hour": "03:00", "pages": 2},
-          {"hour": "04:00", "pages": 0},
-          {"hour": "05:00", "pages": 0},
-          {"hour": "06:00", "pages": 0}
-        ],
-        {"x": "hour", "y": "pages", "fill": "var(--series-1)"}
-      ]
-    },
-    {"Plot.ruleY": [[0]]}
-  ]
+  y: {grid: true, label: "pages"},
+  marks: [
+    Plot.barY(
+      [
+        {hour: "22:00", pages: 0},
+        {hour: "23:00", pages: 0},
+        {hour: "00:00", pages: 0},
+        {hour: "01:00", pages: 7},
+        {hour: "02:00", pages: 9},
+        {hour: "03:00", pages: 2},
+        {hour: "04:00", pages: 0},
+        {hour: "05:00", pages: 0},
+        {hour: "06:00", pages: 0},
+      ],
+      {x: "hour", y: "pages", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
 }
 </pre>
               </lf-chart>

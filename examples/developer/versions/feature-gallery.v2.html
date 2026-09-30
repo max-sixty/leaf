@@ -383,27 +383,25 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <lf-chart id="bg-chart">
             <pre>
 {
-  "ariaLabel": "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
-  "marginBottom": 40,
-  "height": 200,
-  "x": {"label": "run", "ticks": 3},
-  "y": {"grid": true, "label": "checks complete"},
-  "color": {"legend": true, "range": ["var(--series-1)", "var(--series-2)"]},
-  "marks": [
-    {
-      "Plot.lineY": [
-        [
-          {"run": 1, "arm": "baseline", "checks": 4},
-          {"run": 2, "arm": "baseline", "checks": 7},
-          {"run": 3, "arm": "baseline", "checks": 9},
-          {"run": 1, "arm": "candidate", "checks": 5},
-          {"run": 2, "arm": "candidate", "checks": 9},
-          {"run": 3, "arm": "candidate", "checks": 12}
-        ],
-        {"x": "run", "y": "checks", "stroke": "arm", "marker": true}
-      ]
-    }
-  ]
+  ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
+  marginBottom: 40,
+  height: 200,
+  x: {label: "run", ticks: 3},
+  y: {grid: true, label: "checks complete"},
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [
+    Plot.lineY(
+      [
+        {run: 1, arm: "baseline", checks: 4},
+        {run: 2, arm: "baseline", checks: 7},
+        {run: 3, arm: "baseline", checks: 9},
+        {run: 1, arm: "candidate", checks: 5},
+        {run: 2, arm: "candidate", checks: 9},
+        {run: 3, arm: "candidate", checks: 12},
+      ],
+      {x: "run", y: "checks", stroke: "arm", marker: true},
+    ),
+  ],
 }
 </pre>
           </lf-chart>

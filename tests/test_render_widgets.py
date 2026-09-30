@@ -10091,14 +10091,16 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
 def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     """The body is the author's, and the author is the only party who can fix it, so a
-    refusal says what is wrong in the author's terms and keeps the source under it: JSON
+    refusal says what is wrong in the author's terms and keeps the source under it: code
     that does not parse, a chart with no name for a user who cannot see it, a call to
-    something Plot does not export, and a call whose arguments are not a list."""
+    something Plot does not export, a value that is not Plot's options, and a drawing Plot
+    already made, which is how Plot's own examples end."""
     said = {
-        "bad-json": "does not parse",
+        "bad-syntax": "does not parse",
         "bad-label": "ariaLabel",
-        "bad-mark": "Plot has no barz",
-        "bad-args": "takes its arguments as a list",
+        "bad-mark": "Plot.barz is not a function",
+        "bad-shape": "the options Plot.plot takes",
+        "bad-drawn": "rather than Plot.plot(...)",
     }
     for chart_id, body in BAD_CHARTS.items():
         source = leaf_page(
@@ -10112,18 +10114,20 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         expect(page.locator(f"#{chart_id} .lf-error pre")).to_contain_text("marks")
 
 
-def test_a_chart_s_links_go_where_its_data_says_and_never_run_code(browser, serve):
-    """A mark's `href` channel links each mark to its row's URL. The door that admits
-    markup reads a javascript: link as code the page runs, and a body's data is past that
-    door, so the module takes such a link off its mark rather than draw code behind a dot
-    — spaced and cased however the data writes it. The other links stand."""
+def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):
+    """The body is JavaScript, so what Plot takes as a function reaches it as one — here
+    a tick format — and the body reads the width the host draws at, which is how it fits
+    its labels to the room. The label below is the wider one only if the body was
+    handed the width: without it, the comparison is false."""
     page = open_page(browser, serve(CHART_PAGE))
-    links = page.evaluate(
-        """() => [...document.querySelectorAll('#c-dots svg[role=img] a')]
-             .map((a) => a.getAttributeNS('http://www.w3.org/1999/xlink', 'href'))"""
+    ticks = page.locator(
+        '#c-stack [data-lf-part="y-axis tick label"] text'
+    ).all_text_contents()
+    assert ticks and all(tick.endswith("h") for tick in ticks), ticks
+    assert page.evaluate(CHART_MARKS, "c-rows")["room"] > 500
+    expect(page.locator('#c-rows [data-lf-part="x-axis label"]')).to_contain_text(
+        "open issues"
     )
-    assert links == ["https://example.com/12", "/reviews/310"], links
-    assert page.locator("#c-dots [data-lf-part=dot] circle").count() == 3
 
 
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):

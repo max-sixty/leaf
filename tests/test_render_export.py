@@ -1553,6 +1553,30 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
 
 
+def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
+    """An lf-chart body is a Plot expression the widget compiles, so the export's policy
+    admits compiling it as the served page's does. Refused, the chart shows an error
+    over its source in the file a user was sent, while it drew in the author's
+    preview."""
+    serve(
+        leaf_page(
+            "Exported chart",
+            '<h1>Exported chart</h1><lf-chart id="c"><pre>'
+            '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
+            "</pre></lf-chart>",
+        )
+    )
+    out = tmp_path / "chart.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#c svg[role=img]")).to_have_attribute(
+        "aria-label", "one bar of 3"
+    )
+    expect(page.locator("#c .lf-error")).to_have_count(0)
+
+
 def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
     """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
     an export as in the live page. The rule that clips it once lived only in the

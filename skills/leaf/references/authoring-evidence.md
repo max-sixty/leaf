@@ -57,11 +57,11 @@ same tokens. Keep the `<figcaption>` for what the drawing cannot show, and inspe
 each rendered figure as you would a diagram.
 
 Use `lf-chart` rather than Mermaid's XY or pie charts for quantities: its body is
-Observable Plot's options as JSON, so any chart Plot draws is available, in Plot's own
-API. `lf-chart` needs no package. A handful of numbers the sentence beside them can
-carry is prose; a chart is for when the shape of the numbers is the point. Use
-`<pre><code class="language-…">` for selectable literal source and
-`lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
+Observable Plot code, the options `Plot.plot` takes, so any chart Plot draws is
+available in Plot's own API. `lf-chart` needs no package. A handful of numbers the
+sentence beside them can carry is prose; a chart is for when the shape of the
+numbers is the point. Use `<pre><code class="language-…">` for selectable literal
+source and `lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.
 The registry's `$languages.names` lists

@@ -1,7 +1,6 @@
 """Shared widgets browser-integration cases and readings."""
 
 import html
-import json
 
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
@@ -427,16 +426,15 @@ sankey-beta
 )
 
 
-def chart_markup(chart_id: str, spec: dict) -> str:
-    """An lf-chart whose body is `spec`, the options Plot.plot takes, as JSON."""
-    body = html.escape(json.dumps(spec), quote=False)
-    return f'<lf-chart id="{chart_id}"><pre>\n{body}\n</pre></lf-chart>'
+def chart_markup(chart_id: str, body: str) -> str:
+    """An lf-chart whose body is `body`, a Plot expression for Plot.plot's options."""
+    return f'<lf-chart id="{chart_id}"><pre>\n{html.escape(body, quote=False)}\n</pre></lf-chart>'
 
 
-SERIES = ["var(--series-1)", "var(--series-2)"]
 # One chart per shape of Plot call the body can make — a mark over rows, a faceted mark,
-# a mark whose options carry a nested call, a line over dates, dots — each small enough
-# to count the marks it should have produced by hand.
+# marks Plot stacks, a line over dates, dots — each small enough to count the marks it
+# should have produced by hand. Two use what only code can say: a function Plot calls,
+# and the width the host draws at.
 CHART_PAGE = leaf_page(
     "charts",
     "\n".join(
@@ -444,128 +442,88 @@ CHART_PAGE = leaf_page(
             '<h1 id="t">Charts</h1>',
             chart_markup(
                 "c-bars",
-                {
-                    "ariaLabel": "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17",
-                    "fx": {"label": None},
-                    "y": {"grid": True, "label": "merged"},
-                    "color": {"legend": True, "range": SERIES},
-                    "marks": [
-                        {
-                            "Plot.barY": [
-                                [
-                                    {"quarter": q, "team": t, "merged": n}
-                                    for t, row in (
-                                        ("apps", (12, 19, 14)),
-                                        ("infra", (7, 11, 17)),
-                                    )
-                                    for q, n in zip(("Q1", "Q2", "Q3"), row)
-                                ],
-                                {
-                                    "fx": "quarter",
-                                    "x": "team",
-                                    "y": "merged",
-                                    "fill": "team",
-                                },
-                            ]
-                        },
-                        {"Plot.ruleY": [[0]]},
-                    ],
-                },
+                """{
+  ariaLabel: "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17",
+  fx: {label: null},
+  y: {grid: true, label: "merged"},
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [
+    Plot.barY(
+      [["apps", [12, 19, 14]], ["infra", [7, 11, 17]]].flatMap(([team, row]) =>
+        row.map((merged, i) => ({quarter: `Q${i + 1}`, team, merged})),
+      ),
+      {fx: "quarter", x: "team", y: "merged", fill: "team"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}""",
             ),
             chart_markup(
                 "c-rows",
-                {
-                    "ariaLabel": "Open by area: platform infrastructure 42, billing 19",
-                    "marginLeft": 150,
-                    "marks": [
-                        {
-                            "Plot.barX": [
-                                [
-                                    {"area": "platform infrastructure", "open": 42},
-                                    {"area": "billing", "open": 19},
-                                ],
-                                {"x": "open", "y": "area", "fill": SERIES[0]},
-                            ]
-                        }
-                    ],
-                },
+                """{
+  ariaLabel: "Open by area: platform infrastructure 42, billing 19",
+  marginLeft: 150,
+  marginBottom: 40,
+  x: {label: width > 500 ? "open issues" : "open"},
+  marks: [
+    Plot.barX(
+      [{area: "platform infrastructure", open: 42}, {area: "billing", open: 19}],
+      {x: "open", y: "area", fill: "var(--series-1)"},
+    ),
+  ],
+}""",
             ),
             chart_markup(
                 "c-stack",
-                {
-                    "ariaLabel": "Hours by week: features 21 and 18, fixes 9 and 14",
-                    "color": {"range": SERIES},
-                    "marks": [
-                        {
-                            "Plot.barY": [
-                                [
-                                    {"week": w, "kind": k, "hours": n}
-                                    for k, row in (
-                                        ("features", (21, 18)),
-                                        ("fixes", (9, 14)),
-                                    )
-                                    for w, n in zip(("w1", "w2"), row)
-                                ],
-                                {"x": "week", "y": "hours", "fill": "kind"},
-                            ]
-                        }
-                    ],
-                },
+                """{
+  ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
+  color: {range: ["var(--series-1)", "var(--series-2)"]},
+  y: {tickFormat: (hours) => `${hours}h`},
+  marks: [
+    Plot.barY(
+      [
+        {week: "w1", kind: "features", hours: 21},
+        {week: "w2", kind: "features", hours: 18},
+        {week: "w1", kind: "fixes", hours: 9},
+        {week: "w2", kind: "fixes", hours: 14},
+      ],
+      {x: "week", y: "hours", fill: "kind"},
+    ),
+  ],
+}""",
             ),
             chart_markup(
                 "c-line",
-                {
-                    "ariaLabel": "Hours to review by week: 31, 26, 19",
-                    "x": {"type": "utc"},
-                    "marks": [
-                        {
-                            "Plot.lineY": [
-                                [
-                                    {"week": "2026-06-01", "hours": 31},
-                                    {"week": "2026-06-08", "hours": 26},
-                                    {"week": "2026-06-15", "hours": 19},
-                                ],
-                                {"x": "week", "y": "hours", "stroke": SERIES[0]},
-                            ]
-                        }
-                    ],
-                },
+                """{
+  ariaLabel: "Hours to review by week: 31, 26, 19",
+  x: {type: "utc"},
+  marks: [
+    Plot.lineY(
+      [
+        {week: "2026-06-01", hours: 31},
+        {week: "2026-06-08", hours: 26},
+        {week: "2026-06-15", hours: 19},
+      ],
+      {x: "week", y: "hours", stroke: "var(--series-1)"},
+    ),
+  ],
+}""",
             ),
             chart_markup(
                 "c-dots",
-                {
-                    "ariaLabel": "Review minutes against lines changed: 12 and 4, 90 and 26, 310 and 71",
-                    "marginBottom": 40,
-                    # A continuous scale's legend is a colour ramp: an <svg> of its own
-                    # beside the drawing. And each dot links to its review, one of them
-                    # to code.
-                    "color": {"legend": True, "scheme": "blues"},
-                    "marks": [
-                        {
-                            "Plot.dot": [
-                                [
-                                    {
-                                        "lines": 12,
-                                        "minutes": 4,
-                                        "at": "https://example.com/12",
-                                    },
-                                    {
-                                        "lines": 90,
-                                        "minutes": 26,
-                                        "at": " JavaScript:void(0)",
-                                    },
-                                    {"lines": 310, "minutes": 71, "at": "/reviews/310"},
-                                ],
-                                {
-                                    "x": "lines",
-                                    "y": "minutes",
-                                    "fill": "minutes",
-                                    "href": "at",
-                                },
-                            ]
-                        }
-                    ],
-                },
+                # A continuous scale's legend is a colour ramp: an <svg> of its own beside
+                # the drawing.
+                """{
+  ariaLabel: "Review minutes against lines changed: 12 and 4, 90 and 26, 310 and 71",
+  marginBottom: 40,
+  color: {legend: true, scheme: "blues"},
+  marks: [
+    Plot.dot(
+      [{lines: 12, minutes: 4}, {lines: 90, minutes: 26}, {lines: 310, minutes: 71}],
+      {x: "lines", y: "minutes", fill: "minutes"},
+    ),
+  ],
+}""",
             ),
         ]
     ),
@@ -611,23 +569,22 @@ CHART_MARKS = """(id) => {
 # The bodies the module refuses, each for its own reason and each on a page of its own:
 # the refusal is taller than the body it replaces, and a chart below it would move.
 BAD_CHARTS = {
-    "bad-json": '{"ariaLabel": "merged", "marks": [}',
-    "bad-label": '{"marks": [{"Plot.ruleY": [[0]]}]}',
-    "bad-mark": '{"ariaLabel": "merged", "marks": [{"Plot.barz": [[{"n": 1}], {"y": "n"}]}]}',
-    "bad-args": '{"ariaLabel": "merged", "marks": [{"Plot.ruleY": 0}]}',
+    "bad-syntax": '{ariaLabel: "merged", marks: [}',
+    "bad-label": "{marks: [Plot.ruleY([0])]}",
+    "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
+    "bad-shape": '[{ariaLabel: "merged", marks: []}]',
+    "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
 }
 # A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
-MESSAGE_CHART = {
-    "ariaLabel": "Merged by quarter: Q1 12, Q2 19",
-    "marks": [
-        {
-            "Plot.barY": [
-                [{"quarter": "Q1", "merged": 12}, {"quarter": "Q2", "merged": 19}],
-                {"x": "quarter", "y": "merged", "fill": SERIES[0]},
-            ]
-        }
-    ],
-}
+MESSAGE_CHART = """{
+  ariaLabel: "Merged by quarter: Q1 12, Q2 19",
+  marks: [
+    Plot.barY(
+      [{quarter: "Q1", merged: 12}, {quarter: "Q2", merged: 19}],
+      {x: "quarter", y: "merged", fill: "var(--series-1)"},
+    ),
+  ],
+}"""
 CHART_IN_A_MESSAGE_PAGE = leaf_page(
     "chart in a message",
     """

@@ -79,25 +79,22 @@ test("the bundle gate reads the parsed module, not its text", () => {
     ['export { html } from "https://cdn.example/lit.js";', "not a local path"],
     ['export * from "//cdn.example/lit.js";', "not a local path"],
     ['import("./late.js");', "import() loads a module at run time"],
-    ['require("lit");', "calls require"],
+    ['require("lit");', "require() loads a module at run time"],
   ]) {
     assert.throws(
       () => checkModule(`const a = 1;\n${source}`, "x.js"),
       (error) =>
         error.message.startsWith("x.js:2: ") &&
         error.message.includes(reason) &&
-        error.message.endsWith("which no page resolves"),
+        error.message.endsWith("which an export cannot load"),
       source,
     );
   }
   checkModule('import { html } from "./lit.js";');
-  // A bundle may compile at run time, as d3-dsv and Vega do.
-  checkModule(
-    'new Function("row", "return row")(1); eval("1"); setTimeout("tick()", 9);',
-  );
+  checkModule('new Function("return 1")();');
   checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
-  // Pierre's TextMate grammars carry both as data.
-  checkModule('export const grammar = { begin: "import\\\\(", end: "eval(x)" };');
+  // Pierre's TextMate grammars carry it as data.
+  checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
 });
 
 test("notices name the packages whose code reached an output", () => {

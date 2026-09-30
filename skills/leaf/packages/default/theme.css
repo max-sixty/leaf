@@ -2013,41 +2013,15 @@ lf-chart:not(.lf-rendered) > pre,
 lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
-/* A chart's colors are all here, and none of them are in its module. Plot leaves every
- * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes
- * one — it gives each series' marks a class and nothing else — so `color` on that class
- * paints the bars, the line and the dots of one series at once. What it buys is that the
- * drawing is painted by the same cascade as the page: a scheme flipped mid-read repaints
- * it, and a
- * project overriding --series-N gets its own charts without touching a widget. A
- * diagram's CSS-variable palette has the same live behavior, but assigns semantic
- * surfaces rather than data series.
- *
- * One font declaration, and the module reads it back. The margins a chart reserves are
- * room for text the browser has not drawn yet, so the module measures the labels on a
- * canvas — and a canvas measures in a font string, which is what --lf-chart-font is.
- * Overriding it keeps that shape: a size in px, then a family. */
-lf-chart { --lf-chart-font: var(--t-6) var(--sans); }
-/* The box each drawing goes in, so that redrawing for a new width replaces the drawing and
-   not the widget's children: by then the runtime may have hung a line of its own on the
-   element saying a comment stands here, and that line is a child of the element. */
-lf-chart .lf-chart-drawing { display: block; }
-lf-chart svg { display: block; font: var(--lf-chart-font); color: var(--muted); }
-lf-chart .lf-series-1 { color: var(--series-1); }
-lf-chart .lf-series-2 { color: var(--series-2); }
-lf-chart .lf-series-3 { color: var(--series-3); }
-lf-chart .lf-series-4 { color: var(--series-4); }
-lf-chart .lf-series-5 { color: var(--series-5); }
-/* The key sits above the drawing, so the colors are named before they are met. Its words
-   wear the ink every other label on the page wears, never the series color: a name set in
-   its own mark's color is a second, weaker copy of the swatch beside it, and it is the
-   half that has to stay legible at 3:1 on paper. */
-lf-chart .lf-chart-keys { display: flex; flex-wrap: wrap; gap: 2px var(--sp-3);
-             margin-bottom: var(--sp-2); font: var(--lf-chart-font);
-             color: var(--muted-2); }
-lf-chart .lf-chart-key { display: inline-flex; align-items: center; gap: 6px; }
-lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
-             background: currentColor; flex: none; }
+/* A chart is Plot's drawing, and the page dresses it the way it dresses its own text.
+ * Plot writes its axes, ticks and legends in `currentColor`, and its series take the
+ * author's `var(--series-N)`, so the whole chart is painted by the page's cascade and a
+ * scheme flipped mid-read repaints it. The face is the page's and the size is Plot's own:
+ * Plot lays its axes out for 10px labels, and at the theme's 11.5px an axis label lands
+ * on the tick beside it. Plot writes its face as attributes, which any rule here
+ * outranks; lf-chart.js hands it to the legends Plot styles from its own sheet. */
+lf-chart .lf-chart-drawing { display: block; font: 10px var(--sans); color: var(--muted); }
+lf-chart .lf-chart-drawing svg { display: block; font: inherit; }
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
    the `pre` contract again, and a

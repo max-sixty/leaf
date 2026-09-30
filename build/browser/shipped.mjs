@@ -4,24 +4,22 @@
  *
  * Both builders consume this module: `build.mjs` for the browser framework and Lit,
  * `build/vendor.py` for every other bundle, including the files it copies as
- * published. So one parser decides whether an output can load on every page, and one
+ * published. So one parser decides whether an output loads in an export, and one
  * writer states the licenses of the packages that reached it.
  *
- * An export embeds each module it knows as a data: URL, and nothing resolves a
- * specifier no page serves, so a bundle must name its whole module graph statically.
- * A bundler splits a chunk out behind every `import()`, and a bare specifier or a
- * `require` needs a package resolver no page has. A bundle that breaks either rule draws in a
- * developer's served page and fails in a user's export. So the check reads the parsed
- * module rather than its text: a grammar that carries `import(` as data, as Pierre's
- * TextMate grammars do, is ordinary. Compiling at run time is the bundle's own
- * business.
+ * An export loads only the modules it embeds, and a module it cannot embed is one
+ * careless import away: a bundler splits a chunk out behind every `import()`, and a
+ * CommonJS dependency left unbundled reaches for `require`. A bundle that does either
+ * draws in a developer's served page, which serves every module, and fails in a user's
+ * export. So the check reads the parsed module rather than its text: a grammar that
+ * carries `import(` as data, as Pierre's TextMate grammars do, is ordinary.
  *
  * A static import may name only a local path. Whether its target exists is a fact of
  * the served layout rather than of the bundle, and capturing a revision refuses a
  * missing one (`revision_artifact.captured_imports`).
  *
  * Run as `node build/browser/shipped.mjs METAFILE NOTICES [MODULE...]` from the
- * build's working directory: it refuses the first module no page could load, then
+ * build's working directory: it refuses the first module an export cannot load, then
  * writes NOTICES from the packages METAFILE (esbuild's) says reached the bundle.
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -31,7 +29,7 @@ import { parse } from "acorn";
 
 const LOCAL = /^(?:\/(?!\/)|\.{1,2}\/)/;
 
-/** Refuse a module that imports what no page serves. */
+/** Refuse a module that loads another at run time or imports what no page serves. */
 export function checkModule(source, name = "<module>") {
   const parsed = parse(source, {
     ecmaVersion: "latest",
@@ -40,7 +38,7 @@ export function checkModule(source, name = "<module>") {
   });
   const refuse = (node, reason) => {
     throw new Error(
-      `${name}:${node.loc.start.line}: ${reason}, which no page resolves`,
+      `${name}:${node.loc.start.line}: ${reason}, which an export cannot load`,
     );
   };
   function visit(node) {
@@ -55,8 +53,12 @@ export function checkModule(source, name = "<module>") {
       !LOCAL.test(node.source.value)
     )
       refuse(node, `it imports ${JSON.stringify(node.source.value)}, not a local path`);
-    if (node.type === "CallExpression" && node.callee.name === "require")
-      refuse(node, "it calls require");
+    if (
+      node.type === "CallExpression" &&
+      node.callee.type === "Identifier" &&
+      node.callee.name === "require"
+    )
+      refuse(node, "require() loads a module at run time");
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) value.forEach(visit);
       else visit(value);

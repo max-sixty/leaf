@@ -13,8 +13,8 @@ the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
 Either way, what comes out passes through `build/browser/shipped.mjs`, the
-owner `build/browser/build.mjs` shares: it refuses a module whose imports no
-page resolves and writes the bundle's license notices (`vendor`).
+owner `build/browser/build.mjs` shares: it refuses a module an export cannot
+load and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
@@ -305,7 +305,7 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
+    for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
@@ -325,7 +325,7 @@ def build_webawesome(work: Path) -> list[Path]:
 
 
 def build_plot(work: Path) -> list[Path]:
-    """Observable Plot draws lf-chart. Nothing published is loadable as it
+    """Observable Plot, which lf-chart hands a page's author. Nothing published is loadable as it
     stands, and there are three things to try: `src/index.js` is browser-native
     ESM but imports d3 by bare specifier; `dist/plot.umd.min.js` leaves d3
     external too, reading a `d3` global the page would have to have loaded first;
@@ -336,21 +336,12 @@ def build_plot(work: Path) -> list[Path]:
     ESM file with no specifier left in it. The alternative is vendoring d3 whole
     beside it, which is 100KB more and two files whose versions can drift apart.
 
-    The whole of Plot goes in rather than the marks lf-chart happens to use
-    today. Naming the marks here would put the module's mark list in a second
-    place, where a chart kind added in the module renders as a TypeError instead;
-    the list is worth about 100KB, against a 385KB bundle.
-
-    d3-dsv's `autoType` rides along because Plot draws values and never reads
-    text: it types no strings, and says to parse them before they reach it. So
-    a chart's cells are typed by the reading Plot's own ecosystem hands it
-    rather than by one of lf-chart's. d3-dsv's CSV parser stays out: it lives
-    in one module with `csvParse`, which compiles each header into a function,
-    so bundling it trips the CSP check below whichever half is called.
+    The whole of Plot goes in, since an author writes the chart in Plot's own API
+    and may reach for any of it.
     """
     out = package_vendor("default") / "plot.esm.js"
     (work / "entry.mjs").write_text(
-        'export * from "@observablehq/plot";\nexport { autoType } from "d3-dsv";\n',
+        'export * from "@observablehq/plot";\n',
         encoding="utf-8",
     )
     esbuild(
@@ -476,7 +467,7 @@ def vendor(name: str) -> list[Path]:
     """Make one bundle, then pass it through `build/browser/shipped.mjs`.
 
     That module owns what a committed bundle must be and carry: it refuses a module
-    whose imports no page resolves, and writes `<bundle>.LICENSES.txt` from the packages the
+    an export cannot load, and writes `<bundle>.LICENSES.txt` from the packages the
     build's `meta.json` says reached it. The MCP App's resource is HTML that its host
     reads under the host's own policy, so it has no module to check and still takes
     notices.

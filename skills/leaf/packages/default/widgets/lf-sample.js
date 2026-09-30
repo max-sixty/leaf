@@ -129,20 +129,14 @@ customElements.define(
       this.#reset.disabled = false;
     }
 
-    // The frame shows its child once the child has presented (theme.css, at
-    // .lf-sample-frame). Until then the child is still loading: its stylesheet may not
-    // have arrived, its widgets have not upgraded, and a frame that showed it painted
-    // each of those states in turn.
     #track(promise) {
       this.#reset.disabled = true;
       this.#status.textContent = "Loading sample…";
-      this.#frame.toggleAttribute("data-lf-sample-presented", false);
       const ready = promise.then((doc) => {
         if (this.#ready !== ready) return doc;
         this.#reset.disabled = false;
         this.#status.textContent = "";
         if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
-        this.#frame.toggleAttribute("data-lf-sample-presented", true);
         return doc;
       });
       this.#ready = ready;

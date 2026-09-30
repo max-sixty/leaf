@@ -90,11 +90,20 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Stack covers of stated height, and keep Layouts out of widgets.** Fix the banner at
-  one row, give every sticky cover a stated height added into `--lf-top`, delete the
-  measured-header machinery, scope the workspace's row rule to pane grids, and give the
-  side list a full-height form; then drop the bottom bar
-  ([plan](notes/chrome-and-covers.md)).
+- **Stack covers of stated height, and keep Layouts out of widgets.** Give the banner a
+  height CSS computes, give every sticky cover a stated height added into `--lf-top`,
+  delete the measured-header machinery, and state the hit floor as padding. Then decide
+  whether a workspace keeps panes that scroll on their own or its regions stick to the
+  root scroller, and drop the bottom bar ([plan](notes/chrome-and-covers.md)).
+- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
+  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
+  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
+  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
+  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
+  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
+  wide flow starts at the left edge. The column allocation and the text measure have to
+  align the same way first; start-aligned in any flow wider than the column is the
+  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
@@ -109,7 +118,9 @@ and its chrome coordinate.
   Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
-  needs it; a workspace page's own pane grid stays plain CSS.
+  needs it; a workspace page's own pane grid stays plain CSS. Option E of the
+  [chrome plan](notes/chrome-and-covers.md) settles it, since a sticky region works at
+  any depth with no scrolling ancestor.
 - **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
   target that covers no words (`pinSpot`), which clears single markers on most pages,
   but under a finger Accept and Reject together are a 96×44px pair: that needs a line

@@ -10190,18 +10190,55 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     assert after["tick"] == before["tick"], (before, after)
 
 
+def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
+    """The page lays a chart's box out before Plot draws (x-height), so the drawing fills
+    that box rather than sizing it: with a legend Plot sets above it, the legend and the
+    drawing together end at the box's foot, and the box keeps the height it had at first
+    paint. Drawn at the options' own height instead, the legend overhangs the box."""
+    body = """{
+  ariaLabel: "Merged by team: backend 12, frontend 19",
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
+                    {x: "team", y: "n", fill: "team"})],
+}"""
+    source = leaf_page(
+        "tall chart",
+        '<h1 id="t">Merged</h1>\n'
+        + chart_markup("c-tall", body).replace(
+            '<lf-chart id="c-tall">', '<lf-chart id="c-tall" data-height="240">'
+        ),
+    )
+    page = open_page(browser, serve(source))
+    box = page.evaluate(
+        """() => {
+            const el = document.getElementById('c-tall');
+            const own = el.getBoundingClientRect();
+            const drawing = el.querySelector('.lf-chart-drawing').getBoundingClientRect();
+            const svg = el.querySelector('svg[role=img]').getBoundingClientRect();
+            return {height: own.height, bottom: own.bottom,
+                    drawing: drawing.bottom, svg: svg.bottom,
+                    legends: el.querySelectorAll('svg:not([role=img]), div[class$=swatches]').length};
+        }"""
+    )
+    assert box["height"] == 240, box
+    assert box["legends"], box
+    assert box["svg"] == box["drawing"] == box["bottom"], box
+
+
 def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     """The body is the author's, and the author is the only party who can fix it, so a
     refusal says what is wrong in the author's terms and keeps the source under it: code
     that does not parse, a chart with no name for a user who cannot see it, a call to
-    something Plot does not export, a value that is not Plot's options, and a drawing Plot
-    already made, which is how Plot's own examples end."""
+    something Plot does not export, a value that is not Plot's options, a drawing Plot
+    already made, which is how Plot's own examples end, and a height the page could not
+    have laid out before the chart drew."""
     said = {
         "bad-syntax": "does not parse",
         "bad-label": "ariaLabel",
         "bad-mark": "Plot.barz is not a function",
         "bad-shape": "the options Plot.plot takes",
         "bad-drawn": "rather than Plot.plot(...)",
+        "bad-height": "as data-height on the element",
     }
     for chart_id, body in BAD_CHARTS.items():
         source = leaf_page(

@@ -340,14 +340,15 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     """The theme and the workspace Layout read what an element's registry entry
     declares, and a stylesheet cannot read the registry, so the document arrives with
     each declaration painted on the element: the first paint lays out a board's room and
-    a package's pane before any script runs. An occurrence's own `data-width` or
-    `data-bound` says it for that occurrence. Markup inside a template is inert, and
+    a package's pane before any script runs. An occurrence's own `data-width`,
+    `data-bound` or `data-height` says it for that occurrence. Markup inside a template is inert, and
     everything else in the source stays as written."""
     registry = {
         "lf-zone": {"x-reading-role": "pane"},
         "lf-board": {"x-space": "wide"},
         "lf-chip": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
+        "lf-plot": {"x-height": 400},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -355,6 +356,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<lf-board id="board" data-width="column"></lf-board>'
         '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
         '<pre data-bound="start">log</pre>'
+        '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
         "</main></body></html>"
     )
@@ -384,6 +386,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
+    assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
+    assert marks[("lf-plot", "tall")] == {"data-lf-height": "240"}
     assert marks[("lf-zone", "later")] == {}
     unmarked = delivered
     for mark in (
@@ -393,6 +397,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         ' data-lf-bound="end"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
+        ' data-lf-height="400"',
+        ' data-lf-height="240"',
     ):
         unmarked = unmarked.replace(mark, "", 1)
     assert source.removeprefix("<!doctype html><html><head>").split("</head>")[1] in (

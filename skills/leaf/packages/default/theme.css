@@ -2133,6 +2133,9 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
  * on the tick beside it. Plot writes its face as attributes, which any rule here
  * outranks; lf-chart.js hands it to the legends Plot styles from its own sheet. */
 lf-chart .lf-chart-drawing { display: block; font: 10px var(--sans); color: var(--muted); }
+/* On a live page the chart's box is laid out before it draws (x-height), and the source
+ * waiting in it is code for the drawing rather than words for the reader. */
+html[data-lf-live] lf-chart:not(.lf-rendered) > pre { visibility: hidden; }
 lf-chart .lf-chart-drawing svg { display: block; font: inherit; }
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is

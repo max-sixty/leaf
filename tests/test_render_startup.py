@@ -3805,6 +3805,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
                         ),
                         "agent": "Claude",
                         "session": session,
+                        "turn": None,
                     }
                 ],
             },

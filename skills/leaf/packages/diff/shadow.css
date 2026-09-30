@@ -19,32 +19,49 @@
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
-/* The disclosure's triangle hangs in a column of its own, and a path too long for the
-   line wraps beside it rather than back under it to the header's left edge: a hanging
-   indent, the first line drawn back by the triangle's own width. An outside marker would
-   say the same thing, but it stands outside the summary's box, where the file's clip
-   cuts it away. */
+/* The file's row pins over the rows it names (below), so it is one line of a stated
+   height (`--lf-diff-head-h`, at .lf-diff-file), which is what the rows under it add
+   to `--lf-top` and to the room a landing leaves above them. A path too long for the
+   line gives way from its folders: the file's own name stays whole, the folders before
+   it end in an ellipsis, and the row's title holds the whole path. A flex row draws no
+   disclosure marker, so the triangle is the row's own first mark. */
 :host(.lf-rendered) :where(.lf-diff-file) > details > summary {
-                                     padding-left: 25px; text-indent: -15px; }
-/* The press is out of the summary's flow, so the line reaches at least as far down as
-   the bar's foot. A path sets the line at 35px, which already clears a mouse's bar;
-   under a finger the bar is the taller and the line follows it rather than letting it
-   hang over the first row of the patch. */
-.lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head,
+                                     display: flex; align-items: center; gap: 6px;
+                                     box-sizing: border-box;
+                                     block-size: var(--lf-diff-head-h);
+                                     white-space: nowrap; overflow: hidden; }
+:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+                                     content: "▸" / ""; flex: none; inline-size: 9px;
+                                     color: var(--code-muted); }
+:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
+                                     rotate: 90deg; }
+.lf-diff-head > .lf-diff-path { display: flex; min-width: 0; white-space: nowrap; }
+/* Chrome breaks at a <wbr> even where nothing may wrap. */
+.lf-diff-head wbr { display: none; }
+.lf-diff-head .lf-diff-dir { flex: 0 1 auto; min-width: 0; overflow: hidden;
+                             text-overflow: ellipsis; }
+.lf-diff-head .lf-diff-base { flex: none; max-width: 100%; overflow: hidden;
+                              text-overflow: ellipsis; }
+.lf-diff-head > .lf-diff-stat { flex: none; }
+/* The row leaves the bar of presses its column, the bar's width and 14px between it
+   and the path. */
+.lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head {
+                                     padding-right: calc(10px + var(--lf-diff-actions)
+                                                         + 14px); }
+/* A rename's row is not pinned, so it wraps. The press is out of its flow, so the row
+   reaches at least as far down as the bar's foot: under a finger the bar is the taller
+   and the row follows it rather than letting it hang over the patch. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
                                      box-sizing: border-box;
                                      min-height: calc(var(--lf-diff-action-top)
                                                       + var(--lf-diff-action-h)); }
 /* And the bar's room is taken only beside the bar: a float as wide and as tall as it,
-   so a long path wraps before the presses and then takes the header's whole width
-   under them. A padding held the column open down the whole header, which on a phone
-   left a path with a review press beside it 80px on every line. The width is the bar's
-   11px inset less the 1px border it stands inside and the header's own 10px padding,
-   and 14px between a path and the presses; the height runs from the header's content
-   edge (the border and 7px padding) to the bar's foot, less the 4px of leading above a
-   line's ink, so the line whose ink starts under the bar takes the full width: held to
-   the foot, a path beside a review press on a phone took three lines rather than two. */
-.lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head::before,
+   so a long path wraps before the presses and then takes the row's whole width under
+   them. The width is the bar's 11px inset less the 1px border it stands inside and the
+   row's own 10px padding, and 14px between a path and the presses; the height runs from
+   the row's content edge (the border and 7px padding) to the bar's foot, less the 4px
+   of leading above a line's ink, so the line whose ink starts under the bar takes the
+   full width. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename::before {
                                      content: ""; float: right;
                                      width: calc(var(--lf-diff-actions) + 14px);
@@ -115,7 +132,13 @@
                    for it (above): a comment press, square, and with the review press the
                    two side by side across the bar's gap. */
                 --lf-diff-action-gap: 6px;
-                --lf-diff-actions: var(--lf-diff-action-h); }
+                --lf-diff-actions: var(--lf-diff-action-h);
+                /* The file's row: 7px above and below a path's line, 35px in all, or the
+                   bar of presses where that stands taller, as under a finger. */
+                --lf-diff-head-h: 35px; }
+.lf-diff-file:has(> .lf-diff-file-actions > *) {
+                --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top)
+                                                 + var(--lf-diff-action-h))); }
 .lf-diff-file:has(.lf-diff-review) {
                 --lf-diff-actions: calc(var(--lf-diff-press) + var(--lf-diff-action-gap)
                                         + var(--lf-diff-action-h)); }
@@ -185,16 +208,21 @@
    to be on screen for the whole of it, not only at its start. Forty-six files at
    thirty-two thousand pixels is that list's four-thousand-pixel run with a nought on it:
    opening one file and reading down it left nothing on screen saying which file it was.
-   The slot is `--lf-top`, inherited through this boundary: below the banner where the
-   window scrolls, and the pane's own top edge where a workspace pane does (layouts.css),
-   so the header stops where the box holding it starts showing rows. Opaque already (the summary's
+   The slot is `--lf-top`, inherited through this boundary: below the banner and any
+   sticky header under it where the window scrolls, and the pane's own top edge where a workspace
+   pane does (layouts.css), so the header stops where the box holding it starts showing
+   rows. The header stacks too, so what it stands over takes `--lf-top` past it, from
+   the value it met, passed on as `--lf-top-outer`. Opaque already (the summary's
    background), because the rows pass underneath it.
    Screen only: paper has no banner and no scroll to pin against. And only where the module says the page's own scroller is the
    one underneath — a diff in a reply scrolls in the panel's list rather than in the
    document. */
 @media screen {
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file { --lf-top-outer: var(--lf-top); }
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
                               top: var(--lf-top, 0px); z-index: 2; }
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > :not(summary) {
+                              --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h)); }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
@@ -202,12 +230,10 @@
                                         + var(--lf-diff-action-top) - 1px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
-   document declares its banner through scroll-padding-top; this is the rest of the same
-   sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (declareHeadRoom, lf-diff.js, through the runtime's `declareStickyHeaders`). Only where
-   the header pins:
-   unpinned, it covers nothing. */
-:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
+   scroller's `scroll-padding` clears what stands over the whole of it, the banner and a
+   page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
+   it covers nothing. */
+:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-diff-head-h); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path { font-family: var(--mono); font-size: var(--t-6);

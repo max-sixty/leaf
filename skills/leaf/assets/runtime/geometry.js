@@ -1,8 +1,6 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { sizeObserver } from "./rendering.js";
-import { setRuntimeRootStyle } from "./root-state.js";
 import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
 import { overlaps, overlapsAcross, union } from "./rect.js";
 
@@ -11,7 +9,7 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    `shownBox` returns an element's own box or the union of the boxes its
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn, and `shownExtent` the box they cover together.
-   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their edges) and the viewport,
+   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their tops) and the viewport,
    stopping ancestor clipping at a fixed-position box, then takes away what a declared
    occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
    chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
@@ -180,72 +178,51 @@ export function shownBand(el) {
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less the
-// sticky headers stuck over an edge of it. A sticky header is a sticky box declared
-// through `declareStickyHeaders` (below): an `lf-diff` file header, a page `lf-tabs`
-// strip. Stuck, it paints over the scroller's contents without clipping them, so a band
-// that ignored it would call what is under it shown. The clip walk below applies this
-// band at every ancestor, so `shownRect` and the readings built on it (read
-// acknowledgement, the summaries a thread card keeps open, arrival checks, chrome
-// placement) all answer "on screen" the same way; the place a re-render holds asks it of
-// its one scroller directly.
-//
-// A header belongs to the scroller it sticks in, found by climbing out of shadow trees
-// as the clip walk does: a header inside a nested scroller is that scroller's, not the
-// document's, though the document holds it too. And a header does not hide itself or what
-// it holds, so the band a node inside one is read against (`item`) leaves that header out.
+// sticky headers stuck over its top. A sticky header, such as a page `lf-tabs` strip or
+// an `lf-diff` file header, has a stated height and paints over the scroller's contents
+// without clipping them, so a band that ignored it would call what is under it shown.
+// Which headers stand over a box is a fact of where the box stands, so the band is read
+// for one box (`item`), and `headerInset` says how far the headers reach over it. The clip
+// walk below applies the same reading at every ancestor, so `shownRect` and the readings
+// built on it (read acknowledgement, the summaries a thread card keeps open, arrival
+// checks, chrome placement) all answer "on screen" the same way; the place a re-render
+// holds asks it of its one scroller directly.
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// It reserves room for the tallest header wherever one might stick, so it is never wider
-// than the visible band a landing arrives in.
+// It clears what stands over the whole scroller (the banner, a page tab strip); a header
+// over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
+// it stands over.
 const scrolls = (el) => {
   const { overflowX, overflowY } = getComputedStyle(el);
   return /auto|scroll|hidden/.test(`${overflowX} ${overflowY}`);
 };
-// The scroller a sticky box sticks in: its nearest scrolling ancestor, else the root.
-const stuckIn = (header) => {
-  for (let a = upFrom(header); a && a !== document.documentElement; a = upFrom(a))
-    if (scrolls(a)) return a;
-  return document.scrollingElement;
-};
-// Every shown header's box, by the scroller it sticks in, with the sticky insets it is
-// held at (insetBand). Built once per clip pass, since a pass asks it at each ancestor of
-// every item. A detached header is only skipped: its observer lets it go, and a header put
-// back and declared again must still be one.
-const HEADERS = Symbol("sticky headers");
-function headersByScroller(clips = null) {
-  let index = clips?.get(HEADERS);
-  if (index) return index;
-  index = new Map();
-  for (const header of declaredHeaders) {
-    if (!header.isConnected || !header.checkVisibility()) continue;
-    const scroller = stuckIn(header);
-    if (!index.has(scroller)) index.set(scroller, []);
-    const { left, right, top, bottom } = header.getBoundingClientRect();
-    const style = getComputedStyle(header);
-    index.get(scroller).push({
-      header,
-      box: {
-        left,
-        right,
-        top,
-        bottom,
-        stickyTop: Number.parseFloat(style.top) || 0,
-        stickyBottom: Number.parseFloat(style.bottom) || 0,
-      },
-    });
-  }
-  clips?.set(HEADERS, index);
-  return index;
+// How far below the top of `scroller`'s band the view of `el` starts, past the sticky
+// headers stuck over it. Each header adds its stated height to `--lf-top` for what it
+// stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
+// scroller's own, headers stand over `el`, and their foot is that value below the
+// scroller's padding edge, where a sticky box is measured from. The root's own value is
+// the banner, which is left to `shownWindow`, so with no header over `el` nothing is
+// taken. A header that is not stuck stands above its content anyway, so the reading
+// holds whether it is stuck or not. A header sticks in a box that scrolls, so a box that
+// only clips (`overflow: clip`, paint containment) has none over it. A stack only grows
+// inward, except where a box that scrolls starts it again for what it holds, so `el`
+// stands under the larger of its own value and its parent's.
+const lfTop = (el) =>
+  Number.parseFloat(getComputedStyle(el).getPropertyValue("--lf-top")) || 0;
+const holdsHeaders = (el) => el === el.ownerDocument?.scrollingElement || scrolls(el);
+export function headerInset(el, scroller) {
+  if (!holdsHeaders(scroller) || el === scroller) return 0;
+  const parent = upFrom(el);
+  const top = Math.max(lfTop(el), parent?.nodeType === 1 ? lfTop(parent) : 0);
+  if (top <= lfTop(scroller)) return 0;
+  return (Number.parseFloat(getComputedStyle(scroller).paddingTop) || 0) + top;
 }
-const bandLess = (band, headers, item) =>
-  insetBand(
-    band,
-    headers.filter(({ header }) => !item || !under(item, header)).map(({ box }) => box),
-  );
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
-  return band && bandLess(band, headersByScroller().get(scroller) ?? [], item);
+  if (!band || !item) return band;
+  const top = band.top + headerInset(item, scroller);
+  return band.bottom > top ? { ...band, top } : null;
 }
 export function landingBand(scroller) {
   const band = shownBand(scroller);
@@ -262,7 +239,6 @@ export function landingBand(scroller) {
 // `scroll-padding` it declares. Callers that measure from the scroller's own box take
 // the clearance here rather than reading the style themselves.
 export function landingInsets(scroller) {
-  measureUnseenHeaders(scroller);
   const style = getComputedStyle(scroller);
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
@@ -271,123 +247,6 @@ export function landingInsets(scroller) {
     bottom: inset("Bottom"),
     left: inset("Left"),
   };
-}
-// Declaring a box's sticky headers does two things. Each counts against `visibleBand`, and
-// the room they take is kept on the box as a custom property, so the `scroll-padding` or
-// `scroll-margin` that reads it reserves that room for every native landing (and a
-// scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
-// a header is is a measurement rather than a constant: a heading or a file path wraps,
-// and the user sets the width by drawing a panel's edge, which posts no event. So the
-// headers are observed rather than measured by whoever renders them, and a declaration
-// that replaces headers forces no layout. Only a host's first headers are measured as
-// they are declared, since a first observation comes after the frame's layout: a
-// document's initial fragment landing reads the room in that window, and read as none
-// it stopped a root tab strip's height short, under the strip. A header that replaces
-// another starts at the room its host already keeps. The tallest is the room, since a
-// landing cannot know which header will stick
-// over it. A header that stops rendering (its panel shut) keeps the room it last
-// measured, so a frame that runs before the reopening's observation reads the room
-// rather than none. A header first declared while its panel was shut has measured
-// nothing, and the frame after that panel's first opening would read its room as none;
-// so a landing's reading of the host's insets measures any header shown but not yet
-// measured shown, before the observer's first report of it. Called again with the box's
-// current headers, it replaces the set; a header that leaves the document is let go on its
-// own.
-const declaredHeaders = new Set();
-const headerRooms = new WeakMap();
-const headerHosts = new WeakMap();
-const unseenHeaders = new WeakSet();
-let headerObserver = null;
-const paintHeaderRoom = (host) => {
-  const { property, headers } = headerRooms.get(host);
-  const room = `${Math.max(0, ...headers.values())}px`;
-  // The document root's inline style is shared with the authored revision, which keeps
-  // only what the runtime registered as its own (root-state.js).
-  if (host === document.documentElement) setRuntimeRootStyle(host, property, room);
-  else host.style.setProperty(property, room);
-};
-const letGo = (header) => {
-  headerObserver.unobserve(header);
-  declaredHeaders.delete(header);
-};
-export function declareStickyHeaders(host, property, headers) {
-  headerObserver ??= sizeObserver((entries) => {
-    const touched = new Set();
-    for (const { target, borderBoxSize } of entries) {
-      const host = headerHosts.get(target);
-      const room = host && headerRooms.get(host);
-      if (!room?.headers.has(target)) continue;
-      if (!target.isConnected) {
-        letGo(target);
-        room.headers.delete(target);
-      } else if (target.checkVisibility()) {
-        room.headers.set(target, borderBoxSize[0]?.blockSize ?? 0);
-        unseenHeaders.delete(target);
-      } else continue;
-      touched.add(host);
-    }
-    for (const host of touched) paintHeaderRoom(host);
-  });
-  const prior = headerRooms.get(host)?.headers ?? new Map();
-  const next = new Map();
-  const kept = Math.max(0, ...prior.values());
-  const fresh = [];
-  for (const header of headers) {
-    next.set(header, prior.get(header) ?? kept);
-    if (prior.has(header)) continue;
-    fresh.push(header);
-    unseenHeaders.add(header);
-    headerHosts.set(header, host);
-    declaredHeaders.add(header);
-    headerObserver.observe(header);
-  }
-  const left = [...prior.keys()].filter((header) => !next.has(header));
-  for (const header of left) letGo(header);
-  headerRooms.set(host, { property, headers: next });
-  if (!prior.size) measureUnseenHeaders(host, false);
-  if (fresh.length || left.length) paintHeaderRoom(host);
-}
-function measureUnseenHeaders(host, paint = true) {
-  const room = headerRooms.get(host);
-  if (!room) return;
-  let measured = false;
-  for (const header of room.headers.keys())
-    if (unseenHeaders.has(header) && header.isConnected && header.checkVisibility()) {
-      room.headers.set(header, header.getBoundingClientRect().height);
-      unseenHeaders.delete(header);
-      measured = true;
-    }
-  if (measured && paint) paintHeaderRoom(host);
-}
-// A band less the covers standing over its edges. A cover stands over the top edge when
-// it straddles it, and a cover resting on another stuck cover straddles the edge the
-// first one leaves, so the covers are taken in order from the edge inward. A cover in
-// the middle of the band is content passing through, not chrome over it. Null once the
-// covers leave no band.
-//
-// A cover may also be stuck short of the edge, at the sticky inset it is held at
-// (`stickyTop`, `stickyBottom`, 0 when absent): a document's covers stick under the
-// banner, so they never reach the root's top edge, and read by straddling alone a
-// stuck root tab strip or `lf-diff` file header hid nothing. Such a cover takes the
-// band from the edge to its far side, the inset with it. The inset is room kept clear
-// for something standing there, the banner in a live page.
-export function insetBand(band, covers) {
-  const across = covers.filter((cover) => overlapsAcross(cover, band));
-  let { top, bottom } = band;
-  for (const cover of [...across].sort((a, b) => a.top - b.top))
-    if (
-      (cover.top <= top || cover.top <= band.top + (cover.stickyTop ?? 0)) &&
-      cover.bottom > top
-    )
-      top = cover.bottom;
-  for (const cover of [...across].sort((a, b) => b.bottom - a.bottom))
-    if (
-      (cover.bottom >= bottom ||
-        cover.bottom >= band.bottom - (cover.stickyBottom ?? 0)) &&
-      cover.top < bottom
-    )
-      bottom = cover.top;
-  return bottom > top ? { ...band, top, bottom } : null;
 }
 // Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
 // box holds, which a hidden tab's panel (`hidden="until-found"`) is, and a closed
@@ -568,39 +427,43 @@ function clipped(box, item, clips, held, inWindow = true) {
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
   // itself cannot.
+  // The box just inside each scroller, where the sticky headers over its top are read
+  // (`headerInset`): the item at its own scroller, and the scroller below at each one
+  // further out.
+  let inner = item;
   for (let a = item; a; a = upFrom(a)) {
     let c = clips.get(a);
     if (c === undefined) {
-      const band = shownBand(a);
       clips.set(
         a,
         (c = {
-          band,
-          // What stands over the band's edges without clipping it (visibleBand).
-          headers: band ? (headersByScroller(clips).get(a) ?? []) : [],
+          band: shownBand(a),
           // Read here rather than out of shownBand, whose answer is a band and is the
           // render gate's too: what clips a box and what a box is positioned against are
           // two facts, and one of them is this walk's alone.
           fixed: getComputedStyle(a).position === "fixed",
+          scrolls: holdsHeaders(a),
         }),
       );
     }
     if ((held || a !== item) && c.band) {
-      let band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
-      if (!band) return null;
+      const covered = c.band.top + headerInset(inner, a);
+      if (covered >= c.band.bottom) return null;
+      let band = covered > c.band.top ? { ...c.band, top: covered } : c.band;
       // In the page's plane the root's band is the window, which cuts nothing there;
-      // only a header stuck over one of its edges does.
+      // only a header stuck over its top does.
       if (!inWindow && a === a.ownerDocument?.scrollingElement)
         band = {
-          left: band.left > c.band.left ? band.left : -Infinity,
+          left: -Infinity,
           top: band.top > c.band.top ? band.top : -Infinity,
-          right: band.right < c.band.right ? band.right : Infinity,
-          bottom: band.bottom < c.band.bottom ? band.bottom : Infinity,
+          right: Infinity,
+          bottom: Infinity,
         };
       left = Math.max(left, band.left);
       top = Math.max(top, band.top);
       right = Math.min(right, band.right);
       bottom = Math.min(bottom, band.bottom);
+      if (c.scrolls) inner = a;
     }
     if (c.fixed) break;
   }
@@ -612,7 +475,7 @@ function clipped(box, item, clips, held, inWindow = true) {
 // A surface that stands over the page without clipping it: the thread panel, over the
 // right of a live page at a desktop window. Nothing in the page's own tree says so,
 // since the surface is fixed chrome beside the page rather than an ancestor of what it
-// stands over, so the surface declares itself, as a sticky header declares its room. The
+// stands over, so the surface declares itself. The
 // clip walk then takes what it stands over away from any box stacked beneath it, and a
 // travel destination, an exposure reading, and a badge's placement all read the part
 // under it as hidden. What the surface holds is its own to show, and what stacks above

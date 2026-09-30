@@ -415,12 +415,22 @@ the entry was left at (`runtime/history.js`), unless the element the entry's fra
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
 and lands on it, as a followed link to it does.
 
-A sticky header, a sticky box over the top of its scroller, declares the room it takes
-with `declareStickyHeaders(host, property, headers)`, which keeps `property` on `host` at
-the tallest header's height for a `scroll-padding` or `scroll-margin` to read, so every
-landing, native or the runtime's, arrives below it. The same declaration tells the
-runtime that what passes under the header is not on screen, for read acknowledgement,
-arrival checks, and chrome placement.
+A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
+at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
+holder passes the value it met on under a second name, since a custom property cannot
+read itself:
+
+```css
+.file { --lf-top-outer: var(--lf-top); }
+.file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
+.file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
+.file > .rows > * { scroll-margin-top: var(--head-h); }
+```
+
+The rows' `scroll-margin-top` has every landing, native or the runtime's, arrive below
+the header. The runtime reads what passes under it as off screen from `--lf-top`, for
+read acknowledgement, arrival checks, and chrome placement, so nothing is declared. A box
+a package makes scroll starts `--lf-top` again at `0px`.
 
 A composition allocates a Leaf element's outer box. The package owns how the element's
 contents use that allocation, based on its available inline size rather than the page

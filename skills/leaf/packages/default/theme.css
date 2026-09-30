@@ -1420,16 +1420,95 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       background: transparent;
       --lf-block-frame: 0;
     }
+    /* The strip is a sticky header over the page, so it is one row of a stated height
+     * (`--lf-tabstrip-h`), and what it stands over stacks below it through
+     * `--lf-top` (kernel theme.css): a diff's file header in a page tab pins under the
+     * strip rather than over it. The height is the strip's 8px head, a name's 38px face
+     * or the aim floor where that is taller, and its 1px rule. The root's
+     * `scroll-padding` adds it too (lf-tabs.js). */
+    lf-tabs[data-lf-tabs-flow="page"] {
+      --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
+      --lf-top-outer: var(--lf-top);
+    }
+    lf-tabs[data-lf-tabs-flow="page"] > lf-tab {
+      --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+    }
     lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
       top: var(--lf-top);
       z-index: 2;
+      box-sizing: border-box;
+      block-size: var(--lf-tabstrip-h);
       flex-wrap: nowrap;
       overflow-x: auto;
       overflow-y: hidden;
       padding: 8px 0 0;
       border-radius: 0;
       background: var(--paper);
+    }
+    /* A scrollbar would add to that height, so the strip draws none, and a press at
+     * either edge scrolls the names that run past it (lf-tabs.js), shown only while
+     * there is more that way. A finger or a trackpad scrolls the strip itself, and a
+     * focused tab brings itself into view. A browser that cannot say which way the
+     * strip scrolls keeps its scrollbar. */
+    @supports (container-type: scroll-state) {
+      lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
+        container-type: scroll-state;
+        scrollbar-width: none;
+      }
+      lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip > .lf-tabstrip-scroll {
+        display: block;
+      }
+      @container scroll-state(scrollable: inline-start) {
+        .lf-tabstrip-scroll[data-to="start"] { visibility: visible; }
+      }
+      @container scroll-state(scrollable: inline-end) {
+        .lf-tabstrip-scroll[data-to="end"] { visibility: visible; }
+      }
+    }
+    /* Each press stands at its edge without taking room in the row: a box no wider
+     * than nothing, stuck to that edge, whose face lies over the names beside it and
+     * fades into them. */
+    .lf-tabstrip-scroll {
+      display: none;
+      visibility: hidden;
+      position: sticky;
+      z-index: 1;
+      flex: none;
+      inline-size: 0;
+      align-self: stretch;
+    }
+    .lf-tabstrip-scroll[data-to="start"] {
+      inset-inline-start: 0;
+      margin-inline-end: -2px;
+    }
+    .lf-tabstrip-scroll[data-to="end"] {
+      inset-inline-end: 0;
+      margin-inline-start: -2px;
+    }
+    .lf-tabstrip-scroll > span {
+      position: absolute;
+      inset-block: 0 1px;
+      inline-size: 36px;
+      display: flex;
+      align-items: center;
+      font-size: 22px;
+      line-height: 1;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .lf-tabstrip-scroll > span:hover { color: var(--ink); }
+    .lf-tabstrip-scroll[data-to="start"] > span::before { content: "‹" / ""; }
+    .lf-tabstrip-scroll[data-to="end"] > span::before { content: "›" / ""; }
+    .lf-tabstrip-scroll[data-to="start"] > span {
+      inset-inline-start: 0;
+      justify-content: flex-start;
+      background: linear-gradient(to right, var(--paper) 55%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="end"] > span {
+      inset-inline-end: 0;
+      justify-content: flex-end;
+      background: linear-gradient(to left, var(--paper) 55%, transparent);
     }
     /* The strip scrolls when its names outrun it; a tab that shrank instead would
      * cut its own name, which the strip's scroll could never reach. */

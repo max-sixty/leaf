@@ -503,9 +503,9 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     """The root strip sticks under the banner and paints over the document, so what
     passes under it is not on screen: `shownRect`, the one reading of that, clips a
-    block behind the stuck strip to the strip's foot. The strip never reaches the
-    document's top edge, which the banner holds, so it counts as stuck at the sticky
-    inset it is held at. At the top of the page the strip is in flow and hides nothing."""
+    block behind the stuck strip to the strip's foot, which the strip's stated height
+    puts at `--lf-top` inside its panels. At the top of the page the strip is in flow
+    and hides nothing."""
     page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
     resized(page, 1280, 720)
     READ = """async () => {
@@ -516,13 +516,14 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
       return {
         strip: {top: strip.top, bottom: strip.bottom},
         behind: behind.getBoundingClientRect().toJSON(),
-        band: geometry.visibleBand(document.scrollingElement).top,
+        band: geometry.visibleBand(document.scrollingElement, behind).top,
         shown: geometry.shownRect(behind, new Map())?.top,
       };
     }"""
     page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
-    assert page.evaluate(READ)["band"] == 0
+    at_top = page.evaluate(READ)
+    assert at_top["shown"] == pytest.approx(at_top["behind"]["top"], abs=0.5), at_top
     # Stick the strip, then scroll the heading half under it.
     page.evaluate("scrollTo({top: 600, behavior: 'instant'})")
     scroll_settled(page)
@@ -540,6 +541,66 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
     assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
+
+
+def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
+    browser, serve
+):
+    """A diff's file header in a page tab pins under the stuck tab strip rather than
+    over it: each sticky header has a stated height and adds it to `--lf-top` for what
+    it stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen."""
+    path = "src/lib.rs"
+    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -1 +1,201 @@\n fn main() {{\n{rows}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stacked headers",
+                '<h1>Stacked</h1><lf-tabs id="root-tabs">'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                + patch
+                + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
+                "<p>Notes.</p></lf-tab></lf-tabs>",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    read = page.evaluate(
+        """async () => {
+        const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const box = (el) => el.getBoundingClientRect();
+        const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+        const diff = document.querySelector('lf-diff');
+        const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+        const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
+        row.scrollIntoView({block: 'start', behavior: 'instant'});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const landed = {strip: box(strip).bottom, head: box(head).bottom, row: box(row).top};
+        // Half a row under the diff's header.
+        document.scrollingElement.scrollTop += box(row).top - box(head).bottom
+            + box(row).height / 2;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {
+            landed,
+            strip: {top: box(strip).top, bottom: box(strip).bottom},
+            head: {top: box(head).top, bottom: box(head).bottom},
+            row: {top: box(row).top, bottom: box(row).bottom},
+            shown: geometry.shownRect(row, new Map())?.top,
+        };
+    }"""
+    )
+    assert read["head"]["top"] == pytest.approx(read["strip"]["bottom"], abs=0.5), read
+    landed = read["landed"]
+    assert landed["head"] == pytest.approx(landed["strip"] + 35, abs=0.5), landed
+    assert landed["row"] > landed["head"], landed
+    assert read["row"]["top"] < read["head"]["bottom"] < read["row"]["bottom"], read
+    assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
@@ -10949,16 +11010,14 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     expect(line).to_have_css("white-space", "pre")
 
 
-def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
+def test_a_phone_keeps_a_long_diff_path_to_one_line_and_its_file_name_whole(
     iphone, serve
 ):
-    """A file's header on a phone, with the review press beside it. The triangle stood
-    alone on the first line and the path wrapped below it, back to the header's left
-    edge, because the triangle was the line's first word and the path had no break in
-    it but the ones `overflow-wrap` forces; and a padding held the press's column open
-    down the whole header, so those forced breaks cut names mid-word
-    ("skills/wor|ktrunk"). The path now starts on the triangle's line, every line of
-    it starts at one left edge, and each break falls after a slash."""
+    """A file's header on a phone, with the review press beside it. The header pins over
+    its rows, so it is one line of a stated height, which is what the rows under it
+    stack below (`--lf-top`). A path too long for that line gives way from its
+    folders: the file's own name stays whole, the folders end in an ellipsis, and the
+    header's title holds the whole path."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
@@ -10977,44 +11036,27 @@ def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
         context=iphone,
     )
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
-    lines = page.evaluate(
+    head = page.evaluate(
         """() => {
         const head = document.querySelector('lf-diff').shadowRoot
             .querySelector('summary');
-        const text = head.querySelector('.lf-diff-path');
-        const range = document.createRange();
-        const lines = [];
-        for (const node of text.childNodes) {
-            if (node.nodeType !== Node.TEXT_NODE) continue;
-            for (let i = 0; i < node.length; i++) {
-                range.setStart(node, i);
-                range.setEnd(node, i + 1);
-                const box = range.getBoundingClientRect();
-                const last = lines.at(-1);
-                if (last && Math.abs(box.top - last.top) < 2) last.text += node.data[i];
-                else lines.push({ top: box.top, left: Math.round(box.left),
-                                  text: node.data[i] });
-            }
-        }
-        const s = getComputedStyle(head);
-        return { lines, contentTop: head.getBoundingClientRect().top
-                   + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) };
+        const path = head.querySelector('.lf-diff-path');
+        const dir = path.querySelector('.lf-diff-dir');
+        const base = path.querySelector('.lf-diff-base');
+        return {
+            height: head.getBoundingClientRect().height,
+            stated: parseFloat(getComputedStyle(head).blockSize),
+            title: path.title,
+            base: base.textContent,
+            baseCut: base.scrollWidth > base.clientWidth,
+            dirCut: dir.scrollWidth > dir.clientWidth,
+        };
     }"""
     )
-    rows = lines["lines"]
-    assert len(rows) > 1, f"the path fits one line, so nothing wrapped: {rows}"
-    assert rows[0]["top"] - lines["contentTop"] < 8, (
-        f"the path did not start on the triangle's line: {lines}"
-    )
-    # To a pixel: the first line is drawn back by the triangle's width, which the
-    # engine's font sets.
-    lefts = [row["left"] for row in rows]
-    assert max(lefts) - min(lefts) <= 1, (
-        f"a wrapped line of the path does not start where its first line does: {rows}"
-    )
-    assert all(row["text"].endswith("/") for row in rows[:-1]), (
-        f"the path broke inside a name: {[row['text'] for row in rows]}"
-    )
+    assert head["dirCut"], f"the path fit the phone's line, so nothing gave way: {head}"
+    assert head["height"] == pytest.approx(head["stated"], abs=0.5), head
+    assert head["base"] == "config.md" and not head["baseCut"], head
+    assert head["title"] == path, head
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

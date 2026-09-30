@@ -41,7 +41,6 @@ import {
   capturePlace,
   claimTraversals,
   commands,
-  declareStickyHeaders,
   keeps,
   keepsText,
   openAsks,
@@ -53,9 +52,11 @@ import {
   preserveReadingRegions,
   pushEntry,
   relabel,
+  removeRuntimeRootStyle,
   replaceEntry,
   restorePlace,
   selectableOffer,
+  setRuntimeRootStyle,
   tabStore,
   watchAsks,
 } from "/runtime/widget-api.js";
@@ -119,6 +120,7 @@ customElements.define(
       this.#strip = strip;
       strip.setAttribute("role", "tablist");
       if (side) strip.setAttribute("aria-orientation", "vertical");
+      strip.append(this.#edge("start"));
       for (const panel of panels) {
         const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
@@ -169,6 +171,7 @@ customElements.define(
         // The strip is always on screen; focus scrolling a stuck tab back to its place
         // in flow would move the view being left before the switch records it.
         next.focus({ preventScroll: true });
+        this.#showTab(next);
         next.click();
         beginWalk("tab", "Tab", () =>
           listWalkPosition([...this.#buttons.values()], document.activeElement),
@@ -223,8 +226,9 @@ customElements.define(
           run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
         },
       ]);
+      strip.append(this.#edge("end"));
       this.prepend(strip);
-      this.#declareStickyHeader();
+      this.#declareHeader();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
       // Restore this user's tab; a remembered id always resolves in later
       // versions because check forbids dropping ids. Restoration happens here,
@@ -254,6 +258,10 @@ customElements.define(
       this.#contextObserver = null;
       this.#stopAsks?.();
       this.#stopAsks = null;
+      if (this.#covering) {
+        this.#covering = false;
+        removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+      }
     }
 
     #listenForAsks() {
@@ -321,6 +329,7 @@ customElements.define(
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
         this.#active = active;
+        this.#showTab(this.#buttons.get(active));
         if (switched) this.#open(active, from);
         else if (reason === "history") this.#land();
         if (remember) tabStore.set(TAB_KEY + this.id, active.id);
@@ -371,7 +380,7 @@ customElements.define(
       } else if (this.#buttons.size) {
         this.#listenForHistory();
       }
-      this.#declareStickyHeader();
+      this.#declareHeader();
       // A set that changed flow drew its open panel at another width.
       if (wasFlow !== this.#pageFlow && this.#active) {
         const child = soleSubstantiveElement(this.#active);
@@ -391,21 +400,56 @@ customElements.define(
       this.#contextObserver.observe(main, { childList: true });
     }
 
-    // A page-flow strip sticks under the banner, over the document it indexes, so it is
-    // a sticky header there (`declareStickyHeaders`): what it stands over is not on
-    // screen, and the room it takes is kept as `--lf-root-tab-clear`, which the
-    // document's `scroll-padding` reads. The document's sticky headers are one set, so
-    // only a set that declared its strip withdraws one, and a tab set nested in a root
-    // panel never clears the root's. A strip that leaves the document is let go on its own.
-    #declareStickyHeader() {
+    // A page-flow strip sticks under the banner over the whole document, so it is a
+    // sticky header of the root: its stated height (`--lf-tabstrip-h`, the package
+    // theme) joins the root's `scroll-padding` as `--lf-root-headers` (theme.css), and
+    // every landing arrives below it. A package's rules reach only its widgets, so the
+    // root takes the height from here. What the strip stands over inside its panels
+    // stacks through `--lf-top` (the package theme). Only the set whose strip stands
+    // over the root withdraws it.
+    #declareHeader() {
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
-      if (!covering && !this.#covering) return;
+      if (covering === this.#covering) return;
       this.#covering = covering;
-      declareStickyHeaders(
-        document.documentElement,
-        "--lf-root-tab-clear",
-        covering ? [this.#strip] : [],
-      );
+      const root = document.documentElement;
+      if (covering)
+        setRuntimeRootStyle(
+          root,
+          "--lf-root-headers",
+          getComputedStyle(this).getPropertyValue("--lf-tabstrip-h").trim(),
+        );
+      else removeRuntimeRootStyle(root, "--lf-root-headers");
+    }
+
+    // A press at one edge of the strip, which pages the names that run past it (the
+    // package theme shows it only while there is more that way). It takes no tab stop:
+    // the tabs are the keyboard's route, and a focused tab brings itself into view.
+    #edge(to) {
+      const edge = document.createElement("span");
+      edge.className = "lf-tabstrip-scroll";
+      edge.dataset.to = to;
+      edge.setAttribute("aria-hidden", "true");
+      const face = document.createElement("span");
+      face.onclick = () =>
+        this.#strip.scrollBy({
+          left: (to === "start" ? -0.8 : 0.8) * this.#strip.clientWidth,
+          behavior: "smooth",
+        });
+      edge.append(face);
+      return edge;
+    }
+
+    // A tab the row runs past is scrolled into the strip, and only the strip: the
+    // strip sticks, and scrolling the page to it would move the view being read.
+    #showTab(btn) {
+      if (!this.#pageFlow || !btn) return;
+      const strip = this.#strip;
+      const room = strip.getBoundingClientRect();
+      const box = btn.getBoundingClientRect();
+      const edge = 36;
+      if (box.left < room.left + edge) strip.scrollLeft -= room.left + edge - box.left;
+      else if (box.right > room.right - edge)
+        strip.scrollLeft += box.right - (room.right - edge);
     }
 
     #listenForHistory() {

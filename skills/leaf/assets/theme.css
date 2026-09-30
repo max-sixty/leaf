@@ -140,8 +140,8 @@
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the banner. Ordinary content never sees either band; the document already keeps
-     clear of both (html[data-lf-live], below). */
+     the banner and any sticky header under it. Ordinary content never sees either band; the
+     document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
@@ -616,9 +616,9 @@ html { background: var(--paper); }
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
-    /* A page tab strip sticks under the banner and declares the room it covers on the
-     * root (lf-tabs.js, `declareStickyHeaders`). */
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px);
+    /* A sticky header over the whole root, a page tab strip, adds its stated height as
+     * `--lf-root-headers` (lf-tabs.js). */
+    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px) + 12px);
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
@@ -790,6 +790,17 @@ main {
  * grew out of it. Outside the page, where nothing states them, neither side holds a
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Where a box sticking here stops: the sticky headers standing over the top of its
+ * scroller, stacked. On the root it starts at the banner's height (above); every box that
+ * scrolls starts it again from its own top. A sticky header (a page tab strip, a diff's
+ * file header) has a stated height and sticks at the `--lf-top` it inherits; what it
+ * stands over takes that value plus its height, which the header's holder passes on
+ * under a second name, since a custom property cannot read itself. A landing clears the
+ * headers over a whole scroller through its `scroll-padding` and one over part of it
+ * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
+ * screen takes the value at each element (geometry.js, `headerInset`). Registered so
+ * that reading is a length. */
+@property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever

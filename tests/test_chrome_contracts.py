@@ -40,6 +40,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     resized,
+    scroll_settled,
     sending,
     told,
     watched,
@@ -313,18 +314,33 @@ REPLY_BOX = """card => {
 
 
 @pytest.mark.parametrize(
-    "earlier_cards,later_cards,answers",
-    [(0, 0, 1), (1, 0, 1), (0, 3, 1), (0, 3, 14), (2, 0, 14)],
-    ids=["alone", "below-a-card", "above-cards", "scrolled", "scrolled-below-cards"],
+    "earlier_cards,later_cards,answers,back_to_top",
+    [
+        (0, 0, 1, False),
+        (1, 0, 1, False),
+        (1, 0, 1, True),
+        (0, 3, 1, False),
+        (0, 3, 14, False),
+        (2, 0, 14, False),
+    ],
+    ids=[
+        "alone",
+        "below-a-card",
+        "pinned-below-a-card",
+        "above-cards",
+        "scrolled",
+        "scrolled-below-cards",
+    ],
 )
 def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_its_caret(
-    browser, serve, earlier_cards, later_cards, answers
+    browser, serve, earlier_cards, later_cards, answers, back_to_top
 ):
     """An open card's reply box stands at the list's foot, and a reply arriving grows
     above it: a short one into the free room between the thread and the box, a long one
     past it, which the list follows so its newest words end at the box. The box and the
     caret in it stay where they stood through both, whether the thread is short enough
-    to leave free room or long enough to scroll.
+    to leave free room or long enough to scroll, and where the user has scrolled the
+    card's end below the fold, pinning the box over the free room.
 
     The replies land past the half second in which Chrome counts the user's typing as
     recent input, so the browser fixture's shift watch fails any move they cause."""
@@ -355,6 +371,13 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-compose leaf-text").click()
     page.keyboard.type("My reply")
+    if back_to_top:
+        # Back up to the card above, which puts the open card's end below the fold.
+        page.mouse.wheel(0, -200)
+        page.wait_for_function(
+            "() => document.querySelector('.lf-threads').scrollTop === 0"
+        )
+        scroll_settled(page, ".lf-threads")
     rendered(page)
     list_box = page.locator(".lf-threads").evaluate(
         "el => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; }"
@@ -389,6 +412,53 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
             "el => el.getBoundingClientRect().bottom"
         )
         assert list_box[0] < tail <= standing["box"][0] + 1
+
+
+def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, serve):
+    """Lines typed into an open card's reply box grow it up from the list's foot into
+    the room above it: the list does not scroll, and the thread's words stay where they
+    stood. Later cards below the fold give the list room to scroll, so a growth paid
+    for as though it covered the words would move them."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "The thread I am answering.")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "A short answer.",
+        },
+    )
+    for index in range(3):
+        panel_comment(serve.page_dir, f"A later thread {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).to_have_attribute("open", "")
+    card.locator(".lf-compose leaf-text").click()
+    rendered(page)
+    reading = """card => ({
+      scroll: card.parentElement.scrollTop,
+      box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-compose')
+        .getBoundingClientRect()),
+      words: [...card.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect().top,
+    })"""
+    before = card.evaluate(reading)
+
+    page.keyboard.type("First line")
+    for line in ("Second line", "Third line", "Fourth line"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    rendered(page)
+    after = card.evaluate(reading)
+    assert after["box"][0] < before["box"][0] - 40, (before, after)
+    assert after["box"][1] == pytest.approx(before["box"][1], abs=1)
+    assert after["scroll"] == before["scroll"]
+    assert after["words"] == pytest.approx(before["words"], abs=1)
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):

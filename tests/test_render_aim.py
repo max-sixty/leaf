@@ -405,8 +405,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     compact = field.bounding_box()
     placement = page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
     before_scroll = page.evaluate("scrollY")
-    if placement in {"top-end", "bottom-end"}:
-        assert placement == "bottom-end", (
+    if placement in {"top-start", "bottom-start"}:
+        assert placement == "bottom-start", (
             "the page has substantially more reachable room below this passage"
         )
     clear = """() => {
@@ -453,7 +453,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
             expanded["x"] + expanded["width"]
             < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
-    if placement == "bottom-end":
+    if placement == "bottom-start":
         assert page.evaluate("scrollY") > before_scroll
         revealed_scroll = page.evaluate("scrollY")
         page.mouse.move(8, 450)
@@ -510,7 +510,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     expect(field).to_be_visible()
     field.click()
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
     before_scroll = page.evaluate("scrollY")
 
     write(
@@ -521,7 +521,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         ),
     )
     rendered(page)
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
     assert page.evaluate("scrollY") < before_scroll
     boxes = page.evaluate(
         """() => {
@@ -551,7 +551,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         ) == pytest.approx(float_height, abs=1)
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
 
 
 def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, serve):
@@ -953,7 +953,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     target.click(modifiers=["Alt"], position={"x": 200, "y": 25})
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
-    assert bar.get_attribute("data-lf-placement") in {"top-end", "bottom-end"}
+    assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
 
     write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
     page.wait_for_function(
@@ -1527,7 +1527,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     placement = bar.get_attribute("data-lf-placement")
-    assert placement in {"top-end", "bottom-end"}, placement
+    assert placement in {"top-start", "bottom-start"}, placement
 
     target.evaluate("node => { node.style.width = '180px' }")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
@@ -1559,7 +1559,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     bar = page.locator(".lf-fab-bar")
     rendered(page)
     placement = bar.get_attribute("data-lf-placement")
-    assert placement in {"top-end", "bottom-end"}, placement
+    assert placement in {"top-start", "bottom-start"}, placement
     empty = bar.bounding_box()
     draft = "A draft long enough that its own width would widen the bar it opens in."
     write(field, draft)
@@ -1615,7 +1615,7 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     write(field, "Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
 
     target.evaluate(
         """node => {
@@ -1623,7 +1623,7 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
         }"""
     )
     resized(page, 700, 601)
-    expect(bar).to_have_attribute("data-lf-placement", "bottom-end")
+    expect(bar).to_have_attribute("data-lf-placement", "bottom-start")
     target_after = target.bounding_box()
     after = bar.bounding_box()
     assert after["y"] >= target_after["y"] + target_after["height"] + 5, (

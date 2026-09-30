@@ -932,7 +932,7 @@ export function createMarginProjection({
         previewHold = geometry.hold;
         previewAway = geometry.away;
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        previewPlacement.stand(position.x, position.y);
+        previewPlacement.stand(position);
         // Leaving with its cluster, the card passes under the chrome, which stacks over
         // it, and a reading region cuts it at the region's edge as it cuts the words.
         if (region) {

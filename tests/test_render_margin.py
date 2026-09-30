@@ -5934,6 +5934,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
+    # The move's delivery status, whatever its stage has reached: the pickup grace can
+    # run out during this journey, turning "Sent" to "Waiting for pickup".
     status = options.get_by_role("status")
     expect(status).to_be_visible()
     expect(preview).to_be_hidden()

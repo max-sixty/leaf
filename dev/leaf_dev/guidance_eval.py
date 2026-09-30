@@ -5,12 +5,14 @@ the base's payload and the working tree's, read into one table.
 
 Both arms are built outside the checkout, since `claude plugin eval` loads every plugin
 and case below its target. Both get the working tree's case directories matching a
-CASE glob, or every case, so a case newer than the base runs on the base too. Each
-arm's `aggregate-result.json`, `report.html` and log stay under `.tmp/guidance-eval/`.
+CASE glob, or every case, so a case newer than the base runs on the base too, and a
+case's images, which the pinned assets hold at the case's path (`leaf_dev.leaf_assets`),
+are laid in beside it. Each arm's `aggregate-result.json`, `report.html` and log stay under `.tmp/guidance-eval/`.
 """
 
 import fnmatch
 import json
+import shutil
 import subprocess
 import tempfile
 from datetime import datetime
@@ -20,6 +22,7 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.harness import base_ref, build_arm, copy_working, environment
+from leaf_dev.leaf_assets import pinned_copy
 
 OUT = ROOT / ".tmp" / "guidance-eval"
 ARMS = ("base", "candidate")
@@ -86,6 +89,12 @@ def guidance_eval(case_globs: tuple[str, ...], base: str | None, runs: int | Non
         procs = []
         for arm, arm_dir in arms.items():
             copy_working([f"evals/{case}" for case in cases], arm_dir)
+            for case in cases:
+                images = pinned_copy(ROOT / "evals" / case)
+                if images.is_dir():
+                    shutil.copytree(
+                        images, arm_dir / "evals" / case, dirs_exist_ok=True
+                    )
             (out / arm).mkdir()
             with (out / arm / "run.log").open("w") as log:
                 procs.append(

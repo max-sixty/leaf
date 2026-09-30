@@ -71,6 +71,8 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
         )
     ] == []
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
+    # The example images are a pinned copy under `.tmp`, so their pin stands in.
+    assert str(ROOT / "leaf-assets.json") in watched.paths
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):

@@ -163,7 +163,9 @@ inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): one Chrome reports without recent input, and
-typing that carries the field it types in, so every test checks both. Playwright's
+typing that carries the field it types in, so every test in the broad selection
+checks both. The nightly-marked tests do not watch shifts yet: their pages make
+hundreds that `EXPECTED` does not list (`conftest.py`, `_watches_shifts`). Playwright's
 clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
 written by script, and the server's news are not. Fix what moved rather than consuming
 the report. `EXPECTED` there lists the shifts the page makes today, each a defect

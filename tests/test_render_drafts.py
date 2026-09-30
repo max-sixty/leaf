@@ -40,7 +40,6 @@ from render_cases_navigation import (
     pending_text,
 )
 from render_harness import (
-    EXAMPLE_MEDIA,
     LONG_PAGE,
     RELEASE_FOCUS,
     CutOff,
@@ -51,6 +50,7 @@ from render_harness import (
     draft_control,
     draft_key,
     draft_owner,
+    example_media,
     expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
@@ -2587,7 +2587,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     page = open_page(browser, serve(LONG_PAGE))
     image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         page.locator(".lf-fab-input").evaluate(
             """(box, encoded) => {

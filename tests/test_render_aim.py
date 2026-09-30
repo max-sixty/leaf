@@ -2927,9 +2927,13 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     page = open_page(browser, url)
     inner = page.locator("#inner")
     expect(inner).to_be_hidden()
-    # Pointing at the visual raises the thread's contour, and it encloses the whole.
-    page.locator("#visual").hover()
-    placed = page.evaluate(
+    # Pointing at the thread in Threads raises its contour, and it encloses the whole,
+    # in a window wide enough that the open panel covers none of the visual.
+    resized(page, 1800, 900)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.click()
+    page.locator('.lf-threads > .lf-thread[data-id="inner-comment"]').hover()
+    page.wait_for_function(
         """() => {
           const box = (el) => el.getBoundingClientRect();
           const mark = document.querySelector('.lf-visual-mark-hover');
@@ -2938,8 +2942,8 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
             && box(mark).height >= visual.height;
         }"""
     )
-    assert placed
     page.mouse.move(0, 0)
+    toggle.click()
 
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
@@ -3001,8 +3005,8 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     """Decoration omitted from a contour still belongs to its semantic part.
 
     The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle remains the only cloned paint of the contour the pointer
-    raises. A second draft on the same part wears the pending contour, since the posted
+    package-selected rectangle remains the only cloned paint of the contour its open
+    thread raises. A second draft on the same part wears the pending contour, since the posted
     comment draws none at rest.
     """
     url = serve(
@@ -3042,14 +3046,14 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    assert page.eval_on_selector_all(
-        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
     page.mouse.click(point["x"], point["y"])
     expect(
         page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
     ).to_be_visible()
+    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    assert page.eval_on_selector_all(
+        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
@@ -3085,7 +3089,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
     mark = page.locator(".lf-visual-mark")
 
-    surface.hover()
+    surface.click()
     expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(mark).to_be_visible()
     expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
@@ -3132,7 +3136,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface = host.locator("#wide-surface")
     mark = page.locator(".lf-visual-mark")
 
-    surface.hover(position={"x": 20, "y": 20})
+    surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
     mark_box = mark.bounding_box()

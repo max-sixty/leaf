@@ -215,7 +215,9 @@ default) and the working tree's at once, and prints each case's passes per arm a
 cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
 the skill and the references and every run answers with no guidance, while
 `loads-leaf` still passes on the attempt. So every case also grades that the child
-read the reference it tests, and a run that fails that check measured nothing.
+read the reference it tests, and a run that fails that check measured nothing. The
+grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
+refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
 
 The suite is a library that grows with the guidance, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
@@ -232,9 +234,10 @@ tell a case that told two wordings apart from one that has only guarded;
 
 A prompt ends by asking for the HTML in the reply, since the child has no page
 directory. It cannot search the plugin either, so it answers from the references
-without the registry. The prompt never states the behavior under test. Grade a fixed
-form with a `regex` grader, and a judgment with an `llm` grader whose `criteria`
-state the passing reading without requiring particular wording.
+without the registry, and a prompt that points it at a file beyond the references
+names that file from the skill's base directory. The prompt never states the behavior under test.
+Grade a fixed form with a `regex` grader, and a judgment with an `llm` grader whose
+`criteria` state the passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the

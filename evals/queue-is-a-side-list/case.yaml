@@ -31,7 +31,7 @@ graders:
 - name: reads-page-authoring
   type: tool_used
   tool: Read
-  input_match: page-authoring
+  input_match: skills/leaf/references/page-authoring\.md
 - name: side-list
   type: regex
   pattern: <lf-tabs\b[^>]*\blist="side"

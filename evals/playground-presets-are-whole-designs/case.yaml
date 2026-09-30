@@ -3,7 +3,11 @@
 # the user called the presets "disastrous". Of the runs that could read author.md,
 # main at 35ab3ecac passed 0 of 5, every one with presets that left controls unset;
 # the presets paragraph on whole designs set every control in 2 of 2 and passed 1.
-# The other runs were refused the read and scored nothing.
+# The other runs looked for the file outside the skill's base directory, where the
+# child may not read, and scored nothing, though the read grader passed them on the
+# refused call; it now matches the path inside the skill, so it counts only a read
+# that succeeded. Named from inside the skill, as the prompt now does, the file was
+# read in 6 of 6 runs of the change, which passed 4.
 schema_version: '1.0'
 name: playground-presets-are-whole-designs
 description: "Playground: controls span every part the user may vary, and each preset is one composed design that sets every control, not a tuple of per-part picks."
@@ -22,7 +26,8 @@ execution:
 
     The page was initialized with the `playground` package, whose author guidance
     `page init` copied into the page; the same file is
-    `packages/playground/guidance/author.md` beside the leaf skill's `references/`.
+    `packages/playground/guidance/author.md` inside the leaf skill's base directory,
+    the directory that holds its `references/`.
     Write its playground: the `lf-ask` with its `lf-playground`, and a `<style>`
     element with the candidates' CSS. The preview can be a short static diff of about
     six lines. The page directory is not reachable from here, so reply with the HTML
@@ -35,7 +40,7 @@ graders:
 - name: reads-playground-guidance
   type: tool_used
   tool: Read
-  input_match: playground/guidance/author
+  input_match: skills/leaf/packages/playground/guidance/author\.md
 - name: has-presets
   type: regex
   pattern: <lf-playground-preset\b

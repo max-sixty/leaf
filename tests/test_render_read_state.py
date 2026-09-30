@@ -598,7 +598,7 @@ DIAG_PROBE = """
   top.__probe ??= [];
   const doc = () => ({
     url: location.href.slice(-60),
-    frame: !!window.frameElement,
+    frame: window.frameElement ? (window.frameElement.parentElement?.id || "?") + " vis=" + JSON.stringify(window.frameElement.getBoundingClientRect().y|0) : false,
     ready: document.readyState,
     sheets: [...document.styleSheets].map((x) => (x.href || 'inline').slice(-40)),
     body: document.body ? [document.body.getBoundingClientRect().x, document.body.getBoundingClientRect().y] : null,

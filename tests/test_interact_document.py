@@ -237,11 +237,19 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     relinked = activate()
     assert relinked.executable != linked.executable
 
+    # Scripts run in document order, so moving one past another is new code too.
+    chart = '<script defer src="https://esm.sh/chart.js@5"></script>'
+    document = document.replace(chart, "").replace(
+        '<script type="text/plain">', chart + '<script type="text/plain">'
+    )
+    reordered = activate()
+    assert reordered.executable != relinked.executable
+
     declaration = json.loads((page_dir / "registry.json").read_text())["lf-options"]
     declaration["description"] = "Options this page declares for itself."
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
-    assert redeclared.executable != relinked.executable
+    assert redeclared.executable != reordered.executable
 
     files_model.replace_files(
         [(page_dir / "leaf.js", b"// re-vendored runtime", False)]

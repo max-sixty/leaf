@@ -603,14 +603,15 @@ def _capture_artifact(
                     for path, resource in resources.items()
                     if resource.mime == "application/javascript"
                 },
-                # Every script element: a data block its code read at boot, or a
-                # script whose src no capture holds, such as a CDN library's.
-                "inline": [
-                    _digest(script["body"].encode("utf-8"))
-                    for script in document.inline_scripts
-                ],
-                "external": [
-                    script["attrs"]["src"] for script in document.external_scripts
+                # Every script element, whole: its attributes decide whether and when
+                # it runs, a data block's body is read at boot, and a src no capture
+                # holds, such as a CDN library's, is named only here.
+                "scripts": [
+                    {
+                        "attrs": script["attrs"],
+                        "body": _digest(script.get("body", "").encode("utf-8")),
+                    }
+                    for script in [*document.inline_scripts, *document.external_scripts]
                 ],
             }
         )

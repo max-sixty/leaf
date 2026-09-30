@@ -219,11 +219,29 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     inlined = activate()
     assert inlined.executable != rewidgeted.executable
 
+    # A script's attributes decide whether it runs, and a src on another server is
+    # named nowhere else.
+    document = document.replace(
+        '<script type="module">window.inlineRan = 2;</script>',
+        '<script type="text/plain">window.inlineRan = 2;</script>',
+    )
+    retyped = activate()
+    assert retyped.executable != inlined.executable
+
+    document = document.replace(
+        "</head>", '<script defer src="https://esm.sh/chart.js@4"></script></head>'
+    )
+    linked = activate()
+    assert linked.executable != retyped.executable
+    document = document.replace("chart.js@4", "chart.js@5")
+    relinked = activate()
+    assert relinked.executable != linked.executable
+
     declaration = json.loads((page_dir / "registry.json").read_text())["lf-options"]
     declaration["description"] = "Options this page declares for itself."
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
-    assert redeclared.executable != inlined.executable
+    assert redeclared.executable != relinked.executable
 
     files_model.replace_files(
         [(page_dir / "leaf.js", b"// re-vendored runtime", False)]

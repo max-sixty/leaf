@@ -1631,6 +1631,13 @@ def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
     ]
 
 
+def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
+    page = TYPED_PARTS_PAGE.replace(
+        "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
 def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
     """A namespace and a class inside it can share a name, and the class is the box.
 

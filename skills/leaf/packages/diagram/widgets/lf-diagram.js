@@ -101,7 +101,9 @@ customElements.define(
           else if (rank === held.rank) held.element = null;
         }
         this.visualParts.clear();
-        const stateDiagram = /^stateDiagram(?:-v2)?\b/.test(source.trimStart());
+        const stateDiagram = /^(?:%%[^\n]*\n\s*)*stateDiagram(?:-v2)?\b/.test(
+          source.trimStart(),
+        );
         for (const [id, { element }] of boxes) {
           if (!element || !NAMEABLE.test(id)) continue;
           // State diagrams draw pseudo-states as _start and _end; they have no

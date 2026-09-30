@@ -62,6 +62,7 @@ const ENTRY_OPTIONS = new Set([
   "scope",
 ]);
 const READING_OPTIONS = new Set([
+  "kind",
   "subject",
   "state",
   "side",
@@ -176,6 +177,7 @@ export function normalizeMarginReading(reading, owner) {
     throw new TypeError("A margin contribution must read an object");
   unknownOptions(reading, READING_OPTIONS, "contribution");
   const {
+    kind = null,
     subject = null,
     state = "idle",
     side = "before",
@@ -219,6 +221,7 @@ export function normalizeMarginReading(reading, owner) {
           tone: text(notice.tone) || "negative",
         });
   return Object.freeze({
+    kind: text(kind) || null,
     subject: text(subject) || null,
     state,
     side,

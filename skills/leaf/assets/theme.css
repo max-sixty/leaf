@@ -1850,19 +1850,27 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    it can be pressed. Stated after the entry's states, whose hover and focus contours it
    has to outrank. */
 .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker {
+/* A pin folded for want of room wears the marker's face on its toggle, the kind it folds
+   (margin-model.js, `clusterProjection`), so it reads as what it stands for. */
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker,
+.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more {
   border-radius: 50% 50% 50% 3px; }
+.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more,
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]) {
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
   box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
     0 1px 2px var(--shade), 0 3px 8px var(--shade); }
+.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: #fff; inline-size: 14px; block-size: 14px; }
+.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
   border-color: var(--lf-pin-edge); }
+.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, [aria-expanded="true"]),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
   background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"]:not([data-lf-agent-workflow]) {

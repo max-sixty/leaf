@@ -508,7 +508,10 @@ page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
-other contributions may reuse an ID. Leaf retains each projected control by the opaque
+other contributions may reuse an ID. `kind` names what the contribution is, as one of the
+margin's reading kinds (`change`, `comment`, `ask`, `action`, …; `action` where it
+declares none): where a pin with a primary and one more control finds no room for both,
+it stands folded to one control wearing that kind's face and name, which opens to them. Leaf retains each projected control by the opaque
 contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
 so crossing that semantic boundary replaces the host instead of emulating a button.
 `target` is an

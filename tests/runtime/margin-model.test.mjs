@@ -85,7 +85,9 @@ test("one peer stays directly usable; two peers earn More", () => {
 test("a folded cluster stands as its toggle and opens to every control", () => {
   const entry = inventory({
     offers: [
-      offer("widget", [control("accept", { rank: "complete" }), control("reject")]),
+      offer("widget", [control("accept", { rank: "complete" }), control("reject")], {
+        kind: "change",
+      }),
     ],
   });
   assert.equal(canFold(entry), true);
@@ -95,7 +97,9 @@ test("a folded cluster stands as its toggle and opens to every control", () => {
   assert.equal(folded.hasPrimary, false);
   assert.deepEqual(folded.direct, []);
   assert.equal(folded.options.hidden, true);
-  assert.match(folded.moreLabel, /^Actions for /);
+  // Its toggle wears the face of the kind its contribution declares, and says it.
+  assert.deepEqual(folded.toggle, { icon: "change", label: "Change" });
+  assert.equal(folded.moreLabel, "Change, Decision");
   // Opened, the primary leads its options.
   const open = clusterProjection(entry, { folded: true, expandedKey: entry.key });
   assert.equal(open.options.hidden, false);
@@ -103,8 +107,23 @@ test("a folded cluster stands as its toggle and opens to every control", () => {
   // Placement's fold is only a request: unfolded, the face is the pair.
   const whole = clusterProjection(entry);
   assert.equal(whole.folded, false);
+  assert.deepEqual(whole.toggle, { icon: "more", label: "More options" });
   assert.equal(whole.primary.record.key, "accept");
   assert.deepEqual(choiceNames(whole.options.visible), ["reject"]);
+});
+
+test("a folded contribution with no kind is an action, and an unknown kind refused", () => {
+  const plain = inventory({
+    offers: [offer("widget", [control("accept"), control("reject")])],
+  });
+  assert.equal(clusterProjection(plain, { folded: true }).toggle.icon, "dot");
+  assert.throws(
+    () =>
+      inventory({
+        offers: [offer("widget", [control("accept")], { kind: "suggestion" })],
+      }),
+    /Unknown margin kind "suggestion"/,
+  );
 });
 
 test("a cluster whose face is one control, a reading, or engaged does not fold", () => {

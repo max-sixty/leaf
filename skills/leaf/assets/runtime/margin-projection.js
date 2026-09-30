@@ -2098,16 +2098,8 @@ export function createMarginProjection({
           { writesRelation: false, writesSeat: false },
         );
         rows.set(entry.key, marker);
-        more = presentMarginEntry(
-          offer("button", "lf-margin-more"),
-          marginEntry({
-            key: "options",
-            icon: "more",
-            label: "More options",
-            behavior: "disclosure",
-            rank: "overflow",
-          }),
-        );
+        // Its face is the cluster's to paint (margin-cluster-view.js).
+        more = offer("button", "lf-margin-more");
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
         keys(host, "In the margin", marginKeys, () => marginKeysAvailable);

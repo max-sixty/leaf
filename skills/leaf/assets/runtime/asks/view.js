@@ -739,8 +739,12 @@ export function createAskView({
         at: documentPoint(box.left, box.top),
       });
     }
+    // `chips` holds seats, so a chip is kept by the seat that names it; comparing a chip
+    // with the seats themselves dropped every chip, and each pass made its chips again
+    // at their anchors, where a chip pulled inside the window was painted a frame early.
+    const seated = new Set(chips.map(({ chip }) => chip));
     for (const control of [...bindingChips.keys()])
-      if (!chips.includes(bindingChips.get(control))) bindingChips.delete(control);
+      if (!seated.has(bindingChips.get(control))) bindingChips.delete(control);
     placement.paint(askActionLayer, chips);
   }
   // Resizing can make routes unreachable or put their controls under a covering drawer.

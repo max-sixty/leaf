@@ -8601,7 +8601,8 @@ def test_a_folded_pin_at_the_window_s_left_edge_opens_inside_the_window(browser,
     from the toggle to Accept, Reject and the toggle, 140px, so the toggle is seated
     only where that fits: a tap leaves the toggle where the finger pressed it, every
     action it opens stands inside the window, and focus lands on an Accept the user
-    can see."""
+    can see. Folded, the toggle wears the face of what it folds, a change, and its name
+    says so and names the rewrite, where a bare More would say only "Actions"."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -8610,6 +8611,8 @@ def test_a_folded_pin_at_the_window_s_left_edge_opens_inside_the_window(browser,
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-replace"]')
     expect(row).to_have_attribute("data-lf-folded", "")
     toggle = row.locator(".lf-margin-more")
+    expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
+    expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
     toggle.scroll_into_view_if_needed()
     pressed = toggle.bounding_box()
     toggle.tap()

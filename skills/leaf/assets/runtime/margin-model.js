@@ -9,6 +9,8 @@
  * A pin its placement found no room for stands folded where its resting face is a
  * primary and one more control: the options toggle alone, whose options are then every
  * control, the primary first. Folding is placement's input, opening it the gesture's.
+ * The folded toggle wears a marker's face, the one its primary contribution's declared
+ * `kind` gives, so it says what it folds; unfolded it is More.
  * Failure, work in flight, and engagement keep completion controls exposed. An
  * explicitly focused contribution uses those seats alone; an open thread keeps its
  * aggregate control inside the budget. Thread membership retains thread order.
@@ -82,6 +84,17 @@ export const KINDS = Object.freeze(
   ),
 );
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
+// The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
+// one each, so a view that painted a face knows it by identity.
+const TOGGLE = Object.freeze({ icon: "more", label: "More options" });
+const FOLDED = Object.freeze(
+  Object.fromEntries(
+    Object.entries(KINDS).map(([kind, { icon, label }]) => [
+      kind,
+      Object.freeze({ icon, label }),
+    ]),
+  ),
+);
 const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 
 const noticeItems = (entry) =>
@@ -369,7 +382,8 @@ export function clusterProjection(
   const primary = focusedOffer ? null : choosePrimary(entry);
   const folds = folded && canFold(entry, { expandedKey, expandedOwner });
   // Folded, the primary stands among the options, first, behind the toggle.
-  const face = folds ? null : primary;
+  const shown = folds ? null : primary;
+  const subject = spokenSubject(entry.title);
   const secondaries = focusedOffer
     ? focusedOffer.reading.entries.filter((record) => record.visible).length
     : secondaryCount(entry, primary);
@@ -378,7 +392,8 @@ export function clusterProjection(
   const optionsOpen =
     secondaries > 0 &&
     (!hasOptions || expandedKey === entry.key || entryEngaged(entry));
-  const subject = spokenSubject(entry.title);
+  // A contribution that declares no kind is an action, as a reading with none is.
+  const kind = folds ? (primary.offered.reading.kind ?? "action") : null;
   return Object.freeze({
     primary,
     hasOptions,
@@ -386,19 +401,22 @@ export function clusterProjection(
     folded: folds,
     options: optionGroupProjection(
       entry,
-      face,
+      shown,
       optionsOpen,
       focusedOffer,
       forcedInlineKey,
       folds,
     ),
-    direct: Object.freeze([...(face ? [face] : []), ...noticeItems(entry)]),
+    direct: Object.freeze([...(shown ? [shown] : []), ...noticeItems(entry)]),
     entry,
     kind: "page",
     label: `Page actions for ${subject}`,
-    moreLabel: `${folds ? "Actions" : "More options"} for ${subject}`,
+    toggle: kind ? FOLDED[kind] : TOGGLE,
+    moreLabel: kind
+      ? `${KINDS[kind].label}, ${subject}`
+      : `More options for ${subject}`,
     offers: entry.offers,
-    hasPrimary: Boolean(face),
+    hasPrimary: Boolean(shown),
     state: entryState(entry),
     target: entry.targetId || entry.key,
   });
@@ -409,6 +427,11 @@ export function clusterProjection(
 export function marginInventory(groups) {
   return Object.freeze(
     groups.map((group) => {
+      for (const offered of group.offers)
+        if (offered.reading.kind && !KINDS[offered.reading.kind])
+          throw new TypeError(
+            `Unknown margin kind "${offered.reading.kind}" in contribution "${offered.key}"`,
+          );
       const represented = new Set(
         group.items
           .filter((item) => item.marker === false && item.represents)

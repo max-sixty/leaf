@@ -21,8 +21,15 @@ it is given, declare the minimum it needs, and never let its content size its ho
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
 free room measured beside its target, in a rail the page declares, or as a pin by
 its target: in room found where it covers no words and no other box that paints its
-own extent, clear of neighbouring blocks where its target has room of its own
-(`pinSpot`, `coverIn`), and otherwise inside its target's corner.
+own extent, clear of neighbouring blocks where its target has room of its own, and
+reaching one line of words further out only where it has none within reach
+(`pinSpot`, `coverIn`), and otherwise inside its target's corner. A pin whose face is a
+primary and one more control that finds no room for both stands folded to its options'
+toggle, wearing the face of the kind its contribution declares, seated at that size
+where the actions it opens to fit inside its bounds
+(`seatRows`); a press on the toggle, or the keyboard arriving on it or standing at its
+target, opens it, spreading the actions over what stands beside it with the toggle
+left under the press, and moves nothing else.
 
 The rail and a pin are different kinds. The rail is room: a strip beside the column,
 which the column may move over to leave (`settleResidency`) but never narrows or

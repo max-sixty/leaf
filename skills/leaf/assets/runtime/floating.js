@@ -24,6 +24,14 @@
    what lands inside it, a scroll into view or a focus, never scrolls the page under
    it.
 
+   In either plane the box stands by the edges that hold it, one per axis (`held`). On
+   the axis its placement stands it beside something, that is the edge facing it; on the
+   other, the edge its alignment names, the start for a centred box; and on an axis where
+   the boundary shifted the box in, the edge against that boundary. Content that grows
+   the box then moves only its free edges, in the layout that grows it. Stood by its
+   top-left corner, a box that grows at its left or top would paint grown the wrong way
+   for a frame, until the placement that follows the resize carried it back.
+
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
    A surface's first placement then lands in the frame that asks for it rather than
@@ -59,6 +67,36 @@ const anchorAt = (reference, anchor) => ({
   },
 });
 
+// The edges that hold the box where the answer stands it, one per axis, with the box's
+// size and its containing block's, which an inset on a right or bottom edge is measured
+// from. It runs after the surface's middleware, so it reads the box as sized and shifted.
+const held = {
+  name: "held",
+  async fn({ placement, rects, middlewareData, elements, platform }) {
+    const [side, alignment] = placement.split("-");
+    const aligned = (start, end) => (alignment === "end" ? end : start);
+    const edges =
+      side === "top" || side === "bottom"
+        ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
+        : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
+    const shifted = middlewareData.shift ?? {};
+    if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
+    if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
+    const parent = await platform.getOffsetParent(elements.floating);
+    const block = parent === window ? document.documentElement : parent;
+    return {
+      data: {
+        edges,
+        width: rects.floating.width,
+        height: rects.floating.height,
+        block: { width: block.clientWidth, height: block.clientHeight },
+      },
+    };
+  },
+};
+
+const INSETS = ["left", "right", "top", "bottom"];
+
 // Whether a box spanning `top` to `bottom` stands against an edge of the window the page
 // shows (geometry.js, `shownWindow`), `gap` inside it, rather than against a reading
 // region's edge the page carries.
@@ -71,19 +109,37 @@ export function floatingPlacement({ floating, update }) {
   let epoch = 0;
   let watched = null;
   let stopWatching = null;
-  const placedAt = (x, y) => {
+  // Writes the held edges' insets and clears the free ones.
+  const inset = (insets) => {
+    for (const edge of INSETS)
+      if (insets[edge] === undefined) floating.style.removeProperty(edge);
+      else floating.style.setProperty(edge, insets[edge]);
+  };
+  // Each held edge's inset from the same edge of the box's containing block.
+  const placedAt = ({ x, y, middlewareData }) => {
+    const { edges, width, height, block } = middlewareData.held;
     floating.style.removeProperty("position-anchor");
-    floating.style.left = px(x);
-    floating.style.top = px(y);
+    inset({
+      [edges.x]: px(edges.x === "left" ? x : block.width - x - width),
+      [edges.y]: px(edges.y === "top" ? y : block.height - y - height),
+    });
   };
-  // An anchor lost between placements (a row withheld, a target skipped, its name taken
-  // by a revision) stands the box off screen, as the rows fall back, until the placement
-  // that follows finds it another.
-  const anchoredAt = (anchor, at) => (x, y) => {
-    floating.style.positionAnchor = anchorName(anchor);
-    floating.style.left = `calc(anchor(left, -9999px) + ${px(x - at.x)})`;
-    floating.style.top = `calc(anchor(top, -9999px) + ${px(y - at.y)})`;
-  };
+  // Each held edge's inset from the anchor's start edge on its axis, which `anchor()`
+  // resolves as an inset on whichever side the property names. An anchor lost between
+  // placements (a row withheld, a target skipped, its name taken by a revision) stands
+  // the box off screen, as the rows fall back, until the placement that follows finds
+  // it another.
+  const anchoredAt =
+    (anchor, at) =>
+    ({ x, y, middlewareData }) => {
+      const { edges, width, height } = middlewareData.held;
+      const from = (side, length) => `calc(anchor(${side}, -9999px) + ${px(length)})`;
+      floating.style.positionAnchor = anchorName(anchor);
+      inset({
+        [edges.x]: from("left", edges.x === "left" ? x - at.x : at.x - x - width),
+        [edges.y]: from("top", edges.y === "top" ? y - at.y : at.y - y - height),
+      });
+    };
   let stand = placedAt;
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
@@ -98,7 +154,7 @@ export function floatingPlacement({ floating, update }) {
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the plane `planeOf`
     // reads from it; `beside` is the element the box stands beside in the page's plane.
-    // `stand` then writes a spot in that answer's plane. An answer a later placement
+    // `stand` then writes that answer's spot in its plane. An answer a later placement
     // superseded while it was computed is null, and writes nothing.
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
@@ -109,7 +165,7 @@ export function floatingPlacement({ floating, update }) {
       const answer = await computePosition(reference, floating, {
         ...options,
         strategy: "fixed",
-        middleware: [...options.middleware, anchorAt(reference, anchor)],
+        middleware: [...options.middleware, held, anchorAt(reference, anchor)],
       });
       if (placement !== epoch) return null;
       const at = answer.middlewareData.anchorAt;
@@ -119,7 +175,7 @@ export function floatingPlacement({ floating, update }) {
       stand = plane === "page" ? anchoredAt(anchor, at) : placedAt;
       return answer;
     },
-    stand: (x, y) => stand(x, y),
+    stand: (answer) => stand(answer),
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;
@@ -130,7 +186,7 @@ export function floatingPlacement({ floating, update }) {
       stopWatching = null;
       watched = null;
       delete floating.dataset.lfPlane;
-      for (const property of ["position-anchor", "left", "top"])
+      for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);
     },
   };

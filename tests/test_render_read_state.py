@@ -22,6 +22,7 @@ from render_harness import (
     open_page,
     panel_settled,
     round_trip,
+    select,
     sending,
     take_browser_errors,
     told,
@@ -33,6 +34,33 @@ def _read_events(page_dir):
     return [
         event for event in events_model.read_events(page_dir) if event["kind"] == "read"
     ]
+
+
+def _select_new_route(page):
+    """Drag across "new route" on the diff's routes.py line 201, as a user selects it."""
+    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
+    row.scroll_into_view_if_needed()
+    points = row.evaluate("""element => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const nodes = [], starts = [];
+      let text = '';
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        starts.push(text.length); nodes.push(node); text += node.data;
+      }
+      const start = text.indexOf('new route');
+      if (start < 0) throw new Error('diff phrase missing');
+      const glyph = offset => {
+        const index = starts.findLastIndex(value => value <= offset);
+        const range = document.createRange();
+        range.setStart(nodes[index], offset - starts[index]);
+        range.setEnd(nodes[index], offset - starts[index] + 1);
+        return range.getBoundingClientRect();
+      };
+      const first = glyph(start), last = glyph(start + 'new route'.length - 1);
+      return [[first.left, first.top + first.height / 2],
+              [last.right, last.top + last.height / 2]];
+    }""")
+    select(page, *points)
 
 
 def _agent_metric_reply(page_dir, root, number, for_event=None):
@@ -694,27 +722,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
-    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
-    row.scroll_into_view_if_needed()
-    row.evaluate("""element => {
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      const nodes = [], starts = [];
-      let text = '';
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        starts.push(text.length); nodes.push(node); text += node.data;
-      }
-      const start = text.indexOf('new route');
-      if (start < 0) throw new Error('diff phrase missing');
-      const at = offset => {
-        const index = starts.findLastIndex(value => value <= offset);
-        return [nodes[index], offset - starts[index]];
-      };
-      const range = document.createRange();
-      range.setStart(...at(start)); range.setEnd(...at(start + 'new route'.length));
-      const selection = getSelection();
-      selection.removeAllRanges(); selection.addRange(range);
-      document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-    }""")
+    _select_new_route(page)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
@@ -760,27 +768,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     page = open_page(browser, url)
     page.set_viewport_size({"width": width, "height": 900})
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
-    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
-    row.scroll_into_view_if_needed()
-    row.evaluate("""element => {
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      const nodes = [], starts = [];
-      let text = '';
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        starts.push(text.length); nodes.push(node); text += node.data;
-      }
-      const start = text.indexOf('new route');
-      if (start < 0) throw new Error('diff phrase missing');
-      const at = offset => {
-        const index = starts.findLastIndex(value => value <= offset);
-        return [nodes[index], offset - starts[index]];
-      };
-      const range = document.createRange();
-      range.setStart(...at(start)); range.setEnd(...at(start + 'new route'.length));
-      const selection = getSelection();
-      selection.removeAllRanges(); selection.addRange(range);
-      document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-    }""")
+    _select_new_route(page)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):

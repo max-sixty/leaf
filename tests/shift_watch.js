@@ -64,11 +64,11 @@
   // machine, so each pattern names the region, and matches any node named in it. Each
   // is a defect to fix, not a behavior to keep: fixing one deletes its lines.
   const EXPECTED = [
-    // The bottom bar's status chevron, its keys and More, and the bar itself, as news
-    // lands.
-    /lf-status-button|lf-shortcut|lf-bottom-status/,
-    // The runtime's root, in the frames that move the content above it.
-    /^div\.lf-chrome moved/,
+    // The shortcut line's More and its hints, when the scope the line reads changes
+    // without a press: More stands after hints whose words follow the scope, so a new
+    // pair moves it. Most are nightly tests that move focus or set a selection by script;
+    // some are news, such as a margin entry arriving beside the one focused.
+    /lf-shortcut/,
     // The section after a diff, 68px down, as the page first reads the log
     // (PANEL_PAGE, tests/render_cases_interaction.py).
     /section#s-merge/,
@@ -179,21 +179,32 @@
     attributeFilter: ["data-lf-reading"],
   });
   // Chrome credits no input to a frame nested in another page, so a trusted key or
-  // press in this document counts for as long as Chrome counts one (`hadRecentInput`).
-  let pressed = -Infinity;
-  for (const type of ["keydown", "pointerdown"])
-    document.addEventListener(
-      type,
-      (event) => {
-        if (!event.isTrusted) return;
-        pressed = event.timeStamp;
-        close();
-      },
-      true,
+  // press in this document, or in a same-origin document holding it, counts for as long
+  // as Chrome counts one (`hadRecentInput`). Every recent one is kept: the observer may
+  // judge a frame after a later key.
+  const presses = [];
+  const heard = (view) => (event) => {
+    if (!event.isTrusted) return;
+    presses.push(
+      event.timeStamp + view.performance.timeOrigin - performance.timeOrigin,
     );
+    if (presses.length > 50) presses.shift();
+    if (view === window) close();
+  };
+  for (let view = window; ; view = view.parent) {
+    let held;
+    try {
+      held = view.document;
+    } catch {
+      break;
+    }
+    for (const type of ["keydown", "pointerdown"])
+      held.addEventListener(type, heard(view), true);
+    if (view === view.parent) break;
+  }
   const input = (entry) =>
     entry.hadRecentInput ||
-    (pressed <= entry.startTime && entry.startTime - pressed < RECENT);
+    presses.some((at) => at <= entry.startTime && entry.startTime - at < RECENT);
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;

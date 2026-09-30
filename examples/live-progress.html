@@ -48,6 +48,19 @@
       #lp-code-changes {
         margin-top: var(--sp-3);
       }
+      /* The four numbers stand in one row where the body holds them and two by two
+         where it doesn't, never three and one. */
+      #lp-status-room {
+        container-type: inline-size;
+      }
+      #lp-status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      @container (width >= 40rem) {
+        #lp-status {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
     </style>
   </head>
   <body>
@@ -67,15 +80,17 @@
       </header>
 
       <div id="lp-body">
-        <div class="layout-tiles" id="lp-status">
-          <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-          <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
-            >checks passing</lf-metric
-          >
-          <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
-            >p95 latency</lf-metric
-          >
-          <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+        <div id="lp-status-room">
+          <div class="layout-tiles" id="lp-status">
+            <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
+              >checks passing</lf-metric
+            >
+            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
+              >p95 latency</lf-metric
+            >
+            <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+          </div>
         </div>
         <aside class="callout warn" id="lp-current-state">
           <strong>Paused at 25%</strong>

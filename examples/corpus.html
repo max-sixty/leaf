@@ -1022,6 +1022,19 @@
       #lp-code-changes {
         margin-top: var(--sp-3);
       }
+      /* The four numbers stand in one row where the body holds them and two by two
+         where it doesn't, never three and one. */
+      #lp-status-room {
+        container-type: inline-size;
+      }
+      #lp-status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      @container (width >= 40rem) {
+        #lp-status {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
     </style>
 <!-- alert-review.html authored styles -->
 <style>
@@ -1513,7 +1526,7 @@
       }
 
       /* Cells side by side while each keeps 14rem, and one above the other below that:
-         the thread pair, the metric tiles and the charts wrap a column at a time. */
+         the thread pair and the charts wrap a column at a time. */
       #bg-thread-title-pair,
       #bg-charts {
         display: grid;
@@ -1524,6 +1537,17 @@
 
       #bg-thread-title-pair {
         max-width: 54rem;
+      }
+
+      /* The three metric tiles stand in one row where it holds them and one above the
+         other where it doesn't, never two and one. */
+      #bg-metrics-room {
+        container-type: inline-size;
+      }
+      @container (width < 30rem) {
+        #bg-metrics {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
 
       #bg-panel-presets {
@@ -2835,15 +2859,17 @@ export const summarize = checks =>
       </header>
 
       <div id="lp-body">
-        <div class="layout-tiles" id="lp-status">
-          <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-          <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
-            >checks passing</lf-metric
-          >
-          <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
-            >p95 latency</lf-metric
-          >
-          <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+        <div id="lp-status-room">
+          <div class="layout-tiles" id="lp-status">
+            <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
+              >checks passing</lf-metric
+            >
+            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
+              >p95 latency</lf-metric
+            >
+            <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+          </div>
         </div>
         <aside class="callout warn" id="lp-current-state">
           <strong>Paused at 25%</strong>
@@ -6974,20 +7000,22 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 and log stack once they are narrower than 696px. The log holds its own
                 height and stays on its newest line until you scroll back.
               </p>
-              <div id="bg-metrics" class="layout-tiles">
-                <lf-metric
-                  id="bg-metric-complete"
-                  value="12"
-                  delta="+3"
-                  direction="up-good"
-                  >checks complete</lf-metric
-                >
-                <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
-                  >open failures</lf-metric
-                >
-                <lf-metric id="bg-metric-neutral" value="4 min"
-                  >sample duration</lf-metric
-                >
+              <div id="bg-metrics-room">
+                <div id="bg-metrics" class="layout-tiles">
+                  <lf-metric
+                    id="bg-metric-complete"
+                    value="12"
+                    delta="+3"
+                    direction="up-good"
+                    >checks complete</lf-metric
+                  >
+                  <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
+                    >open failures</lf-metric
+                  >
+                  <lf-metric id="bg-metric-neutral" value="4 min"
+                    >sample duration</lf-metric
+                  >
+                </div>
               </div>
               <div id="bg-charts" data-width="wide">
                 <lf-chart id="bg-chart" kind="line" y="checks complete">

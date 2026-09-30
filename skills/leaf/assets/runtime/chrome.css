@@ -675,10 +675,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
   .lf-version-menu:popover-open { display: grid; }
   /* Left-aligned text in a control that is otherwise a press: the rows are a list to
-     read down, and a centred note re-ragged on every line is not one. */
+     read down, and a centred note re-ragged on every line is not one. The row and its
+     Compare state their aim floor as padding (shadow.css), because the menu is capped
+     at the window: a row held up by min-height alone was squeezed to it, its note
+     drawn over the next row, rather than scrolled to. */
   .lf-version-row { grid-column: 1; position: relative;
     display: flex; flex-direction: column; gap: 1px; align-items: start;
-    text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
+    text-align: left; padding: max(6px, (var(--aim-floor) - 1lh) / 2) 8px;
+    border: 0; border-radius: 4px;
     background: none; color: inherit; font: inherit; cursor: pointer; width: 100%; }
   /* A row with no Compare beside it, the version being read, takes both columns, so
      its hover and ring span the menu like every other row's pair. */
@@ -701,7 +705,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      state — a menuitem may not be pressed, a menu's toggle being a
      menuitemcheckbox, which axe said of the aria-pressed this started as on the one
      page in the suite that asks with the menu standing open. */
-  .lf-version-diff { grid-column: 2; margin: 4px 2px 0 4px; padding: 3px 8px;
+  .lf-version-diff { grid-column: 2; margin: 4px 2px 0 4px;
+    padding: max(3px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
     border: 1px solid var(--rule); border-radius: 4px; background: none;
     color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
   .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
@@ -803,7 +808,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Version news remains a legible control at every width. When the row runs out of
      room the toolbar above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
-  .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
+  .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px;
+    padding: max(3px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px; flex: none; }
   .lf-thread-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
     width: var(--lf-thread-panel-width); height: auto; max-width: none; max-height: none; margin: 0;
     box-sizing: border-box;
@@ -931,7 +937,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     grid-template-columns: 76px minmax(0, 1fr); align-items: center; column-gap: 8px; }
   .lf-thread-filter-label { color: var(--muted); font: var(--t-6) var(--sans); }
   .lf-thread-filter-choices { display: flex; flex-wrap: wrap; gap: 5px; }
-  .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
+  .lf-thread-filter { padding: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
+    font-size: var(--t-6); }
   .lf-thread-filter-group:not(:has(.lf-thread-filter:not([hidden]))) { display: none; }
   @media (max-width: 360px) {
     .lf-thread-filters { padding-inline: 8px; }
@@ -1879,8 +1886,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
       align-items: center; justify-content: center; }
     /* Forty on the narrow row, or the aim floor where a finger raises that past
-       forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
-       carry the floor itself or a touch toolbar loses four pixels.
+       forty: this rule's padding outranks .lf-btn's, which carries the floor
+       (shadow.css), by weight, so it has to carry the floor itself or a touch toolbar
+       loses its height. A row squeezes nothing on the block axis, so a minimum is
+       safe here.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
   }

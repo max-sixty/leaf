@@ -374,11 +374,16 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
-        # Selectors, each matched inside the element, for the painted boxes that draw
-        # its own face: a margin pin whose target is the element may stand on them.
+        # Child selectors, each matched inside the element, for the painted boxes that
+        # draw its own face: a margin pin whose target is the element may stand on them.
+        # Only a light-DOM child by tag and classes, so a malformed selector is refused
+        # here rather than throwing in the browser's layout pass.
         "x-face": {
             "type": "array",
-            "items": {"type": "string", "minLength": 1},
+            "items": {
+                "type": "string",
+                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
+            },
             "minItems": 1,
             "uniqueItems": True,
         },

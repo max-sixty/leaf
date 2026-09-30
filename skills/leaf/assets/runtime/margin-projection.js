@@ -85,6 +85,7 @@ import {
   spokenSubject,
 } from "./margin-entry-model.js";
 import {
+  THREAD_CARD,
   mountMarginLayer,
   registerMarginRow,
   scheduleMarginEntryLabels,
@@ -245,7 +246,7 @@ export function createMarginProjection({
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     let from = "path:";
-    for (let node = target; node;) {
+    for (let node = target; node; ) {
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (projection/data.js).
@@ -280,7 +281,7 @@ export function createMarginProjection({
     // tree from a later target inside one of its nested shadow hosts.
     const ancestry = (target) => {
       const chain = [];
-      for (let node = target; node;) {
+      for (let node = target; node; ) {
         chain.push(node);
         node = renderedParent(node);
       }
@@ -352,7 +353,7 @@ export function createMarginProjection({
   // tiered the keyboard over it, so standing on the passage it discusses took it down.
   // It shows while the user stands at its target (`followStanding`).
   const preview = el("aside", "lf-ui lf-margin-preview");
-  preview.id = "lf-margin-preview";
+  preview.id = THREAD_CARD;
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
@@ -3177,7 +3178,7 @@ export function createMarginProjection({
     if (!previewRegionMounted) {
       previewRegionMounted = true;
       registerReadingRegion({
-        id: "lf-margin-preview",
+        id: THREAD_CARD,
         host: preview,
         body: previewList,
       });

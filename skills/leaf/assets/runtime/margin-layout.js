@@ -47,6 +47,15 @@ import { declarationFor } from "./registry.js";
 
 const rows = new Map();
 const GAP = 4;
+// The id of the thread card a margin row opens (margin-projection.js).
+export const THREAD_CARD = "lf-margin-preview";
+// A row the user holds, which packing seats before every other (`packRows`): one under
+// the pointer, with focus in it, or whose entry has the thread card open, as that entry's
+// disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
+// relative to its row (thread-card-geometry.js), so a row arriving beside it, such as the
+// receipt of a pick made with the card open, would otherwise push the row down and the
+// card the user is reading with it.
+const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 // The anchor name the rail hangs from: `main`'s own box.
 const PAGE_ANCHOR = "--lf-page";
 let pending = 0;
@@ -594,14 +603,14 @@ function seatPins(standing, { bands, shell, pinInset }) {
       (count - 1) * parseFloat(style.columnGap) +
       parseFloat(style.paddingRight);
     const wide = fold ? across(2) : width;
-    const held = seats.get(row);
-    entry.held =
-      held && row.matches(":hover, :focus-within")
+    const seat = seats.get(row);
+    const holding =
+      seat && entry.held
         ? {
-            left: box.right - held.right - width,
-            right: box.right - held.right,
-            top: box.top + held.top,
-            bottom: box.top + held.top + height,
+            left: box.right - seat.right - width,
+            right: box.right - seat.right,
+            top: box.top + seat.top,
+            bottom: box.top + seat.top + height,
           }
         : null;
     // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
@@ -655,7 +664,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
       key: entry,
       rect: homeAt(wide),
       priority: entry.priority,
-      held: entry.held,
+      held: holding,
       parts,
       cover,
       walls,
@@ -1023,6 +1032,7 @@ export function layoutMarginRows() {
           bottom: read.top + box.height,
         },
         priority: read.options.priority ?? 0,
+        held: read.row.matches(HELD),
         read,
       };
     });

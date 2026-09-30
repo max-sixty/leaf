@@ -172,13 +172,15 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 
 def authored_allocation_errors(parser: SourceDocument) -> list:
     """Authored allocations use the layer's named values, and a page's own allocation
-    stands on its `body`."""
+    stands on its `body`. The reserved height, a number on a widget that declares it,
+    is the registry's to check (`reserved_height_errors`)."""
     return (
         [
             f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
-            f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
+            f"expected one of {', '.join(names)}"
             for item in parser.authored_allocations
-            if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+            if (names := AUTHORED_ALLOCATIONS[item["attr"]]) is not None
+            and item["value"] not in names
         ]
         + [
             f"{at(item, item['attr'])} belongs on <body>, where it says whether the page "
@@ -191,7 +193,9 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
             "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
             "layout-workspace)"
             for item in parser.authored_allocations
-            if item["attr"] not in PAGE_ALLOCATIONS and item["tag"] == "main"
+            if item["attr"] not in PAGE_ALLOCATIONS
+            and AUTHORED_ALLOCATIONS[item["attr"]] is not None
+            and item["tag"] == "main"
         ]
     )
 

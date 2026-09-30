@@ -29,7 +29,6 @@ KNOWN = {
         ("lf-toc", "keeps-first-box"),
         ("lf-tree", "keeps-first-box"),
     },
-    "diagram": {("lf-diagram", "keeps-first-box")},
     "diff": {("lf-diff", "keeps-first-box")},
     "gallery": {("lf-margin-entry-gallery", "keeps-first-box")},
     "playground": {

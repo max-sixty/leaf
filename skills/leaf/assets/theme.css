@@ -974,6 +974,17 @@ main {
     --lf-top: 0px;
   }
 }
+/* A widget whose module draws at a height nothing ahead of it can lay out, such as a
+ * drawing of its body or a view of its data, holds the height its occurrence states
+ * (x-reserve, data-height) from first paint until the module marks it drawn, so the
+ * page's geometry is final before the drawing lands. What it shows until then, its
+ * source or nothing, is clipped to that height. A module that failed soft shows its
+ * message at the message's own height instead. Without the runtime nothing will draw,
+ * and the source keeps its own height. */
+html[data-lf-live] [data-height]:not(.lf-rendered, :has(> .lf-error)) {
+  block-size: attr(data-height px);
+  overflow: clip;
+}
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {
   main { padding-top: 28px; padding-bottom: 72px; }

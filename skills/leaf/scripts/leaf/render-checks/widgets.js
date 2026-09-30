@@ -322,6 +322,40 @@ const withFirstSizes = (holder, inside) => {
   return { width, height };
 };
 
+// Each widget whose module draws at a height nothing ahead of it can lay out (x-reserve)
+// and whose height changed between the page's first paint and now: `drawn` is the height
+// to state as its data-height, which is the block size CSS gives it, so its padding and
+// border are left out where its box sizing leaves them out; `stated` is what it states.
+export function unreservedHeights(declarations) {
+  return globalThis.__leafRenderDriver
+    .firstBoxes()
+    .filter(
+      ({ element }) => declarations[element.localName]?.["x-reserve"] && shown(element),
+    )
+    .flatMap(({ element, height }) => {
+      const now = element.getBoundingClientRect().height;
+      if (Math.abs(now - height) < ROUNDING) return [];
+      const style = getComputedStyle(element);
+      const inset =
+        style.boxSizing === "border-box"
+          ? 0
+          : [
+              style.paddingTop,
+              style.paddingBottom,
+              style.borderTopWidth,
+              style.borderBottomWidth,
+            ].reduce((sum, value) => sum + parseFloat(value), 0);
+      return [
+        {
+          tag: element.localName,
+          id: element.id,
+          drawn: Math.round(now - inset),
+          stated: element.getAttribute("data-height"),
+        },
+      ];
+    });
+}
+
 // Each authored widget whose border box changed between the page's first paint and
 // now, with both sizes (`firstBoxes` in driver.js). A holder is left out only where
 // putting the changed widgets inside it back to their first sizes puts its own box

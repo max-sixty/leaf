@@ -25,6 +25,7 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.schema import ELEMENT_ID
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
@@ -389,6 +390,69 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
         "the smallest ("
     ), advice
     assert "from the 11px it was set at" in advice, advice
+
+
+# A widget whose module draws a 120px box, where its authored markup holds nothing.
+RESERVING_LAYER = {
+    "lf-test-drawn": {
+        "description": "A drawing its module makes at a height no rule knows ahead of it.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-reserve": True,
+        "x-example": '<lf-test-drawn id="drawn" data-height="120"></lf-test-drawn>',
+    }
+}
+RESERVING_WIDGETS = {
+    "lf-test-drawn.js": """
+import { once } from '/runtime/widget-api.js';
+
+customElements.define('lf-test-drawn', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const drawing = document.createElement('div');
+    drawing.style.blockSize = '120px';
+    this.append(drawing);
+    this.classList.add('lf-rendered');
+  }
+});
+"""
+}
+
+
+def test_a_widget_drawn_at_a_height_its_first_paint_did_not_reserve_gets_advice(
+    browser, serve
+):
+    """A widget that states the height its module draws at holds it from first paint,
+    so the gate has nothing to say about it; one stating none, or another height, is
+    told the height to state."""
+    source = leaf_page(
+        "reserved heights",
+        """
+<h1>Reserved heights</h1>
+<lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
+<lf-test-drawn id="unreserved"></lf-test-drawn>
+<lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
+""",
+        head="<style>lf-test-drawn { display: block; }</style>",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(source, layer_registry=RESERVING_LAYER, layer_widgets=RESERVING_WIDGETS),
+    )
+
+    assert reading.failures == []
+    assert reading.advice == [
+        "<lf-test-drawn id='unreserved'> draws 120px tall and reserves no height, so "
+        'what follows it moves when it is drawn: state data-height="120"',
+        "<lf-test-drawn id='misreserved'> draws 120px tall and reserves "
+        "data-height='40', so what follows it moves when it is drawn: state "
+        'data-height="120"',
+    ]
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):

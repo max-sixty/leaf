@@ -377,6 +377,7 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
+        "x-reserve": {"const": True},
         # Child selectors, each matched inside the element, for the painted boxes that
         # draw its own face: a margin pin whose target is the element may stand on them.
         # Only a light-DOM child by tag and classes, so a malformed selector is refused

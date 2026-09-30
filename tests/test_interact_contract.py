@@ -2973,6 +2973,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
         ("lf-options", "x-state", None),
         ("lf-note", "x-thread-seat", {"when": {"id": ["note"]}}),
         ("lf-diff", "x-thread-surface", True),
+        ("lf-code", "x-reserve", True),
     ],
 )
 def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallback):
@@ -4277,6 +4278,38 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     assert (
         "<table data-width='full'> (line 9) has an invalid value; expected one of "
         "column, wide, available" in result.output
+    )
+
+
+def test_check_takes_a_reserved_height_only_where_a_module_draws_it(page_dir):
+    """`data-height` is held until a module marks its widget drawn, so it stands only on
+    a widget that declares x-reserve, and names whole pixels."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-code"]["x-reserve"] = True
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    code = '<lf-code id="snippet" language="python"{}><pre>x = 1</pre></lf-code>'
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + code.format(' data-height="48"'))
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + code.format(' data-height="3em"')
+            + '<p data-height="48">Words.</p>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert (
+        "<lf-code data-height='3em'> (line 9): expected a whole number of CSS pixels"
+        in result.output
+    )
+    assert (
+        "<p data-height='48'> (line 9): data-height reserves the height a widget's "
+        "module draws at, and <p> declares none (x-reserve)" in result.output
     )
 
 

@@ -12,6 +12,7 @@ from .readings import (
     stacked_panes,
     sweep,
     swept_overflow,
+    unreserved_height_advice,
 )
 from .scheme import _render_scheme
 
@@ -121,6 +122,11 @@ def _render_version_attempt(
     def once(page, registry):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
         advice.extend(shrunk_label_advice(page))
+        advice.extend(
+            unreserved_height_advice(
+                page, {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+            )
+        )
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         swept.extend(stacked_panes(widths, RENDER_VIEWPORTS[0]["width"]))

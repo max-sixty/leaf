@@ -31,6 +31,7 @@ from leaf.validation.instances import (
     layout_errors,
     line_ref_errors,
     reference_errors,
+    reserved_height_errors,
     suggestion_errors,
     visual_part_errors,
     widget_errors,
@@ -177,6 +178,7 @@ def _instance_errors(
     )
     errors.extend(declared_word_errors(parser.lf_elements, registry))
     errors.extend(line_ref_errors(parser.lf_elements, registry))
+    errors.extend(reserved_height_errors(parser, registry))
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:

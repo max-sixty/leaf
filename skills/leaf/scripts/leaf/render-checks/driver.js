@@ -94,49 +94,10 @@
   const themeReady = () =>
     [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/theme.css"));
 
-  // The computed values that size an element's own box, as one comparable string.
-  // Computed rather than resolved, so an `auto` height stays `auto` however tall its
-  // content makes it. Chromium's typed OM answers; elsewhere the reading is empty.
-  const SIZING = [
-    "display",
-    "position",
-    "box-sizing",
-    "width",
-    "height",
-    "min-width",
-    "min-height",
-    "max-width",
-    "max-height",
-    "padding-top",
-    "padding-right",
-    "padding-bottom",
-    "padding-left",
-    "border-top-width",
-    "border-right-width",
-    "border-bottom-width",
-    "border-left-width",
-    "font-size",
-    "line-height",
-    "white-space",
-    "grid-template-columns",
-    "grid-template-rows",
-    "flex-direction",
-    "flex-wrap",
-    "row-gap",
-    "column-gap",
-  ];
-  const sizing = (element) => {
-    const computed = element.computedStyleMap?.();
-    return computed
-      ? SIZING.map((property) => `${property}:${computed.get(property)}`).join(";")
-      : "";
-  };
-
   // Each authored widget's border box as the page first paints it: the whole authored
   // document laid out under the theme, with the inline bootstrap's `data-lf-live` on
-  // the root and nothing upgraded, and the styles that size it. The element is kept, so
-  // a reading taken once the page presents measures the same node (`changedBoxes` in
-  // widgets.js).
+  // the root and nothing upgraded. The element is kept, so a reading taken once the
+  // page presents measures the same node (`changedBoxes` in widgets.js).
   let firstBoxes = Object.freeze([]);
 
   const preUpgradeFindings = () => {
@@ -145,7 +106,7 @@
         .filter((element) => element.localName.startsWith("lf-"))
         .map((element) => {
           const { width, height } = element.getBoundingClientRect();
-          return Object.freeze({ element, width, height, sizing: sizing(element) });
+          return Object.freeze({ element, width, height });
         }),
     );
     const main = document.querySelectorAll("body > main");
@@ -182,6 +143,5 @@
     themeReady,
     preUpgradeFindings,
     firstBoxes: () => firstBoxes,
-    sizing,
   });
 })();

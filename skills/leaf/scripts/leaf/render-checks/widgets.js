@@ -323,15 +323,14 @@ const withFirstSizes = (holder, inside) => {
 };
 
 // Each authored widget whose border box changed between the page's first paint and
-// now, with both sizes (`firstBoxes` in driver.js). A change is the innermost
-// widget's: a holder is named only for what is left of its change once the changed
-// widgets inside it are put back to their first sizes, so an Ask that grew by exactly
-// what its options grew is not named beside them, and one that also grew on its own
-// is, whether its own change is to its flow or to a size it sets itself. An inline
-// widget runs through its holder's lines, which no size puts back, so a holder with a
-// changed inline widget inside it is named only where the styles that size its own box
-// changed (`sizing` in driver.js). A widget hidden now is left to the widget that hid
-// it, whose own box carries the change.
+// now, with both sizes (`firstBoxes` in driver.js). A holder is left out only where
+// putting the changed widgets inside it back to their first sizes puts its own box
+// back, which proves the change was theirs: an Ask that grew by exactly what its
+// options grew is not named beside them, and one that also grew on its own, in its
+// flow or in a size it sets itself, is. An inline widget runs through its holder's
+// lines, which no size puts back, so nothing proves its holder's change was the
+// widget's, and the holder is named beside it. A widget hidden now is left to the
+// widget that hid it, whose own box carries the change.
 export function changedBoxes() {
   const readings = globalThis.__leafRenderDriver
     .firstBoxes()
@@ -356,9 +355,7 @@ export function changedBoxes() {
     );
     if (!outermost.length) return true;
     if (outermost.some(({ element }) => getComputedStyle(element).display === "inline"))
-      return (
-        globalThis.__leafRenderDriver.sizing(holder.element) !== holder.first.sizing
-      );
+      return true;
     return differs(withFirstSizes(holder, outermost), holder.first);
   };
   return changed.filter(own).map(({ element, first, now }) => ({

@@ -74,7 +74,7 @@ the served response, `reading` names filesystem changes for the news stream, and
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
-the run of a page's own code, `preview` owns ephemeral servers, `browser` owns the
+the run plain `page check` and message markup take, `preview` owns ephemeral servers, `browser` owns the
 browser launch, `screens` owns the screens a passing check saves for the author, and
 `command` owns the CLI boundary.
 

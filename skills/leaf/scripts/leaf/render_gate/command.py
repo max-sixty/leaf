@@ -3,7 +3,9 @@
 import sys
 from pathlib import Path
 
-from leaf.revision_artifact import RevisionArtifact
+from leaf.files import list_revisions
+from leaf.registry.storage import read_page_registry
+from leaf.revision_artifact import RevisionArtifact, capture_artifact
 from leaf.structure import SourceDocument
 
 from .browser import (
@@ -13,7 +15,7 @@ from .browser import (
     launch_browser,
     playwright_driver,
 )
-from .page_code import run_page_code
+from .page_code import message_page, needs_browser, run_page_code
 from .preview import preview_server
 from .readings import SWEEP_WIDTHS
 from .screens import save_screens
@@ -65,6 +67,32 @@ def _in_browser(
         return None
 
 
+def _code_errors(
+    what: str,
+    page_dir: Path,
+    document: SourceDocument,
+    revision: int,
+    artifact: RevisionArtifact,
+) -> str | None:
+    """Run `document` once and print every error it reports under `what`; the
+    browser's name where it reports none."""
+    ran = _in_browser(
+        f"{what} check", run_page_code, page_dir, document, revision, artifact
+    )
+    if ran is None:
+        return None
+    errors, browser_name = ran
+    if errors:
+        print(
+            f"✗ {what}: {len(errors)} error(s) the page would report to you",
+            file=sys.stderr,
+        )
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return None
+    return browser_name
+
+
 def page_code_check(
     page_dir: Path,
     document: SourceDocument,
@@ -73,25 +101,37 @@ def page_code_check(
 ) -> int:
     """Run the page's own code once and fail on every error it reports
     (`page_code` says which run and which errors)."""
-    ran = _in_browser(
-        "page code check", run_page_code, page_dir, document, revision, artifact
-    )
-    if ran is None:
-        return 1
-    errors, browser_name = ran
-    if errors:
-        print(
-            f"✗ page code: {len(errors)} error(s) the page would report to you",
-            file=sys.stderr,
-        )
-        for error in errors:
-            print(f"  - {error}", file=sys.stderr)
+    browser_name = _code_errors("page code", page_dir, document, revision, artifact)
+    if browser_name is None:
         return 1
     print(
         f"✓ page code: runs through upgrade and first paint in {browser_name} "
         "with no error reported"
     )
     return 0
+
+
+def message_code_check(page_dir: Path, kind: str, fragment: SourceDocument) -> int:
+    """Run a message's widget markup once, as a page of its own
+    (`page_code.message_page`), where it places what only a browser can judge, and
+    fail on every error it reports. The log freezes the markup, so this is the one
+    moment its author can still fix it. Prints nothing when it passes: the thread
+    command's output is the records it appends."""
+    document = message_page(fragment)
+    page_registry = read_page_registry(page_dir)
+    artifact = capture_artifact(
+        page_dir,
+        document,
+        page_registry.registry,
+        declaration_sources=page_registry.declaration_sources,
+        widget_sources=page_registry.widget_sources,
+    )
+    if not needs_browser(document, artifact):
+        return 0
+    revisions = list_revisions(page_dir)
+    revision = (revisions[-1] if revisions else 0) + 1
+    what = f"{kind} markup"
+    return 0 if _code_errors(what, page_dir, document, revision, artifact) else 1
 
 
 def _read_and_shoot(page_dir: Path):

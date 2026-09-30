@@ -8,10 +8,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import add_test_widget, install_payload
-from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
@@ -1092,16 +1090,16 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
 
     The version under it carries a diagram body the renderer refuses — a shape the
     static lint cannot reach, since it validates the element and never the
-    notation inside it. The widget fails soft and the browser half is what sees
-    the error box, which is why the gate is worth its couple of seconds."""
+    notation inside it. The widget fails soft and reports it, and a data body is
+    what sends plain `page check` to the browser to hear that report, which is why
+    the check is worth its couple of seconds."""
     serve(UNPARSABLE_DIAGRAM)
     d = serve.page_dir
-    assert CliRunner().invoke(cli_model.cli, ["page", "check", str(d)]).exit_code == 0
 
     shim = Path(__file__).parent.parent / "bin" / "leaf"
     for executable in ("", headless_shell):
         run = subprocess.run(
-            [str(shim), "page", "check", str(d), "--render"],
+            [str(shim), "page", "check", str(d)],
             cwd=tmp_path,
             capture_output=True,
             text=True,
@@ -1111,7 +1109,8 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
         # The report names the widget and gives the renderer's reason, not the source.
-        assert "<lf-diagram id='d-broken'> failed soft:" in run.stderr
+        assert "✗ page code: 1 error(s)" in run.stderr
+        assert '<lf-diagram id="d-broken"> failed:' in run.stderr
         assert "is unsupported" in run.stderr
         assert "Ada,Review,3" not in run.stderr
 
@@ -1197,3 +1196,47 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert f"✓ page code: runs through upgrade and first paint in {headless_shell}" in (
         clean.stdout
     )
+
+
+def test_a_message_is_refused_where_its_widget_would_fail(
+    serve, tmp_path, headless_shell
+):
+    """A message's markup is frozen once it is in the log, and a chart in a reply has
+    no box to draw in while its thread is shut, so the post is the one moment its author
+    can fix it and the page check will never see it. The post runs a data widget once
+    and refuses the message on the error the page would report, and posts one that
+    draws. Markup with no data widget posts without a browser."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+
+    def open_thread(markup, browser=headless_shell):
+        return subprocess.run(
+            [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
+            + ["--markup", markup],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(browser)},
+        )
+
+    before = events_model.read_events(d)
+    refused = open_thread('<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>')
+    assert refused.returncode == 1, refused.stdout + refused.stderr
+    assert "✗ comment markup: 1 error(s)" in refused.stderr
+    assert '<lf-chart id="t-bad"> failed: ' in refused.stderr
+    assert "does not parse" in refused.stderr
+    assert events_model.read_events(d) == before
+
+    drawn = open_thread(
+        '<lf-chart id="t-good"><pre>\n{ ariaLabel: "Nothing yet", marks: [] }\n</pre>'
+        "</lf-chart>"
+    )
+    assert drawn.returncode == 0, drawn.stdout + drawn.stderr
+    [posted] = [json.loads(line) for line in drawn.stdout.splitlines()]
+    assert 'id="t-good"' in posted["markup"]
+
+    choice = open_thread(
+        '<lf-options id="t-pick"><lf-option id="t-pick-a">A</lf-option></lf-options>',
+        browser=tmp_path / "not-a-browser",
+    )
+    assert choice.returncode == 0, choice.stdout + choice.stderr

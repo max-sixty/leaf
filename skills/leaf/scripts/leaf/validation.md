@@ -43,12 +43,17 @@ captured copy, which was validated when that revision activated; vendored sheets
 validated when `page init` composes them, not on each check.
 
 That half has one piece plain `page check` runs too. A page that runs code of its
-own, a module script or a page widget the document places, is served and run once at
-the render viewport through upgrade, presentation, and one frame after it, and fails on
-each `error` event its runtime posts in that time: the event `leaf wait` would deliver,
-intercepted rather than read off the browser's own error channels, so the check and the
-watcher fail on one set in one wording. A quick page never reaches `--render`, and no
-static reading says whether a module throws. `render_gate/page_code.py` owns the run.
+own, a module script or a page widget the document places, or places a data widget
+(`x-content: data`), is served and run once at the render viewport through upgrade,
+presentation, and one frame after it, and fails on each `error` event its runtime posts
+in that time: the event `leaf wait` would deliver, intercepted rather than read off the
+browser's own error channels, so the check and the watcher fail on one set in one
+wording. A widget that fails soft posts one too. A quick page never reaches `--render`,
+and no static reading says whether a module throws or whether a data body is one its
+module can read. Message markup that places either is run the same way, as a page of its
+own, before the thread command that carries it takes the log: the log freezes it, and a
+data widget in a shut thread has no room to draw in any later run.
+`render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
@@ -83,7 +88,8 @@ Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and
 render invariants the static lint cannot reach run against it in both color schemes:
 no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
 image, a blocked or mixed-content request, a deprecated API) outside a form control's
-shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
+shadow tree, one in an embedded frame placed at that frame (a widget failing soft
+is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, or

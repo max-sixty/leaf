@@ -150,6 +150,16 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
     ]
 
 
+def run_markup(page_dir: Path, kind: str, markup: str) -> None:
+    """Run a message's markup once where it places what only a browser can judge,
+    before the writer takes the page's log (`check_markup`). Exits with what's
+    wrong."""
+    from leaf.render_gate.command import message_code_check
+
+    if message_code_check(page_dir, kind, SourceDocument(markup)):
+        sys.exit(1)
+
+
 def check_markup(
     page_dir: Path,
     kind: str,
@@ -164,7 +174,11 @@ def check_markup(
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
     which `read_text_arg` asks about wherever a body arrives. Exits with what's
-    wrong."""
+    wrong.
+
+    What only a browser can judge, a data widget's body or a page widget's code, its
+    writer runs first (`run_markup`), since the run reads the page's log and a writer
+    holds it from here to the append."""
     registry = require_registry(page_dir)
     frag = SourceDocument(markup)
     # Two gates beside the vocabulary contract rather than inside it. That contract is

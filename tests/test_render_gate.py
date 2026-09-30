@@ -847,7 +847,7 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
                 content_type="text/javascript; charset=utf-8",
                 body=facade.replace('from "./', 'from "/_leaf/render-checks/')
                 + "\nconst held = [];\n"
-                + "export const failSoftErrors = () =>"
+                + "export const invalidPaints = () =>"
                 + " new Promise((settle) => held.push(settle));\n",
             ),
         )
@@ -858,7 +858,7 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
 
     assert failures
     assert all(
-        "probe failSoftErrors must be synchronous" in failure for failure in failures
+        "probe invalidPaints must be synchronous" in failure for failure in failures
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 

@@ -410,12 +410,16 @@ particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-
 rules keep authored controls correct after reconnection and thread quoting.
 
 `leaf page check` runs a page's own code, a script or a page widget the
-document places, once in the host's browser: through upgrade, presentation, and one
-frame after it. It fails on every error the page would report to you through the
-watcher, an uncaught exception or a rejected promise with the source location it came
-from, so a module that throws on its first paint is found before the URL goes out.
-Code that runs only after a gesture or a timer is not reached; operate it in the
-pre-handover review. A page with no code of its own is checked without a browser.
+document places, once in the host's browser, and a page with a data widget such as a
+chart or a diagram, whose body only its module can read: through upgrade,
+presentation, and one frame after it. It fails on every error the page would report to
+you through the watcher, an uncaught exception or a rejected promise with the source
+location it came from, or a widget that could not draw its body, so a module that
+throws on its first paint or a chart that does not parse is found before the URL goes
+out. `--markup` on a thread message is run the same way before it is posted, since a
+message cannot be edited once sent. Code that runs only after a gesture or a timer is
+not reached; operate it in the pre-handover review. A page with neither is checked
+without a browser.
 
 `page/registry.json` may contribute declarations using the package registry language.
 Its element entry replaces the selected layer's complete entry; shared `$` declarations

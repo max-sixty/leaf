@@ -10094,7 +10094,9 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     refusal says what is wrong in the author's terms and keeps the source under it: code
     that does not parse, a chart with no name for a user who cannot see it, a call to
     something Plot does not export, a value that is not Plot's options, and a drawing Plot
-    already made, which is how Plot's own examples end."""
+    already made, which is how Plot's own examples end. The author hears the same words
+    as the page's `error` event, naming the chart, since the user seeing the box is not
+    the author seeing it."""
     said = {
         "bad-syntax": "does not parse",
         "bad-label": "ariaLabel",
@@ -10112,6 +10114,20 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         # The source stays under the message: a refusal the user cannot check is half a
         # refusal.
         expect(page.locator(f"#{chart_id} .lf-error pre")).to_contain_text("marks")
+        report = f'<lf-chart id="{chart_id}"> failed: '
+        consume_browser_errors(page, report)
+        reported = []
+        for _ in range(400):
+            reported = [
+                event["text"]
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "error"
+            ]
+            if reported:
+                break
+            page.wait_for_timeout(25)
+        assert len(reported) == 1 and reported[0].startswith(report), reported
+        assert said[chart_id] in reported[0], reported
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):

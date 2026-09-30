@@ -20,29 +20,14 @@ from .screens import save_screens
 from .version import RENDER_VIEWPORTS, render_version
 
 
-def _in_browser(
-    gate: str,
-    read,
-    page_dir: Path,
-    document: SourceDocument,
-    revision: int,
-    artifact: RevisionArtifact,
-) -> tuple[list[str], str] | None:
-    """Serve the candidate source to the host's browser and return what `read`
-    finds there, with the browser's name. A browser is part of the gate: where none launches, it reports that and returns None."""
+def in_browser(gate: str, read):
+    """Launch the host's browser and return what `read` finds with it, with the
+    browser's name. A browser is part of the gate: where none launches, it reports
+    that and returns None."""
     from playwright.sync_api import Error as PlaywrightError
 
     try:
-        with (
-            preview_server(
-                page_dir,
-                document,
-                revision,
-                transition_held=True,
-                artifact=artifact,
-            ) as url,
-            playwright_driver() as p,
-        ):
+        with playwright_driver() as p:
             try:
                 browser, browser_name = launch_browser(p)
             except PlaywrightError as error:
@@ -53,7 +38,7 @@ def _in_browser(
                 )
                 return None
             try:
-                return read(browser, url), browser_name
+                return read(browser), browser_name
             finally:
                 browser.close()
     except DriverNotStarted as error:
@@ -63,6 +48,21 @@ def _in_browser(
             file=sys.stderr,
         )
         return None
+
+
+def _in_browser(
+    gate: str,
+    read,
+    page_dir: Path,
+    document: SourceDocument,
+    revision: int,
+    artifact: RevisionArtifact,
+) -> tuple[list[str], str] | None:
+    """Serve the candidate source and return what `read` finds there (`in_browser`)."""
+    with preview_server(
+        page_dir, document, revision, transition_held=True, artifact=artifact
+    ) as url:
+        return in_browser(gate, lambda browser: read(browser, url))
 
 
 def page_code_check(
@@ -171,4 +171,37 @@ def render_check(
         print(f"  · {line}")
     for line in _screen_lines(screens):
         print(line)
+    return 0
+
+
+def widget_quality_report(package: Path) -> int:
+    """Print what the widget quality checks find in the package's own widgets
+    (`widget_quality`). A finding is advice and leaves the status 0; a page of worked
+    examples that never presents leaves nothing to read, and is 1."""
+    from .widget_quality import CHECKS, UnreadablePage, own_tags, widget_findings
+
+    try:
+        ran = in_browser(
+            "widget quality", lambda browser: widget_findings(browser, package)
+        )
+    except UnreadablePage as error:
+        print(
+            f"✗ widget quality failed — a page of worked examples never presented: "
+            f"{error}",
+            file=sys.stderr,
+        )
+        return 1
+    if ran is None:
+        return 1
+    findings, browser_name = ran
+    widgets = f"{len(own_tags(package))} widget(s)"
+    if not findings:
+        print(f"✓ widget quality: {widgets} pass {', '.join(CHECKS)} in {browser_name}")
+        return 0
+    print(
+        f"widget quality: {len(findings)} finding(s) for {widgets} in {browser_name}, "
+        "advice for the widgets' author:"
+    )
+    for finding in findings:
+        print(f"  · {finding}")
     return 0

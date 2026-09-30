@@ -287,3 +287,61 @@ export function retiredSlots(holders) {
   }
   return found;
 }
+
+// A box change smaller than this is layout rounding rather than a widget changing size.
+const ROUNDING = 1;
+
+// Whether the page shows an element: a node it hides once presented, as a tab strip
+// hides its inactive panels, has no box of its own to keep.
+const shown = (element) =>
+  element.isConnected && !element.closest("[hidden]") && element.checkVisibility();
+
+// Each authored widget whose border box changed between the page's first paint and
+// now, with both sizes (`firstBoxes` in driver.js). A change is the innermost
+// widget's: a holder is named only for the part of its change the widgets inside it
+// that changed do not account for, so an Ask that grew by exactly what its options
+// grew is not named beside them. A widget hidden now is left to the widget that hid
+// it, whose own box carries the change.
+export function changedBoxes() {
+  const readings = globalThis.__leafRenderDriver
+    .firstBoxes()
+    .filter(({ element }) => shown(element))
+    .map(({ element, width, height }) => {
+      const now = element.getBoundingClientRect();
+      return {
+        element,
+        width: now.width - width,
+        height: now.height - height,
+        first: { width, height },
+        now: { width: now.width, height: now.height },
+      };
+    });
+  const changed = readings.filter(
+    (reading) =>
+      Math.abs(reading.width) >= ROUNDING || Math.abs(reading.height) >= ROUNDING,
+  );
+  const own = (holder, axis) => {
+    const inside = changed.filter(
+      (reading) => reading !== holder && holder.element.contains(reading.element),
+    );
+    const outermost = inside.filter(
+      (reading) =>
+        !inside.some(
+          (other) => other !== reading && other.element.contains(reading.element),
+        ),
+    );
+    const accounted = outermost.reduce(
+      (sum, reading) => sum + Math.abs(reading[axis]),
+      0,
+    );
+    return Math.abs(holder[axis]) - accounted >= ROUNDING;
+  };
+  return changed
+    .filter((reading) => own(reading, "width") || own(reading, "height"))
+    .map(({ element, first, now }) => ({
+      tag: element.localName,
+      id: element.id,
+      first,
+      now,
+    }));
+}

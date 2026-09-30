@@ -8352,7 +8352,8 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     """A column page keeps a rail beside its column and a wide page does not: its markers
     stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
-    the page's own residents. Only `right` takes room from the page."""
+    the page's own residents. Only `right` takes room from the page, and only above a
+    phone's width: on a phone every form's markers pin and the page keeps its width."""
     source = (
         leaf_page(
             "rail by form",
@@ -8366,10 +8367,12 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
     expect(row).to_have_attribute("data-lf-place", place)
-    given = page.evaluate(
-        "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
-    )
-    assert (given > 0) == ('data-rail="right"' in body), given
+    given = "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
+    assert (page.evaluate(given) > 0) == ('data-rail="right"' in body)
+    resized(page, 390, 844)
+    margins_laid_out(page)
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    assert page.evaluate(given) == 0
 
 
 def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):

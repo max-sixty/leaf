@@ -54,8 +54,7 @@ records three deliberately different identities under `$layer`:
   records it again. The identity covers `assets/runtime/` alone: a contract change
   made only in the Python server, the boot `leaf.js`, the theme, or a package's
   widgets passes it. A checkout whose runtime modules were edited refuses every page
-  vendored before the edit until each is re-vendored; the MCP App's process page
-  server does not compare it.
+  vendored before the edit until each is re-vendored.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
 page's inline bootstrap supervises startup before the module graph

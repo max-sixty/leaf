@@ -4,8 +4,6 @@
 Nothing builds them at install time, so they are tracked. The files under
 `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
 `page init` copies them into a page directory and a user's browser runs them.
-The resource under `skills/leaf/mcp-app/` is read straight from the install by
-an MCP host, so no page carries it.
 
 They arrive two ways, which is the shape of this file. Where upstream already
 publishes a file a browser can load, vendoring is three values — the package,
@@ -39,7 +37,6 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
-MCP_APP = ROOT / "skills/leaf/mcp-app"
 PIERRE_SOURCE = ROOT / "build/pierre"
 NODE_MODULES = ROOT / "node_modules"
 
@@ -392,58 +389,12 @@ def build_pierre(work: Path) -> list[Path]:
     return [out]
 
 
-def build_mcp_app(work: Path) -> list[Path]:
-    """Bundle the adaptive MCP App into one self-contained `ui://` resource.
-
-    An MCP host reads one HTML blob from the server; it does not fetch Leaf's
-    ordinary app assets. The SDK, application code, styles, and existing Leaf
-    mark are therefore inlined into committed files that an installed plugin can
-    serve without npm or network access. A complete-page result may frame the
-    process-scoped page server, while a snapshot result stays inside the same
-    standalone resource.
-    """
-    source = ROOT / "build/mcp-app"
-    entry = work / "page-entry.js"
-    bundle = work / "page-bundle.js"
-    out = MCP_APP / "page-app.html"
-    shutil.copyfile(source / "page-app.js", entry)
-    esbuild(
-        entry.name,
-        "--bundle",
-        "--format=iife",
-        "--platform=browser",
-        "--target=chrome105",
-        "--minify",
-        "--legal-comments=inline",
-        f"--banner:js=/*! @modelcontextprotocol/ext-apps {version('@modelcontextprotocol/ext-apps')}"
-        " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
-        f"--outfile={bundle}",
-        cwd=work,
-    )
-    html = (source / "page-app.html").read_text(encoding="utf-8")
-    html = html.replace(
-        "/* LEAF_MCP_STYLE */",
-        (source / "page-app.css").read_text(encoding="utf-8").strip(),
-    )
-    html = html.replace(
-        "/* LEAF_MCP_SCRIPT */",
-        bundle.read_text(encoding="utf-8").strip().replace("</script", "<\\/script"),
-    )
-    html = html.replace(
-        "<!-- LEAF_MCP_ICON -->",
-        (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
-    )
-    out.write_text(html, encoding="utf-8")
-    return [out]
-
-
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "agentic-mermaid": build_agentic_mermaid,
     "codemirror": build_codemirror,
     "floating-ui": build_floating_ui,
     "highlight": build_highlight,
     "jsdiff": build_jsdiff,
-    "mcp-app": build_mcp_app,
     "plot": build_plot,
     "pierre": build_pierre,
     "webawesome": build_webawesome,
@@ -468,9 +419,7 @@ def vendor(name: str) -> list[Path]:
 
     That module owns what a committed bundle must be and carry: it refuses a module
     an export cannot load, and writes `<bundle>.LICENSES.txt` from the packages the
-    build's `meta.json` says reached it. The MCP App's resource is HTML that its host
-    reads under the host's own policy, so it has no module to check and still takes
-    notices.
+    build's `meta.json` says reached it.
     """
     # Under the root, so a bare import in an entry, and in a build script that imports
     # esbuild, resolves the way Node's does: up to the root `node_modules`.

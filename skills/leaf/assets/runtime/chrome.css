@@ -1101,8 +1101,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-anchor-status { margin-inline-start: 7px; color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans); }
   .lf-going { overflow: hidden; box-sizing: border-box; }
-  .lf-going .lf-thread-meta-actions { position: absolute; z-index: 2;
-    inset-block-start: 8px; inset-inline-end: 8px; }
   .lf-going .lf-thread-send { visibility: hidden; }
   .lf-going .lf-resolve { color: var(--ok-ink); }
   .lf-going .lf-resolve::before { background: var(--ok-tint); }

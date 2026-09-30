@@ -131,8 +131,7 @@ def script_kind(attrs: dict) -> str:
 
 # The one policy a page is delivered under: no other site may frame a live page, where it
 # could lay its own content over a decision and take the user's click. The ordinary
-# server sends it as a header, and the site manifest carries it to the Worker; the
-# capability-scoped MCP transport is deliberately frameable.
+# server sends it as a header, and the site manifest carries it to the Worker.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.
@@ -305,10 +304,9 @@ class SourceDocument:
         self._source = source
         self._source_index = source_index(source)
         self._first_body_position = None
-        # (start, end) of the first html, head, and body start tag the source spells,
-        # and where its last </body> begins: where delivery writes into the document.
+        # (start, end) of the first html, head, and body start tag the source spells:
+        # where delivery writes into the document.
         self.wrapper_tags = {}
-        self.body_close = None
         self._finish()
 
     @staticmethod
@@ -358,8 +356,6 @@ class SourceDocument:
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))
                 )
-            elif token.type is turbohtml.TokenType.END_TAG and token.tag == "body":
-                self.body_close = self._source_index(token.line, token.col)
         starts = {
             (token.line, token.col): token
             for token in tokens

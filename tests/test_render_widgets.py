@@ -11240,3 +11240,67 @@ fn merge_sort()
         "    while end > 0 {\n        let mut start = end - 1;\nOne run per pass.\n"
         "        start -= 1;"
     )
+
+
+def test_a_code_line_longer_than_its_block_wraps_under_its_own_indent(browser, serve):
+    """A line longer than its lf-code block wraps inside the frame rather than running
+    past it behind a scrollbar, where a reader on a narrow window never saw its end. The
+    rows after the first hang two characters past the line's own indent, so a wrapped
+    call deep in a block stays under the code it belongs to, and the gutter stands the
+    whole height of the line. What no line box can break, a hash, breaks anywhere."""
+    call = "        return compute(" + ", ".join(f"arg_{i}" for i in range(40)) + ")"
+    digest = "".join(f"{i:02x}" for i in range(100))
+    url = serve(
+        leaf_page(
+            "wrap",
+            f"""
+<h1 id="t">Wrap</h1>
+<lf-code id="walk" language="python"><pre>
+def ceiling(limit):
+{call}
+{digest}
+</pre></lf-code>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#walk .lf-code-line")).to_have_count(3)
+    reading = page.evaluate(
+        """() => {
+          const pre = document.querySelector('#walk pre');
+          const [first, ...long] = pre.querySelectorAll('.lf-code-line');
+          const glyph = document.createRange();
+          const text = document.createTreeWalker(first, NodeFilter.SHOW_TEXT).nextNode();
+          glyph.setStart(text, 0);
+          glyph.setEnd(text, 1);
+          const {left: codeX, width: ch} = glyph.getBoundingClientRect();
+          // Each row's first painted glyph, in characters from the first line's first.
+          const rows = (line) => {
+            const range = document.createRange();
+            range.selectNodeContents(line);
+            const starts = new Map();
+            for (const r of range.getClientRects()) {
+              if (!r.width || !r.height) continue;
+              const top = Math.round(r.top);
+              starts.set(top, Math.min(starts.get(top) ?? Infinity, r.left));
+            }
+            return [...starts].sort(([a], [b]) => a - b)
+              .map(([, left]) => Math.round((left - codeX) / ch));
+          };
+          return {
+            scrolls: pre.scrollWidth > pre.clientWidth,
+            rows: long.map(rows),
+            gutterSpans: long.map((line) =>
+              getComputedStyle(line, '::before').height ===
+                `${line.getBoundingClientRect().height}px`),
+          };
+        }"""
+    )
+    assert reading["scrolls"] is False, reading
+    call_rows, digest_rows = reading["rows"]
+    # The call's leading spaces are text, so its first row starts at the code's edge.
+    assert call_rows[0] == 0 and len(call_rows) > 1, reading
+    assert set(call_rows[1:]) == {10}, reading
+    assert digest_rows[0] == 0 and len(digest_rows) > 1, reading
+    assert set(digest_rows[1:]) == {2}, reading
+    assert reading["gutterSpans"] == [True, True], reading

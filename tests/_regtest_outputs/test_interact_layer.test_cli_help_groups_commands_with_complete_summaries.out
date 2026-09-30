@@ -12,7 +12,6 @@ Commands:
   codex     Launch Codex and connect Leaf pages to its tasks.
   data      Set or clear page-bound external data.
   delivery  Read input delivered by any Leaf host.
-  mcp       Run Leaf's bundled MCP Apps server.
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
   server    Start, run, or stop the local server.

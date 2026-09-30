@@ -253,6 +253,10 @@ A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
 absent part when someone follows its thread; `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
+An `x-visual.parts` declaration may set `complete: true` when listing some drawn
+parts while leaving their peers unaddressable would confuse a reader. The render
+check then requires a nonempty authored list to name the full registered inventory;
+omitting the attribute keeps the visual as one target.
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry
@@ -264,7 +268,7 @@ theme.
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
-generated images or links. It uses the page's public root across ordinary, MCP, and
+generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
 Registry-declared inline Markdown formats authored text, not strings a module assigns

@@ -8,7 +8,6 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.anchor_capture import capture_anchor
 from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
 from leaf.event_log import EventRefused, Refusal
@@ -23,11 +22,8 @@ from leaf.page_view import PageView
 from leaf.projection import (
     RANK,
     authored_positions,
-    generated_children,
     page_reading,
     record_members,
-    retirement_outcomes,
-    rewritten_bodies,
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
@@ -509,31 +505,22 @@ def _reaction_error(event: dict, registry: dict) -> str | None:
     return None
 
 
-def _anchored_comment_error(
-    view, event: dict, events: list, registry: dict, capture_anchors: bool
-):
+def _anchored_comment_error(view, event: dict, registry: dict):
     """Why a comment's declared target is not a place on the page it names.
 
     A passage anchor a runtime resolved against the rendered page is already
     answered: the page holds words no file reading can produce — a widget's label,
     a module's own rendering — and an earlier runtime may spell the same words in
     whitespace this reading collapses away. Reading it back off the file would
-    refuse both. A transport that resolves nothing (the MCP surface, which renders
-    the authored source with no runtime behind it) asks for the capture here
-    instead; `leaf thread open` has already made it against the same reading.
+    refuse both. `leaf thread open` captures its anchor against the file reading
+    before it writes.
     """
     if event["kind"] != "comment":
         return None
     anchor = event.get("anchor") or {}
-    recapture = bool(capture_anchors and anchor) and not (
-        anchor.get("datum") or anchor.get("visual") or anchor.get("part")
-    )
-    if not (
-        recapture or event.get("holds") or anchor.get("visual") or anchor.get("source")
-    ):
+    if not (event.get("holds") or anchor.get("visual") or anchor.get("source")):
         return None
-    document = view.document(event["revision"])
-    page_by_id = document.by_id
+    page_by_id = view.document(event["revision"]).by_id
     for error in (
         datum_anchor_error(view, event, page_by_id, registry),
         held_comment_error(event, page_by_id, registry),
@@ -541,31 +528,6 @@ def _anchored_comment_error(
     ):
         if error:
             return error
-    if not recapture:
-        return None
-    page = page_reading(
-        view.reading(event["revision"], registry), events, event["revision"]
-    )
-    try:
-        canonical = capture_anchor(
-            document,
-            registry,
-            anchor.get("quote", ""),
-            anchor.get("section"),
-            retirement_outcomes(page.projection.actions),
-            rewritten_bodies(page.projection.actions),
-            prefix=anchor.get("prefix") if "prefix" in anchor else None,
-            suffix=anchor.get("suffix") if "suffix" in anchor else None,
-            additions=generated_children(page.projection.desired, page.document.ids),
-        )
-    except ValueError as error:
-        return f"comment anchor is not in the current page reading: {error}"
-    if "quote" in anchor and anchor["quote"] != canonical.get("quote"):
-        return "comment anchor quote does not match the current page reading"
-    # Store the file-side reading, not the client's abbreviated proof. Compact
-    # clients may name only quote and section; capture adds the context needed to
-    # keep that passage attached when the same words occur elsewhere later.
-    event["anchor"] = canonical
     return None
 
 
@@ -614,8 +576,6 @@ def admission_error(
     event: dict,
     registry: dict,
     readings: AdmissionReadings,
-    *,
-    capture_anchors: bool = False,
 ) -> str | None:
     """The first failing gate for one event, in append-door order.
 
@@ -631,7 +591,7 @@ def admission_error(
         or _action_error(view, event, readings)
         or _report_error(view, event, registry)
         or _reaction_error(event, registry)
-        or _anchored_comment_error(view, event, events, registry, capture_anchors)
+        or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _thread_presentation_error(view, event, events)
         or read_contract_error(event, events)
@@ -639,9 +599,7 @@ def admission_error(
     )
 
 
-def admitted_event(
-    view, events: list, event: dict, *, capture_anchors: bool = False
-) -> dict:
+def admitted_event(view, events: list, event: dict) -> dict:
     """The record one event becomes, or `EventRefused` saying why it does not.
 
     All of admission but the write. The page as the door may read it, the
@@ -655,9 +613,7 @@ def admitted_event(
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
     readings = AdmissionReadings(view, events, registry)
-    if error := admission_error(
-        view, events, event, registry, readings, capture_anchors=capture_anchors
-    ):
+    if error := admission_error(view, events, event, registry, readings):
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
@@ -666,7 +622,7 @@ def admitted_event(
     return event
 
 
-def append_admitted(page, event: dict, *, capture_anchors: bool = False) -> dict:
+def append_admitted(page, event: dict) -> dict:
     """Admit one event and append it, under the page transaction's log lease.
 
     The one door. `page` is an open `service.PageTransaction`, whose lease makes
@@ -681,10 +637,5 @@ def append_admitted(page, event: dict, *, capture_anchors: bool = False) -> dict
     if accepted := page.matching_attempt(event):
         return accepted
     return page._append_record(
-        admitted_event(
-            PageView(page.page_dir),
-            page.events,
-            event,
-            capture_anchors=capture_anchors,
-        )
+        admitted_event(PageView(page.page_dir), page.events, event)
     )

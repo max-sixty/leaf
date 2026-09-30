@@ -107,8 +107,8 @@ it may land either side of the append; the HTTP transport's one fault boundary
 (`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
 the browser retries the same attempt.
 
-Transports own only their input boundary: which kinds and fields they accept,
-how they answer retries, and whether their anchors need file-side capture.
+Transports own only their input boundary: which kinds and fields they accept and
+how they answer retries.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity

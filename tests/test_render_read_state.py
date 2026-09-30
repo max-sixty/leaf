@@ -620,27 +620,32 @@ def test_read_converges_across_two_tabs(browser, serve):
     ]
 
 
-def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
-    root = "a1b2c3d4"
+SAMPLE_READER = "a1b2c3d4"
+
+
+def _sample_reading_page(browser, serve, body, style):
+    """A page holding one live sample whose child page is taller than the window and
+    carries one agent message, so the thread panel it opens stands the message near the
+    frame's top. `style` places the sample; the returned child is its page."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Offscreen reading practice",
-                f"""
-<h1>Practice page</h1>
-<div id="read-clip">
-<lf-sample id="read-practice" label="Read practice">
-  <template id="read-source" data-sample data-sample-threads="{root}">
+                "Sample reading practice",
+                body.format(
+                    sample=f"""<lf-sample id="read-practice" label="Read practice">
+  <template id="read-source" data-sample data-sample-threads="{SAMPLE_READER}">
+    <style>#child-rest {{ height: 3000px; }}</style>
     <h1>Child page</h1>
+    <div id="child-rest"></div>
   </template>
-</lf-sample>
-</div>
-""",
+</lf-sample>"""
+                ),
+                head=f"<style>{style}</style>",
             ),
             events=[
                 {
-                    "id": root,
+                    "id": SAMPLE_READER,
                     "kind": "comment",
                     "author": "agent",
                     "agent": "Agent",
@@ -650,41 +655,57 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
             ],
         ),
     )
-    clip = page.locator("#read-clip")
-    sample = page.locator("#read-practice")
-    frame = sample.locator("iframe")
+    frame = page.locator("#read-practice iframe")
     child = frame.element_handle().content_frame()
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    child.locator(".lf-threads-toggle").focus()
-    frame.evaluate("element => element.style.transform = 'translateY(1200px)'")
-    child.locator(".lf-threads-toggle").evaluate("element => element.click()")
-    child.locator(".lf-first-unread").evaluate("element => element.click()")
-    page.wait_for_timeout(100)
-    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    assert frame.bounding_box()["y"] > 800
+    return page, frame, child
 
-    clip.evaluate(
-        "element => { element.style.height = '100px'; element.style.overflow = 'hidden'; }"
+
+def _go_to_first_unread(page, child):
+    """The user opens the sample's Threads from its focused toggle, goes to its first
+    unread message by key, and scrolls the containing page a little, which has the
+    sample read what it shows. The message stays unread."""
+    page.keyboard.press("Enter")
+    expect(child.locator(".lf-threads")).to_be_visible()
+    page.keyboard.press("u")
+    expect(child.locator(f'.lf-thread[data-id="{SAMPLE_READER}"]')).to_have_attribute(
+        "open", ""
     )
-    frame.evaluate("element => element.style.transform = ''")
-    page.set_viewport_size({"width": 1280, "height": 1400})
-    page.wait_for_timeout(100)
+    page.evaluate("scrollBy(0, 50)")
+    page.wait_for_timeout(200)
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    # Below the first screen and taller than the window, the sample is read through
-    # the band the containing page shows as it scrolls: its edge coming into view shows
-    # nothing, and a later scroll of the containing page shows the message.
-    clip.evaluate(
-        "element => { element.style.height = ''; element.style.overflow = '';"
-        " element.style.marginTop = '2000px'; }"
+
+
+def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
+    # On the first screen, inside a box that shows only its top, the sample's own page
+    # shows nothing.
+    page, _, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
+        "#read-clip { height: 100px; overflow: hidden; }",
     )
-    child.evaluate("""() => {
-        const spacer = document.createElement('div');
-        spacer.style.height = '3000px';
-        document.querySelector('main').append(spacer);
-    }""")
-    page.wait_for_function(
-        "() => document.querySelector('#read-practice iframe').offsetHeight > 3000"
+    child.locator(".lf-threads-toggle").focus()
+    _go_to_first_unread(page, child)
+
+
+def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
+    page, frame, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
+        "#read-gap { height: 2000px; }",
     )
+    # Below the first screen it shows nothing: the user focuses its Threads toggle and
+    # scrolls the containing page back to the top first.
+    child.locator(".lf-threads-toggle").focus()
+    page.evaluate("scrollTo(0, 0)")
+    _go_to_first_unread(page, child)
+    assert frame.bounding_box()["y"] > page.viewport_size["height"]
+
+    # Taller than the window, the sample is read through the band the containing page
+    # shows as it scrolls: its edge coming into view shows nothing, and a later scroll of
+    # the containing page shows the message.
     page.evaluate("""() => {
         const top = document.querySelector('#read-practice iframe')
             .getBoundingClientRect().top;

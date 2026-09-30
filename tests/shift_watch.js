@@ -83,12 +83,9 @@
     // A screenshot on the process page, its margin entry, and the passage after it
     // (tests/test_render_mcp.py).
     /lf-shot#mcp-shot|lf-shot-toggle|section#plan/,
-    // A sample frame, its clip, and the thread panel's foot
-    // (tests/test_render_read_state.py).
-    /iframe\.lf-sample-frame|div#read-clip|lf-thread-panel-foot/,
-    // The feature gallery's column, sideways, and its sections as its tabs and options
-    // draw (tests/test_render_semantic_news.py).
-    /main\.layout-column|#bg-/,
+    // The feature gallery's sections as its tabs and options draw after the page first
+    // paints (tests/test_render_semantic_news.py).
+    /#bg-/,
     // Thread cards in the panel as a reply arrives above thirty later ones
     // (test_incoming_reply_follows_a_selected_thread_before_later_cards).
     /^details\.lf-thread-compact\.lf-thread moved/,

@@ -230,7 +230,7 @@ selects from:
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is anchor paint's placement record (`point`, `pointRow`), written in its pass, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
-| geometry readings: what a scroller shows, what a surface hides, sticky-header room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareStickyHeaders`, `shownWindow`, `seenRect`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,

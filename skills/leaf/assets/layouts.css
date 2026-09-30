@@ -135,6 +135,12 @@
       flex: 1 1 0;
       min-block-size: 0;
       margin-block: 0;
+    }
+    /* A page's grid of panes shares the body's height among its rows. Only that grid:
+     * a Layout sets the size of the box it arranges, and a widget that is the body lays
+     * out its own tracks, so a row rule written on every body held a side list's row to
+     * the window and drew its rows over one another. */
+    main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
       grid-auto-rows: minmax(0, 1fr);
     }
     /* The body takes the window's height to pass on to its panes. A pane it does not

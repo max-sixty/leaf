@@ -13,6 +13,7 @@ from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HOLD_MOTION,
     SUGGESTION_PAGE,
     live_url,
     panel_comment,
@@ -727,6 +728,45 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
         }""")
         assert surface["alpha"] == 255, (scheme, state, surface)
         expect(surround).to_have_css("background-color", surface["color"])
+
+
+def test_news_that_settles_the_last_thread_and_takes_it_back_moves_nothing(
+    browser, serve
+):
+    """The browser fixture's shift watch is this test's assertion: nothing here is
+    the user's input, so any shift fails it at teardown.
+
+    Settled by news, the one open thread folds from the box it stood in: the list
+    says it has no open threads only once that room is given back, so the words
+    never stand above the folding card, and the card's actions stay on their row
+    as it folds and as it comes back. The held fold keeps the card on screen for
+    both."""
+    page = open_page(browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    # Past the half second a press counts as recent input (`shift_watch.js`).
+    pressed = page.evaluate("performance.now()")
+    page.wait_for_function("at => performance.now() - at > 500", arg=pressed)
+    [root] = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    going = page.locator(f'.lf-threads > .lf-going[data-id="{root}"]')
+
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
+    )
+    told(page)
+    expect(going).to_have_count(1)
+    rendered(page)
+
+    events_model.append_event(
+        serve.page_dir, {"kind": "unresolve", "author": "agent", "parent": root}
+    )
+    told(page)
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_be_visible()
+    expect(going).to_have_count(0)
 
 
 @pytest.mark.parametrize("width", [320, 800])

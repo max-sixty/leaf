@@ -1974,10 +1974,10 @@ flowchart TD
             <p id="tiles-what">
               <code>layout-tiles</code> on a block sets its children in equal cells at
               least 9rem wide, as many to a row as fit, with every cell as tall as its
-              row. Where one row can't hold them, three tiles stack and four go two by
-              two, so neither leaves a single tile on a row of its own. A row of
-              headline numbers is a <code>layout-tiles</code> block of
-              <code>lf-metric</code> elements.
+              row. A page that wants a different wrap, such as four tiles two by two
+              rather than three and one, sets its own columns. A row of headline
+              numbers is a <code>layout-tiles</code> block of <code>lf-metric</code>
+              elements.
             </p>
           </section>
 
@@ -2254,8 +2254,8 @@ flowchart TD
               In a phone-width window every Layout reduces to one column, and a page's
               regions stack in the order they are written: margin asides return to the
               column, a side column goes above or below the body, and a workspace's
-              panes take their natural height. Tiles keep more than one to a row: on a
-              390px phone, two tiles stay side by side and four go two by two.
+              panes take their natural height. Tiles still fit two to a row on a 390px
+              phone.
             </p>
 
             <figure class="fig" id="narrow-figure">

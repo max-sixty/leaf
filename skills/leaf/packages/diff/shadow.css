@@ -31,10 +31,9 @@
                                      block-size: var(--lf-diff-head-h);
                                      white-space: nowrap; overflow: hidden; }
 :host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
-                                     content: "▸" / ""; flex: none; inline-size: 9px;
-                                     color: var(--code-muted); }
+                                     content: "▶" / ""; flex: none; font-size: .7em; }
 :host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
-                                     rotate: 90deg; }
+                                     content: "▼" / ""; }
 .lf-diff-head > .lf-diff-path { display: flex; min-width: 0; white-space: nowrap; }
 /* Chrome breaks at a <wbr> even where nothing may wrap. */
 .lf-diff-head wbr { display: none; }

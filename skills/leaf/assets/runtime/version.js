@@ -1325,6 +1325,13 @@ export function createVersionController({
         doc.documentElement,
         authoredHtmlAttributes,
       );
+      // Delivery states each revision's declared review on its root, where the theme
+      // reads the banner's rows from it, so the arriving revision's comes across with it.
+      keeps(
+        document.documentElement,
+        "data-lf-review",
+        doc.documentElement.getAttribute("data-lf-review"),
+      );
       authoredBodyAttributes = replaceAuthoredAttributes(
         document.body,
         doc.body,

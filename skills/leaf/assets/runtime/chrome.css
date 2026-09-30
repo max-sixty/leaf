@@ -462,35 +462,34 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 0; border-radius: 0 !important; background: none; }
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
-  /* The banner wraps by what it holds. The status and the control run share one line
-     while the run leaves the status its floor, a readable start of the sentence; where
-     it doesn't, the run takes a second line of its own, starting at the left. The
-     browser's wrap decides that from the run's reserved widths, so no window width
-     stands in for it, and banner.js reports the answer on the root, where the theme's
-     --lf-banner-h reads it. Each line is a stated height, the status's 36px and the
-     run's --lf-banner-row, so the banner's own height is its lines and always the one
-     the token states for the rows it drew; the token follows a wrap a frame later. */
-  .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 24ch;
+  /* The banner draws the rows the theme states (--lf-banner-rows): on one, the status
+     and the control run share the line and the status gives up room, down to an
+     ellipsis, rather than wrap; on two, the status takes the first line whole and the
+     run a second of its own, starting at the left. The browser's wrap decides nothing.
+     Each line is a stated height, the status's 36px and the run's --lf-banner-row, so
+     the banner's own height is its lines and always the one --lf-banner-h states. */
+  .lf-banner { --lf-banner-gap: 10px;
     --lf-status-inset-left: 0px; --lf-status-inset-right: 0px;
     position: fixed; top: 0; left: 0; right: 0; z-index: var(--lf-z-banner);
-    display: flex; flex-wrap: wrap; align-content: flex-start;
+    display: flex; flex-wrap: nowrap; align-content: flex-start;
     align-items: center; column-gap: var(--lf-banner-gap); row-gap: 0;
     padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
       calc(14px + var(--lf-safe-left));
     background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
-  /* The sentence's room is whatever the controls leave, and never less than its floor:
-     the basis is the floor, so a run that would leave less wraps instead. The room is
-     the box that stands still; the press inside it (.lf-status-button) is as wide as its
-     words and grows rightward into the room as its sentence does, so a status ageing
-     from "is working" to "last checked in" moves nothing beside it. */
-  .lf-banner-status { flex: 1 1 calc(var(--lf-status-floor) + var(--lf-mark-w)
-      + var(--lf-banner-gap) + var(--lf-status-inset-left) + var(--lf-status-inset-right));
-    min-width: 0; height: 36px;
+  /* The sentence's room is whatever the controls leave. The room is the box that stands
+     still; the press inside it (.lf-status-button) is as wide as its words and grows
+     rightward into the room as its sentence does, so a status ageing from "is working"
+     to "last checked in" moves nothing beside it. */
+  .lf-banner-status { flex: 1 1 0; min-width: 0; height: 36px;
     padding: 0 var(--lf-status-inset-right) 0 var(--lf-status-inset-left); }
-  /* The run's reserved widths are its basis, so an asynchronous count or a status
-     sentence never changes where it wraps. */
+  @container style(--lf-banner-rows: 2) {
+    .lf-banner { flex-wrap: wrap; }
+    .lf-banner-status { flex-basis: 100%; }
+  }
+  /* The run's reserved widths are its basis, so an asynchronous count never moves the
+     status beside it, and a status sentence never moves a control. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0; max-width: 100%;
     min-height: calc(var(--lf-banner-row) - 1px);
     justify-content: safe flex-end; overflow: hidden;
@@ -676,10 +675,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
   .lf-version-menu:popover-open { display: grid; }
   /* Left-aligned text in a control that is otherwise a press: the rows are a list to
-     read down, and a centred note re-ragged on every line is not one. */
+     read down, and a centred note re-ragged on every line is not one. The row and its
+     Compare state their aim floor as padding (shadow.css), because the menu is capped
+     at the window: a row held up by min-height alone was squeezed to it, its note
+     drawn over the next row, rather than scrolled to. */
   .lf-version-row { grid-column: 1; position: relative;
     display: flex; flex-direction: column; gap: 1px; align-items: start;
-    text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
+    text-align: left; padding: max(6px, (var(--aim-floor) - 1lh) / 2) 8px;
+    border: 0; border-radius: 4px;
     background: none; color: inherit; font: inherit; cursor: pointer; width: 100%; }
   /* A row with no Compare beside it, the version being read, takes both columns, so
      its hover and ring span the menu like every other row's pair. */
@@ -702,7 +705,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      state — a menuitem may not be pressed, a menu's toggle being a
      menuitemcheckbox, which axe said of the aria-pressed this started as on the one
      page in the suite that asks with the menu standing open. */
-  .lf-version-diff { grid-column: 2; margin: 4px 2px 0 4px; padding: 3px 8px;
+  .lf-version-diff { grid-column: 2; margin: 4px 2px 0 4px;
+    padding: max(3px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
     border: 1px solid var(--rule); border-radius: 4px; background: none;
     color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
   .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
@@ -804,7 +808,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Version news remains a legible control at every width. When the row runs out of
      room the toolbar above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
-  .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
+  .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px;
+    padding: max(3px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px; flex: none; }
   .lf-thread-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
     width: var(--lf-thread-panel-width); height: auto; max-width: none; max-height: none; margin: 0;
     box-sizing: border-box;
@@ -932,7 +937,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     grid-template-columns: 76px minmax(0, 1fr); align-items: center; column-gap: 8px; }
   .lf-thread-filter-label { color: var(--muted); font: var(--t-6) var(--sans); }
   .lf-thread-filter-choices { display: flex; flex-wrap: wrap; gap: 5px; }
-  .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
+  .lf-thread-filter { padding: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
+    font-size: var(--t-6); }
   .lf-thread-filter-group:not(:has(.lf-thread-filter:not([hidden]))) { display: none; }
   @media (max-width: 360px) {
     .lf-thread-filters { padding-inline: 8px; }
@@ -1890,9 +1896,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* A phone held upright is narrower than the run in its desk face, so there the run
      wears a narrow one: the banner gives up its inset, which the status keeps for its
      own line, and each control keeps only a sliver of padding. The same More, Approval,
-     and Threads seats remain in the same order at every width. This face is the
-     window's, not the rows': a face that followed the wrap would change the widths the
-     wrap is decided from.
+     and Threads seats remain in the same order at every width.
 
      The status keeps to one line in its own 36px row. Two would be a row that changes
      height as a sentence ages, which moves every control under it for no gesture; the
@@ -1912,8 +1916,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
       align-items: center; justify-content: center; }
     /* Forty on the narrow row, or the aim floor where a finger raises that past
-       forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
-       carry the floor itself or a touch toolbar loses four pixels.
+       forty: this rule's padding outranks .lf-btn's, which carries the floor
+       (shadow.css), by weight, so it has to carry the floor itself or a touch toolbar
+       loses its height. A row squeezes nothing on the block axis, so a minimum is
+       safe here.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
   }
@@ -1922,8 +1928,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      belong to Threads after the Versions door wrapped to the left. The door already
      stands inside the row's inset, so its edge is the menu's; the viewport max-width
      above keeps the far edge inside the phone. */
-  html[data-lf-banner-rows="2"] :scope :is(.lf-banner-menu, .lf-version-menu) {
-    right: auto; left: anchor(left); }
+  @container style(--lf-banner-rows: 2) {
+    :is(.lf-banner-menu, .lf-version-menu) { right: auto; left: anchor(left); }
+  }
   @media screen and (width <= 840px) {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the banner overflow rather than to the rail: it asks

@@ -24,11 +24,16 @@ result.
 One unnamed `leaf wait` watches every page the host session owns. Name a page only
 to pick up a page this session did not serve; `leaf wait <page>` claims it.
 
-Start `leaf wait` as a background task and end the turn. When input arrives, the
-wait ends, and its ending opens a turn, or reaches the current one at its next tool
-result. As that turn takes it, Leaf's prompt hook puts the whole delivery in your
-context (`references/event-batches.md`, "One envelope on every transport") and
-confirms it, so the user's moves read **Picked up** and nothing is left for you to
+Start `leaf wait` as a background task with `timeout` 7200000 (milliseconds), the
+longest Claude Code allows, and end the turn. Every end of a wait wakes the session, and Claude
+Code stops a background command when its timeout runs out, 30 minutes if none is
+given. A wait with no input ends itself just before two hours with a line saying
+so, and the prompt hook then reports the page has no watcher: start the next one.
+
+When input arrives, the wait ends, and its ending opens a turn, or reaches the
+current one at its next tool result. As that turn takes it, Leaf's prompt hook puts
+the whole delivery in your context (`references/event-batches.md`, "One envelope on
+every transport") and confirms it, so the user's moves read **Picked up** and nothing is left for you to
 read or acknowledge. Input that arrives as a turn ends comes through the Stop hook
 the same way. Start the next `leaf wait` as a background task alongside your first
 step, which for a request is naming its work

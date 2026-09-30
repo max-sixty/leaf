@@ -76,9 +76,9 @@
   .layout-sidebar > aside { flex: 1 1 18rem; }
   .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row
-   * as tall as the row. How a row wraps is the page's to judge: the guidance names a
-   * lone tile on its own row as a look to avoid, and the page sets its own columns
-   * where it does. */
+   * as tall as the row. How a row wraps is the page's to judge: the pre-handover review
+   * (page-authoring.md) names a lone tile on its own row as a look to avoid, and the
+   * page sets its own columns where it does. */
   .layout-tiles {
     display: grid;
     gap: var(--sp-4);

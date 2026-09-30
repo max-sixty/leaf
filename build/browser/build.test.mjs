@@ -79,30 +79,22 @@ test("the bundle gate reads the parsed module, not its text", () => {
     ['export { html } from "https://cdn.example/lit.js";', "not a local path"],
     ['export * from "//cdn.example/lit.js";', "not a local path"],
     ['import("./late.js");', "import() loads a module at run time"],
-    ['eval("globalThis.changed = true");', "calls eval"],
-    ['(0, eval)("1");', "calls eval"],
-    ['globalThis["eval"]("1");', "calls eval"],
-    ['new Function("return 1")();', "calls Function"],
-    ['window.Function("return 1")();', "calls Function"],
-    ['require("lit");', "calls require"],
-    ['setTimeout("document.body.dataset.ready=1", 0);', "passes setTimeout a string"],
-    ["window.setInterval(`tick(${a})`, 9);", "passes setInterval a string"],
-    ['setTimeout("tick(" + a + ")", 9);', "passes setTimeout a string"],
+    ['require("lit");', "require() loads a module at run time"],
   ]) {
     assert.throws(
       () => checkModule(`const a = 1;\n${source}`, "x.js"),
       (error) =>
         error.message.startsWith("x.js:2: ") &&
         error.message.includes(reason) &&
-        error.message.endsWith("which the page CSP forbids"),
+        error.message.endsWith("which an export cannot load"),
       source,
     );
   }
   checkModule('import { html } from "./lit.js";');
-  checkModule("setTimeout(() => tick(), 9); setInterval(tick, 9 + 1);");
+  checkModule('new Function("return 1")();');
   checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
-  // Pierre's TextMate grammars carry both as data.
-  checkModule('export const grammar = { begin: "import\\\\(", end: "eval(x)" };');
+  // Pierre's TextMate grammars carry it as data.
+  checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
 });
 
 test("notices name the packages whose code reached an output", () => {

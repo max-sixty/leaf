@@ -126,46 +126,17 @@ VISUAL_ACTION_TIMING = """
 """
 
 
-def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
-    """The source can carry ordinary HTML and a package module runs as same-origin
-    script. Neither may replace the document base, submit page state to another origin,
-    or put a live Leaf under somebody else's controls."""
+def test_a_live_page_cannot_be_framed_or_run_its_data(browser, serve):
+    """Another site cannot put a live Leaf under its own controls, and a data route
+    never runs as a script, whatever the page's own code tries."""
     source = leaf_page(
-        "CSP boundaries",
-        """
-<h1 id="h">CSP boundaries</h1>
-<a id="relative" href="relative-target">Relative target</a>
-<form id="escape" action="https://outside.invalid/collect" method="post">
-  <input name="page-state" value="user decision">
-  <button type="submit">Send page state</button>
-</form>
-""",
-        head=(
-            '<base href="https://outside.invalid/rebased/">'
-            """<script type="module">
+        "Boundaries",
+        '<h1 id="h">Boundaries</h1>',
+        head="""<script type="module">
 window.authoredModuleRan = true;
-</script>"""
-        ),
+</script>""",
     )
-    url = live_url(serve(source))
-    page = open_page(
-        browser,
-        url,
-        init_script="""
-          window.__cspViolations = [];
-          document.addEventListener('securitypolicyviolation', event => {
-            window.__cspViolations.push(event.effectiveDirective);
-          });
-        """,
-    )
-    escaped = []
-    page.route(
-        "https://outside.invalid/**",
-        lambda route: (
-            escaped.append(route.request.url),
-            route.fulfill(status=204, body=""),
-        ),
-    )
+    page = open_page(browser, live_url(serve(source)))
     page.wait_for_function("() => window.authoredModuleRan === true")
     assert (
         page.evaluate(
@@ -180,13 +151,6 @@ window.authoredModuleRan = true;
         )
         == "blocked"
     )
-    page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
-    served = urlparse(page.url)
-    assert (
-        page.locator("#relative").evaluate("link => link.origin")
-        == f"{served.scheme}://{served.netloc}"
-    )
-
     framed = page.locator("body").evaluate(
         """async (body, url) => {
               const frame = document.createElement('iframe');
@@ -203,32 +167,11 @@ window.authoredModuleRan = true;
         page.url,
     )
     assert framed is None
-
-    page.locator("#escape").evaluate("form => form.requestSubmit()")
-    page.wait_for_function("() => window.__cspViolations.includes('form-action')")
-    assert escaped == []
     errors = consume_browser_errors(
-        page,
-        "Content Security Policy",
-        "Content-Security-Policy",
-        'MIME type of "application/json"',
+        page, "Content Security Policy", 'MIME type of "application/json"'
     )
     assert any("frame-ancestors 'none'" in error for error in errors), errors
     assert any('MIME type of "application/json"' in error for error in errors), errors
-
-
-def test_the_page_policy_admits_a_driver_poll_that_outlives_its_evaluate(
-    browser, serve
-):
-    """A driver compiles a wait predicate with eval on every poll, and only the poll
-    installed inside its own evaluate call inherits that call's permission. The
-    delivered script-src admits the later compiles, so a wait ends on the fact it
-    names rather than on the policy."""
-    page = open_page(
-        browser, live_url(serve(leaf_page("Driver poll", "<h1>Driver poll</h1>")))
-    )
-    page.evaluate("() => setTimeout(() => { window.lateFact = true }, 250)")
-    page.wait_for_function("window.lateFact === true", timeout=5_000)
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):
@@ -3805,6 +3748,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
                         ),
                         "agent": "Claude",
                         "session": session,
+                        "turn": "turn-1",
                     }
                 ],
             },

@@ -10,7 +10,6 @@ import subprocess
 import sys
 import threading
 from datetime import datetime
-from fnmatch import fnmatchcase
 from pathlib import Path
 
 import playwright
@@ -816,31 +815,23 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
                 parent.rmdir()
 
 
-# The binaries the tree keeps: the drawn images the examples render, and the captures
-# an eval case hands its child.
-BINARY_HOMES = ("examples/media/*", "evals/*/captures/*")
-
-
-def test_the_payload_is_text_outside_its_binary_homes():
+def test_the_payload_is_text():
     """Every tracked byte ships in every install and stays in history, so the tree
-    keeps no screenshot, recording or other binary outside the homes whose readers
-    need the bytes (`AGENTS.md`, "The install runs this tree"). Screenshots came in
-    under `notes/` twice, 5.6M of a probe's evidence and then 1.8M of a design
-    study's before/after pairs, each by a maintainer's `git add` that no test of a
-    tool's output path sees coming. An image Leaf generates lives in
-    max-sixty/leaf-assets, and evidence in `.tmp/`."""
-    stray = []
+    holds no screenshot, recording or other binary (`AGENTS.md`, "The install runs
+    this tree"). Screenshots came in under `notes/` twice, 5.6M of a probe's evidence
+    and then 1.8M of a design study's before/after pairs, each by a maintainer's
+    `git add` that no test of a tool's output path sees coming. An image lives in
+    max-sixty/leaf-assets, at the path its reader looks for it, and evidence in
+    `.tmp/`."""
+    binary = []
     for path in shipped_payload():
-        relative = path.relative_to(PLUGIN_ROOT).as_posix()
-        if not path.is_file() or any(fnmatchcase(relative, h) for h in BINARY_HOMES):
+        if not path.is_file():
             continue
         try:
             path.read_bytes().decode("utf-8")
         except UnicodeDecodeError:
-            stray.append(relative)
-    assert stray == [], "binary files outside examples/media and evals: " + ", ".join(
-        stray
-    )
+            binary.append(path.relative_to(PLUGIN_ROOT).as_posix())
+    assert binary == [], "binary files in the tree: " + ", ".join(binary)
 
 
 def test_claude_and_codex_read_the_same_repository_skills():

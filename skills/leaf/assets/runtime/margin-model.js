@@ -6,6 +6,11 @@
  * these values; neither DOM state nor registration capabilities enter this module.
  * A resting cluster has a primary and one peer, or More when multiple peers remain.
  * Expanded clusters have six seats including the route to the complete Page Map.
+ * A pin its placement found no room for stands folded where its resting face is a
+ * primary and one more control: the options toggle alone, whose options are then every
+ * control, the primary first. Folding is placement's input, opening it the gesture's.
+ * The folded toggle wears a marker's face, the one its primary contribution's declared
+ * `kind` gives, so it says what it folds; unfolded it is More.
  * Failure, work in flight, and engagement keep completion controls exposed. An
  * explicitly focused contribution uses those seats alone; an open thread keeps its
  * aggregate control inside the budget. Thread membership retains thread order.
@@ -14,6 +19,7 @@
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
  */
 import {
+  KINDS,
   spokenSubject,
   marginItemKey,
   compareMarginContributions,
@@ -22,63 +28,18 @@ import {
   marginEntryStateRank,
 } from "./margin-entry-model.js";
 
-export const KINDS = Object.freeze(
+const RESTING_MARGIN_ENTRY_BUDGET = 2;
+// The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
+// one each, so a view that painted a face knows it by identity.
+const TOGGLE = Object.freeze({ icon: "more", label: "More options" });
+const FOLDED = Object.freeze(
   Object.fromEntries(
-    Object.entries({
-      action: { label: "Action", icon: "dot", priority: -1 },
-      change: { label: "Change", icon: "change", priority: 0 },
-      restated: {
-        label: "Rewritten",
-        icon: "change",
-        priority: 0,
-        indication: true,
-      },
-      comment: { label: "Thread", icon: "comment", priority: 1 },
-      ask: { label: "Ask", icon: "question", priority: 2 },
-      sent: {
-        label: "Sent",
-        icon: "sent",
-        priority: 3,
-        indication: true,
-      },
-      queued: {
-        label: "Queued",
-        icon: "pickup",
-        priority: 3,
-        indication: true,
-      },
-      pickup: {
-        label: "Picked up",
-        icon: "pickup",
-        priority: 3,
-        indication: true,
-      },
-      // Every receipt whose progress stopped short: one past the pickup grace, one
-      // whose turn ended or went quiet, one the host failed. A single receipt reads
-      // under its own label; this names a group of them.
-      waiting: {
-        label: "Stalled update",
-        icon: "waiting",
-        priority: 3,
-        indication: true,
-      },
-      user: {
-        label: "Your change",
-        icon: "change",
-        priority: 4,
-        indication: true,
-      },
-      reported: {
-        label: "Reported update",
-        icon: "activity",
-        priority: 4,
-        indication: true,
-      },
-      activity: { label: "Working", icon: "activity", priority: 4 },
-    }).map(([kind, face]) => [kind, Object.freeze(face)]),
+    Object.entries(KINDS).map(([kind, { icon, label }]) => [
+      kind,
+      Object.freeze({ icon, label }),
+    ]),
   ),
 );
-const RESTING_MARGIN_ENTRY_BUDGET = 2;
 const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 
 const noticeItems = (entry) =>
@@ -286,6 +247,7 @@ function optionGroupProjection(
   optionsOpen,
   focusedOffer = null,
   forcedInlineKey = null,
+  folded = false,
 ) {
   const items = optionItems(entry, primary, focusedOffer);
   // Peers may use the whole cluster budget only when no margin entry stands outside this
@@ -317,7 +279,7 @@ function optionGroupProjection(
   return Object.freeze({
     entry,
     entryKey: entry.key,
-    label: `${entryEngaged(entry) ? "Actions" : "More options"} for ${spokenSubject(entry.title)}`,
+    label: `${entryEngaged(entry) || folded ? "Actions" : "More options"} for ${spokenSubject(entry.title)}`,
     hidden: !optionsOpen || direct.length === 0,
     items: Object.freeze(items),
     spill: needsSpill
@@ -331,40 +293,75 @@ function optionGroupProjection(
   });
 }
 
+const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
+  expandedKey === entry.key && expandedOwner
+    ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
+    : null;
+
+// Whether a cluster may stand folded: its resting face is a contributed primary and one
+// more control, a peer or More, and nothing else, so folding it trades exactly one of
+// them for the toggle. A cluster that shows a reading or a notice, or is engaged, keeps
+// its face, since what it shows there is what the user returns to.
+export function canFold(entry, { expandedKey = null, expandedOwner = null } = {}) {
+  if (focusedOfferOf(entry, expandedKey, expandedOwner)) return false;
+  const primary = choosePrimary(entry);
+  return (
+    Boolean(primary) &&
+    secondaryCount(entry, primary) > 0 &&
+    entry.choices.length === 0 &&
+    noticeItems(entry).length === 0 &&
+    !entryEngaged(entry)
+  );
+}
+
 export function clusterProjection(
   entry,
-  { expandedKey = null, expandedOwner = null, forcedInlineKey = null } = {},
+  {
+    expandedKey = null,
+    expandedOwner = null,
+    forcedInlineKey = null,
+    folded = false,
+  } = {},
 ) {
-  const focusedOffer =
-    expandedKey === entry.key && expandedOwner
-      ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
-      : null;
+  const focusedOffer = focusedOfferOf(entry, expandedKey, expandedOwner);
   const primary = focusedOffer ? null : choosePrimary(entry);
+  const folds = folded && canFold(entry, { expandedKey, expandedOwner });
+  // Folded, the primary stands among the options, first, behind the toggle.
+  const shown = folds ? null : primary;
+  const subject = spokenSubject(entry.title);
   const secondaries = focusedOffer
     ? focusedOffer.reading.entries.filter((record) => record.visible).length
     : secondaryCount(entry, primary);
-  const hasOptions = secondaries > (focusedOffer ? 0 : RESTING_MARGIN_ENTRY_BUDGET - 1);
+  const hasOptions =
+    folds || secondaries > (focusedOffer ? 0 : RESTING_MARGIN_ENTRY_BUDGET - 1);
   const optionsOpen =
     secondaries > 0 &&
     (!hasOptions || expandedKey === entry.key || entryEngaged(entry));
+  // A contribution that declares no kind is an action, as a reading with none is.
+  const kind = folds ? (primary.offered.reading.kind ?? "action") : null;
   return Object.freeze({
     primary,
     hasOptions,
     optionsOpen,
+    folded: folds,
     options: optionGroupProjection(
       entry,
-      primary,
+      shown,
       optionsOpen,
       focusedOffer,
       forcedInlineKey,
+      folds,
     ),
-    direct: Object.freeze([...(primary ? [primary] : []), ...noticeItems(entry)]),
+    direct: Object.freeze([...(shown ? [shown] : []), ...noticeItems(entry)]),
     entry,
     kind: "page",
-    label: `Page actions for ${spokenSubject(entry.title)}`,
-    moreLabel: `More options for ${spokenSubject(entry.title)}`,
+    label: `Page actions for ${subject}`,
+    toggle: kind ? FOLDED[kind] : TOGGLE,
+    moreLabel: kind
+      ? `${KINDS[kind].label}, ${subject}`
+      : `More options for ${subject}`,
     offers: entry.offers,
-    hasPrimary: Boolean(primary),
+    hasPrimary: Boolean(shown),
     state: entryState(entry),
     target: entry.targetId || entry.key,
   });

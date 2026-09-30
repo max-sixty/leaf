@@ -13,7 +13,7 @@
  * does the Web Awesome bundle (`build/webawesome/build.mjs`), so a page
  * registers one LitElement, one template cache, and one version. Outputs import
  * only one another, statically; nothing else crosses the bundle. `shipped.mjs`
- * decides whether each output runs under the page CSP and writes the notices for
+ * decides whether each output's imports resolve on every page and writes the notices for
  * the packages that reached them, as it does for every bundle `build/vendor.py`
  * makes.
  */

@@ -85,11 +85,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import (
-    EXTERNAL_SOURCES,
-    FRAME_ANCESTORS_CSP,
-    PAGE_CSP,
-)
+from .structure import FRAME_ANCESTORS_CSP
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
 # a word before saying it is still there.
@@ -159,8 +155,8 @@ def page_delivery(
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
     The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
-    and starts under the current layer CSP, the import map its layer modules resolve
-    through, and the runtime bootstrap with its server incarnation probe, so historical
+    and starts under the import map its layer modules resolve through and the runtime
+    bootstrap with its server incarnation probe, so historical
     sources inherit the current delivery boundary without carrying delivery markup
     themselves. `write_live_shell` delivers published documents the same way.
     """
@@ -173,32 +169,18 @@ def page_delivery(
         else ""
     )
 
-    def runtime(nonce: str | None) -> str:
-        return (
-            f'<script nonce="{nonce}" data-lf-runtime data-lf-server="{server_id}" '
-            f'data-lf-layer="{layer_id}"{release} '
-            f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
-            f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-            f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
-            f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
-            f"{bootstrap}</script>"
-        )
+    runtime = (
+        f'<script data-lf-runtime data-lf-server="{server_id}" '
+        f'data-lf-layer="{layer_id}"{release} '
+        f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
+        f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
+        f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
+        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+        f"{bootstrap}</script>"
+    )
 
-    # 'unsafe-eval' is delivered for the drivers rather than for the page. An
-    # automated browser compiles a wait predicate with eval on each poll — Playwright
-    # keeps a compiled function but recompiles a bare expression — and only the poll
-    # that runs inside the driver's own evaluate call inherits permission from it. A
-    # script-src without the allowance therefore refuses any wait whose fact is not
-    # already true when the poll is installed, which surfaces as an intermittent red
-    # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs. Published documents carry the allowance
-    # to users no driver polls.
     return Delivery(
         address=address,
-        policy=lambda nonce: (
-            PAGE_CSP
-            + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
-        ),
         import_map=layer_import_map(assets),
         runtime=runtime,
         page_root=page_root,

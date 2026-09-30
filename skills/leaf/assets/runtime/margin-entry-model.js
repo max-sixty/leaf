@@ -61,7 +61,65 @@ const ENTRY_OPTIONS = new Set([
   "className",
   "scope",
 ]);
+// What a margin reading or contribution is, and the face and word it wears.
+export const KINDS = Object.freeze(
+  Object.fromEntries(
+    Object.entries({
+      action: { label: "Action", icon: "dot", priority: -1 },
+      change: { label: "Change", icon: "change", priority: 0 },
+      restated: {
+        label: "Rewritten",
+        icon: "change",
+        priority: 0,
+        indication: true,
+      },
+      comment: { label: "Thread", icon: "comment", priority: 1 },
+      ask: { label: "Ask", icon: "question", priority: 2 },
+      sent: {
+        label: "Sent",
+        icon: "sent",
+        priority: 3,
+        indication: true,
+      },
+      queued: {
+        label: "Queued",
+        icon: "pickup",
+        priority: 3,
+        indication: true,
+      },
+      pickup: {
+        label: "Picked up",
+        icon: "pickup",
+        priority: 3,
+        indication: true,
+      },
+      // Every receipt whose progress stopped short: one past the pickup grace, one
+      // whose turn ended or went quiet, one the host failed. A single receipt reads
+      // under its own label; this names a group of them.
+      waiting: {
+        label: "Stalled update",
+        icon: "waiting",
+        priority: 3,
+        indication: true,
+      },
+      user: {
+        label: "Your change",
+        icon: "change",
+        priority: 4,
+        indication: true,
+      },
+      reported: {
+        label: "Reported update",
+        icon: "activity",
+        priority: 4,
+        indication: true,
+      },
+      activity: { label: "Working", icon: "activity", priority: 4 },
+    }).map(([kind, face]) => [kind, Object.freeze(face)]),
+  ),
+);
 const READING_OPTIONS = new Set([
+  "kind",
   "subject",
   "state",
   "side",
@@ -176,6 +234,7 @@ export function normalizeMarginReading(reading, owner) {
     throw new TypeError("A margin contribution must read an object");
   unknownOptions(reading, READING_OPTIONS, "contribution");
   const {
+    kind = null,
     subject = null,
     state = "idle",
     side = "before",
@@ -185,6 +244,8 @@ export function normalizeMarginReading(reading, owner) {
   } = reading;
   if (!STATES.has(state))
     throw new TypeError(`Unknown margin contribution state: ${state}`);
+  if (kind != null && !Object.hasOwn(KINDS, kind))
+    throw new TypeError(`Unknown margin kind "${kind}" in contribution "${owner}"`);
   if (side !== "before" && side !== "after")
     throw new TypeError(`Unknown margin contribution side: ${side}`);
   if (!Array.isArray(entries))
@@ -219,6 +280,7 @@ export function normalizeMarginReading(reading, owner) {
           tone: text(notice.tone) || "negative",
         });
   return Object.freeze({
+    kind: text(kind) || null,
     subject: text(subject) || null,
     state,
     side,

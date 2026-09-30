@@ -46,13 +46,13 @@ from render_cases_layout import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
     any_owner_entry,
+    example_media,
     holding,
     leaf_page,
     open_page,
@@ -1568,7 +1568,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()
     reply = thread.locator("leaf-text")
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         reply.evaluate(
@@ -1666,7 +1666,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         field.evaluate(
@@ -4724,6 +4724,45 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     ]
 
 
+def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
+    browser, serve
+):
+    """A CSS framework such as Tailwind builds its sheet in the head after the page
+    loads and rewrites it as classes change, and each rewrite is a new sheet. Its
+    element rules reach the page's prose and stop at Leaf's controls, as the page's
+    own stylesheet's do: Tailwind's reset once took the family of every chrome
+    button."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
+                head="""<script type="module">
+const sheet = document.createElement("style");
+document.head.append(sheet);
+sheet.textContent = "button, a { font-family: fantasy; }";
+setTimeout(() => {
+  sheet.textContent = "button, a { font-family: cursive; }";
+  window.rewritten = true;
+}, 50);
+</script>""",
+            )
+        ),
+    )
+    page.wait_for_function("() => window.rewritten")
+    faces = page.evaluate("""() => {
+        const family = el => getComputedStyle(el).fontFamily;
+        return {
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(family),
+            prose: family(document.getElementById('prose')),
+        };
+    }""")
+    assert faces["prose"] == "cursive", faces
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
+
+
 def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
     """A package that declares widgets styles those widgets and nothing else, whatever
     its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
@@ -5024,7 +5063,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
-        "lf-mark-hover",  # the same element mark, for the one the pointer indicates
+        "lf-mark-hover",  # the same element mark, for the row the pointer is on
         "lf-mark-here",  # the same element mark, for the comment the user is in
         "lf-pending",
         "lf-ins-block",

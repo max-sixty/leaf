@@ -110,3 +110,18 @@ def test_a_press_in_a_nested_frame_is_input(browser):
     )
     page.frame_locator("iframe").locator("#grow").click()
     judge_shifts()
+
+
+def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
+    page = browser.new_page()
+    child = '<div id="above"></div><p id="below">Below.</p>'
+    page.goto(
+        "data:text/html,"
+        + quote(
+            f"<iframe srcdoc='{child}'></iframe><button id='grow' onclick=\""
+            "frames[0].document.getElementById('above').style.height = '40px'"
+            '">Grow</button>'
+        )
+    )
+    page.locator("#grow").click()
+    judge_shifts()

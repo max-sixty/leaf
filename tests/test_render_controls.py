@@ -2741,13 +2741,16 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
 
 
-def test_a_marked_element_draws_nothing_at_rest_and_a_complete_hover_contour(
+def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_contour(
     browser, serve
 ):
-    """An element's comment draws no contour until the pointer indicates it, and then
-    one complete boundary that the element's own children do not paint over."""
+    """An element's comment draws no contour at rest, nor while the pointer rests inside
+    the element, which is where a reader's mouse sits. The hand still says a press opens
+    the thread. Its row in Threads raises one complete boundary that the element's own
+    children do not paint over, in a window wide enough that the open panel covers none
+    of it."""
     context = browser.new_context(
-        viewport={"width": 1201, "height": 900},
+        viewport={"width": 1801, "height": 900},
         color_scheme="light",
         device_scale_factor=2,
     )
@@ -2773,22 +2776,29 @@ def test_a_marked_element_draws_nothing_at_rest_and_a_complete_hover_contour(
             "node => node.scrollIntoView({block: 'center', inline: 'nearest', "
             "behavior: 'instant'})"
         )
-        page.mouse.move(0, 0)
+        box = target.bounding_box()
+        inside = (box["x"] + 6, box["y"] + box["height"] / 2)
+        page.mouse.move(*inside)
+        expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
         expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_count(0)
         rest = mark_edges(page, ident, ink)
         assert all(seen == {0} for seen in rest.values()), (
-            f"the comment on #{ident} drew a contour at rest: {rest}"
+            f"the comment on #{ident} drew a contour under the pointer: {rest}"
         )
 
-        box = target.bounding_box()
-        page.mouse.move(box["x"] + 6, box["y"] + box["height"] / 2)
+        # The row in Threads raises it. Threads lists the page's threads in page order.
+        page.locator(".lf-threads-toggle").click()
+        page.locator(".lf-threads > .lf-thread").nth(
+            ("approach", "col-doing").index(ident)
+        ).locator(":scope > .lf-thread-summary").hover()
         expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_class(
             re.compile(r"\blf-visual-mark-hover\b")
         )
         edges = mark_edges(page, ident, accent)
         assert all(seen == {4} for seen in edges.values()), (
-            f"the hover contour on #{ident} was incomplete: {edges}"
+            f"the contour its row in Threads raises on #{ident} was incomplete: {edges}"
         )
+        page.locator(".lf-threads-toggle").click()
 
 
 def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
@@ -4304,8 +4314,7 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
 
 
 # A classic scrollbar, which the headless shell hides unless both its flag is dropped
-# and the page styles one. A constructed sheet, because the page's CSP refuses an
-# injected <style>.
+# and the page styles one, here through a constructed sheet.
 CLASSIC_SCROLLBAR = """
   document.addEventListener('DOMContentLoaded', () => {
     const sheet = new CSSStyleSheet();

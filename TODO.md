@@ -90,6 +90,11 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Stack covers of stated height, and keep Layouts out of widgets.** Fix the banner at
+  one row, give every sticky cover a stated height added into `--lf-top`, delete the
+  measured-header machinery, scope the workspace's row rule to pane grids, and give the
+  side list a full-height form; then drop the bottom bar
+  ([plan](notes/chrome-and-covers.md)).
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class

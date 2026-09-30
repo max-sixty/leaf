@@ -1,5 +1,15 @@
 /* One diagnostic record of this tab's browser input. The page event log remains the
-   authority for decisions; this stream explains the gestures that led to them. */
+   authority for decisions; this stream explains the gestures that led to them.
+
+   Delivery is best-effort. A batch lost in transit or answered 5xx is retried, and one
+   answered 4xx is dropped, leaving a sequence gap. Page hide sends every pending
+   record, in-flight ones included, so a record may arrive twice under one
+   `(session, sequence)`. The tab
+   keeps at most MAX_PENDING_ENTRIES records: when delivery falls behind it sheds
+   repeated observations first, then older actions only to admit a new action, and a
+   new repeated observation yields to pending actions. A record too large to split
+   within that bound becomes one `interaction_omitted` row. Every shed record leaves a
+   sequence gap, and an offline tab closed with unsent records loses them. */
 import { TEXT_BOX } from "./focus.js";
 import { PAGE_ROOT } from "./storage.js";
 
@@ -10,8 +20,6 @@ const url = enabled ? new URL("api/interaction", PAGE_ROOT).href : null;
 const root = enabled ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
 const session = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const queue = [];
-// Bound the tab's diagnostic backlog during an outage. Repeated observations
-// yield first; the remaining sequence gaps make any loss visible to a reader.
 const MAX_PENDING_ENTRIES = 512;
 const repetitive = new Set([
   "pointermove",

@@ -222,14 +222,15 @@ loads `leaf:leaf` and reads the references as a real session does. Score a chang
 uv run leaf-dev guidance-eval [CASE]... [--base REF] [--runs N]
 ```
 
-It runs the cases on the base's guidance (the merge base with `main` by
-default) and the working tree's at once, and prints each case's passes per arm and the
-cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
-the skill and the references and every run answers with no guidance, while
-`loads-leaf` still passes on the attempt. So every case also grades that the child
-read the reference it tests, and a run that fails that check measured nothing. The
-grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
-refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
+It runs the cases on the base's guidance (the merge base with `main` by default) and
+the working tree's at once, and prints each case's passes per arm and the cost. It
+passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies the
+skill and the references and every run answers with no guidance, while the
+`loads-leaf` grader still passes, because the child attempted the load. So every case
+also grades that the child read the reference it tests, and a run that fails that
+check measured nothing. The grant covers only the leaf skill's base directory, and a
+`tool_used` grader counts a refused call too, so its `input_match` names the file's
+whole path from `skills/leaf/`.
 
 The suite is a library that grows with the guidance, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it

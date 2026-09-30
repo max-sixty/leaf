@@ -51,9 +51,9 @@ Nearly every test drives a real browser, so a traceback can name a symptom
 several boundaries after its cause. Two test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
-  State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
-  probabilities** and **A state the page passes through is not a state to poll
-  for**); don't repeat the gesture until it happens to hold.
+  State the ordering (`tests/AGENTS.md`, **Order a race with a route** and **A state
+  the page passes through is not a state to poll for**); don't repeat the gesture
+  until it happens to hold.
 - **A reading that has been widened before.** When the fix that presents itself
   is one more member of an accepted set, allowlist, or tolerance, read the line's
   history (`git log -L`); a set that keeps growing describes the suite's own

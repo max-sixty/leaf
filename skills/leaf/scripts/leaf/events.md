@@ -25,6 +25,12 @@ page and is not a global identifier. The kinds:
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
+An event *stands* while the log has not withdrawn it. An action stands until an
+`undo` names it or a version note's `restated` names an element it rests on. A report
+stands until a version note `settles` it. The glossary's **Standing**, the user's
+keyboard position, is a different term, and so is the `standing` server lifetime
+(`session-lifetime.md`, "Lifetime").
+
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
 projected data names `datum` (the rendering key local to its section) and, when the
@@ -42,7 +48,7 @@ to read the three. The
 browser reads them off the rendered page, which holds words and geometry no file
 reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
-owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
+owns ink, weight, SVG construction, and replay. A drawing is immutable once sent, and
 follows the thread's resolution state.
 
 ## Undo
@@ -58,9 +64,9 @@ may still withdraw an older gesture it names.
 
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
-the thread reading drop the event, so the page is what the revision says plus
-what still stands, the same reading a reload has always made and the one
-`restated` writes from the author's side. `renderState` paints withdrawals and
+the thread reading drop the event, so the page shows what the revision says plus the
+events still standing, the same reading a reload makes and the one `restated` writes
+from the author's side. `renderState` paints withdrawals and
 forward changes alike, retaining the widget and its independent children. The
 door refuses an `undoes` naming anything but an unwithdrawn gesture of the
 user's own. An exact control may withdraw a forward action before that action's
@@ -89,8 +95,8 @@ any `report` or `error`. `leaf wait` prints those, and the banner counts only th
 user events among them, so a `read`, declared bookkeeping, neither wakes the watcher
 nor reads as unanswered. An agent's own comment does neither. Either
 side can open a thread and either side can close one.
-A note's purpose is discharged by being read, and only the user knows that
-happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
+Only the user knows when a note has been read, so the user ordinarily closes a
+thread; `leaf thread resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
 and the transcript.
 
@@ -117,7 +123,9 @@ only what a reader without the sending registry cannot recover from the event
 itself. Every widget event records `scope`, `page` or `thread`, and its document
 identity is read from that scope and the event's revision (`events.event_document`):
 a page event's document is the revision the event names, and a thread event's is
-the frozen markup that sent its widget. It also records `unit`, the fold unit, so an action or report stands on the `[widget, unit, action]` coordinate.
+the frozen markup that sent its widget. Every widget event also records `unit`, the
+fold unit, so an action or report is keyed by the `[widget, unit, action]`
+coordinate.
 Actions and reports add `depends`, the direct element identities named by the
 owner, the unit, and declared state fields. An action whose admission
 makes its widget's `x-awaits.answered` condition hold is that Ask's answer and
@@ -127,27 +135,32 @@ closing one; a decision whose outcome is the widget's `x-withdrawn-as` declines 
 closes none. Historical thread folds use this coordinate even after its
 widget retires. Every action at the coordinate competes: a later action of the
 same verb on the same unit supersedes its prior answer, while another verb leaves
-it standing. Coordinates are independent, so a position record places its unit by a
-rank key rather than an index: the key means the same place whichever other units'
-moves stand, and undoing or superseding one unit's move never moves another. The key
-lies among the container's authored units on the revision the move was made on,
-which admission records in order as `meaning.among`. The key places the unit while
-a revision authors that container the same way; a revision that authors it
-differently absorbs the move (`projection.move_absorbed`), and `page check`
-holds its markup, and every later revision's, to the move's container and to the
-nearest unit both revisions list before it unless the unit is `restated`. The
-absorbed move still stands, as a written-back pick does, and it can no longer be
-undone: the markup decides the order an undo would have restored. The door refuses
-a move made on an older revision whose container the newest one authors
-differently.
+that answer in place.
 
 Dependency identities come from the fold unit and the attribute-set and position
-record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
-retraction tests use the current document's containment of those identities.
-A child a `creates` verb adds is that action's fold unit, so it stands on the action's
-own coordinate until the action is undone or retracted. Admission stamps the child tag
-in `meaning.creates`, and the action rests on its unit whether or not a document holds
-it yet.
+record fields. Literal detail strings do not become dependencies by matching HTML ids.
+The log does not freeze ancestry: retraction tests use the current document's
+containment of those identities. A child a `creates` verb adds is that action's fold
+unit, on the action's own coordinate, so it lasts as long as the action stands.
+Admission stamps the child tag in `meaning.creates`, and the action rests on its unit
+whether or not a document holds it yet.
+
+### Position moves
+
+Coordinates are independent, so a position record places its unit by a rank key
+rather than an index: the key means the same place whichever other units' moves
+stand, and undoing or superseding one unit's move never moves another. The key lies
+among the container's authored units on the revision the move was made on, which
+admission records in order as `meaning.among`.
+
+The key places the unit while a revision authors that container the same way. A
+revision that authors it differently absorbs the move (`projection.move_absorbed`).
+`page check` then holds that revision's markup, and every later revision's, to the
+move: the unit stays in the move's container, after the nearest unit both revisions
+list before it. A revision places the unit otherwise only by marking it `restated`.
+The absorbed move still stands, as a written-back pick does, and it can no longer be
+undone: the markup decides the order an undo would have restored. The door refuses a
+move made on an older revision whose container the newest one authors differently.
 
 ## Following the log
 
@@ -185,8 +198,8 @@ summary does not mark read the messages it covers. `read_state.unread_content` i
 one reading; it is published as each browser Thread's `unread` and each
 thread's `unread` in `page state`. Read records belong to the page log and apply
 across tabs and document revisions; they never answer a question, settle a workflow,
-or enter agent delivery. The one-user page assumption is the page's current
-lifecycle, not a per-account scope.
+or enter agent delivery. Read state assumes a page has one user for its whole
+lifetime, so a `read` names no account.
 
 An agent comment opens a question. A substantive reply opens or resumes the thread;
 when its prose leaves another question for the user, `leaf thread reply --awaits`
@@ -206,7 +219,7 @@ that asked for a version, and a failed `pickup` for an answer to a page Ask. Eac
 carries `failure`, a nonempty host-owned code, which is what tells a host's failure
 reply from an agent's. Only the host writer supplies `failure`, and the panel draws
 such a reply as a receipt whose head says the message answers nothing, since
-otherwise it is indistinguishable from the answer it stands in for.
+otherwise it is indistinguishable from the answer it replaces.
 When a reply carries a widget with a local `x-awaits` Ask, the widget's standing
 projection declares the Ask instead; the CLI refuses a parallel `--awaits` flag on
 that markup. A frozen widget keeps the user's Ask open until its
@@ -224,8 +237,7 @@ latest request whose token declares `settles` clears the prose obligation withou
 resolving the thread. `served_state/thread.py` owns this precedence.
 
 What each thread command does for its user, and when an agent uses it, is
-`../../references/threads.md`. The door and the fold hold these rules behind
-them:
+`../../references/threads.md`. Admission and the fold enforce these rules:
 
 - `edit` revises only a comment or reply whose recorded session matches the posting
   session, and only its `text`: markup is frozen because a user action may already

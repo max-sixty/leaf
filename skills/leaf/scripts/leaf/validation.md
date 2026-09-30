@@ -9,46 +9,56 @@ re-vendoring.
 
 ## Static validation
 
-`page check` starts with a deterministic check of the exact mutable `index.html`
-(no browser, near-free; activation and `page stamp` run the same boundary): the HTML parses with balanced
-tags; one direct `<body><main>` contains all authored content; page-authored behavior
-runs after the runtime has read the page, as inline modules, deferred classic script
-files, or their literal local graphs rooted below `/page/`, never parser-blocking or
-`async` scripts; page-specific presentation appears inline or in captured `/page/`
-stylesheets; anything on another server is named by its http(s) URL and loaded as
-written. The encoding, runtime, theme, page identity, canonical address, and anything
-declared about the whole document (a `<base>`, an http-equiv `<meta>`, an import map)
-belong to delivery and are rejected in source, and the last three in message markup
-too, which renders in every revision. Delivery inserts them at the start of
-`<head>`, before authored executable content. Every lf-* element validates against the effective registry
-(schema, nesting, no self-closing form); every lf-* meta is a known page
-declaration with an allowed value; each lf-suggestion is well formed (at most
-one of each slot, at least one of them, no nesting, `resolves` naming a comment
-in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
-attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
-not, no id takes the shape of the event ids the log mints (`schema.EVENT_ID`), since
-a command's ID names a widget or a message in one address space, and ids needed by anchored unresolved threads, standing user actions, or
-effective standing reports survive from the previous revision. A
-declared visual part survives on the same terms as an id: while a live
-thread's current anchor names it, and no longer once every thread on it
-has moved, detached, or closed. That release is final — a revision the part has
-left cannot be asked for it back, so reopening the closed thread restores
-the thread and not its target. An agent reply may detach a thread in the same
-transition that removes its subject. A declared retirement protects its holder and slots until its
-outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `page check` re-judges it against the longer log. Near-free
-and deterministic is what makes running it on every save affordable, so keep a new
-check that way; anything needing a browser belongs in the command's browser half.
+`page check` starts with a deterministic reading of the exact mutable `index.html`. It
+needs no browser and costs almost nothing. Activation and `page stamp` run the same
+check, cheap enough for every save. Keep a new check that way, and put anything that
+needs a browser in the command's browser half.
+
+- **Shape.** The HTML parses with balanced tags, and one direct `<body><main>` holds
+  all authored content.
+- **Executable content.** Page-authored behavior runs after the runtime has read the
+  page, as inline modules, deferred classic script files, or their literal local
+  graphs rooted below `/page/`, never as parser-blocking or `async` scripts.
+  Page-specific presentation is inline or in captured `/page/` stylesheets. Anything
+  on another server is named by its http(s) URL and loaded as written.
+- **Owned by delivery.** The encoding, runtime, theme, page identity, canonical
+  address, and anything declared about the whole document (a `<base>`, an
+  http-equiv `<meta>`, an import map) belong to delivery and are refused in source.
+  The last three are refused in message markup too, which renders in every revision.
+  Delivery inserts what it owns at the start of `<head>`, before authored executable
+  content.
+- **Vocabulary.** Every `lf-*` element validates against the effective registry
+  (schema, nesting, no self-closing form). Every `lf-*` meta is a known page
+  declaration with an allowed value. Each `lf-suggestion` has at least one slot, at
+  most one of each, no nesting, and a `resolves` naming a comment in the document's
+  reference namespace.
+- **Ids.** Ids are unique and hold no whitespace. No authored id, class, or attribute
+  uses the runtime's `lf-` or `data-lf-` prefix, whether or not the runtime uses that
+  name yet. No id has the shape of the event ids the log mints (`schema.EVENT_ID`),
+  because a command's id names a widget or a message in one address space.
+
 The effective registry is validated where it differs from the active revision's
-captured copy, which was validated when that revision activated; vendored sheets are
+captured copy, which was validated when that revision activated. Vendored sheets are
 validated when `page init` composes them, not on each check.
 
-That half has one piece plain `page check` runs too. A page that runs code of its
-own, a module script or a page widget the document places, is served and run once at
-the render viewport through upgrade, presentation, and one frame after it, and fails on
-each `error` event its runtime posts in that time: the event `leaf wait` would deliver,
-intercepted rather than read off the browser's own error channels, so the check and the
-watcher fail on one set in one wording. A quick page never reaches `--render`, and no
-static reading says whether a module throws. `render_gate/page_code.py` owns the run.
+### Carry-over
+
+A candidate keeps every id that an anchored unresolved thread, a standing user action,
+or an effective standing report needs from the previous revision. A declared visual
+part is kept on the same terms: while a live thread's current anchor names it, and no
+longer once every thread on it has moved, detached, or closed. That release is final.
+A revision the part has left cannot be asked for it back, so reopening the closed
+thread restores the thread and not its target. An agent reply may detach a thread in
+the same transition that removes its subject. A declared retirement protects its
+holder and slots until its outcome licenses their removal. Other dropped ids are
+reported as advice.
+
+These rules judge a candidate only. A source whose captured artifact is the active
+revision's had its transition judged when it activated, and the append door has
+judged every event since against the revision it names, so neither activation nor
+`page check` re-judges that source against the longer log.
+
+### Thread namespaces
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
@@ -59,6 +69,17 @@ allocation copies that same available history and no more, so a thread the log d
 not hold leaves the child without it rather than refusing the page. Corpus
 generation selects against the shipped log it is composing from, where a declared
 thread the log lacks is a mistake in the declaration, and refuses it.
+
+### Page code
+
+Plain `page check` also runs one browser check. A page that runs code of its own, a
+module script or a page widget the document places, is served and run once at the
+render viewport through upgrade, presentation, and one frame after it. It fails on
+each `error` event its runtime posts in that time: the event `leaf wait` would
+deliver, intercepted rather than read off the browser's own error channels, so the
+check and the watcher fail on one set in one wording. A quick page never reaches
+`--render`, and no static reading says whether a module throws.
+`render_gate/page_code.py` owns the run.
 
 ## Delivery policy
 
@@ -76,45 +97,75 @@ can become a script module.
 
 ## Browser validation
 
-`page check --render` adds the rest of the browser half, run once before a page's URL is first
-handed over: the exact current source loads in the host's browser (whichever
+`page check --render` adds the rest of the browser half, run once before a page's URL
+is first handed over. The exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
-Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
-render invariants the static lint cannot reach run against it in both color schemes:
-no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
-image, a blocked or mixed-content request, a deprecated API) outside a form control's
-shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
-every widget upgraded, painted with values that resolve, and given real space;
-words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, squeezed table, or
-misplaced box; and standing state that replays without conflict and idempotently.
-`render_gate/readings.py` is the list. Those readings run
-at a desktop and a phone viewport; once they are done, the loaded desktop page is
-resized through the widths from 360px to 1920px and the two sideways readings are taken
-again at each: a version holds at every width from the narrowest phone to a wide
+Playwright's `channel="chrome"`, else the first browser `PATH` answers with), and the
+readings below run against it at a 1200×900 and a 540×720 viewport, in both color
+schemes. `render_gate/scheme.py` takes the load, readiness, and visual-part readings,
+`render_gate/readings.py` the rest, and `render_gate/version.py` sequences the
+viewports and the sweep; `render-checks/index.js` exports one probe per failure
+class, which `render_checks.py` invokes.
+
+| Reading | Contract |
+| --- | --- |
+| pre-upgrade proof (`start_with_pre_upgrade_proof`, `preUpgradeFindings`) | while the Leaf entry is held: one canonical Leaf entry, one direct `main` with layout, and no widget upgraded or readiness stamp before the entry runs |
+| `runtimeStarted` | the runtime injected its chrome |
+| console, `pageerror`, failed responses | no console error or warning, uncaught error, or failed response; a ResizeObserver loop notice fails only if a second complete attempt reports it again (`render_version`) |
+| `issueNode` | no DevTools issue (an unsized lazy image, a blocked or mixed-content request, a deprecated API) outside a form control's shadow tree; one in an embedded frame is placed at that frame |
+| `upgraded`, `wait_until_ready`, `pageSettled` (`moving`) | upgrade completed, the page reached readiness against the state read (`PageNotReady` otherwise), and geometry settled |
+| `invalidVisualProviders`, `unrevealedVisualProviders` | each `x-visual` widget registers valid parts, and every authored part resolves, in the current state or after its `reveal` |
+| `failSoftErrors` | no widget failed soft into an error box |
+| `missingUpgrades` | every widget on the page whose entry declares a module defined its element |
+| `invalidPaints` | every var()-backed SVG paint resolves |
+| `tinyBoxes` | every declared widget has a usable box |
+| `unmarkableElements` | every addressable element has a visible part to outline |
+| `rootOverflow`, `misplacedBoxes` | no sideways scroll; boxes stay in the column or in reachable overflow |
+| `strandedMargins` | every margin marker has an element to sit by |
+| `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
+| `clippedControls` | controls are visible and reachable |
+| `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or covered by chrome |
+| `unreadSyntax` | highlighting does not alter source words |
+| `undeclaredShadowRoots` | every shadow root outside generated controls is on a tag whose entry declares `x-shadow` |
+| `shownVerbatim` | preserving owners agree with their projected passage |
+| `missingThreads` | every `x-thread-seat` instance outside thread chrome holds exactly one thread seat |
+| `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
+| `undeclaredAttrs` | modules write no undeclared author-namespace state |
+| `retiredSlots` | settlement marks agree with the projection |
+| `replayOverrides` | the log, not conflicting markup, determines projected state |
+| `relativeReplays` | rendering a complete widget state twice changes nothing |
+| `arrangedBoxes` | advice only. Records the swept widths where a flex or grid box the page wrote changes how it splits its children into rows; `screens.py` shoots each |
+| `heldPanes` | a workspace whose panes sit side by side at the desktop viewport does not stack them in one column at a width where the Layout still fills the window, since stacked there they share one window's height |
+| `shrunkLabels` | advice only: a drawing scaled so far that its labels fall below a legible size |
+| `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
+
+`missingThreads`, `silentWords`, `undeclaredAttrs`, `retiredSlots`, `replayOverrides`,
+and `relativeReplays` read in the light scheme only, since the scheme changes none of
+them. `shrunkLabels` reads the desktop viewport in the light scheme alone, and that
+loaded page is then resized through the widths from 360px to 1920px: `rootOverflow`
+and `misplacedBoxes` are read again at each, and `arrangedBoxes` and `heldPanes` are
+read only there. A version holds at every width from the narrowest phone to a wide
 desktop, not only at the two the gate renders, and each fault the sweep alone finds is
-reported with the widths it spans. The sweep also finds each width where the page's own
-margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
-run again there in the light scheme, where each resident has the least room it will
-ever have. It reads, too, how each flex or grid box the page wrote splits its children
-into rows, and the swept widths where that changes, and it fails a workspace whose panes
-stand side by side at the desktop viewport and stack in one column at a width where the
-Layout still fills the window, since stacked there they share one window's height. A
-body of rows at the desktop viewport is a design of rows, whatever a wider window does.
+reported with the widths it spans. The sweep also finds each width where the page's
+own margin residents change (`data-lf-margin` on `main`, less the rail), and the
+readings run again there in the light scheme, where each resident has the least room
+it will ever have.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the
-sweep's widest width and on a 390px phone, each pass's label saying how many screens the
-whole page takes when it takes more, and one screen at each swept width where the page's
-arrangement is at its tightest before it changes, and at each margin width. They go to one directory per page under the state home's
-`screens/`, replaced whole at each check, which the command names. The arrangement is
-read with the sweep, a few milliseconds a width; the screens are the command's, not the
-gate's, and the suite, which reads render_version, takes none.
-The invariants live in render_version, which the tests/test_render_*.py modules drive over
-the shipped examples. The suite uses Chromium's headless shell, while its
+sweep's widest width and on a 390px phone, each pass's label saying how many screens
+the whole page takes when it takes more, and one screen at each swept width where the
+page's arrangement is at its tightest before it changes, and at each margin width.
+They go to one directory per page under the state home's `screens/`, replaced whole
+at each check, which the command names. The arrangement is read with the sweep, a few
+milliseconds a width. `page check` saves the screens; `render_version`, which the
+suite calls, does not.
+
+The invariants live in `render_version`, which the `tests/test_render_*.py` modules
+drive over the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome
-channel, and the headless shell handed over under each variable that names one —
-and a unit reading covers the PATH search, which is only reached where the channel
+channel, and the headless shell handed over under each variable that names one — and
+a unit reading covers the `PATH` search, which is only reached where the channel
 misses.
 Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` when
 set. Driver startup failures report the cause, the Node executable, and that
@@ -138,8 +189,8 @@ not re-vendor on its behalf.
 
 ## Passages
 
-An anchor is resolved in the browser and recorded in the event log, so
-`leaf thread open` reads the active revision the way the anchor pass reads the DOM — text in
+An anchor is resolved in the browser and recorded in the event log, so `leaf thread
+open` reads the active revision the way the anchor pass reads the DOM — text in
 document order, minus the runtime's own words, plus the words a widget says
 through an x-says attribute, with one space wherever the enclosing text block
 changes and whitespace collapsed. What the file cannot know is what a widget's
@@ -157,8 +208,8 @@ event are separate sources, so this pairing does not require authored ids. It co
 the rendered owner with the same projected passage a user can point at: standing
 user body rewrites replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
-Page expectations stop at the rendered revision; frozen thread markup has no later
-authored version and uses the thread's whole action window.
+The expected words are bounded as widget state is (root `AGENTS.md`, "The document
+starts state; the log changes it").
 Runtime anchors are already resolved against rendered words, including widget
 labels and module output unavailable to the file reading, so admission does not
 recapture them. Browser `quoteFrom` and Python's `COLLAPSE_CHARS` define matching
@@ -172,13 +223,14 @@ A page source is written in more than one language. TurboHTML's WHATWG tree driv
 the one SourceDocument reading of what the markup declares and says;
 SourceDocument also retains exact source spans. tinycss2 reads the CSS a <style> block
 holds; layout advice also reads the stylesheets the page links from `page/`, as the
-revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question about a page becomes a field on one of those readings rather
-than a pattern over the file's text, because a pattern answers something adjacent to
-the question asked.
+revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question
+about a page becomes a field on one of those readings rather than a pattern over the
+file's text, because a pattern answers something adjacent to the question asked.
 
 Immutable inputs are read once per process. A stored revision's document, captured
 vocabulary, and passage readings live on its one `RevisionReading`
-(`revision_artifact.read_revision`); a candidate's live on the one `SourceReading`
-its check takes, which the revision activation writes from it adopts. Each logged
+(`revision_artifact.read_revision`). A candidate's live on the one `SourceReading` its
+check takes, and the revision activated from that candidate adopts it
+(`RevisionReading(adopted=…)`). Each logged
 markup fragment is parsed once (`thread_context.logged_fragment`), while markup a
 writer hands in is parsed afresh at its gate.

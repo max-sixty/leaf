@@ -84,7 +84,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   for the Python adapter alone, it runs the hosted-agent journey and emits one JSON
   sample. `worker/README.md` owns hosted-agent diagnostics and the failure contract.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
-  to the standing `leaf-website-dev` environment and verifies it. Production deploys
+  to the persistent `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in
   `leaf-assets.json` (`leaf_assets.py`, which the site build also calls).

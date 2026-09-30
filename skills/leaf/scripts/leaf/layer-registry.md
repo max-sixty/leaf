@@ -19,7 +19,7 @@ document has no revision boundary. Page events whose senders the candidate remov
 historical-only and remain interpretable through the registry captured with their
 immutable revisions. Re-vendoring composes page-owned declarations over the
 prospective layer before running this same candidate check. Each successful init
-records three deliberately different identities under `$layer`:
+records these identities under `$layer`:
 
 - `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
@@ -45,15 +45,14 @@ records three deliberately different identities under `$layer`:
   command against the same runtime, so every page server — durable, temporary, and the
   gate's ephemeral one — compares this identity with its own payload's when it binds
   the page (`http.page_endpoint`, `layer.foreign_runtime`) and refuses a page carrying
-  another Leaf's runtime, naming `leaf page init`. Served across the two, the page
-  would break in the browser on every read: a renamed field in the state the server
-  sends, or an export the page's runtime does not have. `fingerprint` cannot answer
-  that question, because a package selection recorded beside it resolves against the
-  project `page init` ran in and cannot be recomposed anywhere else. A page vendored
-  before this identity existed records none and is refused the same way; `page init`
-  records it again. The identity covers `assets/runtime/` alone: a contract change
-  made only in the Python server, the boot `leaf.js`, the theme, or a package's
-  widgets passes it. A checkout whose runtime modules were edited refuses every page
+  another Leaf's runtime, naming `leaf page init`. A server running a different
+  runtime would break the page in the browser on every read: a renamed field in the
+  state the server sends, or an export the page's runtime does not have.
+  `fingerprint` cannot answer that question, because a package selection recorded
+  beside it resolves against the project `page init` ran in and cannot be recomposed
+  anywhere else. The identity covers `assets/runtime/` alone: a contract change made
+  only in the Python server, the boot `leaf.js`, the theme, or a package's widgets
+  passes it. A checkout whose runtime modules were edited refuses every page
   vendored before the edit until each is re-vendored.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
@@ -61,8 +60,8 @@ page's inline bootstrap supervises startup before the module graph
 or stylesheet can fail. After a startup failure it reloads when the server
 incarnation, layer generation, or website release changes. A published page also
 reloads when its release-addressed probe disappears. This includes a rejected
-re-vendor: its layer stays frozen, but the restarted server can finish a formerly
-interrupted load. Source files and standalone exports carry no startup supervisor.
+re-vendor: its layer stays frozen, but the restarted server can finish a load that
+failed earlier. Source files and standalone exports carry no startup supervisor.
 
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.
@@ -78,7 +77,3 @@ composition stamps them again over the page's own declarations, overwriting any
 declared `$decisions` or `$marks`. The browser reads the first rather than walking
 `x-state` and `x-retired-when` a second time, and paints a message's marks from the
 second, which delivery paints into a page's document from the same table.
-
-The append transaction records the fold unit and direct dependencies in an action or
-report's `meaning`. Identity-bearing detail fields come from the declared fold unit
-and attribute-set or position record; arbitrary detail strings carry no identity.

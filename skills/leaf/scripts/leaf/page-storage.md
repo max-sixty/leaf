@@ -53,9 +53,10 @@ other page files and the external state listed below.
 
 - `media/` — content-addressed page images, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
-  them with Markdown; a public filename always identifies the same bytes. That name is
-  `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
-  `page check` and the agent's message doors refuse any other name under `/media/`,
+  them with Markdown; a public filename always identifies the same bytes.
+  `media.media_name` mints the name, in the shape `schema.MEDIA_DIGEST` defines, and
+  the server serves it; `page check` and the agent's message doors refuse any other
+  name under `/media/`,
   and the browser and the Worker read a reference by its directory alone. A revision
   captures the media its document names, but every host serves media at the page root,
   and documents, messages, and the runtime all address it there.
@@ -65,21 +66,16 @@ other page files and the external state listed below.
 - `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
   interactions, including refused requests. It is separate from `events.jsonl` and
   never enters page state or acknowledgement, and no command reads it: a reader
-  follows the file itself (`tail -F`). The server appends request method, path without query, status, and
-  duration; `/api/interaction` appends browser batches with a session id, scoped
-  page address, and server receipt time. Sample activity remains in its parent
-  page's trace. The diagnostic file changes neither page/source reading nor
-  presence cache keys. It is private page data and is never served as an asset.
-  A tab retries failed batches and may resend an in-flight batch on page hide;
-  `(session, sequence)` identifies duplicates. Large browser records arrive as
-  `interaction_part` rows whose `json` fields concatenate in `part` order.
-  A tab retains at most 512 pending browser records: when delivery falls behind,
-  it sheds repeated observations first, then older actions only to admit new
-  actions. New repeated observations yield to pending actions. Sequence gaps show
-  where records were lost; a single record too large to fit is marked
-  `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
-  guarantee: an offline tab closed with unsent data may lose it. The semantic
-  event log remains the durable record of accepted decisions.
+  follows the file itself (`tail -F`). The server appends request method, path
+  without query, status, and duration; `/api/interaction` appends browser batches
+  with a session id, scoped page address, and server receipt time. Sample activity
+  remains in its parent page's trace. The diagnostic file changes neither
+  page/source reading nor presence cache keys. It is private page data and is never
+  served as an asset. `(session, sequence)` identifies a resent record, large browser
+  records arrive as `interaction_part` rows whose `json` fields concatenate in `part`
+  order, and a sequence gap or an `interaction_omitted` row marks records the tab
+  dropped (`runtime/interaction-log.js` owns the tab's retry and backlog). The trace
+  is best-effort; the event log remains the durable record of accepted decisions.
 
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.
@@ -107,9 +103,9 @@ other page files and the external state listed below.
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance, plus a `restart` mark while `page init` holds a served page down to
-  re-vendor it, which any other stop replaces so the restart leaves that stop
-  alone. `hosting.py` owns start/stop, restart, and revival;
+  provenance, and, while `page init` holds a served page down to re-vendor it, a
+  `restart` mark. Any other stop in that window clears the mark, and the page then
+  stays stopped after the re-vendor. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
 
@@ -124,6 +120,14 @@ other page files and the external state listed below.
   directory, and removed by the first scan that finds that directory gone
   (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
   identity, release, harness, and lifetime.
+
+- `<state-home>/deliveries/<id>.json` — immutable deliveries, kept outside page
+  directories because one envelope can contain complete batches from several pages
+  and must resolve identically in every host. The file's `leaf-delivery-v3` format,
+  id, capture time, carrier, acknowledgement, and batches never change. Delivery
+  records are separate mutable transport state; acknowledgement can archive those
+  records without moving or rewriting the delivery addressed by `leaf delivery read
+  <id>`.
 
 ## Revision delivery
 
@@ -150,34 +154,25 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 
 The page's document is not repeated in the reading: an agent reads the HTML at
 `active.file` beside `state`, which lists each standing user move by widget, unit and
-verb with the detail it carries, so where the two differ the page shows the move.
+verb with the detail it carries; where the file and `state` differ, the page shows the
+standing move.
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its value.
 
-`leaf page state <page> <id>` narrows the reading to what `<id>` names. A message,
-or a widget frozen into one, names its thread: the reading is that thread's current
-messages, with bounded history selected by `--after` and `--limit`, and each
-message's frozen markup under
-`content` (`construction.py`), since that markup has no file of its own. An authored
-node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
-standing event supplies its exact `state` and origin, and `authored` preserves the
-input it replaced. Widget `inputs` join each binding to its source's current value,
-contract, source id and revision, or to the `error` a failing value reads as;
-contracts with a deferred record field expose the manifest plus the value file and
-its revision for their payload. The reading's `content_source` names the thread and
-vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `updates` standing on it, the `asks` it holds or answers,
-and the `workflows` it is the subject of, with their `activity` obligations. Page ids
-and event ids share one address space, which is why `page check` refuses an authored
-id shaped like an event id. Default `page state` thread entries stay compact. Raw
-diagnostic history belongs to `leaf page events`, and the page's `registry.json` owns
-the vocabulary.
-
-Immutable deliveries live outside page directories at
-`<state-home>/deliveries/<id>.json`, because one envelope can contain complete
-batches from several pages and must resolve identically in every host. The file's
-`leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
-batches never change. Delivery
-records are separate mutable transport state; acknowledgement can archive
-those records without moving or rewriting the delivery addressed by `leaf
-delivery read <id>`.
+`leaf page state <page> <id>` narrows the reading to what `<id>` names. A message, or
+a widget frozen into one, names its thread: the reading is that thread's current
+messages, with bounded history selected by `--after` and `--limit`, and each message's
+frozen markup under `content` (`construction.py`), since that markup has no file of
+its own. An authored node keeps its `tag`, effective `attrs` and `content`, and
+`source` line and column; a standing event supplies its exact `state` and origin, and
+`authored` preserves the input it replaced. Widget `inputs` join each binding to its
+source's current value, contract, source id and revision, or to the `error` a failing
+value reads as; contracts with a deferred record field expose the manifest plus the
+value file and its revision for their payload. The reading's `content_source` names
+the thread and vocabulary file. A widget on the page names itself: the reading is its
+`widget` element, the `state` and `updates` resting on it, the `asks` it holds or
+answers, and the `workflows` it is the subject of, with their `activity` obligations.
+Page ids and event ids share one address space, which is why `page check` refuses an
+authored id shaped like an event id. Default `page state` thread entries stay compact.
+Raw diagnostic history belongs to `leaf page events`, and the page's `registry.json`
+owns the vocabulary.

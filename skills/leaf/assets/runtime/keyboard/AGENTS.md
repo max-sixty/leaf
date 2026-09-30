@@ -24,14 +24,14 @@ needs an entry in the register's ordering tables.
 
 ## Scope resolution
 
-Bindings resolve from the focused element outward: an exact control or active
-mode, native interaction, the nearest widget and its widget ancestors, Leaf's
-contextual and page scopes, then the browser. An implemented declaration gets
-first refusal while its scope stands; if its command is unavailable, the press
-does not fall through to another Leaf meaning. Text entry keeps characters,
-composition, caret movement, and deletion ahead of ancestor widgets, as radio,
-slider, and open-select navigation do; an exact control may still claim Enter or
-its own Escape step.
+Bindings resolve from the focused element outward: an exact control or active mode,
+native interaction, the nearest widget and its widget ancestors, Leaf's contextual and
+page scopes, then the browser. An implemented declaration gets first refusal while its
+scope applies (`dispatch.js`, `standing`: the user is in it and the page has it); if
+its command is unavailable, the press does not fall through to another Leaf meaning.
+Text entry keeps characters, composition, caret movement, and deletion ahead of
+ancestor widgets, as radio, slider, and open-select navigation do; an exact control
+may still claim Enter or its own Escape step.
 
 ## Escape unwinds the hierarchy, not the history
 
@@ -86,17 +86,18 @@ widget's own binding wins while focus is inside it.
 ## Touch routes
 
 A finger has no keys, so every page capability that a key reaches and no direct gesture
-does has a banner control under a coarse pointer. A row declares `touch`, the control's
-words, or a routed row declares it on each route whose result needs its own control;
-`touch-controls.js` derives the control from that declaration, so its words, enabled
-state, and press come from the one row the key uses.
+does has a banner control under a coarse pointer. A row declares `touch` as the
+control's words. A row with `routes` makes a different press per route, so it declares
+`touch` instead on each route whose result needs its own control. `touch-controls.js`
+derives the control from that declaration, so its words, enabled state, and press come
+from the one row the key uses.
 
-- A page command's control is an entry in the banner's More.
-- A page-scope row's control is a gesture step on the banner's row while its scope is
-  the innermost standing one with steps, since a phone's row has room for one
-  interaction's. A mode or bounded interaction a finger can enter declares its way out, since
-  Escape and the mode's letter are keys, and whatever else inside it a finger has no
-  other way to do, such as walking search matches.
+- A page command's control is an entry in the banner's More. - A page-scope row's
+  control is a gesture step on the banner's row while its scope is the innermost
+  applying scope that has steps, since a phone's row fits one interaction's steps. A
+  mode or bounded interaction a finger can enter declares its way out, since Escape
+  and the mode's letter are keys, and whatever else inside it a finger has no other
+  way to do, such as walking search matches.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the

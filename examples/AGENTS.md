@@ -7,7 +7,7 @@ an unlisted page can stay published.
 
 ## Catalog pages
 
-Every catalog entry stands as a coherent artifact for a real user task and makes a
+Every catalog entry is a coherent artifact for a real user task and makes a
 distinct Leaf capability apparent on the first visit. Subject novelty, length, or
 vocabulary coverage alone does not qualify a page. Keep pages focused; a board,
 a short proposal, or a draft is enough. Exhaustive vocabulary coverage belongs to
@@ -45,7 +45,7 @@ below.
 `corpus.html`, `corpus.data.json`, `corpus.jsonl`, and `corpus.page/` are generated
 from the sources by `leaf-dev corpus`.
 
-Every widget and idiom in the shipped vocabulary stands in some corpus source, and
+Every widget and idiom in the shipped vocabulary appears in some corpus source, and
 the suite refuses one that does not. `examples/layer.json` lists every bundled
 package, used or not, because those floors read it to decide what vocabulary they
 cover. The floors guarantee a widget appears, not which of its shapes do: where an
@@ -54,7 +54,7 @@ arity, joining, and `label` vary independently), a page shows that shape. `resta
 `overruled`, and `resolves` need a seeded log a later version contradicts or depends
 on; add one when a page has a real use for it, not to fill the slot.
 
-A shape that stands in the corpus has been rendered, not judged. When a sweep finds
+A shape that appears in the corpus has been rendered, not judged. When a sweep finds
 a defect, ask which gap let it through: an absent shape needs a fixture, and a
 present but unexamined one needs a reading or a `/ui-sweep` pass.
 
@@ -98,7 +98,8 @@ pin, and prints the `/media/` path each page names; commit the pin, not the imag
 
 Draw a before/after pair rather than capturing it. Draw both images at one height,
 at twice the width the shot gets on the page as measured from the layout, and take
-the palette from the pairs already published. A mock's generator belongs in scratch, since
-nothing can make a depicted console false. A generator for images that depict Leaf
+the palette from the pairs already published. Keep a mock's generator in scratch: a
+mock depicts something outside Leaf, such as a console, so no change to Leaf can make
+it stale. A generator for images that depict Leaf
 itself, such as `leaf-dev record-demo`, is tracked tooling rather than scratch,
 because a change to Leaf can make those images stale and they need regenerating.

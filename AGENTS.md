@@ -149,6 +149,8 @@ and Codex install the tracked tree whole.
 
 Read the scoped instructions for the area being changed:
 `skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
+`skills/leaf/assets/runtime/keyboard/AGENTS.md` (commands, bindings, scopes),
+`skills/leaf/packages/AGENTS.md` (bundled packages),
 `skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
 `examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
 `build/AGENTS.md` (committed bundles), and `dev/AGENTS.md` (the `leaf-dev` package
@@ -214,11 +216,11 @@ one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
 and thread state. Every forward gesture whose semantic result the page can draw is on
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
-or other delivery status is not that result. What the page can draw is what its own
-document settles: a widget's state, a thread's turn. Which Asks the document still holds
-and which of them the user owes are settled by the whole log, so that reading moves
-when the state a gesture's own POST returns is adopted, and the browser never folds a
-second answer to it. Refusal restores the authoritative state.
+or other delivery status is not that result. A result the page can draw is one its own
+document settles: a widget's state, a thread's turn. Which Asks the document still
+holds, and which of them the user owes, depend on the whole log. So that reading
+changes when the browser adopts the state a gesture's own POST returns, and the
+browser never derives it itself. Refusal restores the authoritative state.
 Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the

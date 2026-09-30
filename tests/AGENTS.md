@@ -32,8 +32,9 @@ Mark a test `nightly` when a pull request can land without it, including any tes
 needs the network; expense alone does not make a test nightly. Broad discovery skips
 nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
-in the test files the change touches. Before handing over a browser-facing change, run its whole browser file, the
-everyday gate, and the smallest nightly selection covering it. Run a new or changed
+in the test files the change touches. Before handing over a browser-facing change, run
+its whole browser file, the everyday gate, and the smallest nightly selection covering
+it. Run a new or changed
 browser test through `uv run leaf-dev flake NODEID`, which runs it as concurrent
 copies: a serial rerun samples only the idle machine that already passes it. The
 copies share every fixed path a test writes in the checkout, such as an export under
@@ -74,8 +75,9 @@ in the suite. The render gate never opens the thread panel, so the suite opens i
 puts the gate's geometry readings to it, asserting each population and planting a
 fault there first.
 
-A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
-band a box shows, consume that answer instead of copying it: `root_overflow` for
+A render-gate test calls `render_version`, not one of its probes. Where the product
+already answers a reading's question, such as `shownBand` for the band a box shows,
+consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored, and
 `event_log.read_events` for what the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
@@ -132,8 +134,8 @@ of one user share `one_user`.
 
 ## Drive the browser a user gets
 
-Drag selections with `select`; a synthetic `dispatchEvent` skips the event
-sequence the runtime listens to. `locator.click()` scrolls its target into view, so where the
+Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence
+the runtime listens to. `locator.click()` scrolls its target into view, so where the
 subject is a press's effect on scroll, scroll it into view first and read the baseline
 after.
 
@@ -178,9 +180,10 @@ Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks
 after any manual navigation. It waits on the runtime's one readiness reading
 (`pageReadiness`): upgrade, replay, an `/api/state` answer the caller holds
 presented whole, current presentation, deferred arrivals, and settled rendering, in
-that order. `told` holds the answer the server gives now and asks only through the
-`state` stage, so it also answers behind a page held mid-gesture. They are independent facts, network quiet implies
-none of them, and a key pressed before replay can be lost silently. Never combine the
+that order. They are independent facts, network quiet implies none of them, and a key
+pressed before replay can be lost silently. `told` holds the answer the server gives
+now and asks only through the `state` stage, so it also answers behind a page held
+mid-gesture. Never combine the
 stamps yourself, and never wait for a fixture's deferred widget by name; the arrived
 stage covers work an owner declares after presentation. Call `displayed` before a
 pre-runtime measurement.
@@ -190,13 +193,13 @@ pre-runtime measurement.
 Elapsed time, matching samples, a fixed count of animation frames, and network quiet
 all describe a page that has not started an effect as well as one that has finished
 it. Wait on a fact the system states instead; count frames (`one_frame` in
-`leaf.render_checks`) only where one rendering update is itself the claim. A computed style under a transition
-reports the animated value, so ask `getAnimations()` where the subject may be in
-transit. `page.evaluate` takes no timeout; state readiness synchronously in the page
-and poll it with `wait_for_probe`.
+`leaf.render_checks`) only where one rendering update is itself the claim. A computed
+style under a transition reports the animated value, so ask `getAnimations()` where
+the subject may be in transit. `page.evaluate` takes no timeout; state readiness
+synchronously in the page and poll it with `wait_for_probe`.
 
-An absence that rests on a mechanism acting only after a grace period holds a window
-derived from that product constant plus scheduling room.
+To assert that a mechanism with a grace period did not act, wait out that product
+constant plus scheduling room.
 
 A new wait fixes its deadline when it begins and names the missing evidence on
 timeout. Pure-Python state polls use `interact_support.wait_for`.
@@ -230,7 +233,7 @@ Wait for `rendered` between repeated presses a repaint could answer; where waiti
 changes the outcome, run the gesture both ways and assert they agree. Before
 `scroll_settled`, observe that the gesture started its scroll.
 
-## State races are arrangements, not probabilities
+## Order a race with a route
 
 If a race appears only under load, order it with `page.route` rather than repeating
 the test. `leaf-dev flake` reproduces it and prints every failing copy's message,
@@ -248,13 +251,13 @@ Chromium opened, observe the browser's record (`opened_tab`).
   still names the append, so arm listeners before the fetch, and call
   `page.unroute_all(behavior="wait")` before teardown even when the test fails.
 - `refuse` cancels without a console error; use a plain abort only when the error is
-  the subject. A standing refusal of `**/api/state*` keeps producing retries, and
+  the subject. A route that keeps refusing `**/api/state*` keeps producing retries, and
   `CutOff` holds state reads across a stale-state journey.
 
 Assert the ordering the route created, such as `Traffic.sends` before release, and for
 a stale state prove both the page's view and the server's newer one. Name an event
-from what the appending door returned (`append_event`, a model command, a CLI write's printed record); the
-log's tail may be a `read` an open page appended.
+from what the appending door returned (`append_event`, a model command, a CLI
+write's printed record); the log's tail may be a `read` an open page appended.
 
 ### A test cannot assert over noise it makes itself
 

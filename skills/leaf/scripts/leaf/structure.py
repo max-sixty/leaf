@@ -82,8 +82,9 @@ PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The public CDNs a page may run code and read data from, the set a Claude artifact
-# page is given: Google Fonts' stylesheets and font files, and the script CDNs. What a
+# The public CDNs a page may run code and read data from: Google Fonts' stylesheets and
+# font files, and the script CDNs, the set a Claude artifact page is given less
+# Tailwind's, which serves only a script that must block the parser. What a
 # page only shows (an image, media, a frame, a font, a stylesheet) may come from any
 # https: origin (`shown_reference`). A reference to either is served from there as
 # written; capture neither reads nor refuses it.
@@ -93,7 +94,6 @@ EXTERNAL_ORIGINS = (
     "https://cdnjs.cloudflare.com",
     "https://cdn.jsdelivr.net",
     "https://unpkg.com",
-    "https://cdn.tailwindcss.com",
     "https://code.jquery.com",
 )
 EXTERNAL_SOURCES = " ".join(EXTERNAL_ORIGINS)

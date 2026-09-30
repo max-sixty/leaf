@@ -419,11 +419,10 @@ unresolved imports, filesystem escapes, event-handler attributes, and `javascrip
 URLs, which the page policy would never run.
 
 A script, and data a page's code fetches, may also come from Google Fonts or a public
-script CDN, the set a Claude artifact page may use: jsdelivr, cdnjs, unpkg, Tailwind's,
-and jQuery's. What the page shows, whether an image, audio or video, a frame, a font,
-or a stylesheet, may come from any `https://` URL. The page loads either as written, so
-it arrives only while the user is online. A script from any other origin is refused,
-and the refusal names the ones admitted.
+script CDN: jsdelivr, cdnjs, unpkg, and jQuery's. What the page shows, whether an image,
+audio or video, a frame, a font, or a stylesheet, may come from any `https://` URL. The
+page loads either as written, so it arrives only while the user is online. A script
+from any other origin is refused, and the refusal names the ones admitted.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.

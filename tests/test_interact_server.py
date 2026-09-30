@@ -1127,7 +1127,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
     """Google Fonts and the script CDNs pass capture and delivery untouched."""
     font = "https://fonts.googleapis.com/css2?family=Instrument+Sans&display=swap"
     chart = "https://cdn.jsdelivr.net/npm/chart.js@4/+esm"
-    tailwind = "https://cdn.tailwindcss.com/3.4.1"
+    tailwind = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "app.js").write_text(f'import "{chart}";\n')
     (page_dir / "index.html").write_text(
@@ -1136,7 +1136,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
             f'<link rel="stylesheet" href="{html.escape(font)}">\n'
             f'<style>@import url("{font}"); main {{ font-family: "Instrument Sans"; }}'
             "</style>\n"
-            f'<script type="module" src="{tailwind}"></script>\n'
+            f'<script defer src="{tailwind}"></script>\n'
             '<script type="module" src="/page/app.js"></script>\n</head>',
         )
     )

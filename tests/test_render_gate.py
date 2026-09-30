@@ -3060,8 +3060,9 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
-# to follow it there.
-AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+# to follow it there. The list states the inline floor; the block floor is padding on
+# the controls a flex or grid container could squeeze, and min-height on the rest.
+AIM_FLOOR_RULE = "min-width: var(--aim-floor);"
 
 
 def aim_selectors():

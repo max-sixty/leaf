@@ -90,11 +90,10 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Stack covers of stated height, and keep Layouts out of widgets.** Give the banner a
-  height CSS computes, give every sticky cover a stated height added into `--lf-top`,
-  delete the measured-header machinery, and state the hit floor as padding. Then decide
-  whether a workspace keeps panes that scroll on their own or its regions stick to the
-  root scroller, and drop the bottom bar ([plan](notes/chrome-and-covers.md)).
+- **Decide whether a workspace's panes scroll on their own.** Its regions could instead
+  stick to the root scroller, which keeps native keyboard scrolling and restoration on
+  workspace pages and settles the side list's full-height form; then drop the bottom
+  bar and give the phone banner one row ([plan](notes/chrome-and-covers.md)).
 - **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
   beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
   `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`

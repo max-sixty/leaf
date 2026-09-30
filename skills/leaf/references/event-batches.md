@@ -151,10 +151,6 @@ to run a named wait again. Resume with an unnamed wait only when the host itself
 reports that it canceled or killed the command, or on a signal your host contract
 names.
 
-An embedded MCP App changes where the page is drawn, not this carrier. Its
-events enter the same log, and a successful `ui/message` response is not a
-delivery receipt.
-
 ## After the batch
 
 Acknowledgement is transport receipt, not semantic settlement. Write every

@@ -451,9 +451,6 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# Outside the layer roots: an MCP host reads a resource here from the install over
-# the tool transport, so `page init` never copies one into a page directory.
-MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"

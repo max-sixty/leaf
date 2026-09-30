@@ -250,9 +250,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other hosts:** add a blocking `leaf wait` route when another agent host needs
   foreground handoff.
-- **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
-  browser handoff when an inline-hosting task calls for it. See the
-  [research brief](notes/workspace-followups.md#item-22).
 - **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
@@ -299,9 +296,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).
-- **MCP page ports:** test wildcard-port `frame_domains` in a host before replacing
-  `/p/<capability>` multiplexing. See the
-  [dependency survey](notes/dependency-survey.md).
-- **Direct MCP bundle:** make evaluation-order faults fail visibly if the
-  experimental bundle becomes a supported path.
+- **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
+  the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

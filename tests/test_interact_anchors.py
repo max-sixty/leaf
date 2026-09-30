@@ -136,8 +136,6 @@ def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
     assert result.exit_code != 0
     assert "2 times" in result.output
-    # Both readers meet this message — the writer here, and a person selecting text in
-    # the MCP snapshot's panel — so its recourse names no flag.
     assert "name the section" in result.output and "--section" not in result.output
     # Naming a section is one of the two ways out it offers.
     scoped = comment(

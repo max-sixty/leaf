@@ -13,7 +13,7 @@ from . import reading as served_reading
 
 
 class PageStateService:
-    """The state transaction shared by HTTP and MCP transports.
+    """The state transaction every page route reads through.
 
     Activation, the reading token, and the projected state are taken under one
     page transaction. Neighbour discovery follows after the transaction because

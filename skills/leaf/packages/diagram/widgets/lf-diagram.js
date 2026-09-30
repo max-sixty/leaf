@@ -101,14 +101,12 @@ customElements.define(
           else if (rank === held.rank) held.element = null;
         }
         this.visualParts.clear();
-        const stateDiagram = /^(?:%%[^\n]*\n\s*)*stateDiagram(?:-v2)?\b/.test(
-          source.trimStart(),
-        );
         for (const [id, { element }] of boxes) {
           if (!element || !NAMEABLE.test(id)) continue;
-          // Nested states number their generated start/end markers. None has an
-          // authored identity or can be a comment target.
-          if (stateDiagram && /^_(?:start|end)\d*$/.test(id)) continue;
+          // Generated state markers have no authored identity. Their IDs can
+          // overlap with authored state names, so recognize the rendered shape.
+          const shape = element.getAttribute("data-shape");
+          if (shape === "state-start" || shape === "state-end") continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           const label = element.getAttribute("data-label") || says || id;
           this.visualParts.set(`node:${id}`, { element, label });

@@ -300,9 +300,21 @@ const shown = (element) =>
 // at, read and then taken back within one task. Only a page nothing reads again, such
 // as the report's page of worked examples, can be read this way.
 const withFirstSizes = (holder, inside) => {
-  const kept = inside.map(({ element }) => [element, element.getAttribute("style")]);
-  for (const { element, first } of inside)
+  const kept = inside.map(({ element, first }) => ({
+    element,
+    first,
+    style: element.getAttribute("style"),
+    inline: getComputedStyle(element).display === "inline",
+  }));
+  for (const { element, first, inline } of kept)
     for (const [property, value] of [
+      // An inline box takes no size, so it stands as one at the top of its line.
+      ...(inline
+        ? [
+            ["display", "inline-block"],
+            ["vertical-align", "top"],
+          ]
+        : []),
       // No padding or border, which would hold the box open past the size given.
       ["box-sizing", "border-box"],
       ["padding", "0"],
@@ -316,7 +328,7 @@ const withFirstSizes = (holder, inside) => {
     ])
       element.style.setProperty(property, value, "important");
   const { width, height } = holder.element.getBoundingClientRect();
-  for (const [element, style] of kept)
+  for (const { element, style } of kept)
     if (style === null) element.removeAttribute("style");
     else element.setAttribute("style", style);
   return { width, height };

@@ -69,9 +69,10 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
     holders that each grow by exactly that: `lf-holder` because what it holds grew, so
     it is not named beside it, and `lf-fixed` because it sets its own height 40px
-    taller, so it is. `lf-bare` has no worked example."""
+    taller, so it is. `lf-word` is inline and doubles its type, which grows the line
+    holding it and not that line's own box. `lf-bare` has no worked example."""
     package = tmp_path / "package"
-    for widget in ("lf-grow", "lf-holder", "lf-fixed", "lf-bare"):
+    for widget in ("lf-grow", "lf-holder", "lf-fixed", "lf-word", "lf-bare"):
         made = CliRunner().invoke(
             cli_model.cli, ["package", "init", str(package), "--widget", widget]
         )
@@ -81,6 +82,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         grows_at_upgrade("lf-grow", "padding-bottom: 40px")
     )
     (widgets / "lf-fixed.js").write_text(grows_at_upgrade("lf-fixed", "height: 140px"))
+    (widgets / "lf-word.js").write_text(grows_at_upgrade("lf-word", "font-size: 32px"))
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
     (package / "theme.css").write_text(
@@ -91,6 +93,9 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     registry = json.loads(registry_path.read_text())
     registry["lf-holder"]["x-example"] = (
         '<lf-holder id="holder"><lf-grow id="held">Held.</lf-grow></lf-holder>'
+    )
+    registry["lf-holder"]["x-example"] += (
+        '<lf-holder id="line">A <lf-word id="spoken">word</lf-word> in a line.</lf-holder>'
     )
     registry["lf-fixed"]["x-example"] = (
         '<lf-fixed id="fixed"><lf-grow id="inner">Inner.</lf-grow></lf-fixed>'
@@ -108,7 +113,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert ran.returncode == 0, ran.stderr
     lines = ran.stdout.splitlines()
     assert lines[1] == (
-        f"widget quality: 5 finding(s) for 4 widget(s) in {headless_shell}, "
+        f"widget quality: 7 finding(s) for 5 widget(s) in {headless_shell}, "
         "advice for the widgets' author:"
     ), ran.stdout
     assert lines[2] == "  · <lf-bare> example: no worked example shows it"
@@ -119,4 +124,5 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     readings = [finding.fullmatch(line) for line in lines[3:]]
     assert all(readings), lines
     grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
+    assert grown.pop("word") > 0 and grown.pop("spoken") > 0, lines
     assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, lines

@@ -1922,8 +1922,13 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * rail's width on its right, so the page's own layout sees a narrower window and every
  * row stands in the strip. A block may still run under it on purpose, and its rows pin.
  * The declaration stands on the shell it pads rather than on `main`: a `:has()` on the
- * body re-checks it on every write below (assets/AGENTS.md). */
-@media screen {
+ * body re-checks it on every write below (assets/AGENTS.md).
+ *
+ * The strip is given up only above a phone's width, where the page keeps a usable
+ * column beside it; on a phone the rows pin as they do on any page with no room beside
+ * it. The shell is the container a narrow column asks (`lf-shell`, 640), and a box
+ * cannot ask its own container, so the rule that pads the shell asks the window. */
+@media screen and (width > 640px) {
   html[data-lf-live] body[data-rail="right"] {
     padding-inline-end: var(--rail);
   }

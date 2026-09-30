@@ -116,12 +116,9 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
-def code_focused(page: Page) -> None:
-    """The first code block with a note, focused by keyboard, with the note in view."""
-    page.keyboard.press("Tab")
-    pre = page.locator("pre:has(.lf-code-note)").first
-    pre.focus()
-    pre.locator(".lf-code-note").first.evaluate(
+def code_note(page: Page) -> None:
+    """The first code block with a note, the note in view."""
+    page.locator("pre .lf-code-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
 
@@ -162,7 +159,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         panel_reply_sent,
         composer,
         card_grabbed,
-        code_focused,
+        code_note,
         pane_focused,
         element_thread,
         versions_menu,
@@ -206,8 +203,8 @@ STATES = (
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),
-    State("walkthrough-code", "pr-walkthrough", code_focused),
-    State("walkthrough-code-dark", "pr-walkthrough", code_focused, scheme="dark"),
+    State("walkthrough-code", "pr-walkthrough", code_note),
+    State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("ship-thread", "ship-review", element_thread),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),

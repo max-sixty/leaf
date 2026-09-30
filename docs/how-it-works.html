@@ -405,7 +405,10 @@ stateDiagram-v2
               arrives as the turn ends goes into that turn; one that owes nothing waits
               for the watcher.
             </p>
-            <lf-diagram id="turn-end-check" parts="node:Stop node:New node:Hand node:Again node:Owed node:Claimed node:Watched node:Remind node:Ends">
+            <lf-diagram
+              id="turn-end-check"
+              parts="node:Stop node:New node:Hand node:Again node:Owed node:Claimed node:Watched node:Remind node:Ends"
+            >
               <pre>
 flowchart TD
   Stop(["the agent ends its turn"]) --&gt; New(["input owed an answer arrived?"])

@@ -398,9 +398,12 @@ function blockOf(target) {
 // words may not pass on its way to its target. Inside the target's own block a box that
 // paints nothing is the pin's own room, but one that paints still counts whole, since a
 // pin on it reads as that box's however it nests: a choice's pin on the first option's
-// card would read as that option's. The target, and a box that holds it, are not ones to
-// avoid, since the pin stands on them. The walk leaves any subtree whose box misses the
-// band, so a long page costs what lies near the target.
+// card would read as that option's. Where the boxes inside the target that count whole
+// fill it between them, the painted ones are the target's own face drawn in parts
+// (`drawnInParts`), and room as the target is: a figure's caption rail, a suggestion's
+// tinted slot. The target, and a box that holds it, are not ones to avoid, since the pin
+// stands on them. The walk leaves any subtree whose box misses the band, so a long page
+// costs what lies near the target.
 //
 // The controls come back apart as well, since packing keeps the pin off them, a pin left
 // at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
@@ -436,9 +439,14 @@ function coverIn(root, band, target, block, bands, stop) {
   const walls = [];
   const neighbours = [];
   const controls = [];
+  // The target's own face, where it is drawn in parts (`drawnInParts`): the painted boxes
+  // outermost inside it, and every box inside it that counts whole.
+  const faceParts = [];
+  const filled = [];
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
-  const visit = (el) => {
+  // `inPart`: inside one of the target's painted parts, whose own inner boxes count whole.
+  const visit = (el, inPart = false) => {
     for (const node of el.childNodes) {
       if (node.nodeType === Node.TEXT_NODE) {
         if (!node.data.trim()) continue;
@@ -467,12 +475,21 @@ function coverIn(root, band, target, block, bands, stop) {
         const shown = clippedBand(node, box, bands, stop);
         if (shown) cover.push(shown);
         if (shown) (control ? controls : walls).push(shown);
+        if (shown && !inPart && node !== target && target.contains(node))
+          filled.push(shown);
         continue;
       }
       if (node instanceof SVGElement) continue;
       if (!boxless && !holds && node !== target) {
         const style = getComputedStyle(node);
         if (paintsItsBox(style)) {
+          if (!inPart && target.contains(node)) {
+            // Decided once the walk has read the target whole; its words count as ever.
+            faceParts.push(edges(box));
+            filled.push(edges(box));
+            visit(node, true);
+            continue;
+          }
           cover.push(edges(box));
           walls.push(edges(box));
           continue;
@@ -488,14 +505,44 @@ function coverIn(root, band, target, block, bands, stop) {
       // skipped content's layout (`skipped`).
       if (node.localName === "details" && !node.open) {
         const summary = node.querySelector(":scope > summary");
-        if (summary) visit({ childNodes: [summary] });
+        if (summary) visit({ childNodes: [summary] }, inPart);
         continue;
       }
-      visit(node);
+      visit(node, inPart);
     }
   };
   visit(root);
+  if (!drawnInParts(target.getBoundingClientRect(), filled))
+    for (const box of faceParts) {
+      cover.push(box);
+      walls.push(box);
+    }
   return { cover, walls, neighbours, controls };
+}
+
+// Whether the boxes inside a target that count whole fill it between them, so that they
+// are its own face drawn in parts, as a figure is drawn as a caption rail over an image
+// and a suggestion as its one tinted slot, rather than separate things it holds, as a
+// choice holds option cards with room between them. A pin on a part of the target's face
+// reads as the target's; one on a separate thing reads as that thing's. Each box counts
+// as far as it lies inside the target, and the fill forgives a pixel's seam round each.
+function drawnInParts(own, boxes) {
+  const area = ({ left, top, right, bottom }) =>
+    Math.max(0, right - left) * Math.max(0, bottom - top);
+  const inside = (box) => ({
+    left: Math.max(box.left, own.left),
+    top: Math.max(box.top, own.top),
+    right: Math.min(box.right, own.right),
+    bottom: Math.min(box.bottom, own.bottom),
+  });
+  const whole = area(own);
+  const seams = boxes.reduce(
+    (sum, box) => sum + (box.right - box.left) + (box.bottom - box.top),
+    0,
+  );
+  return (
+    whole > 0 && boxes.reduce((sum, box) => sum + area(inside(box)), 0) >= whole - seams
+  );
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is

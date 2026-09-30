@@ -8734,6 +8734,35 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
     assert stands == {False: True, True: False}, stands
 
 
+@pytest.mark.parametrize("target", ["rn-console-shot", "rn-sug-window"])
+def test_a_target_drawn_in_painted_parts_is_room_for_its_own_pin(
+    browser, serve, target
+):
+    """A painted box inside a pin's target counts whole, as an option card does inside a
+    choice, unless the boxes inside the target fill it between them: then they are the
+    target drawn in parts, and a pin on one reads as the target's. On release-notes at
+    390px under a finger, the Console screenshot is a caption rail over its comparison,
+    and the Operations suggestion is its one tinted slot; each pin stands on its own
+    target's face, over none of the page's words, rather than over the words at its
+    corner."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = page.evaluate(PIN_READING, target)
+    assert reading["entries"], reading
+    for entry in reading["entries"]:
+        covered = [word for word in reading["words"] if _meets(word, entry)]
+        assert not covered, (entry, covered)
+
+
 def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve):
     """A choice is the group's, so its receipt pins to the options as a whole. The
     group's top-right corner lies on its first option's card, and a card reads as one

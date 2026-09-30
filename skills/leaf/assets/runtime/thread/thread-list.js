@@ -53,7 +53,6 @@ import { discussed, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
-import { restoreScrollerBy } from "../scrolling.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placement.js";
 import { threadSearchReading } from "./narrowing.js";
@@ -208,7 +207,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       card.getBoundingClientRect().bottom - incoming.end,
       newest.getBoundingClientRect().bottom - (incoming.box ?? Infinity),
     );
-    if (by > 0) restoreScrollerBy(threadsBox, by);
+    if (by > 0) threadsBox.scrollBy({ top: by, behavior: "instant" });
   }
 
   const rowModel = (all, commands) => {

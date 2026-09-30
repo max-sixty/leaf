@@ -404,11 +404,13 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
         )
         told(page)
         rendered(page)
-        # A scroll lands on a whole device pixel, so a follow may round by less than one.
+        # The list scrolls by whole pixels and a reply's height need not be one, so a
+        # box the list follows lands within a pixel of where it stood (0.875px measured
+        # on CI's Linux Chrome, nothing on macOS).
         now = card.evaluate(REPLY_BOX)
         assert now["caret"] == standing["caret"]
-        assert now["box"] == pytest.approx(standing["box"], abs=0.5), (standing, now)
-        assert now["field"] == pytest.approx(standing["field"], abs=0.5), (
+        assert now["box"] == pytest.approx(standing["box"], abs=0.99), (standing, now)
+        assert now["field"] == pytest.approx(standing["field"], abs=0.99), (
             standing,
             now,
         )

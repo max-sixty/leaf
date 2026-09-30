@@ -10,12 +10,6 @@ export const pageScroller = document.scrollingElement;
 export const moveScrollerBy = (box, top, behavior = "instant") =>
   box.scrollBy({ top, behavior });
 
-// An instant move that puts back what a change moved lands on the whole pixel nearest its
-// exact target. A fractional write can land short: in CI's Chrome, a follow meant to keep
-// a reply box still left it 0.875px lower.
-export const restoreScrollerBy = (box, top) =>
-  box.scrollTo({ top: Math.round(box.scrollTop + top), behavior: "instant" });
-
 // How much of a move a box can make from where it stands: a box at its end moves no
 // further, whatever it is asked.
 export const reachable = (box, top) =>

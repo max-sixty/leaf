@@ -23,7 +23,6 @@ import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor, scrollersOf } from "../reading-regions.js";
-import { restoreScrollerBy } from "../scrolling.js";
 import { renderedParent } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -127,7 +126,7 @@ export function followBoxGrowth(input) {
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
   const by = Math.max(0, Math.min(grew, covered(reply)));
-  if (by) restoreScrollerBy(scrollerFor(reply), by);
+  if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
 }

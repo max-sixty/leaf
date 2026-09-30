@@ -48,7 +48,6 @@ import { headerInset, visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput } from "./user-intent.js";
-import { restoreScrollerBy } from "./scrolling.js";
 
 // The candidates in the order they may hold the place, each once: an inherited
 // reference, named items in input order, then the visible ones from the lead downward and
@@ -138,7 +137,7 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
       held: hold.at,
       withinTask: !hold.spans,
     });
-    if (delta) restoreScrollerBy(scroller, delta);
+    if (delta) scroller.scrollTop += delta;
     // Every candidate observed this reflow too; refresh their baselines after the
     // correction, or a later hand-off pays again for movement the first one absorbed.
     for (const candidate of hold.references) {

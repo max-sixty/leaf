@@ -913,9 +913,10 @@ rewrites that source. Source revisions and event sequences are independent: an o
 may contain new data, and a new event response may contain old data, so neither orders
 the other.
 
-`data set` is the one write. A value that has to be derived from a file — a text
-excerpt, a patch split into files — is the producer's to build, and a contract that
-needs more than `jq` says how in its producer `guidance`. A package may ship that tool
+Leaf derives no values: `data set` stores the value it is given. A value that has
+to be derived from a file — a text excerpt, a patch split into files — is the
+producer's to build, and a contract that needs more than `jq` says how in its
+producer `guidance`. A package may ship that tool
 as a Python file under `scripts/`, declaring its dependencies in inline script metadata
 (PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
 package by the name `--package` selects it by, bundled or installed, and runs the

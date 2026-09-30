@@ -27,8 +27,8 @@ private copy, or [explore the examples](https://leaf.page/examples/).
 
 You need [`uv`](https://docs.astral.sh/uv/),
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
-browser on the same machine as your agent. No Leaf account or configuration is
-required.
+browser that can reach the machine the agent runs on. No Leaf account or
+configuration is required.
 
 Claude Code:
 

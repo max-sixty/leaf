@@ -21,7 +21,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "1fac8c9767d5a23c5bf23f9692eecc4674665051c207a86bf496e676978a05c5",
+  "lockfileSha256": "ca09528357851d43399a46e4dfa53c27ed3d842c72d082e644c9cfba0278c509",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -39,7 +39,6 @@
     "@happy-dom/global-registrator": "20.14.5",
     "@lezer/highlight": "1.2.4",
     "@lezer/markdown": "1.7.2",
-    "@modelcontextprotocol/ext-apps": "2.0.0",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.5.0",
     "@preact/signals-core": "1.14.4",

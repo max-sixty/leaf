@@ -106,16 +106,32 @@
         </aside>
         <section class="panel" id="lp-traffic">
           <h2>Candidate traffic since deploy</h2>
-          <lf-chart id="lp-traffic-chart" kind="line" y="share of checkout traffic (%)">
+          <lf-chart id="lp-traffic-chart">
             <pre>
-minutes since deploy, checkout-v2
-0, 0
-1, 5
-2, 10
-3, 25
-4, 25
-5, 25
-6, 25
+{
+  "ariaLabel": "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
+  "marginBottom": 40,
+  "height": 220,
+  "x": {"label": "minutes since deploy", "ticks": 7},
+  "y": {"grid": true, "label": "share of checkout traffic (%)", "domain": [0, 30]},
+  "marks": [
+    {
+      "Plot.lineY": [
+        [
+          {"minute": 0, "share": 0},
+          {"minute": 1, "share": 5},
+          {"minute": 2, "share": 10},
+          {"minute": 3, "share": 25},
+          {"minute": 4, "share": 25},
+          {"minute": 5, "share": 25},
+          {"minute": 6, "share": 25}
+        ],
+        {"x": "minute", "y": "share", "stroke": "var(--series-1)", "strokeWidth": 2}
+      ]
+    },
+    {"Plot.ruleY": [[0]]}
+  ]
+}
 </pre>
           </lf-chart>
         </section>

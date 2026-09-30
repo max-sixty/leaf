@@ -1107,7 +1107,14 @@ def score_constructs(run: Run, replies: list[str]) -> dict:
         # The figure's owner is the markup; its source keeps the measurement.
         "source_kept": (page / "data/checkout-p95.json").read_bytes()
         == (run.dir / "fixture/data/checkout-p95.json").read_bytes(),
-        "chart_85": bool(chart and re.search(r"sa-east,\s*85\b", chart[0])),
+        # The row as an object, its keys in whatever order the agent left them.
+        "chart_85": bool(
+            chart
+            and any(
+                '"sa-east"' in row and re.search(r'"errors":\s*85\b', row)
+                for row in re.findall(r"\{[^{}]*\}", chart[0])
+            )
+        ),
     }
 
 

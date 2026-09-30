@@ -592,41 +592,6 @@ def test_read_converges_across_two_tabs(browser, serve):
     ]
 
 
-DIAG_PROBE = """
-(() => {
-  const top = window.top;
-  top.__probe ??= [];
-  const doc = () => ({
-    url: location.href.slice(-60),
-    frame: window.frameElement ? (window.frameElement.parentElement?.id || "?") + " vis=" + JSON.stringify(window.frameElement.getBoundingClientRect().y|0) : false,
-    ready: document.readyState,
-    sheets: [...document.styleSheets].map((x) => (x.href || 'inline').slice(-40)),
-    body: document.body ? [document.body.getBoundingClientRect().x, document.body.getBoundingClientRect().y] : null,
-    margin: document.body ? getComputedStyle(document.body).marginLeft : null,
-    live: !!document.documentElement?.hasAttribute('data-lf-live'),
-    block: !!document.documentElement?.hasAttribute('data-lf-sample-block'),
-    presented: !!document.body?.hasAttribute('data-lf-presented'),
-    t: Math.round(performance.timeOrigin + performance.now()) % 1000000,
-  });
-  top.__probe.push({ start: doc() });
-  const log = (what) => top.__probe.push({ [what]: doc() });
-  for (const k of ["readystatechange"]) document.addEventListener(k, () => log(document.readyState));
-  requestAnimationFrame(() => log("frame1"));
-  new PerformanceObserver((list) => {
-    for (const e of list.getEntries())
-      for (const s of e.sources)
-        if (s.node && (s.node === document.body || s.node === document.documentElement))
-          top.__probe.push({ shift: doc(), input: e.hadRecentInput,
-            prev: [s.previousRect.x, s.previousRect.y, s.previousRect.width, s.previousRect.height],
-            cur: [s.currentRect.x, s.currentRect.y, s.currentRect.width, s.currentRect.height],
-            at: Math.round(performance.timeOrigin + e.startTime) % 1000000 });
-  }).observe({ type: 'layout-shift', buffered: true });
-  document.addEventListener('DOMContentLoaded', () => top.__probe.push({ dcl: doc() }));
-  addEventListener('load', () => top.__probe.push({ load: doc() }));
-})();
-"""
-
-
 SAMPLE_READER = "a1b2c3d4"
 
 
@@ -661,7 +626,6 @@ def _sample_reading_page(browser, serve, body, style):
                 }
             ],
         ),
-        init_script=DIAG_PROBE,
     )
     frame = page.locator("#read-practice iframe")
     child = frame.element_handle().content_frame()
@@ -695,10 +659,6 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
     )
     child.locator(".lf-threads-toggle").focus()
     _go_to_first_unread(page, child)
-    import json as diag_json
-
-    page.evaluate("() => window.lfShiftsJudged?.()")
-    print("DIAG", diag_json.dumps(page.evaluate("window.__probe")))
 
 
 def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
@@ -727,10 +687,6 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     page.evaluate("scrollBy(0, 700)")
     expect(child.locator(".lf-first-unread")).to_be_hidden()
-    import json as diag_json
-
-    page.evaluate("() => window.lfShiftsJudged?.()")
-    print("DIAG", diag_json.dumps(page.evaluate("window.__probe")))
 
 
 def test_shadow_package_thread_registers_its_real_message_body(browser, serve):

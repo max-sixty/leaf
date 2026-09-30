@@ -53,8 +53,8 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
 //
 // The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
-// safe-area `calc()` whose serialized value is not a number, and the phone banner wraps
-// to a second row. The bottom bar is read as the boxes standing in it rather than as its
+// safe-area `calc()` whose serialized value is not a number. The bottom bar is read as
+// the boxes standing in it rather than as its
 // stated height (`--lf-bottom-bar-h`), because the status rises above a covering panel's
 // foot; it bounds only the room its boxes stand across.
 //

@@ -1136,7 +1136,9 @@ lf-board { display: grid; grid-auto-flow: column;
              + var(--lf-grip-room, 0px) + 2px); /* the card's two 1px borders */
            grid-auto-columns: 1fr;
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto;
-           scroll-snap-type: inline proximity; }
+           scroll-snap-type: inline proximity;
+           /* Scrolling sideways, it is the scroller for anything sticking in a card. */
+           --lf-top: 0px; }
 /* The column states its own floor rather than the board stating it as a track, because a
    track cannot read the box it sits in and a column can. `1fr` is `minmax(auto, 1fr)`,
    and a specified min-width is exactly what that automatic minimum resolves to, so the

@@ -942,11 +942,13 @@ main {
 
   /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
    * occurrence), so a long log or feed never grows the page. `end` follows the newest
-   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. */
+   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. What
+   * sticks inside it sticks at its own top, which no chrome covers (`--lf-top`). */
   [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     overscroll-behavior: contain;
+    --lf-top: 0px;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
@@ -1085,8 +1087,10 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it. */
-table { display: block; overflow-x: auto; container-type: inline-size;
+/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
+ * Scrolling sideways makes it the scroller for anything sticking inside it, which
+ * sticks at the table's own top (`--lf-top`). */
+table { display: block; overflow-x: auto; container-type: inline-size; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The

@@ -448,7 +448,7 @@ def _browser(_playwright):
 
 
 @pytest.fixture
-def browser(_browser):
+def browser(_browser, request):
     """The shared browser process, with context ownership scoped to one test.
 
     `Browser.new_page` opens a fresh context, so local and session storage remain
@@ -464,7 +464,7 @@ def browser(_browser):
     from render_harness import WatchedBrowser, clean_browser
 
     try:
-        with clean_browser():
+        with clean_browser(request.node.originalname):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
@@ -472,7 +472,7 @@ def browser(_browser):
 
 
 @pytest.fixture
-def iphone(_playwright):
+def iphone(_playwright, request):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
     user meets whichever browser they open the page in. Browser problems are rejected
@@ -481,14 +481,14 @@ def iphone(_playwright):
 
     webkit = _playwright.webkit.launch()
     try:
-        with clean_browser():
+        with clean_browser(request.node.originalname):
             yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
 
 
 @pytest.fixture
-def scrollbar_browser(_playwright):
+def scrollbar_browser(_playwright, request):
     """The Chromium shell with its scrollbars shown. The shared `browser` launches with
     Playwright's default `--hide-scrollbars`, under which the root's scrollbar takes no
     width, so nothing that turns on a classic scrollbar's gutter can be read there. A
@@ -499,7 +499,7 @@ def scrollbar_browser(_playwright):
 
     shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
     try:
-        with clean_browser():
+        with clean_browser(request.node.originalname):
             yield WatchedBrowser(shown)
     finally:
         shown.close()

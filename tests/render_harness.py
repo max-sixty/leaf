@@ -54,6 +54,7 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from known_shifts import KNOWN_SHIFTS
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1053,13 +1054,14 @@ _BROWSER_PROBLEM_LISTS = None
 
 
 @contextmanager
-def clean_browser():
+def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves.
+    themselves. The fixture names its `test`, whose entry in `KNOWN_SHIFTS` keeps the
+    layout-shift reports it names (`shift_watch.js`): each a defect waiting on its fix.
     """
     global _BROWSER_PROBLEM_LISTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1069,10 +1071,12 @@ def clean_browser():
         yield
     finally:
         _BROWSER_PROBLEM_LISTS = None
+    known = KNOWN_SHIFTS.get(test)
     problems = [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
+        if not (known and known in problem)
     ]
     assert problems == [], problems
 

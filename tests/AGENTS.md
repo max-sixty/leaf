@@ -166,8 +166,10 @@ of those problems (`shift_watch.js`): one Chrome reports without recent input, a
 typing that carries the field it types in, so every test checks both. Playwright's
 clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
 written by script, and the server's news are not. Fix what moved rather than consuming
-the report. `EXPECTED` there lists the shifts the page makes today, each a defect
-waiting on its fix, and fixing one deletes its lines.
+the report. `known_shifts.py` lists the tests whose pages still make one, each a
+defect waiting on its fix, by the report it keeps; fixing one deletes its line. Chrome
+names only the five nodes a frame moved most, which differ between runs and machines,
+so the list names tests, not elements.
 
 ## A page is ready when it says what has finished
 

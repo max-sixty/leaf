@@ -6052,17 +6052,17 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
           const host = document.querySelector('lf-diff');
           const input = document.createElement('input');
           input.value = 'draft reply';
-          shadowStage(host, [
-            document.createTextNode('old reading'),
-            document.createComment('old stage'),
-            input,
-          ]);
+          const old = document.createElement('p');
+          old.textContent = 'old reading';
+          shadowStage(host, [old, document.createComment('old stage'), input]);
           input.focus();
           input.setSelectionRange(2, 5);
-          shadowStage(host, [document.createTextNode('new reading'), input]);
+          const next = document.createElement('p');
+          next.textContent = 'new reading';
+          shadowStage(host, [next, input]);
           return {
             text: [...host.shadowRoot.childNodes]
-              .filter(node => node.nodeType === Node.TEXT_NODE)
+              .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
@@ -6079,6 +6079,28 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
         "value": "draft reply",
         "selection": [2, 5],
     }
+
+
+def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, serve):
+    page = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {rangeAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+          const host = document.querySelector('lf-diff');
+          const first = document.createElement('p');
+          first.textContent = 'first';
+          const last = document.createElement('p');
+          last.textContent = 'last';
+          shadowStage(host, [first, last]);
+          const range = document.createRange();
+          range.setStart(first.firstChild, 0);
+          range.setEnd(last.firstChild, last.firstChild.length);
+          return rangeAnchor(range);
+        }"""
+    )
+    assert result["section"] == "patch"
+    assert result["quote"] == "first last"
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):

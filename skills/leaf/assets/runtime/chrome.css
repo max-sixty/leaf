@@ -1475,7 +1475,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      bottom bar the way they do. */
   .lf-margin-preview { position: fixed; inset: 0 auto auto 0;
     z-index: var(--lf-z-margin-preview);
-    width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
+    /* As wide as its thread, between the bounds its placement gives it
+       (thread-card-geometry.js). */
+    width: max-content;
+    min-width: var(--lf-thread-min-width, 0);
+    max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px));
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
@@ -1545,8 +1549,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      padding (the compact ring's room, in this file's header), and with it the thread's
      own foot padding, so nothing lies under the row in flow: it stands on the
      transcript's foot whether or not the transcript scrolls, and a transcript starting
-     to scroll does not drop it by that padding. */
-  .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
+     to scroll does not drop it by that padding. The row contains its inline size, so
+     the reply being written wraps inside the width the thread gives the card rather
+     than widening it under the user. */
+  .lf-margin-thread .lf-say { contain: inline-size;
+    align-items: stretch; position: sticky; bottom: 0;
     margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
     padding-block: var(--sp-3) calc(var(--focus-ring-room) + var(--sp-1));
     background: inherit; }

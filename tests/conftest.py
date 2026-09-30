@@ -248,6 +248,17 @@ def pytest_addoption(parser):
     )
 
 
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """A test body that returns has its last shifts judged before its fixtures end
+    (`render_harness.judge_shifts`)."""
+    from render_harness import judge_shifts
+
+    result = yield
+    judge_shifts()
+    return result
+
+
 def pytest_collection_modifyitems(config, items):
     """Broad discovery stays cheap; explicit selections run what they name.
 
@@ -436,8 +447,19 @@ def _browser(_playwright):
     b.close()
 
 
+def _watches_shifts(request):
+    """Whether a test's pages report layout shifts (`render_harness.clean_browser`).
+
+    `EXPECTED` in `shift_watch.js` lists the shifts without input the broad
+    selection's pages make today. The nightly-marked tests' pages make hundreds more,
+    such as an `lf-options` growing its write-in row as it upgrades under authored HTML
+    that already painted, and a few where typing carries its field. Until those are fixed or listed, the
+    nightly-marked tests do not watch for shifts."""
+    return request.node.get_closest_marker("nightly") is None
+
+
 @pytest.fixture
-def browser(_browser):
+def browser(_browser, request):
     """The shared browser process, with context ownership scoped to one test.
 
     `Browser.new_page` opens a fresh context, so local and session storage remain
@@ -453,7 +475,7 @@ def browser(_browser):
     from render_harness import WatchedBrowser, clean_browser
 
     try:
-        with clean_browser():
+        with clean_browser(shifts=_watches_shifts(request)):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
@@ -461,7 +483,7 @@ def browser(_browser):
 
 
 @pytest.fixture
-def iphone(_playwright):
+def iphone(_playwright, request):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
     user meets whichever browser they open the page in. Browser problems are rejected
@@ -470,14 +492,14 @@ def iphone(_playwright):
 
     webkit = _playwright.webkit.launch()
     try:
-        with clean_browser():
+        with clean_browser(shifts=_watches_shifts(request)):
             yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
 
 
 @pytest.fixture
-def scrollbar_browser(_playwright):
+def scrollbar_browser(_playwright, request):
     """The Chromium shell with its scrollbars shown. The shared `browser` launches with
     Playwright's default `--hide-scrollbars`, under which the root's scrollbar takes no
     width, so nothing that turns on a classic scrollbar's gutter can be read there. A
@@ -488,7 +510,7 @@ def scrollbar_browser(_playwright):
 
     shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
     try:
-        with clean_browser():
+        with clean_browser(shifts=_watches_shifts(request)):
             yield WatchedBrowser(shown)
     finally:
         shown.close()

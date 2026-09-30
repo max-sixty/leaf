@@ -1044,7 +1044,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-root-meta { display: flex; align-items: center; gap: 8px; }
   .lf-thread-root-meta > .lf-msg-head { display: contents; }
   .lf-thread-root-meta > b { color: var(--ink); font-size: 11px; font-weight: 600; }
-  .lf-thread-root-meta + .lf-msg { margin-top: 4px; }
+  /* The root message's header stands in the row above, so its body's own top margin is
+     the space under that row, whether or not it collapses through the message. */
+  .lf-thread-root-meta + .lf-msg { margin-top: 0; }
   .lf-thread-compact .lf-msg-head > b { color: var(--ink); font-size: 11px;
     font-weight: 600; overflow-wrap: anywhere; }
   /* The panel's own header may wrap its labels over the accordion's narrow column.

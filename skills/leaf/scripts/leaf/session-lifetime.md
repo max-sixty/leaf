@@ -9,7 +9,7 @@ and requests another reading at its next deadline; it does not run a second fold
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| work declaration: state, detail, event floor, source message, typed `work` seats, each naming the claimant turn that wrote it, or none for another session's | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the page's claim record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the host's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
@@ -89,11 +89,17 @@ put the thread in Needs you without persisting another workflow record.
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked
-for one, a version whose markup records a user's answer to a page Ask, or null. Only owed answers enter activity counts. The Stop hook and
-`leaf status idle` refuse over one set of them, `activity.blocking_obligations`:
-the acknowledged moves nothing else is set to answer. A move still `queued` is
-answered by the later turn that opens it, and a `turn` answer the open turn has
-finished is committed by the claimant's carrier while that carrier is live. A widget move
+for one, a version whose markup records a user's answer to a page Ask, or null. Only owed answers enter activity counts. `leaf status idle`
+refuses over one set of them, `activity.blocking_obligations`: the acknowledged
+moves nothing else is set to answer. A move still `queued` is answered by the
+later turn that opens it, and a `turn` answer the open turn has finished is
+committed by the claimant's carrier while that carrier is live. The Stop hook holds
+the claimant's turn over those the turn has not claimed as work, which
+`activity.turn_obligations` selects. A standing claim over the move, one naming it,
+on its widget, or on the thread that holds it, that the open turn wrote since the
+move's pickup is the agent's answer for now, and the turn may end over it while
+background workers carry the work. The claim does not carry into the next turn, which
+answers the move or claims it again. A widget move
 that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
 reports delivery until its document takes it in — for a page action, until the markup
 records the move or a later version supersedes it; for a move in frozen thread markup,
@@ -102,7 +108,7 @@ thread after it. It does not make its thread the agent's turn.
 A move the user has not finished — a pick before the Done its Ask declares — has
 not been handed over and has no workflow. Consecutive user turns form one response batch
 addressed by its newest input. Before settlement each input retains a workflow,
-while only the newest carries the thread's `answer` and enters the Stop obligation
+while only the newest carries the thread's `answer` and enters the obligation
 list. A response to an older input removes that input and leaves the newer
 obligation. A response to the newest settles the batch. Widget Asks remain
 independent and settle through their declared state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
@@ -153,13 +159,22 @@ of its life unheld and picks up again when a session takes it.
 ## The hook
 
 The `hook` command, registered on Stop, UserPromptSubmit, and SessionEnd,
-refuses to let a turn end with one of this session's pages unwatched, stamps
-that turn's ending and the next one's opening, surfaces unacknowledged user
-events at the next prompt, and releases the session's page claims when it exits.
+keeps a turn from ending while it leaves one of this session's pages unwatched
+or a delivered move unanswered and unclaimed, stamps that turn's ending and the
+next one's opening, surfaces unacknowledged user events at the next prompt, and
+releases the session's page claims when it exits. The Stop hook keeps a turn
+going through the host's continuation channel (`Harness.continue_turn`): Claude
+Code's non-error `additionalContext`, or a block where, as in Codex, the host's
+Stop output has nothing else. It continues a turn only for what the turn owes: input
+arriving as it ends that is owed an answer, which it hands over, or a debt above.
+Input that owes nothing, such as a resolve, a report or a page error, waits for the
+watcher and rides along when the turn goes on anyway. A repeated Stop
+(`stop_hook_active`) has named its debts once and lets the turn end; only newly
+arrived owed input continues it again.
 Registered on Claude Code's `PostToolUse` too, it names a wait that a background
 command started, read off the wait's start mark rather than the command.
-Its unanswered-work guard reads `activity.obligations`, selected from the same
-`workflows` projection the browser reads; it does not reconstruct threads
+Its unanswered-work guard reads `activity.turn_obligations` over the page's
+activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
 workflow's `answer` reads `turn` too. Its completed final-answer item finishes that

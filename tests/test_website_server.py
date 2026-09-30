@@ -3598,26 +3598,27 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 
 
 def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):
+    pinned = example_previews.pinned_assets()
     current = tmp_path / "current"
-    current.mkdir()
-    existing = current / "example-existing.jpg"
-    source_preview = next(example_previews.locked_previews().glob("example-*.jpg"))
-    shutil.copy2(source_preview, existing)
+    (current / "examples").mkdir(parents=True)
+    shutil.copytree(pinned / "demo", current / "demo")
+    existing = current / "examples" / "example-existing.jpg"
+    shutil.copy2(next((pinned / "examples").glob("example-*.jpg")), existing)
     source = ROOT / "examples" / "ideas-to-implement.html"
     sources = [source]
-    monkeypatch.setattr(example_previews, "locked_previews", lambda: current)
+    monkeypatch.setattr(example_previews, "pinned_assets", lambda: current)
     monkeypatch.setattr(example_previews, "catalog_sources", lambda: sources)
     monkeypatch.setattr(example_previews.site_build, "catalog_sources", lambda: sources)
     monkeypatch.setattr(
         example_previews.site_build, "published_page_sources", lambda: sources
     )
 
-    previews = example_previews.bootstrap_previews(tmp_path / "previews")
+    assets = example_previews.bootstrap_assets(tmp_path / "assets")
     site = tmp_path / "site"
-    example_previews.site_build.build_examples(site, catalog_previews=previews)
+    example_previews.site_build.build_examples(site, assets=assets)
 
     assert (
-        previews / "example-ideas-to-implement.jpg"
+        assets / "examples" / "example-ideas-to-implement.jpg"
     ).read_bytes() == existing.read_bytes()
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])

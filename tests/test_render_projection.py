@@ -5053,6 +5053,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         "log_floor": claim_floor,
         "agent": "Claude",
         "session": by_source["claim"]["session"],
+        "turn": by_source["claim"]["turn"],
         "disposition": "effective",
     }
     assert by_source["report"] == {

@@ -122,6 +122,16 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     return payload, batch, batch["events"]
 
 
+def continued(output: str | dict) -> str:
+    """What a Claude Code session's Stop hook continues the turn with. It speaks
+    through the host's non-error channel, so the user reads "Stop hook additional
+    context" rather than "Stop hook error"."""
+    answer = json.loads(output) if isinstance(output, str) else output
+    assert "decision" not in answer, answer
+    assert answer["hookSpecificOutput"]["hookEventName"] == "Stop"
+    return answer["hookSpecificOutput"]["additionalContext"]
+
+
 def printed(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one delivery a wait printed, for a host whose wait is its carrier
     (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
@@ -1875,6 +1885,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
             "log_floor": comment_seq,
             "agent": "Trace reader",
             "session": work["session"],
+            "turn": work["turn"],
         }
     ]
     folded = state_json(page_dir)
@@ -6495,9 +6506,9 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     blocked = json.loads(capsys.readouterr().out)
-    assert blocked["decision"] == "block"
-    assert "1 acknowledged user move with no answer" in blocked["reason"]
-    assert answered["id"] in blocked["reason"]
+    assert "decision" not in blocked
+    assert "1 acknowledged user move with no answer" in continued(blocked)
+    assert answered["id"] in continued(blocked)
 
     events_model.append_event(
         page_dir,
@@ -11010,8 +11021,8 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
 
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "host-owner"})
         answer = json.loads(capsys.readouterr().out)
-        assert answer["decision"] == "block"
-        assert "no watcher" in answer["reason"]
+        assert "decision" not in answer
+        assert "no watcher" in continued(answer)
 
         with service_model.PageTransaction(page_dir) as page:
             page.release_claim()
@@ -11120,7 +11131,7 @@ def test_receiving_a_batch_opens_the_turn_on_every_page_the_session_holds(
     )
     # The Stop hook delivers this one into the running turn itself.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
     assert service_model.page_claim(others)["turn_closed"] == "then"
@@ -11212,7 +11223,7 @@ def test_a_named_wait_claim_opens_the_turn_without_receiving_its_output(
     hooks_model.cmd_hook(
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
     )
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c1"]
     assert service_model.page_claim(claimed)["turn_closed"] is None
@@ -11250,8 +11261,8 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    [batch] = json.loads(answer["reason"].split("\n")[1])["batches"]
+    assert "decision" not in answer
+    [batch] = json.loads(continued(answer).split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
     assert (claim["turn"], claim["turn_closed"]) == (session["turn"], None)
@@ -11289,8 +11300,8 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
     )
     hooks_model.cmd_hook(repeated)
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    [batch] = json.loads(answer["reason"].split("\n")[1])["batches"]
+    assert "decision" not in answer
+    [batch] = json.loads(continued(answer).split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
     assert files_model.read_json(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
@@ -11325,14 +11336,14 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     monkeypatch.setattr(hook_carrier_model, "compose", compose_then_transfer)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    delivery = json.loads(answer["reason"].split("\n")[1])
+    assert "decision" not in answer
+    delivery = json.loads(continued(answer).split("\n")[1])
     assert [batch["page"] for batch in delivery["batches"]] == [
         str(moved),
         str(claimed),
     ]
     # The context it already composed says which page is no longer this turn's.
-    assert f"{moved} changed hands before Leaf could confirm" in answer["reason"]
+    assert f"{moved} changed hands before Leaf could confirm" in continued(answer)
 
     assert service_model.page_claim(moved)["id"] == "s2"
     assert files_model.read_json(moved / "cursor.json") is None
@@ -11366,8 +11377,8 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    reason = answer["reason"]
+    assert "decision" not in answer
+    reason = continued(answer)
     assert len(reason) < hook_carrier_model.HOOK_CONTEXT_LIMIT
     [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", reason)
     assert files_model.read_json(claimed / "cursor.json") is None
@@ -11451,8 +11462,8 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     session_model.cmd_status(claimed, "waiting", "")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    assert "no watcher" in answer["reason"] and str(claimed) in answer["reason"]
+    assert "decision" not in answer
+    assert "no watcher" in continued(answer) and str(claimed) in continued(answer)
 
     # Blocking twice in a row is how a Stop hook loops, so a block already in
     # flight stands down.
@@ -11504,7 +11515,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
         session_model.cmd_status(page, "waiting", "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
 
     assert str(claimed) in reason and str(second) in reason
     assert reason.count("acknowledged user move with no answer") == 2
@@ -11517,12 +11528,14 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
             "Two pages carry distinct debts and one shared answering instruction.",
             {
                 "Stop": {
-                    "decision": "block",
-                    "reason": Prose(
-                        reason.replace(str(claimed), "<first-page>").replace(
-                            str(second), "<second-page>"
-                        )
-                    ),
+                    "hookSpecificOutput": {
+                        "hookEventName": "Stop",
+                        "additionalContext": Prose(
+                            reason.replace(str(claimed), "<first-page>").replace(
+                                str(second), "<second-page>"
+                            )
+                        ),
+                    }
                 }
             },
         )
@@ -11540,7 +11553,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     """
     session_model.cmd_status(claimed, "waiting", "")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
+    assert "no watcher" in continued(capsys.readouterr().out)
 
     files_model.write_json(
         claimed / schema_model.PREVIEW_FILE,
@@ -11567,14 +11580,14 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
         {"kind": "comment", "author": "user", "revision": 1, "text": "is this right?"},
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
     assert "no watcher" not in reason
     # Handed over, the comment is owed an answer, and a later Stop holds for it.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     assert f"{claimed}: 1 acknowledged user move with no answer" in reason
     assert "no watcher" not in reason
 
@@ -11675,8 +11688,8 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     printed = capsys.readouterr().out
     if rewritten:
         answer = json.loads(printed)
-        assert answer["decision"] == "block"
-        assert f"--for {asked['id']}" in answer["reason"]
+        assert "decision" not in answer
+        assert f"--for {asked['id']}" in continued(answer)
     else:
         assert printed == ""
 
@@ -11703,15 +11716,15 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    assert "1 acknowledged user move with no answer" in answer["reason"]
-    assert asked["id"] in answer["reason"]
+    assert "decision" not in answer
+    assert "1 acknowledged user move with no answer" in continued(answer)
+    assert asked["id"] in continued(answer)
     assert service_model.page_claim(claimed)["turn_closed"] is None
     # An id is all this can name, to a session that may no longer hold a word of
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
-    assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
-    assert f"`leaf thread reply <page> --for {asked['id']}`" in answer["reason"]
+    assert schema_model.ANSWER_ASK_INSTRUCTION in continued(answer)
+    assert f"`leaf thread reply <page> --for {asked['id']}`" in continued(answer)
 
     # Bound to the claimant's App Server turn, the same move is answered by that
     # turn's final message, which is what the reason names instead: `leaf thread reply`
@@ -11719,7 +11732,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     with service_model.PageTransaction(claimed) as page:
         page.bind_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     assert f"your turn's final message for {asked['id']}" in reason
     assert "leaf thread reply <page>" not in reason
     with service_model.PageTransaction(claimed) as page:
@@ -11758,11 +11771,11 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # holds for an answer to it: the last word, not the root the earlier reply
     # answered.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert f"--for {follow['id']}" in json.loads(capsys.readouterr().out)["reason"]
+    assert f"--for {follow['id']}" in continued(capsys.readouterr().out)
     thread_model.cmd_reply(
         claimed,
         follow["id"],
@@ -11780,7 +11793,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert moot["id"] in json.loads(capsys.readouterr().out)["reason"]
+    assert moot["id"] in continued(capsys.readouterr().out)
     thread_model.cmd_resolve(claimed, moot["id"])
     capsys.readouterr()  # cmd_resolve prints the event it wrote
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -11802,7 +11815,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert f"--for {answered['id']}" in json.loads(capsys.readouterr().out)["reason"]
+    assert f"--for {answered['id']}" in continued(capsys.readouterr().out)
     thread_model.cmd_reply(
         claimed,
         answered["id"],
@@ -11844,8 +11857,8 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    assert asked["id"] in answer["reason"]
+    assert "decision" not in answer
+    assert asked["id"] in continued(answer)
     lease.close()
 
 
@@ -11894,8 +11907,8 @@ def test_claude_codes_hooks_carry_input_into_the_turn_and_confirm_it(claimed, ca
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
     )
     blocked = json.loads(capsys.readouterr().out)
-    assert blocked["decision"] == "block"
-    [batch] = json.loads(blocked["reason"].split("\n")[1])["batches"]
+    assert "decision" not in blocked
+    [batch] = json.loads(continued(blocked).split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
     assert page_state(claimed)["pending"] == 0
 
@@ -12085,7 +12098,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     # The Stop hook carries the input the wait woke the session for into the turn,
     # and with that wait ended the page it now answers for has no watcher.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
+    reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
     assert f"{page_dir.resolve()}: no watcher" in reason
@@ -12457,8 +12470,8 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     assert answered.returncode == 0, answered.stderr
     assert answered.stdout, "nothing came back: the CLI never answered under uv"
     blocked = json.loads(answered.stdout)
-    assert blocked["decision"] == "block"
-    assert f"{claimed.resolve()}: no watcher" in blocked["reason"]
+    assert "decision" not in blocked
+    assert f"{claimed.resolve()}: no watcher" in continued(blocked)
 
     # A session holding nothing is the CLI's answer too, now that the hook keeps
     # no cheaper reading of the claims to stand itself down by.
@@ -13417,7 +13430,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+    continued(capsys.readouterr().out)
     hooks_model.cmd_hook(
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
     )
@@ -13504,7 +13517,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+    continued(capsys.readouterr().out)
 
 
 def _interaction_prompt_evidence(page, value):
@@ -13707,11 +13720,172 @@ def _watched(page_dir):
 def _stop(capsys):
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     output = capsys.readouterr().out
-    return json.loads(output)["reason"] if output else None
+    return continued(output) if output else None
 
 
 def _idle(page_dir):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
+
+
+def test_a_move_the_turn_claimed_lets_that_turn_end(claimed, capsys):
+    """A work claim on a delivered move is the agent's answer for now: the move
+    reads Working, with the claim's words beside it. Work longer than a few minutes
+    goes to background workers whose results wake a later turn, so the turn that
+    claimed the move may end over it. Holding that turn made agents post a reply
+    saying only what the claim already said. The claim does not carry into the next
+    turn, which answers the move or claims it again, and idling still refuses over
+    it: closing the page answers nothing."""
+    lease = _watched(claimed)
+    asked = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "sketch both?"}
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    # A page-wide status names no move, so the move is still unclaimed.
+    assert _status(claimed, "working", "sketching both").exit_code == 0
+    assert "1 acknowledged user move with no answer" in _stop(capsys)
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+
+    assert (
+        _status(claimed, "working", "sketching both", "--on", asked["id"]).exit_code
+        == 0
+    )
+    assert _stop(capsys) is None
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert "1 acknowledged user move with no answer" in _idle(claimed).output
+
+    # A worker's result wakes the next turn, whose prompt and Stop name the claim
+    # an earlier turn wrote, and offer claiming it again only because it had one.
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert (
+        f"the work claim on {asked['id']} is older than its pickup"
+        in prompt["additionalContext"]
+    )
+    reason = _stop(capsys)
+    assert f"the work claim on {asked['id']} is older than its pickup" in reason
+    assert f"`leaf thread reply <page> --for {asked['id']}`" in reason
+
+    assert (
+        _status(claimed, "working", "the second sketch", "--on", asked["id"]).exit_code
+        == 0
+    )
+    # A task notification reaching the turn mid-way says nothing about it either.
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+    assert _stop(capsys) is None
+
+    # A follow-up in the thread carries its answer now. Claiming the thread again
+    # keeps Working on the message that prompted the work, and covers the follow-up
+    # all the same: the claim is on the move's subject, written since its pickup.
+    follow = events_model.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "and C?"},
+    )
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    reason = _stop(capsys)
+    assert f"`leaf thread reply <page> --for {follow['id']}`" in reason
+    assert f"the work claim on {asked['id']} is older than its pickup" in reason
+    assert _status(claimed, "working", "adding C", "--on", follow["id"]).exit_code == 0
+    assert _stop(capsys) is None
+
+    thread_model.cmd_reply(
+        claimed, follow["id"], "All three are up.", None, for_event=follow["id"]
+    )
+    assert _idle(claimed).exit_code == 0
+    lease.close()
+
+
+def test_a_thread_claim_covers_every_move_its_thread_holds(claimed, capsys):
+    """A claim on a thread covers what the thread holds: a move on an Ask frozen in
+    one of its messages as much as a follow-up, though Working stands beside only
+    the one input the claim names. Once a reply settles the claim, it covers
+    nothing, and a later move in the thread is offered no claim in place of its
+    answer."""
+    assert revisioning_model.activate_source(claimed).error is None
+    lease = _watched(claimed)
+    asked = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="thread-region" choose>'
+            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    for action, detail in (("choose", {"options": ["thread-east"]}), ("answer", {})):
+        done = append_command(
+            claimed,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "thread-region",
+                "action": action,
+                "detail": detail,
+            },
+        )
+    follow = events_model.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "and West?"},
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    reason = _stop(capsys)
+    assert done["id"] in reason and follow["id"] in reason
+    assert (
+        _status(claimed, "working", "checking both", "--on", asked["id"]).exit_code == 0
+    )
+    assert _stop(capsys) is None
+
+    for move in (done, follow):
+        thread_model.cmd_reply(
+            claimed, move["id"], "East it is.", None, for_event=move["id"]
+        )
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    again = events_model.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "why?"},
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    reason = _stop(capsys)
+    assert f"--for {again['id']}" in reason and "work claim" not in reason
+    lease.close()
+
+
+def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
+    """Input that arrives as a turn ends goes into that turn when it is owed an
+    answer. A resolve owes none, so the turn ends and the input waits for the
+    watcher to wake the next one, whose prompt hands it over: holding the turn to
+    say a thread closed spent a turn on nothing."""
+    lease = _watched(claimed)
+    asked = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why?"}
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    thread_model.cmd_reply(
+        claimed, asked["id"], "Because.", None, for_event=asked["id"]
+    )
+    resolve = events_model.append_event(
+        claimed, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert _stop(capsys) is None
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert [
+        event["id"]
+        for event in service_model.unacknowledged(
+            events_model.read_events(claimed),
+            files_model.read_json(claimed / "cursor.json")["seq"],
+        )
+    ] == [resolve["id"]]
+
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert resolve["id"] in context["additionalContext"]
+    lease.close()
 
 
 def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
@@ -13803,13 +13977,18 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     refused = _idle(claimed)
     assert refused.exit_code == 1
     assert f"records action {picked['id']}" in refused.output
+    # Claimed on its widget as the work the pick selects, it lets the turn end
+    # while that work runs, and still owes the version.
+    assert _status(claimed, "working", "building it", "--on", "choice").exit_code == 0
+    assert _stop(capsys) is None
+    assert f"records action {picked['id']}" in _idle(claimed).output
 
     (claimed / "index.html").write_text(
         source.replace(
             '<lf-option id="backfill-first">', '<lf-option id="backfill-first" chosen>'
         )
     )
-    assert stamp(claimed, "Backfill leads").exit_code == 0
+    assert stamp(claimed, "Backfill leads", completes=("choice",)).exit_code == 0
     assert state_json(claimed)["workflows"] == []
     assert _stop(capsys) is None
     assert _idle(claimed).exit_code == 0

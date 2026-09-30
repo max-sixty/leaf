@@ -686,7 +686,7 @@ export function createResponseSurface({
       )
       .then((position) => {
         if (!position) return;
-        const { x, y, placement } = position;
+        const { x, placement } = position;
         if (!stillCurrent()) return;
         fabPlacement ??= placement;
         if (!/^(left|right)/.test(placement))

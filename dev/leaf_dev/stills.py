@@ -118,7 +118,7 @@ def card_grabbed(page: Page) -> None:
 
 def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
-    page.locator("lf-code pre > lf-note").first.evaluate(
+    page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
 

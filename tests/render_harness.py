@@ -53,7 +53,12 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import (
+    example_media,
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+)
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -76,10 +81,6 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
 )
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 CORPUS_PAGE = ROOT / "examples" / "corpus.html"
-# The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
-# exactly as `leaf page media` names it in a real page directory. Every builder of
-# a page directory lays this beside the markup (examples/AGENTS.md, "Media").
-EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
@@ -494,7 +495,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             (d / "index.html").write_text(html)
             references = structure_model.SourceDocument(html).media_refs
             for reference in references:
-                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+                fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)

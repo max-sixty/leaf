@@ -50,6 +50,8 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.example_data import capture_files, example_versions, named_source
+from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
+from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     media_source,
@@ -447,6 +449,8 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
         str(runtime / "uv.lock"),
     }
     manifest = source_manifest(source)
+    media = media_source(source)
+    lock = assets_lock(source)
     page = {
         path.resolve()
         for path in (
@@ -455,7 +459,10 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
             manifest or DEFAULT_PACKAGES,
             *(Path(path) for path in seed),
             *(source.parent / "versions").glob(f"{source.stem}.v*.html"),
-            *media_source(source).rglob("*"),
+            # A pinned copy's bytes change only with its pin, which is followed
+            # instead, and it sits under `.tmp`, which no subscription may cover.
+            *(() if media.is_relative_to(ASSETS_CACHE) else media.rglob("*")),
+            *([lock] if lock is not None else []),
             # The nearer of these two directories is the one the page's images come
             # from, so either arriving changes which images the refresh copies.
             source.parent / "media",

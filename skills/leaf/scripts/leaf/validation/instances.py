@@ -60,6 +60,11 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(f"{where}: {err.message}")
+        if "data-height" in rec["attrs"] and "x-height" not in entry:
+            errors.append(
+                f"{where}: data-height states the height of a widget that draws into "
+                f"its box, and <{tag}> takes the height of what it holds"
+            )
         want_owners = entry.get("x-owners", [])
         if want_owners and rec["parent"] not in want_owners:
             actual = f", found <{rec['parent']}>" if rec["parent"] else ""

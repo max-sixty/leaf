@@ -53,7 +53,6 @@ KNOWN_UNASKED = {
         # button.lf-shortcut-more
         "test_staged_widget_controls_name_the_presses_their_owners_make",
     },
-    "test_render_application_boundary.py": {},
     "test_render_commands.py": {
         # lf-option#x-dome, form.lf-another.lf-ui
         "test_the_gate_measures_an_inline_widget_by_its_words",
@@ -150,7 +149,6 @@ KNOWN_UNASKED = {
         # span.lf-margin-marker.lf-ui.lf-margin-entry
         "test_unit_claim_arrivals_share_one_window_with_the_open_page_map",
     },
-    "test_render_mcp.py": {},
     "test_render_navigation.py": {
         # figure#fig, h1#t
         "test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable",
@@ -349,7 +347,6 @@ KNOWN_UNASKED = {
         # p#tail-2, p#tail-0
         "test_shadow_package_thread_registers_its_real_message_body",
     },
-    "test_render_semantic_news.py": {},
     "test_render_semantic_selection.py": {
         # button.lf-shortcut-more
         "test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions",

@@ -2752,19 +2752,22 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     assert findings == [], "\n\n".join(findings)
 
 
-# The field holding the focus, through the shadow trees on the way to it, and whether
-# it takes words; and each laid-out field's words, found the same way.
-FOCUSED_FIELD = """() => {
+# The words in the field holding the focus, found through the shadow trees on the way
+# to it, or null where the focus is on no field; and each field's words that the page
+# draws, found the same way.
+FOCUSED_WORDS = """() => {
   let at = document.activeElement;
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-  return Boolean(at?.matches('textarea, input, [contenteditable], leaf-text'));
+  if (!at?.matches('textarea, input, [contenteditable], leaf-text')) return null;
+  return at.value ?? at.textContent;
 }"""
 SHOWN_WORDS = """() => {
   const found = [];
   const walk = (root) => {
     for (const node of root.querySelectorAll('*')) {
       if (node.matches('textarea, input, [contenteditable], leaf-text')
-          && node.checkVisibility()) found.push(node.value ?? node.textContent);
+          && node.checkVisibility({ visibilityProperty: true }))
+        found.push(node.value ?? node.textContent);
       if (node.shadowRoot) walk(node.shadowRoot);
     }
   };
@@ -2821,10 +2824,10 @@ TYPED_BOXES = {
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
-    """A box the user is typing in is still there, holding their words, after every
-    scroller on the page has been sent to either end and back: scrolling is reading,
-    and what the user wrote waits for them. The browser fixture fails a box that went
-    away on the way even where it came back (`words_watch.js`)."""
+    """A box the user is typing in is still there, holding their words and the focus,
+    after every scroller on the page has been sent to either end and back: scrolling is
+    reading, and what the user wrote waits for them. The browser fixture fails a box
+    that went away on the way even where it came back (`words_watch.js`)."""
     url = serve(source)
     findings = []
     for box, route in TYPED_BOXES.items():
@@ -2833,14 +2836,12 @@ def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
         page.evaluate(RELEASE_FOCUS)
         keys = route(page)
         if not keys:
-            page.close()
             continue
         for key in keys:
             page.keyboard.press(key)
             rendered(page)
-        if not page.evaluate(FOCUSED_FIELD):
+        if page.evaluate(FOCUSED_WORDS) is None:
             findings.append(f"{'+'.join(keys)} put the user in no {box} to type in")
-            page.close()
             continue
         words = f"Words for the {box}"
         page.keyboard.type(words)
@@ -2854,7 +2855,11 @@ def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
             if words not in page.evaluate(SHOWN_WORDS):
                 findings.append(f"the {box} scrolled to the {end} and back is gone")
                 break
-        page.close()
+            if page.evaluate(FOCUSED_WORDS) != words:
+                findings.append(
+                    f"the {box} scrolled to the {end} and back lost the focus"
+                )
+                break
     assert findings == [], "\n".join(findings)
 
 

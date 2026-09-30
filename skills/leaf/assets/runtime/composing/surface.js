@@ -210,7 +210,9 @@ export function createResponseSurface({
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
   let fabPositionFrame = 0;
-  // Where a withheld bar takes the user back to when it stands again (withholdFab).
+  // Whether the bar the user has is waiting out of view for room to stand
+  // (withholdFab), and where it takes them back to when it stands again.
+  let fabWithheld = false;
   let fabWithheldFocus = null;
   const fabPosition = floatingPlacement({
     floating: fabBar,
@@ -305,6 +307,7 @@ export function createResponseSurface({
     fabBar.style.display = "inline-flex";
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
+    stoodAgain();
     return true;
   }
 
@@ -703,6 +706,7 @@ export function createResponseSurface({
         fabPosition.stand(position);
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
+        stoodAgain();
         return true;
       })
       .catch((error) => {
@@ -745,7 +749,10 @@ export function createResponseSurface({
     if (!anchor || (fabInlineOutlet && !keptInline)) restoreFab({ place: false });
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
-    if (!anchor || !sameAnchor(previous, anchor)) fabWithheldFocus = null;
+    if (!anchor || !sameAnchor(previous, anchor)) {
+      fabWithheld = false;
+      fabWithheldFocus = null;
+    }
     if (!anchor && composerOpen) hideComposer();
     // A gesture opening the bar says where in its target the bar stands, `null` for
     // nowhere; re-placing the bar on the same anchor keeps where the last one said, and
@@ -854,27 +861,35 @@ export function createResponseSurface({
       showFab(null, null, { returnFocus: "page" });
       return false;
     }
-    if (!placeFab()) {
-      withholdFab();
-      return false;
-    }
-    const returning = fabWithheldFocus;
-    fabWithheldFocus = null;
-    if (returning) void fabPositioned().then((positioned) => positioned && returning());
-    return true;
+    if (placeFab()) return true;
+    withholdFab();
+    return false;
   }
-  // Hidden, keeping everything that says what it is. Hiding a focused bar drops the
-  // focus to nowhere, and the bar holds the user's place, caret included, so that it
-  // takes them back when it stands again, unless they have stood somewhere since
-  // (`holdFocus`). Where a covering panel took the bar's room, the Threads list takes
-  // the focus instead: the user is left in the surface in front of them.
+  // Hidden, keeping everything that says what it is, the side it stood on included, so
+  // that it comes back where it was. Hiding a focused bar drops the focus to nowhere, so
+  // the bar holds the user's place, caret included, whether they stand in it or a
+  // repositioning that hid it just dropped them (`holdFocus`), and takes them back when
+  // it stands again unless they have stood somewhere since. Where a covering panel took
+  // the bar's room, the Threads list takes the focus instead: the user is left in the
+  // surface in front of them. While it waits, its keys are not the user's (the
+  // composer's scope and the selection rung stand down), and `c` is the way back to it.
   function withholdFab() {
-    if (fabBar.style.visibility === "hidden") return;
-    const held = fabBar.contains(fabFocused()) ? holdFocus(fabBar) : null;
+    if (fabWithheld) return;
+    fabWithheld = true;
+    const held = holdFocus(fabBar);
     const toPanel = held && panelIsOpen() && !fabFits();
-    stopFabPositioning({ reset: true, repositioning: true });
+    stopFabPositioning({ reset: false });
+    fabBar.style.visibility = "hidden";
     if (toPanel) threadsBox.focus({ preventScroll: true });
     else fabWithheldFocus = held;
+  }
+  // The bar is in view again, by whichever placement put it there.
+  function stoodAgain() {
+    if (!fabWithheld) return;
+    fabWithheld = false;
+    const returning = fabWithheldFocus;
+    fabWithheldFocus = null;
+    returning?.();
   }
   // The durable anchor names the authored coordinate an event can replay, while the
   // margin needs the rendered block the gesture is visibly on. Those are deliberately
@@ -1634,7 +1649,7 @@ export function createResponseSurface({
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
-    at: () => composerOpen,
+    at: () => composerOpen && !fabWithheld,
     rows: [
       {
         id: "comment.options",
@@ -1665,7 +1680,7 @@ export function createResponseSurface({
   // user just chose, so it keeps its binding and its place in the reference while
   // yielding the short line's promoted slot to them.
   pageRung("selection", () =>
-    pageSelection() || fabAnchorAt()
+    pageSelection() || (fabAnchorAt() && !fabWithheld)
       ? {
           says: "unselect",
           does: "Clear the selection",

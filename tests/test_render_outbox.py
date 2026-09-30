@@ -2310,6 +2310,42 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(field).to_have_js_property("value", "Half a thought more")
 
 
+def test_a_comment_field_waiting_out_of_view_takes_no_keys_and_c_brings_it_back(
+    browser, serve
+):
+    """While a pane scrolled past its item leaves the field nowhere to stand, the field
+    waits out of view, and the keys it would answer are not the user's: Escape does not
+    close a box the user cannot see, and Tab does not open its choices. `c` is the way
+    back: it brings the item and the field into view with the words and the focus."""
+    page = open_page(browser, serve(PANED_LONG_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#reading"), "bounded")
+    paragraph = page.locator("#p30")
+    paragraph.scroll_into_view_if_needed()
+    paragraph.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, "Half a thought")
+    box = page.locator(".lf-fab-bar")
+    width = box.bounding_box()["width"]
+    page.evaluate(
+        "document.getElementById('reading-body')"
+        ".scrollBy({top: 2000, behavior: 'instant'})"
+    )
+    scroll_settled(page, "#reading-body")
+    rendered(page)
+    expect(box).to_be_hidden()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Escape")
+    rendered(page)
+    page.keyboard.press("c")
+    expect(box).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Half a thought")
+    assert box.bounding_box()["width"] == pytest.approx(width, abs=1), (
+        "Tab opened the choices of a field the user could not see"
+    )
+
+
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):
     """Where the column leaves room, the field goes into the margin rather than onto
     somebody's words. The passage and its neighbours stay fully readable while the

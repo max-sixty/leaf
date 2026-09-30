@@ -5,25 +5,36 @@
 //
 // A field holds words once a trusted `beforeinput` edits it and text is left in it: a
 // textarea, an input that takes text, an editable element, or the host of a
-// `leaf-text`'s closed editor, whose `value` is the text. At every frame each such field
-// is asked whether its words are still on the page: the field itself, still connected
-// and laid out (`checkVisibility`, which a field under `display: none` fails) and still
-// holding them, or else another
-// laid-out field holding the same words, which is how a re-render hands a draft to the
-// node replacing its box, and where the watch follows them. A field scrolled out of view
-// is still on the page, and so is one under `visibility: hidden`, which is how a surface
-// whose target a pane has scrolled past waits out of view for it to come back.
+// `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
+// holds words, each is asked whether its words are still on the page: the field itself,
+// still connected and laid out (`checkVisibility`, which a field under `display: none`
+// fails) and still holding them, or else another laid-out field holding the same words,
+// which is how a re-render hands a draft to the node replacing its box, and where the
+// watch follows them. A field scrolled out of view is still on the page, and so is one
+// under `visibility: hidden`, which is how a surface whose target a pane has scrolled
+// past waits out of view for it to come back.
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
-// after the last edit and by shortly after the words went: Escape, Send, Cancel, a press
-// elsewhere, choosing another target. A key that typed (one a trusted `beforeinput`
-// followed) is editing, not putting away; a wheel, a scroll, a resize, a timer and the
-// server's news are none of them. Words gone with no such key or press are reported on
-// the console as a browser problem, which fails the test like any other. Either way the
-// field is no longer watched until the user types in it again.
+// after the last edit, within a moment of the words going: Escape, Send, Cancel, a press
+// elsewhere, choosing another target. What only moves the user around the words does
+// not count: a key that typed (one a trusted `beforeinput` followed), a modifier, a key
+// that moves the caret, the focus or the page, and a press on the field itself. A wheel,
+// a scroll, a resize, a timer and the server's news are none of them either. Words gone
+// with no such key or press are reported on the console as a browser problem, which
+// fails the test like any other; a test whose words go for a reason the rule allows, as
+// a box's subject leaving the document, consumes the report where it causes it. Either
+// way the field is no longer watched until the user types in it again.
+//
+// The watch keeps the browser's own frame and timer functions from before the page
+// loads, so a test that counts the frames or timers a page asks for counts none of its.
 (() => {
-  // How long after the words went a key or press may come and still be what put them
-  // away: a press whose surface closes before the press's own click arrives.
+  const frame = window.requestAnimationFrame.bind(window);
+  const later = window.setTimeout.bind(window);
+  const cancel = window.clearTimeout.bind(window);
+  // How long before the words went a key or press may come and still be what put them
+  // away, a send whose answer re-renders the box; and how long after, a press whose
+  // surface closes before the press's own click arrives.
+  const BEFORE = 2000;
   const AFTER = 200;
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
@@ -47,26 +58,35 @@
       ? TYPED.has(field.type)
       : field instanceof Element && field.matches(FIELDS);
 
-  // When the user last did something that can put words away: a press, or a key that
-  // did not type.
-  let gesture = -Infinity;
-  let key = null;
+  // The recent keys and presses that can put words away: when, and for a press, the
+  // node pressed, which a field's own press is not.
+  const gestures = [];
+  const gestured = (at, node = null) => {
+    gestures.push({ at, node });
+    if (gestures.length > 20) gestures.shift();
+  };
   for (const type of ["pointerdown", "mousedown", "touchstart", "click", "contextmenu"])
     addEventListener(
       type,
       (event) => {
-        if (event.isTrusted) gesture = event.timeStamp;
+        if (event.isTrusted) gestured(event.timeStamp, event.composedPath()[0]);
       },
       true,
     );
+  // Keys that move the user among the words, or the page under them, rather than
+  // doing anything to them.
+  const MOVES =
+    /^(Shift|Control|Alt|Meta|CapsLock|Tab|Arrow\w+|Home|End|PageUp|PageDown| )$/;
+  let key = null;
   addEventListener(
     "keydown",
     (event) => {
-      if (!event.isTrusted) return;
-      key = event.timeStamp;
+      if (!event.isTrusted || MOVES.test(event.key)) return;
+      const at = event.timeStamp;
+      key = at;
       // A key that types fires its `beforeinput` in this same task, after its keydown.
-      setTimeout(() => {
-        if (key !== null) gesture = Math.max(gesture, key);
+      later(() => {
+        if (key === at) gestured(at);
         key = null;
       });
     },
@@ -82,15 +102,25 @@
       if (!event.isTrusted) return;
       key = null;
       const field = event.composedPath()[0];
-      if (typed(field)) edited.set(field, event.timeStamp);
+      if (!typed(field)) return;
+      edited.set(field, event.timeStamp);
+      watching();
     },
     true,
   );
 
   // Each field holding words: the words, and when the user last edited them.
   const holding = new Map();
+  const putAway = (field, typedAt, gone) =>
+    gestures.some(
+      ({ at, node }) =>
+        at > typedAt &&
+        at >= gone - BEFORE &&
+        at <= gone + AFTER &&
+        !(node && (node === field || field.contains(node))),
+    );
   const judge = (field, { words, typedAt }, gone) => {
-    if (gesture > typedAt && gesture <= gone + AFTER) return;
+    if (putAway(field, typedAt, gone)) return;
     // Back by the time of judging: a re-render that put them straight back.
     if (shownIn(words)) return;
     const place = window.lfPlace?.(field) ?? field.localName;
@@ -118,21 +148,29 @@
           pending.delete(due);
           judge(field, held, at);
         };
-        pending.set(due, setTimeout(due, AFTER));
+        pending.set(due, later(due, AFTER));
       }
     }
   };
+  // One frame at a time while there is anything to watch, and none on a page nobody has
+  // typed in.
+  let looking = false;
   const watch = (at) => {
     look(at);
-    requestAnimationFrame(watch);
+    looking = holding.size > 0 || edited.size > 0;
+    if (looking) frame(watch);
   };
-  requestAnimationFrame(watch);
+  const watching = () => {
+    if (looking) return;
+    looking = true;
+    frame(watch);
+  };
   // Every loss so far judged now, with no more keys or presses to wait for: the browser
   // fixture awaits this as the test body returns (`render_harness.judge_watches`).
   window.lfWordsJudged = () => {
     look(performance.now());
     for (const [due, timer] of pending) {
-      clearTimeout(timer);
+      cancel(timer);
       due();
     }
   };

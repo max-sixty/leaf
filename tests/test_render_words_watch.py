@@ -56,6 +56,19 @@ def test_words_a_scroll_hides_fail(browser):
     )
 
 
+def test_words_a_scroll_hides_fail_after_moving_among_them(browser):
+    """A press on the field and a key that moves its caret are the user moving among
+    their words, not putting them away, so a scroll that hides the box after them
+    still fails."""
+    page = box_page(browser, "scroll-hides")
+    page.locator("#field").click()
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("Shift")
+    scrolled(page)
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
 def test_words_a_scroll_clears_fail(browser):
     page = box_page(browser, "scroll-clears")
     scrolled(page)

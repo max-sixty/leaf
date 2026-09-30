@@ -19,7 +19,7 @@ document's import map sends to its revision (`layer_import_map`), so layer modul
 served as captured.
 
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
-server and the static live shell, a standalone export, and the MCP app's snapshot. A
+server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
 the same way. It also paints what each element's registry entry declares for the
 stylesheet to read (`mark_declared`), so the first paint lays out what a script would
@@ -441,7 +441,6 @@ class Delivery:
     page_root: str | None = None
     html_attributes: Mapping[str, str] = field(default_factory=dict)
     body_attributes: Mapping[str, str] = field(default_factory=dict)
-    body_end: str = ""
 
 
 def compose_document(
@@ -525,9 +524,6 @@ def compose_document(
                 _attributes(delivery.body_attributes),
             )
         )
-    if delivery.body_end:
-        close = document.body_close if document.body_close is not None else len(source)
-        insertions.append((close, delivery.body_end))
     for offset, text in sorted(insertions, key=lambda item: item[0], reverse=True):
         source = source[:offset] + text + source[offset:]
     return UTF8_BOM + source

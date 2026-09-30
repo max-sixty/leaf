@@ -94,9 +94,7 @@ the stack from these:
   children in equal cells, as many to a row as fit. Each cell holds a surface — a
   metric, chart, table, list or log, with at most a caption — rather than paragraphs;
   a row of headline numbers is `lf-metric` tiles in one. Tiles of paragraphs are prose
-  cut into columns, and read worse than the column. A row that wraps to leave one tile
-  alone, such as four as three and one, looks unfinished. The render check's screens
-  show where each tile row wraps.
+  cut into columns, and read worse than the column.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
@@ -181,7 +179,7 @@ than a new split per row whose edges land somewhere new each time.
 A track shorter than the window can stay in view while the body scrolls beside it:
 give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
 holds `position: sticky; top: var(--lf-top)`, which keeps that block just below Leaf's
-banner. The block sticks only inside the track, so wherever the two stack, for either
+banner and any page tab strip. The block sticks only inside the track, so wherever the two stack, for either
 reason, the track is only as tall as what it holds and nothing sticks over the body; no
 width is needed. Leave a taller track in flow, since sticking it would hide its end
 until the page ends.
@@ -338,6 +336,10 @@ measurement is a metric, and a pattern across measurements is a chart. Movable
 things form a board. Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
+
+For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
+individual boxes need their own targets, list every nameable box in `parts`;
+`page check --render` reports a partial list so adjacent boxes do not behave differently.
 
 The prose beside a shape says only what the shape cannot. What is left for prose is
 the claim, the reason it holds, and the question the page is asking. A few sentences
@@ -513,12 +515,13 @@ needs a tight id, either on itself or on its immediate semantic container.
 
 ## Reading cost
 
-Open words are read; collapsed words are there when the user wants them. What
-stands open in the column is what the user has to take from the page. History,
-method, source excerpts, exhaustive support, transcripts, and raw output are
-backing by default and go under `<details>`. Collapsed words stay quotable, and
-the runtime opens the disclosure when a comment or a walk lands inside one. An
-open Ask and the evidence it turns on never collapse.
+Open words are read; collapsed words are read only by a user who goes looking
+for them. So whatever the page asks its readers to take in or answer stands open:
+the finding, the evidence it rests on, and what they are asked to review, decide,
+or comment on, a proposed plan included. A disclosure holds what they can skip and
+still do that: history, method, source excerpts, exhaustive support, transcripts,
+and raw output. Collapsed words stay quotable, and the runtime opens the
+disclosure when a comment or a walk lands inside one.
 
 The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an

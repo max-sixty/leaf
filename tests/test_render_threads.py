@@ -4090,8 +4090,8 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     # The room the first thread holds, the gap under it included, which is what its
     # neighbour rises by once the fold has given it back.
     room = stood["y"] - first["y"]
-    action_edge = page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').evaluate(
-        "node => node.getBoundingClientRect().right"
+    action = page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().toJSON()"
     )
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
@@ -4101,12 +4101,13 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     expect(outcome).to_have_attribute("aria-label", "Resolved")
     expect(outcome.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(page.locator(f'[data-id="{c1}"] .lf-thread-send')).to_be_hidden()
-    resolved_edge = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
-        "node => node.getBoundingClientRect().right"
+    resolved = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().toJSON()"
     )
-    assert resolved_edge == pytest.approx(action_edge, abs=1), (
-        "the held outcome left Resolve's thread-header edge"
-    )
+    assert (resolved["top"], resolved["right"]) == (
+        pytest.approx(action["top"], abs=1),
+        pytest.approx(action["right"], abs=1),
+    ), "the outcome moved from where the user pressed Resolve"
     held = page.evaluate(LIST_STATE)
     assert held["standing"] == [c1, c2, c3], (
         "the resolved thread gave up its place in the frame it was resolved in, so "
@@ -4134,21 +4135,14 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply c"
     )
 
-    # Half way down, the metadata-row outcome is still on screen rather than having
-    # moved with the folding geometry.
+    # Half way down, the outcome still stands on its metadata row: the fold clips it
+    # where it stood rather than carrying it.
     page.evaluate("() => window.__lfHeld.forEach((m) => (m.currentTime = 110))")
-    clip, says = page.evaluate(
-        """(id) => {
-          const going = document.querySelector(`[data-id="${id}"]`);
-          const outcome = going.querySelector(".lf-resolve");
-          return [going.getBoundingClientRect(), outcome.getBoundingClientRect()];
-        }""",
-        c1,
+    says = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().top"
     )
-    assert says["top"] < clip["bottom"] and clip["top"] < says["bottom"], (
-        f"the outcome sat at {says['top']:.0f}–{says['bottom']:.0f} with the fold "
-        f"clipped to {clip['top']:.0f}–{clip['bottom']:.0f}, so the word the press "
-        "left was already under the clip half way through"
+    assert says == pytest.approx(action["top"], abs=1), (
+        f"the outcome moved from {action['top']:.0f} to {says:.0f} as the fold ran"
     )
 
     # And the far end: the thread becomes a retained hidden result, once, and the room it held
@@ -4948,7 +4942,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # 44px reaches the document, the chrome and every declared widget tree from one
         # rule. Each name below is a press the chrome also dresses inside its scope, so
         # the floor is a second, document-level rule on a scoped name. It states a
-        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # minimum and nothing else. The chip and the margin entry are on
         # that list too and are not here: nothing inside the scope names them any more,
         # so they are no longer a scoped vocabulary this exception has to cover.
         "lf-command-reference-command",
@@ -5026,9 +5020,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-response-more",
         "lf-response-open",
         "lf-response-options",
-        # The same metadata action slot carries settlement in panel and inline seats;
-        # the authored theme gives both views the same alignment.
-        "lf-thread-meta-actions",
         # The general text box's face is the theme's (the `.lf-ui textarea` rule), so a
         # widget's own box that names the same property outranks it in the shared layer.
         # It names the compact response field only to exclude it, since that field takes

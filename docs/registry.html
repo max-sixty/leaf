@@ -870,7 +870,10 @@
                   or geometry change, including an in-place attribute or style change.
                   The render gate validates every record, requires each authored token
                   to resolve, in the current state or after its <code>reveal</code>, and
-                  refuses a registered id its prefixes do not admit.
+                  refuses a registered id its prefixes do not admit. A
+                  <code>{parts: ATTR, complete: true}</code> declaration also refuses a
+                  nonempty authored list that omits a registered part; omitting ATTR
+                  keeps the whole picture as one target.
                 </p>
               </details>
             </div>

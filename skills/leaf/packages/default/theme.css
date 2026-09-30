@@ -1136,7 +1136,9 @@ lf-board { display: grid; grid-auto-flow: column;
              + var(--lf-grip-room, 0px) + 2px); /* the card's two 1px borders */
            grid-auto-columns: 1fr;
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto;
-           scroll-snap-type: inline proximity; }
+           scroll-snap-type: inline proximity;
+           /* Scrolling sideways, it is the scroller for anything sticking in a card. */
+           --lf-top: 0px; }
 /* The column states its own floor rather than the board stating it as a track, because a
    track cannot read the box it sits in and a column can. `1fr` is `minmax(auto, 1fr)`,
    and a specified min-width is exactly what that automatic minimum resolves to, so the
@@ -1290,8 +1292,14 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * buttons is worth showing only where something will answer one. */
 .lf-tabstrip { display: none; flex-wrap: wrap; gap: 2px;
                border-bottom: 1px solid var(--border-2); }
-.lf-tabstrip .lf-tab-btn { padding: 5px 7px 7px;
-               min-height: var(--aim-floor); min-width: var(--aim-floor);
+/* The aim floor is the padding, which a side list's column cannot squeeze out from under
+ * a row's summary as it could a min-height. Of what stands between the floor and the
+ * name's line, 4px is the name's own padding, and the foot keeps the 2px it has over
+ * the head. */
+.lf-tabstrip .lf-tab-btn {
+               padding: max(5px, (var(--aim-floor) - 1lh) / 2 - 3px) 7px
+                        max(7px, (var(--aim-floor) - 1lh) / 2 - 1px);
+               min-width: var(--aim-floor);
                display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
 .lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
@@ -1418,10 +1426,22 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       background: transparent;
       --lf-block-frame: 0;
     }
+    /* The strip is a sticky header over the page, so it is one row of a stated height
+     * (`--lf-tabstrip-h`), and what it stands over stacks below it through
+     * `--lf-top` (kernel theme.css): a diff's file header in a page tab pins under the
+     * strip rather than over it. The height is the kernel theme's token, since the
+     * root's `scroll-padding` adds it too (lf-tabs.js), and a package's rules reach
+     * only its widgets. */
+    lf-tabs[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
+    lf-tabs[data-lf-tabs-flow="page"] > lf-tab {
+      --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+    }
     lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
       top: var(--lf-top);
       z-index: 2;
+      box-sizing: border-box;
+      block-size: var(--lf-tabstrip-h);
       flex-wrap: nowrap;
       overflow-x: auto;
       overflow-y: hidden;
@@ -1429,9 +1449,85 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       border-radius: 0;
       background: var(--paper);
     }
+    /* A scrollbar would add to that height, so the strip draws none, and a press at
+     * either edge scrolls the names that run past it (lf-tabs.js), shown while the
+     * layer reads more that way (`data-lf-more-before`, `data-lf-more-after`,
+     * reach.js). The press's own face fades the names under it, so the layer's edge
+     * fade is off here. A finger or a trackpad scrolls the strip itself, and an opened
+     * tab brings itself into view. */
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
+      scrollbar-width: none;
+      scroll-padding-inline: var(--lf-tabstrip-press);
+      --lf-tabstrip-press: 36px;
+      --lf-more-fade-to: #000;
+    }
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip > .lf-tabstrip-scroll {
+      display: block;
+    }
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-before]
+      > .lf-tabstrip-scroll[data-to="start"],
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-after]
+      > .lf-tabstrip-scroll[data-to="end"] {
+      visibility: visible;
+    }
+    /* Each press stands at its edge without taking room in the row: a box no wider
+     * than nothing, stuck to that edge, whose face lies over the names beside it and
+     * fades into them. */
+    .lf-tabstrip-scroll {
+      display: none;
+      visibility: hidden;
+      position: sticky;
+      z-index: 1;
+      flex: none;
+      inline-size: 0;
+      align-self: stretch;
+    }
+    .lf-tabstrip-scroll[data-to="start"] {
+      inset-inline-start: 0;
+      margin-inline-end: -2px;
+    }
+    .lf-tabstrip-scroll[data-to="end"] {
+      inset-inline-end: 0;
+      margin-inline-start: -2px;
+    }
+    .lf-tabstrip-scroll > span {
+      position: absolute;
+      inset-block: 0 1px;
+      inline-size: var(--lf-tabstrip-press);
+      display: flex;
+      align-items: center;
+      font-size: 22px;
+      line-height: 1;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .lf-tabstrip-scroll > span:hover { color: var(--ink); }
+    .lf-tabstrip-scroll[data-to="start"] > span::before { content: "‹" / ""; }
+    .lf-tabstrip-scroll[data-to="end"] > span::before { content: "›" / ""; }
+    .lf-tabstrip-scroll[data-to="start"] > span {
+      inset-inline-start: 0;
+      justify-content: flex-start;
+      background: linear-gradient(to right, var(--paper) 55%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="end"] > span {
+      inset-inline-end: 0;
+      justify-content: flex-end;
+      background: linear-gradient(to left, var(--paper) 55%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
+      background: linear-gradient(to left, var(--paper) 55%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
+      background: linear-gradient(to right, var(--paper) 55%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span::before { content: "›" / ""; }
+    .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span::before { content: "‹" / ""; }
     /* The strip scrolls when its names outrun it; a tab that shrank instead would
-     * cut its own name, which the strip's scroll could never reach. */
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none; }
+     * cut its own name, which the strip's scroll could never reach. The name's 2px
+     * rule comes out of the aim floor's padding, a pixel from each side. */
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none;
+      padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px)
+                     max(7px, (var(--aim-floor) - 1lh) / 2 - 2px); }
     lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn
@@ -2067,44 +2163,29 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
-/* The block's ring is drawn over its lines by the host rather than as the <pre>'s own
-   outline, which paints with the <pre>'s in-flow content: a note row is sticky, so it
-   paints after that and took the ring's side runs where it crosses them. The host's
-   pseudo-element is positioned and follows every row in tree order, so it paints over
-   them at the same level. The host is
-   the carrier because the <pre> scrolls, and a box positioned inside a scroller moves
-   with what it scrolls; the host holds nothing else and the <pre>'s margin collapses
-   through it, so the two boxes are one. */
-lf-code.lf-rendered { position: relative; }
-lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: none; }
-lf-code.lf-rendered:has(> pre:is(:focus-visible, .lf-focus-visible))::after {
-             content: ""; position: absolute; inset: 0; pointer-events: none;
-             border-radius: var(--r);
-             outline: var(--focus-ring); --lf-focus-ring: code-pre-light;
-             outline-offset: calc(-1 * var(--focus-ring-w)); }
-/* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
-   package answers the same question on its own rows, but from the track rather than the
-   line, because there every row has to end where the widest one does: this block's lines
-   are their own width, so a short hi line still stops at the scrollport rather than at
-   the block's own width.
-   TODO: give the rendered <pre> one column with that same floor, so every line ends
-   where the widest one does. A note shares the column and would need the diff outlet's
-   inline-size containment to stay out of its measure; notes also position sticky, which
-   is the part a grid could move. */
-lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
-             width: max-content; min-width: 100%; box-sizing: border-box; }
-/* max-content is the unwrapped line, so the sheet's wrap finds no break to take while
-   it stands and the row draws its full width through the block's border. Paper gives
-   the width back, and the line wraps inside the frame with its gutter on the first row.
-   Screen keeps the scroller: sideways is a gesture there and the column still means
-   something. */
-@media print { lf-code .lf-code-line { width: auto; } }
+/* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
+   frame hid its end behind a scrollbar at the block's foot, and the end is where a log
+   line says what happened; a reader in a narrow window or on a phone saw the start of
+   every line and nothing to say more was there. The gutter stands the full height of a
+   wrapped line with the number on its first row, and the rows after it hang two
+   characters past the line's own indent (`--lf-code-indent`, the module's count of its
+   leading columns), so they read as the same line and keep its place in the code's
+   structure. The hang stops at 24 characters, so a deep line in a narrow frame keeps
+   room to wrap into. A line that fits keeps its columns. `anywhere` because what runs
+   long is paths, URLs and hashes, none of which offer the line box a break. */
+lf-code .lf-code-line { display: block; position: relative;
+             --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+             padding: 0 14px 0 calc(var(--lf-code-gutter) + 8px + var(--lf-code-hang));
+             text-indent: calc(-1 * var(--lf-code-hang));
+             white-space: pre-wrap; overflow-wrap: anywhere; }
 lf-code :is(.lf-code-line, .lf-code-elided)::before {
              content: attr(data-line); display: inline-block; width: var(--lf-code-gutter);
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
              border-right: 1px solid var(--code-border); background: var(--code-chrome);
              text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
+lf-code .lf-code-line::before { position: absolute; inset-block: 0; inset-inline-start: 0;
+             text-indent: 0; }
 /* The lines an excerpt leaves out: a row of its own with a mark in the gutter and the
    count beside it, both painted, so the copy and the anchors see only quoted source.
    A note docked in the stretch follows the count as the row's caption, in the same
@@ -2133,9 +2214,8 @@ lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the gutter. Horizontal rules mark the insertion
-   without inventing author metadata the note does not carry. Sticky positioning holds
-   that row to a horizontal scrollport; unlike a max-content line, its prose still wraps. */
-lf-code .lf-code-note { position: sticky; inset-inline-start: 0;
+   without inventing author metadata the note does not carry. */
+lf-code .lf-code-note {
              margin: 5px 0 6px; padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
              background: var(--pre-bg); border: 0;
              border-block: 1px solid var(--code-border); border-radius: 0;
@@ -2169,9 +2249,10 @@ lf-text-document figcaption {
 lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-wrap; }
 /* A bounded capture keeps its caption in view and scrolls the listing under it. */
 @media screen {
-  lf-text-document[data-lf-bound] { max-block-size: none; overflow: visible; }
+  lf-text-document[data-lf-bound] { max-block-size: none; overflow: visible;
+    --lf-top: inherit; }
   lf-text-document[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; }
+    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

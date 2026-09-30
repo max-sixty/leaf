@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import embedding, inline_css_assets
+from leaf.exporting import AssetInliner
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import (
@@ -82,11 +82,9 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
-    embedded = embedding(
-        read_resource=lambda url: Resource(b"main { color: green; }", "text/css")
-    )
+    embedded = AssetInliner(lambda url: Resource(b"main { color: green; }", "text/css"))
     exported = rebase_document(
-        source, embedded.address, inline_stylesheet=embedded.inline_stylesheet
+        source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
     assert "<style>" in exported
@@ -162,7 +160,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
         read.append(url)
         return artifact.resources[url]
 
-    inline_css_assets(sheet, read_resource=reader, document_url="/page/style.css")
+    AssetInliner(reader).css(sheet, "/page/style.css")
     assert set(read) == expected
 
 
@@ -328,7 +326,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
             page_root=PAGE_ROOT,
             html_attributes={"data-lf-contained": ""},
             body_attributes={"inert": ""},
-            body_end='<script type="module" src="/ready.js"></script>',
         ),
     )
 
@@ -336,7 +333,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    assert served.tree.find("body").find_all("script")[-1].attrs["src"] == "/ready.js"
     assert served.title == "T" and "<p>Text.</p>" in delivered
 
 

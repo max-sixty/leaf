@@ -775,10 +775,9 @@ def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
 
 def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
     """Approval is on the banner's row wherever the page declares sign-off, stamped or
-    not. It came and went with the stamp, and the banner wraps by what it holds, so at
-    a width where Approval decides the wrap a draft arriving unwrapped the banner and
-    moved the whole document: news moving the page. Before a stamp the press is refused
-    and says why."""
+    not. It came and went with the stamp, and at a width where Approval takes the
+    banner to two rows a draft arriving took it back to one and moved the whole
+    document: news moving the page. Before a stamp the press is refused and says why."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -787,7 +786,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
     resized(page, 560, 800)
     button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
-    rows = page.evaluate("() => document.documentElement.dataset.lfBannerRows")
+    height = page.evaluate(BANNER_HEIGHT)
     top = page.evaluate(
         "() => document.querySelector('main').getBoundingClientRect().top"
     )
@@ -800,7 +799,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
     expect(button).to_have_attribute(
         "title", "There is no stamped version to approve yet"
     )
-    assert page.evaluate("() => document.documentElement.dataset.lfBannerRows") == rows
+    assert page.evaluate(BANNER_HEIGHT) == height
     after = page.evaluate(
         "() => document.querySelector('main').getBoundingClientRect().top"
     )
@@ -1971,17 +1970,49 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(more).to_have_attribute("aria-expanded", "false")
 
 
-# Where the banner's two parts stand, and how much of the window it takes from the page.
+# Where the banner's two parts stand, the height the theme states for it (the document's
+# head is reserved at that height), and each control on its row that the banner cuts off.
 BANNER_ROWS = """() => {
   const box = (selector) => document.querySelector(selector).getBoundingClientRect();
   const banner = box('.lf-banner'), status = box('.lf-banner-status'),
         actions = box('.lf-banner-actions');
+  const shown = [...document.querySelectorAll('.lf-banner-actions > *')]
+    .filter((control) => control.checkVisibility());
+  const clipped = shown
+    .filter((control) => {
+      const at = control.getBoundingClientRect();
+      return at.left < Math.max(banner.left, actions.left) - 0.5
+        || at.right > Math.min(banner.right, actions.right) + 0.5
+        || at.bottom > banner.bottom + 0.5;
+    })
+    .map((control) => control.textContent.trim());
   return {wrapped: actions.top >= status.bottom - 1,
-          rows: document.documentElement.dataset.lfBannerRows,
           height: banner.height, bannerBottom: banner.bottom,
-          actionsBottom: actions.bottom,
+          stated: parseFloat(getComputedStyle(document.body, '::before').height),
+          clipped, controls: shown.map((control) => control.textContent.trim()),
           main: document.querySelector('body > main').getBoundingClientRect().top};
 }"""
+BANNER_HEIGHT = (
+    "() => document.querySelector('.lf-banner').getBoundingClientRect().height"
+)
+
+
+def signed_off(html):
+    return html.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+
+
+def assert_banner_as_stated(read, wrapped):
+    assert read["wrapped"] == wrapped, read
+    assert read["height"] == pytest.approx(read["stated"], abs=0.5), (
+        f"the banner drew a height other than the one the theme states: {read}"
+    )
+    assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
+        f"the document's head does not end where the banner does: {read}"
+    )
+    assert not read["clipped"], f"the banner cut off {read['clipped']}: {read}"
 
 
 @pytest.mark.parametrize(
@@ -1990,55 +2021,78 @@ BANNER_ROWS = """() => {
         # A landscape phone holds the status beside Threads, and beside Approval too.
         (740, True, False, False),
         (740, True, True, False),
-        # One window, two banners: the run that asks for sign-off leaves the status less
-        # than its floor there, and only that one wraps.
+        # One window, two banners: the run that asks for sign-off would leave the
+        # status too little room there, and only that one takes a second row.
         (600, False, False, False),
         (600, False, True, True),
+        # A phone held upright gives the run a row of its own; a little wider, it
+        # doesn't need one.
         (390, True, False, True),
+        (470, True, False, False),
     ],
 )
-def test_the_banner_wraps_by_what_it_holds(
+def test_the_banner_rows_follow_the_window_and_sign_off(
     browser, serve, width, touch, signoff, wrapped
 ):
-    """The banner takes a second row only where its control run would leave the status
-    less than its floor, which is a fact about what it holds rather than the window: a
-    landscape phone has one row, as a desk window does, and at one width a page asking
-    for sign-off wraps where a page without it does not. The page starts under whatever
-    the banner drew, and the run stays inside it."""
-    html = SUGGESTION_PAGE
-    if signoff:
-        html = html.replace(
-            "<title>suggestions</title>",
-            '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-        )
+    """The banner's rows are the theme's to state, from the pointer, the window's width
+    and the page's declared sign-off, so the document's head is reserved at the banner's
+    height before the runtime draws it and nothing the banner holds later moves the
+    page. A landscape phone has one row, as a desk window does, and at one width a page
+    asking for sign-off has two where a page without it has one. The banner draws the
+    height it states, and every control on its row stands inside it."""
+    html = signed_off(SUGGESTION_PAGE) if signoff else SUGGESTION_PAGE
     context = browser.new_context(
         viewport={"width": width, "height": 800}, has_touch=touch, is_mobile=touch
     )
     page = open_page(browser, serve(html), context=context)
     page_at_rest(page)
     read = page.evaluate(BANNER_ROWS)
-    assert read["wrapped"] == wrapped, read
-    assert read["rows"] == ("2" if wrapped else "1"), read
+    assert_banner_as_stated(read, wrapped)
     row = 53 if touch else 52 if width <= 480 else 42
     assert read["height"] == pytest.approx(row + (36 if wrapped else 0), abs=1), read
-    assert read["actionsBottom"] <= read["bannerBottom"] + 0.5, read
-    assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
-        f"the document's head does not follow the rows the banner drew: {read}"
+
+
+def test_a_finger_s_steps_keep_the_banner_s_rows(browser, serve):
+    """A step a finger takes on the banner, here page search's, stands in the reading
+    loop's place on the row the banner already has. Just wider than a phone's upright
+    face, where the steps have the least room beside the status, they still fit, and
+    the banner keeps its height, so opening search moves nothing."""
+    context = browser.new_context(
+        viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
     )
-    # Before the runtime reports its rows, the render-blocking theme reserves the head
-    # from what delivery wrote on the root. It reserved one row for a sign-off page at
-    # 600px, so the page shown first moved down a row when the banner arrived.
-    guessed = page.evaluate(
-        """() => lfUnwatched(() => {
-          const root = document.documentElement;
-          const drawn = root.dataset.lfBannerRows;
-          delete root.dataset.lfBannerRows;
-          const guess = getComputedStyle(root).getPropertyValue('--lf-banner-rows').trim();
-          root.dataset.lfBannerRows = drawn;
-          return guess;
-        })"""
+    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
+    page_at_rest(page)
+    before = page.evaluate(BANNER_ROWS)
+    assert_banner_as_stated(before, wrapped=False)
+    page.keyboard.press("/")
+    page.keyboard.type("feeder")
+    expect(
+        page.locator(".lf-banner-actions > .lf-btn", has_text="Next")
+    ).to_be_visible()
+    page_at_rest(page)
+    read = page.evaluate(BANNER_ROWS)
+    assert "Close search" in read["controls"], read
+    assert_banner_as_stated(read, wrapped=False)
+    assert read["main"] == pytest.approx(before["main"], abs=1), (before, read)
+
+
+def test_a_revision_that_asks_for_sign_off_gives_the_banner_its_rows(browser, serve):
+    """Sign-off is the revision's declaration, and a revision taken on in place brings
+    its own: the banner's rows follow it as Approval does, so the run that now holds
+    Approval takes the second row a fresh load of the same revision would give it."""
+    page = open_page(browser, live_url(serve(SUGGESTION_PAGE)))
+    resized(page, 600, 800)
+    page_at_rest(page)
+    assert_banner_as_stated(page.evaluate(BANNER_ROWS), wrapped=False)
+    (serve.page_dir / "index.html").write_text(
+        signed_off(SUGGESTION_PAGE).replace(
+            "</lf-board>", "</lf-board>\n<p>A draft asking for sign-off.</p>"
+        )
     )
-    assert guessed == read["rows"], (width, touch, signoff, guessed, read["rows"])
+    told(page)
+    expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    page_at_rest(page)
+    assert_banner_as_stated(page.evaluate(BANNER_ROWS), wrapped=True)
 
 
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
@@ -5737,7 +5791,6 @@ RING_CASES = (
                 (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
-                ("lf-code pre", "code-pre-light"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),

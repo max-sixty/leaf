@@ -257,7 +257,7 @@ TYPED_PARTS_PAGE = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="node:Queued node:Working node:Build"><pre>
+<lf-diagram id="life" parts="node:Queued node:Working node:Fetch node:Build node:Done"><pre>
 stateDiagram-v2
   [*] --&gt; Queued
   Queued --&gt; Working
@@ -266,7 +266,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="node:RUNNER"><pre>
+<lf-diagram id="shape" parts="node:RUNNER node:JOB"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -274,17 +274,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="node:A"><pre>
+<lf-diagram id="path" parts="node:A node:B"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:User"><pre>
+<lf-diagram id="exchange" parts="node:User node:Server"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="node:Job"><pre>
+<lf-diagram id="model" parts="node:Job node:Runner"><pre>
 classDiagram
   class Job {
     +run()
@@ -307,7 +307,7 @@ TYPED_PARTS_V2 = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="node:Queued node:Working node:Build"><pre>
+<lf-diagram id="life" parts="node:Fresh node:Queued node:Working node:Fetch node:Build node:Done"><pre>
 stateDiagram-v2
   [*] --&gt; Fresh
   Fresh --&gt; Queued
@@ -317,7 +317,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="node:RUNNER"><pre>
+<lf-diagram id="shape" parts="node:RUNNER node:JOB"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -325,13 +325,13 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:User"><pre>
+<lf-diagram id="exchange" parts="node:User node:Server"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="node:Job"><pre>
+<lf-diagram id="model" parts="node:Job node:Runner"><pre>
 classDiagram
   class Job {
     +run()

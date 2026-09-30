@@ -4,7 +4,6 @@ import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
-import { setRuntimeRootAttribute } from "./root-state.js";
 import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -22,7 +21,6 @@ import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { nextRender, sizeObserver } from "./rendering.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -647,28 +645,6 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// The banner wraps by what it holds (chrome.css), and the browser's wrap is the one
-// decision: this reports which it drew as `data-lf-banner-rows` on the root, where the
-// theme's --lf-banner-h reads it, so the document's head and every surface hung below
-// the banner follow the rows on screen. It watches the two boxes whose widths decide the
-// wrap. The write moves the document's head, and so the body other observers watch, so
-// it waits for the next frame rather than resizing a watched box during delivery; the
-// banner itself is sized by its lines (chrome.css) and is right in the frame it wraps.
-let rowsWrite = null;
-const bannerRows = sizeObserver(() => {
-  rowsWrite ??= nextRender(() => {
-    rowsWrite = null;
-    const wrapped =
-      bannerStatus.getClientRects().length > 0 &&
-      bannerActions.offsetTop > bannerStatus.offsetTop;
-    setRuntimeRootAttribute(
-      document.documentElement,
-      "data-lf-banner-rows",
-      wrapped ? 2 : 1,
-    );
-  });
-});
-
 // The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
@@ -678,8 +654,6 @@ export function mountBanner({ approveVersion, paintApproval }) {
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
   reserveBannerControls();
-  bannerRows.observe(bannerStatus);
-  bannerRows.observe(bannerActions);
   approveBtn.onclick = async () => {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.
@@ -703,9 +677,9 @@ export function mountBanner({ approveVersion, paintApproval }) {
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
 // taken from the document each time rather than kept beside it. The control stands for
-// the declaration alone. A stamp arriving is news, and the banner wraps by what it holds,
-// so a control the stamp put up would move the document; before a stamp the press is
-// refused with its reason (paintApproval) instead.
+// the declaration alone, which the banner's rows follow too (theme.css): a control a
+// stamp put up would be news taking room on the row. Before a stamp the press is refused
+// with its reason (paintApproval) instead.
 export function stateSignoff(next, syncLayout, paintApproval) {
   const shown = next;
   if (shown === signoff) return;

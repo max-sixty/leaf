@@ -1,7 +1,7 @@
 # Committed bundles
 
 This directory builds the browser bundles Leaf commits: everything under
-`skills/leaf/assets/vendor/`, each package's `vendor/`, and `skills/leaf/mcp-app/`.
+`skills/leaf/assets/vendor/` and each package's `vendor/`.
 Installation, page init, and export consume that committed output and never run a
 compiler, so nothing here runs on a host.
 
@@ -10,8 +10,8 @@ compiler, so nothing here runs on a host.
   export cannot load and writes each bundle's license notices; every build here passes its
   output through it. `browser/generated/` holds the source maps and manifest.
 - `vendor.py` rebuilds every other bundle. Where upstream publishes a loadable file
-  it copies it; `pierre/`, `webawesome/`, and `mcp-app/` are the inputs of the
-  bundles it has to build.
+  it copies it; `pierre/` and `webawesome/` are the inputs of the bundles it has
+  to build.
 
 After `npm ci`, both reproduce the tracked bytes, so a diff after a rebuild means the
 lock, a build script, or the registry input changed:

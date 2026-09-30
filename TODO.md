@@ -90,11 +90,19 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Stack covers of stated height, and keep Layouts out of widgets.** Fix the banner at
-  one row, give every sticky cover a stated height added into `--lf-top`, delete the
-  measured-header machinery, scope the workspace's row rule to pane grids, and give the
-  side list a full-height form; then drop the bottom bar
-  ([plan](notes/chrome-and-covers.md)).
+- **Decide whether a workspace's panes scroll on their own.** Its regions could instead
+  stick to the root scroller, which keeps native keyboard scrolling and restoration on
+  workspace pages and settles the side list's full-height form; then drop the bottom
+  bar and give the phone banner one row ([plan](notes/chrome-and-covers.md)).
+- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
+  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
+  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
+  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
+  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
+  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
+  wide flow starts at the left edge. The column allocation and the text measure have to
+  align the same way first; start-aligned in any flow wider than the column is the
+  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
@@ -109,7 +117,9 @@ and its chrome coordinate.
   Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
-  needs it; a workspace page's own pane grid stays plain CSS.
+  needs it; a workspace page's own pane grid stays plain CSS. Option E of the
+  [chrome plan](notes/chrome-and-covers.md) settles it, since a sticky region works at
+  any depth with no scrolling ancestor.
 - **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
   target that covers no words (`pinSpot`), which clears single markers on most pages,
   but under a finger Accept and Reject together are a 96×44px pair: that needs a line
@@ -120,10 +130,6 @@ and its chrome coordinate.
   deletion). Folding the pair into one marker that opens Accept and Reject, only where
   the pair has no room, is the nearest design; it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
   a finger) stays the escape.
-- **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
-  rail's width at every width, so on a phone it leaves a 295px column. The margin pass
-  admits residents by measuring the room they leave (`settleResidency`), which a rail
-  the shell has already reserved never fails.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
@@ -196,6 +202,16 @@ and its chrome coordinate.
   event changes the page's obligations or claims, not its kind. In this machine's
   page logs from the last 30 days, 40 of 204 deliveries held only resolves, and
   32 of those resolves closed a thread whose last word was already the agent's.
+- **Take every render-check reading at every width the check renders.** The check
+  lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
+  (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
+  the desktop width (`shrunk_label_advice`), though a narrower window scales a
+  drawing further still. Tiny text at 900px and on a phone recurs in the judge's
+  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
+  each reading the sweep can take at every swept
+  width, and report each fault at the narrowest width it starts, as
+  `swept_overflow` does for sideways overflow. The readings stay advice: which
+  widths a page answers for is the author's call.
 - **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and
@@ -250,9 +266,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other hosts:** add a blocking `leaf wait` route when another agent host needs
   foreground handoff.
-- **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
-  browser handoff when an inline-hosting task calls for it. See the
-  [research brief](notes/workspace-followups.md#item-22).
 - **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
@@ -299,9 +312,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).
-- **MCP page ports:** test wildcard-port `frame_domains` in a host before replacing
-  `/p/<capability>` multiplexing. See the
-  [dependency survey](notes/dependency-survey.md).
-- **Direct MCP bundle:** make evaluation-order faults fail visibly if the
-  experimental bundle becomes a supported path.
+- **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
+  the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

@@ -253,6 +253,10 @@ A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
 absent part when someone follows its thread; `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
+An `x-visual.parts` declaration may set `complete: true` when listing some drawn
+parts while leaving their peers unaddressable would confuse a reader. The render
+check then requires a nonempty authored list to name the full registered inventory;
+omitting the attribute keeps the visual as one target.
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry
@@ -264,7 +268,7 @@ theme.
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
-generated images or links. It uses the page's public root across ordinary, MCP, and
+generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
 Registry-declared inline Markdown formats authored text, not strings a module assigns
@@ -411,12 +415,24 @@ the entry was left at (`runtime/history.js`), unless the element the entry's fra
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
 and lands on it, as a followed link to it does.
 
-A sticky header, a sticky box over the top of its scroller, declares the room it takes
-with `declareStickyHeaders(host, property, headers)`, which keeps `property` on `host` at
-the tallest header's height for a `scroll-padding` or `scroll-margin` to read, so every
-landing, native or the runtime's, arrives below it. The same declaration tells the
-runtime that what passes under the header is not on screen, for read acknowledgement,
-arrival checks, and chrome placement.
+A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
+at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
+holder passes the value it met on under a second name, since a custom property cannot
+read itself:
+
+```css
+.file { --lf-top-outer: var(--lf-top); }
+.file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
+.file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
+.file .row { scroll-margin-top: var(--head-h); }
+```
+
+The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
+below the header. The runtime reads what passes under it as off screen from `--lf-top`,
+for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
+The stacked value goes on a box that does not itself scroll, since the runtime reads a
+box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
+at `0px`, on the box that scrolls and only there.
 
 A composition allocates a Leaf element's outer box. The package owns how the element's
 contents use that allocation, based on its available inline size rather than the page

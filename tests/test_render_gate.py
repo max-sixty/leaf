@@ -78,6 +78,7 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
+    PART_DIAGRAM_PAGE,
     PREFIXED_VISUAL_PAGE,
     STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
@@ -1620,6 +1621,23 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     )
 
 
+def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
+    page = PART_DIAGRAM_PAGE
+    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
+    assert failures == [
+        f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
+        "but its module leaves nameable parts unlisted node:U"
+        for scheme in ("light", "dark")
+    ]
+
+
+def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
+    page = TYPED_PARTS_PAGE.replace(
+        "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
 def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
     """A namespace and a class inside it can share a name, and the class is the box.
 
@@ -3042,8 +3060,9 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
-# to follow it there.
-AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+# to follow it there. The list states the inline floor; the block floor is padding on
+# the controls a flex or grid container could squeeze, and min-height on the rest.
+AIM_FLOOR_RULE = "min-width: var(--aim-floor);"
 
 
 def aim_selectors():

@@ -119,8 +119,7 @@ PAGE_CSP = (
     f"style-src 'self' 'unsafe-inline' {EXTERNAL_SOURCES}"
 )
 # A meta policy cannot govern the document's ancestors. The ordinary server adds this
-# separate header policy, and the site manifest carries it to the Worker; the
-# capability-scoped MCP transport is deliberately frameable.
+# separate header policy, and the site manifest carries it to the Worker.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.

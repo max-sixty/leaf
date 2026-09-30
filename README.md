@@ -74,5 +74,4 @@ your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
   reusable packages, and Leaf's shared kernel. Your agent can build a widget a
   task needs and use it in later pages.
 - [Public contracts](skills/leaf/SKILL.md): authoring, serving, and continuing a
-  Leaf page. The [experimental MCP App](skills/leaf/scripts/leaf/mcp-app.md)
-  provides an additional host integration.
+  Leaf page.

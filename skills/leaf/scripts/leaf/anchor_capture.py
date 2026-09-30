@@ -52,11 +52,9 @@ def capture_anchor(
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
     with an answer, and asking now beats posting a comment that lands nowhere.
 
-    Two readers meet that refusal: the agent running `leaf thread open`, and the person
-    selecting text in the MCP snapshot's panel, who has no flags to reach for. So a
-    refusal about a quote or a section names what the reading found and a recourse both
-    have — quote more of the surrounding text, or name the section. Only a refusal about
-    a CLI-only input, such as `--part`, names its flag.
+    A refusal about a quote or a section names what the reading found and a recourse in
+    the reader's terms — quote more of the surrounding text, or name the section. Only a
+    refusal about a CLI-only input, such as `--part`, names its flag.
 
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a

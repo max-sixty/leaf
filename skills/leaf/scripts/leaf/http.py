@@ -212,8 +212,8 @@ class PageEndpoint:
     banner has to be able to show.
     """
 
-    # One value for the whole transport rather than a per-request binding: the MCP
-    # delivery server clears it, because it serves into a frame it cannot name.
+    # A page refuses every frame; a sample's child answers into its parent page's
+    # frame, so it admits its own origin (`_sample_request`).
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def __init__(
@@ -254,8 +254,8 @@ class PageEndpoint:
         # A website release spans its document, static layer and container image.
         # Ordinary page servers have no release boundary beyond their vendored layer.
         self.release = release
-        # Empty on the ordinary one-page server. The MCP delivery server sets this to
-        # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+        # Empty on the ordinary one-page server. A published site and a sample's child
+        # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
         self.page_root = page_root
         # The generation this answer speaks, which a route narrows to the revision it
         # actually served.
@@ -532,7 +532,7 @@ class PageEndpoint:
         """Encode a body whose producer has already addressed its dependencies."""
         is_html = ctype.startswith("text/html")
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
-        if is_html and self.frame_ancestors_policy:
+        if is_html:
             headers["Content-Security-Policy"] = self.frame_ancestors_policy
         return Response(body, status_code=status, headers=headers)
 
@@ -696,9 +696,7 @@ class PageEndpoint:
         child.parent = self
         child.passive = sample.passive
         child.asset_root = sample.asset_root
-        child.frame_ancestors_policy = (
-            "frame-ancestors 'self'" if self.frame_ancestors_policy else None
-        )
+        child.frame_ancestors_policy = "frame-ancestors 'self'"
         with sample.lock:
             if sample.closed:
                 return self._not_found()

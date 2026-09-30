@@ -80,9 +80,6 @@
     /p#(live-)?tail-/,
     // ship-review's tasks (examples/ship-review.html).
     /lf-task#off-t-/,
-    // A screenshot on the process page, its margin entry, and the passage after it
-    // (tests/test_render_mcp.py).
-    /lf-shot#mcp-shot|lf-shot-toggle|section#plan/,
     // The feature gallery's sections as its tabs and options draw after the page first
     // paints (tests/test_render_semantic_news.py).
     /#bg-/,

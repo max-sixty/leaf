@@ -65,12 +65,8 @@ ordinary served HTML response therefore adds `frame-ancestors 'none'`
 (`structure.FRAME_ANCESTORS_CSP`). Historical version routes receive the current
 document policy and the same header. The published site's Worker adds the same header
 to the HTML it serves from its own assets, reading it from the site manifest. A standalone
-file has no response header and cannot make this framing guarantee. The process-scoped
-MCP page server omits the header because its exact, ephemeral origin is intentionally
-framed by the host that approved it; the unguessable page path remains that transport's
-access boundary. A sample child permits its same-origin parent with
-`frame-ancestors 'self'`; under the MCP transport it inherits the omitted header,
-so the host can frame the complete page hierarchy. Every response carries
+file has no response header and cannot make this framing guarantee. A sample child
+permits its same-origin parent with `frame-ancestors 'self'`. Every response carries
 `X-Content-Type-Options: nosniff`; typed data is available only through its JSON
 API, and media routes serve only admitted image types, so neither input surface
 can become a script module.
@@ -160,10 +156,9 @@ user body rewrites replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
 authored version and uses the thread's whole action window.
-Event admission repeats file-side capture only when the transport requests it,
-as the MCP snapshot does. Runtime anchors are already resolved against rendered
-words, including widget labels and module output unavailable to the file reading,
-so admission does not recapture them. Browser `quoteFrom` and Python's
+Runtime anchors are already resolved against rendered words, including widget
+labels and module output unavailable to the file reading, so admission does not
+recapture them. Browser `quoteFrom` and Python's
 `COLLAPSE_CHARS` define matching whitespace collapse. A recaptured quote must
 match the canonical quote exactly.
 Where the capture does run, a transport may omit optional context for a quote that

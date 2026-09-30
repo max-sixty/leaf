@@ -19,7 +19,7 @@ document's import map sends to its revision (`layer_import_map`), so layer modul
 served as captured.
 
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
-server and the static live shell, a standalone export, and the MCP app's snapshot. A
+server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
 the same way. It also paints what each element's registry entry declares for the
 stylesheet to read (`mark_declared`), so the first paint lays out what a script would

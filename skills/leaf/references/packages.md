@@ -263,7 +263,7 @@ theme.
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
-generated images or links. It uses the page's public root across ordinary, MCP, and
+generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
 Registry-declared inline Markdown formats authored text, not strings a module assigns

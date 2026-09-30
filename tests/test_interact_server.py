@@ -748,10 +748,7 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     module wrote — while an earlier runtime spells the same words in whitespace this
     side collapses away. So the door does not read a served page's anchor back off
     the file: a re-capture there refused a quote whose only sin was a line break, and
-    every comment made on a tab's own name.
-
-    The MCP surface is the transport that does ask for the capture, because nothing
-    has resolved its selection (`capture_anchors`, held by test_interact_mcp)."""
+    every comment made on a tab's own name."""
     publish(page_dir)
     passage = "The cutoff lives in"
     for name, quote in {
@@ -780,8 +777,8 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     ], "the door rewrote an anchor the browser had already settled"
 
     # The refusal a re-capture here would bring back: a quote only the rendering holds.
-    # The file reading places a widget's body in its source and turns it down outright
-    # (test_interact_mcp holds that refusal on the MCP path), while the spellings above
+    # The file reading places a widget's body in its source and turns it down outright,
+    # while the spellings above
     # all collapse to text the file does hold, so none of them reaches it.
     source_quote = {
         "kind": "comment",

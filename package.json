@@ -22,7 +22,6 @@
     "@happy-dom/global-registrator": "20.14.5",
     "@lezer/highlight": "1.2.4",
     "@lezer/markdown": "1.7.2",
-    "@modelcontextprotocol/ext-apps": "2.0.0",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.5.0",
     "@preact/signals-core": "1.14.4",

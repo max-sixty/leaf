@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import embedding, inline_css_assets
+from leaf.exporting import AssetInliner
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import (
@@ -82,11 +82,9 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
-    embedded = embedding(
-        read_resource=lambda url: Resource(b"main { color: green; }", "text/css")
-    )
+    embedded = AssetInliner(lambda url: Resource(b"main { color: green; }", "text/css"))
     exported = rebase_document(
-        source, embedded.address, inline_stylesheet=embedded.inline_stylesheet
+        source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
     assert "<style>" in exported
@@ -162,7 +160,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
         read.append(url)
         return artifact.resources[url]
 
-    inline_css_assets(sheet, read_resource=reader, document_url="/page/style.css")
+    AssetInliner(reader).css(sheet, "/page/style.css")
     assert set(read) == expected
 
 

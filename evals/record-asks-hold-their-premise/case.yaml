@@ -37,7 +37,7 @@ graders:
 - name: reads-authoring-asks
   type: tool_used
   tool: Read
-  input_match: authoring-asks
+  input_match: skills/leaf/references/authoring-asks\.md
 - name: has-asks
   type: regex
   pattern: <lf-ask\b

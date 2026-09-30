@@ -25,7 +25,7 @@ graders:
 - name: reads-page-authoring
   type: tool_used
   tool: Read
-  input_match: page-authoring
+  input_match: skills/leaf/references/page-authoring\.md
 - name: judgment
   type: llm
   criteria: |

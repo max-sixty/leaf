@@ -88,7 +88,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     RELEASE_FOCUS,
@@ -101,6 +100,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     draft_control,
+    example_media,
     expect_banner_control_offered,
     fills_the_window,
     holding,
@@ -736,13 +736,13 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     media = {
         "/media/051bee487bfb5d13.png": (
-            EXAMPLE_MEDIA / "051bee487bfb5d13.png"
+            example_media() / "051bee487bfb5d13.png"
         ).read_bytes(),
         "/media/a99a1b63048502d0.png": (
-            EXAMPLE_MEDIA / "a99a1b63048502d0.png"
+            example_media() / "a99a1b63048502d0.png"
         ).read_bytes(),
         "/media/3cf0e3efe80c6b01.png": (
-            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+            example_media() / "3cf0e3efe80c6b01.png"
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
@@ -1216,10 +1216,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     )
     media = {
         "/media/3cf0e3efe80c6b01.png": (
-            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+            example_media() / "3cf0e3efe80c6b01.png"
         ).read_bytes(),
         "/media/4f465a0582ab00fe.png": (
-            EXAMPLE_MEDIA / "4f465a0582ab00fe.png"
+            example_media() / "4f465a0582ab00fe.png"
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
@@ -5053,6 +5053,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         "log_floor": claim_floor,
         "agent": "Claude",
         "session": by_source["claim"]["session"],
+        "turn": by_source["claim"]["turn"],
         "disposition": "effective",
     }
     assert by_source["report"] == {

@@ -28,7 +28,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
-    ROOT,
     TOKEN,
     append_command,
     check,
@@ -80,7 +79,7 @@ from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf_dev.example_data import patch_manifest
-from leaf_dev.page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import example_media, package_selection_args
 
 
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
@@ -574,7 +573,7 @@ def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
     pixels return the same name and leave one file, and that exact file is what the
     page serves back.
     """
-    pixels = (ROOT / "examples" / "media" / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     headers = {"Content-Type": "image/png"}
 
     first = fetch(f"{server}/api/media", data=pixels, headers=headers)

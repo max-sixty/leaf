@@ -89,13 +89,16 @@ mints its own timestamps to pin what it says, since a seed's `ts` is a fixed ins
 
 ## Media
 
-`examples/media/` holds the bytes an `lf-shot` or a seeded message names,
-content-addressed as `leaf page media` names them. Every builder of a page directory
-lays them in: `prepare_page`, and any test that builds a page by hand.
+The bytes an `lf-shot` or a seeded message names live under `examples/media/` in
+`max-sixty/leaf-assets`, not in the tree, content-addressed as `leaf page media` names
+them. `example_media()` (`dev/leaf_dev/page_fixtures.py`) returns the pinned copy, and
+every builder of a page directory lays them in: `prepare_page`, and any test that
+builds a page by hand. `uv run leaf-dev publish-media IMAGE...` adds images, moves the
+pin, and prints the `/media/` path each page names; commit the pin, not the image.
 
 Draw a before/after pair rather than capturing it. Draw both images at one height,
 at twice the width the shot gets on the page as measured from the layout, and take
-the palette from the pair already here. A mock's generator belongs in scratch, since
+the palette from the pairs already published. A mock's generator belongs in scratch, since
 nothing can make a depicted console false. A generator for images that depict Leaf
 itself, such as `leaf-dev record-demo`, is tracked tooling rather than scratch,
 because a change to Leaf can make those images stale and they need regenerating.

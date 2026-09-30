@@ -5678,7 +5678,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
               const band = probe.getBoundingClientRect().height;
               probe.remove();
               return {band, reserved: parseFloat(getComputedStyle(
-                document.querySelector('.lf-chrome')).paddingBottom)};
+                document.body).paddingBottom)};
             }"""
         )
         assert room["band"] > 0 and room["reserved"] == room["band"], room
@@ -7444,7 +7444,13 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
 
     dsc = page.locator("#dsc")
     head = page.locator("#dsc-head")
-    head.focus()
+    # The user tabs to the section's summary.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if head.evaluate("head => head === document.activeElement"):
+            break
+    else:
+        raise AssertionError("Tab never reached the section's summary")
     expect(dsc).not_to_have_attribute("open", "")
     expect(line).to_contain_text(re.compile(shut + r"\s*open"))
 
@@ -8261,11 +8267,19 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
             {id: 'test.outer-escape', keys: ['Escape'], does: 'Work the outer widget',
              line: 'work outer', run: () => { host.dataset.fired = 'Escape'; }},
           ]);
-          dialog.showModal();
-          trigger.focus();
-          trigger.click();
+          const opener = document.createElement('button');
+          opener.id = 'open-native-layer';
+          opener.textContent = 'Open the modal';
+          opener.onclick = () => {
+            dialog.showModal();
+            trigger.focus();
+            trigger.click();
+          };
+          host.prepend(opener);
         }"""
     )
+    # The user opens the modal, whose first control opens the popover inside it.
+    page.locator("#open-native-layer").click()
     modal = page.locator("#nested-modal")
     popover = page.locator("#shadow-popover")
     expect(modal).to_be_visible()
@@ -8284,12 +8298,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Reopened over the same modal, so the stack order below is read on the scene that
     # rule describes rather than on what the reference left standing.
-    page.evaluate(
-        """() => document
-          .querySelector('#nested-modal div')
-          .shadowRoot.querySelector('button')
-          .click()"""
-    )
+    page.locator("#nested-modal button").click()
     expect(popover).to_be_visible()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
@@ -9734,11 +9743,10 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     room = page.evaluate(
         """() => {
               const line = document.querySelector('.lf-shortcut-bar');
-              const chrome = document.querySelector('.lf-chrome');
               return {
                 display: getComputedStyle(line).display,
                 height: line.getBoundingClientRect().height,
-                reserved: getComputedStyle(chrome).paddingBottom,
+                reserved: getComputedStyle(document.body).paddingBottom,
                 moreShown: document.querySelector('.lf-shortcut-more').checkVisibility(),
               };
             }"""
@@ -9758,10 +9766,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert (
-        page.evaluate(
-            "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
-        )
-        == "0px"
+        page.evaluate("() => getComputedStyle(document.body).paddingBottom") == "0px"
     ), "a transient notice reserved document space"
 
     # And the page is still whole underneath. Everything that asks how far down the
@@ -9788,8 +9793,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
                 height: document.querySelector('.lf-walk-position')
                   .getBoundingClientRect().height,
                 top: chip.top, bottom: chip.bottom, viewport: innerHeight,
-                reserved: parseFloat(getComputedStyle(
-                  document.querySelector('.lf-chrome')).paddingBottom),
+                reserved: parseFloat(getComputedStyle(document.body).paddingBottom),
               };
             }"""
     )
@@ -9804,16 +9808,14 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     page.locator("#h").click()
     expect(line).to_be_hidden()
     page.close()
-    # The control the reading above needs, because `paddingBottom` computes to "0px" on a
-    # chrome root syncLayout never wrote to: the same page at the same size under a fine
+    # The control the reading above needs, because `paddingBottom` computes to "0px"
+    # wherever the theme reserves nothing: the same page at the same size under a fine
     # pointer has to reserve a band, or "reserved nothing" and "reserved nowhere" are the
     # same green.
     fine = open_page(browser, serve(NOTED_PAGE))
     resized(fine, 390, 844)
     rendered(fine)
-    reserved = fine.evaluate(
-        "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
-    )
+    reserved = fine.evaluate("() => getComputedStyle(document.body).paddingBottom")
     assert reserved != "0px" and float(reserved.removesuffix("px")) > 20, reserved
 
 
@@ -9829,17 +9831,17 @@ FOOT_CONTROL_PAGE = NOTED_PAGE.replace(
 
 # The band the line stands in, and the room the document keeps for it. `footprint` is the
 # whole of what the line takes at the foot of the window — its height plus every inset
-# holding it off that foot — and `reserved` is what syncLayout gives up for it.
+# holding it off that foot — and `reserved` is the room the theme keeps for it at the
+# body's end.
 FOOT_ROOM = """() => {
   const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
   const box = document.getElementById('foot-change').getBoundingClientRect();
-  const chrome = document.querySelector('.lf-chrome');
   const s = document.scrollingElement;
   return {
     atEnd: s.scrollTop + s.clientHeight >= s.scrollHeight - 1,
     lineHeight: line.height,
     footprint: document.documentElement.clientHeight - line.top,
-    reserved: parseFloat(getComputedStyle(chrome).paddingBottom),
+    reserved: parseFloat(getComputedStyle(document.body).paddingBottom),
     clearance: line.top - box.bottom,
   };
 }"""

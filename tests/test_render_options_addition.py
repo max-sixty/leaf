@@ -16,9 +16,9 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLE_MEDIA,
     EXAMPLES,
     consume_browser_errors,
+    example_media,
     holding,
     open_page,
     round_trip,
@@ -482,7 +482,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     )
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
     notice = page.locator(".lf-notice")

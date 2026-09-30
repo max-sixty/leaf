@@ -9,7 +9,8 @@ move, or null when it owes nothing. Every consumer that holds the agent to
 something — delivery handling, `page state`, activity counts, the Stop hook,
 `leaf status idle`, and the banner's counts — reads `answer` here rather than
 deciding again what the agent owes. The rule is single: a move with an answer
-blocks the agent until that answer is written, and a null answer holds nobody.
+is owed until that answer is written, and a null answer holds nobody. How long
+an owed move holds the agent's turn is `activity.turn_obligations`'s to say.
 
 Answers are one of:
 
@@ -184,6 +185,23 @@ def canonical_workflows(
         else:
             stage, evidence = "sent", source
         fallback = opened or queued
+        # Every standing claim over the move, which is how the Stop hook tells a
+        # move the open turn has taken in hand (`activity.claimed_in_turn`): one
+        # naming it, one on its widget, or one on the thread that holds it.
+        held_in = (
+            target["id"]
+            if target["kind"] == "thread"
+            else thread_reading.thread_by_widget.get(target["id"])
+            if thread_reading is not None
+            else None
+        )
+        covering = [
+            update
+            for update in effective
+            if update.get("event") == source["id"]
+            or update["target"] == target
+            or update["target"] == {"kind": "thread", "id": held_in}
+        ]
         return {
             "id": source["id"],
             "input": source["id"],
@@ -211,7 +229,7 @@ def canonical_workflows(
                         "detail": claim["text"],
                         "ts": claim["ts"],
                         "session": claim.get("session"),
-                        "turn": claim.get("turn"),
+                        "turn": claim["turn"],
                     }
                 ]
                 if stage == "working"
@@ -220,6 +238,14 @@ def canonical_workflows(
             "condition": None,
             "next_actor": "agent",
             "response": None,
+            "claimed_by": [
+                {
+                    "session": update["session"],
+                    "turn": update["turn"],
+                    "log_floor": update["log_floor"],
+                }
+                for update in covering
+            ],
         }
 
     def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
@@ -427,12 +453,13 @@ def canonical_workflows(
                         "detail": claim["text"],
                         "ts": claim["ts"],
                         "session": claim.get("session"),
-                        "turn": claim.get("turn"),
+                        "turn": claim["turn"],
                     }
                 ],
                 "condition": None,
                 "next_actor": "agent",
                 "response": None,
+                "claimed_by": [],
             }
         )
     return sorted(workflows, key=lambda item: (item["seq"], item["id"]))

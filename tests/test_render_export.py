@@ -39,6 +39,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     REPLAYED_PAGE,
+    example_media,
     leaf_page,
     open_page,
     restarting,
@@ -935,7 +936,7 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     media = source.parent / "media"
     media.mkdir()
     image = media / "051bee487bfb5d13.png"
-    expected = (ROOT / "examples" / "media" / image.name).read_bytes()
+    expected = (example_media() / image.name).read_bytes()
     image.write_bytes(expected)
     revised = source.read_text().replace(
         "</main>", f'<img src="/media/{image.name}" alt="Preview proof"></main>'
@@ -960,7 +961,7 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
 
     image.unlink()
     second = media / "a99a1b63048502d0.png"
-    second.write_bytes((ROOT / "examples" / "media" / second.name).read_bytes())
+    second.write_bytes((example_media() / second.name).read_bytes())
     wait_for(
         lambda: (directory / "media" / second.name).exists(),
         bool,

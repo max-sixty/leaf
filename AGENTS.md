@@ -76,6 +76,14 @@ sentence in a reference saying that something relies on the current shape is
 a consumer to update, never a reason to keep the shape or to carve an
 exception around it.
 
+Leaf's own restrictions do not settle what a feature may do either. When a
+content security policy, a validator's refusal, an import allowlist, or a limit
+on what some markup may carry stands between the user and a feature, raise it
+with the user rather than dropping the feature or working around it quietly.
+Name the restriction, what it blocks, what it protects, and what lifting it
+would cost. It may guard something the user values, or it may be a side effect
+nobody chose, and only the user can weigh the feature against it.
+
 Coherent new features can be tried before every product detail is settled, so
 long as any architectural problem they leave remains easy to fix.
 
@@ -175,6 +183,17 @@ host supplies Chrome and `jq`; leaf never downloads a browser.
 Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
 `skills/leaf/mcp-app/` are generated and committed where their consumer reads
 them; `build/AGENTS.md` says how to regenerate them.
+
+Every tracked byte ships in every install and stays in history, so the tree
+holds no binary files and no large ones. An image a tool in this repository
+reads, such as the demo recording, a catalog preview, an example page's image,
+or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
+its reader looks for it and pinned by `leaf-assets.json`
+(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+captures, recordings and raw run output, stays in `.tmp/` and reaches the user
+on a Leaf page; a note keeps the finding and the command that reproduces it,
+not the capture. The suite refuses a binary file, and pre-commit refuses a new
+file over 500 KB.
 
 ## Cross-runtime invariants
 

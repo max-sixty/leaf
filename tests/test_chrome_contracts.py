@@ -1816,16 +1816,22 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.hover()
     rendered(page)
-    before, after = page.evaluate(
+    # The reading on either side of the press: as it goes down, before any listener has
+    # answered it, and once its click has passed every listener.
+    page.evaluate(
         """() => {
           const settled = document.querySelector('script[data-lf-entry]').lfRenderingSettled;
-          const before = settled();
-          document.querySelector('.lf-threads-toggle').click();
-          return [before, settled()];
+          window.__lfPress = [];
+          const read = () => window.__lfPress.push(settled());
+          addEventListener('pointerdown', read, {capture: true, once: true});
+          addEventListener('click', read, {once: true});
         }"""
     )
-    assert (before, after) == (True, False)
+    toggle.click()
+    assert page.evaluate("window.__lfPress") == [True, False]
     rendered(page)
     assert page.evaluate(
         "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()"

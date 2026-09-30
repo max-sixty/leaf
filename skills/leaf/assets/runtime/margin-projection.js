@@ -758,8 +758,8 @@ export function createMarginProjection({
       (sum, box) => sum + box.scrollHeight,
       0,
     );
-  function measureThreadCard(width, cap) {
-    preview.style.setProperty("--lf-thread-width", `${width}px`);
+  function measureThreadCard(room, cap) {
+    preview.style.setProperty("--lf-thread-width", `${room}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
     const content = threadCardContent();
@@ -771,12 +771,18 @@ export function createMarginProjection({
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
+  // The card fits its thread between the bounds it is given (chrome.css).
+  function measureThreadWidth(minimum, room) {
+    preview.style.setProperty("--lf-thread-min-width", `${minimum}px`);
+    preview.style.setProperty("--lf-thread-width", `${room}px`);
+    return preview.getBoundingClientRect().width;
+  }
   // The thread's turns, without the reply row pinned under them: what an arriving or a
   // sent turn changes and a new line of the reply does not. Unrounded, since the row's
   // height is fractional and a rounded difference moves with it.
   const boxHeight = (node) => node.getBoundingClientRect().height;
-  function measureTranscript(width) {
-    preview.style.setProperty("--lf-thread-width", `${width}px`);
+  function measureTranscript(room) {
+    preview.style.setProperty("--lf-thread-width", `${room}px`);
     return [...previewList.querySelectorAll(".lf-margin-thread")].reduce(
       (sum, thread) =>
         [...thread.querySelectorAll(".lf-say")].reduce(
@@ -868,8 +874,10 @@ export function createMarginProjection({
           gap: CARD_GAP,
           minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
           preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
-          heightAt: (width, cap) => measureThreadCard(width / scale.x, cap / scale.y),
-          transcriptAt: (width) => measureTranscript(width / scale.x),
+          widthAt: (minimum, room) =>
+            measureThreadWidth(minimum / scale.x, room / scale.x),
+          heightAt: (room, cap) => measureThreadCard(room / scale.x, cap / scale.y),
+          transcriptAt: (room) => measureTranscript(room / scale.x),
           drafting,
           hold: previewHold,
         });

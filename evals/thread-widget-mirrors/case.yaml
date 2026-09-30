@@ -25,7 +25,7 @@ graders:
 - name: reads-packages
   type: tool_used
   tool: Read
-  input_match: packages
+  input_match: skills/leaf/references/packages\.md
 - name: mounts-core-thread-views
   type: regex
   pattern: mountThreadViews\s*\(

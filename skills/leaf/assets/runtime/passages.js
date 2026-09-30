@@ -648,8 +648,10 @@ function coveredBy(range, node) {
 // The segments a selection covers, clipped to where it starts and ends.
 export function segmentsIn(range) {
   const root = range.commonAncestorContainer;
+  // A range spanning direct children of a shadow stage has the ShadowRoot itself as
+  // its common ancestor. It is a walkable root even though it has no parent element.
   const whole = textNodesUnder(
-    root.nodeType === Node.ELEMENT_NODE ? root : root.parentElement,
+    root.nodeType === Node.TEXT_NODE ? root.parentNode : root,
   );
   const segments = [];
   for (const segment of whole) {

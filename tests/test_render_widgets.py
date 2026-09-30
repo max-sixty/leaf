@@ -1035,7 +1035,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
           const band = probe.getBoundingClientRect().height;
           probe.remove();
           return {
-            padding: parseFloat(getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom),
+            padding: parseFloat(getComputedStyle(document.body).paddingBottom),
             band,
             line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
           };
@@ -2029,13 +2029,13 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     ]
     # That id is the runtime's, so a passage in the heading is addressed by the
     # section the page wrote, which the file can resolve too.
-    anchor = page.locator("h3").evaluate(
-        """async heading => {
-          const selection = getSelection();
-          selection.selectAllChildren(heading);
+    # The user selects the heading's words.
+    page.locator("h3").click(click_count=3)
+    anchor = page.evaluate(
+        """async () => {
           const { selectionAnchor } = await window.__lfRuntimeImport(
             '/runtime/composing/capture.js');
-          return selectionAnchor(selection);
+          return selectionAnchor(getSelection());
         }"""
     )
     assert anchor["quote"] == "Move one cohort", anchor
@@ -4991,6 +4991,102 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
     )
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
+
+
+def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
+    browser, serve
+):
+    """A candidate can draw only on what the user stands at in the preview, such as a
+    focus treatment inside a sample child, so clicking a choice, a toggle, a preset or
+    Reset, or dragging a slider, changes the candidate without taking the user out of
+    the preview. A text control takes focus to be typed in, and from anywhere else a
+    click takes the user to the control, where the next key acts."""
+    source = leaf_page(
+        "focus playground",
+        """
+<h1>Ring playground</h1>
+<lf-ask id="ring-ask">
+  <h2>Which ring?</h2>
+  <lf-playground id="ring-playground">
+    <lf-playground-preset label="Wide">
+      <lf-playground-setting for="width" value="4"></lf-playground-setting>
+    </lf-playground-preset>
+    <lf-playground-control name="ring" label="Ring" kind="choice" value="thin">
+      <lf-playground-choice value="thin" label="Thin"></lf-playground-choice>
+      <lf-playground-choice value="thick" label="Thick"></lf-playground-choice>
+    </lf-playground-control>
+    <lf-playground-control name="width" label="Width" kind="range" value="2" min="1" max="4" step="1" unit="px"></lf-playground-control>
+    <lf-playground-control name="dim" label="Dim" kind="toggle" value="false"></lf-playground-control>
+    <lf-playground-control name="note" label="Note" kind="text" value="hi"></lf-playground-control>
+    <lf-playground-preview>
+      <button id="preview-button" type="button">A candidate button</button>
+      <lf-sample id="ring-sample" label="ring sample">
+        <template id="ring-page" data-sample>
+          <p>The page the candidate restyles.</p>
+          <button id="child-button" type="button">Where the user stands</button>
+        </template>
+      </lf-sample>
+    </lf-playground-preview>
+    <lf-playground-output>Use the
+      <lf-playground-value for="ring"></lf-playground-value> ring.</lf-playground-output>
+  </lf-playground>
+</lf-ask>
+""",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#ring-playground")
+    child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
+    standing = "button => button.matches(':focus') && document.hasFocus()"
+    values = lambda: playground.evaluate("root => root.values")
+
+    child_button.focus()
+    assert child_button.evaluate(standing)
+    page.get_by_role("radio", name="Thick", exact=True).click()
+    assert values()["ring"] == "thick"
+    assert child_button.evaluate(standing)
+
+    playground.locator("wa-switch").click()
+    assert values()["dim"] is True
+    assert child_button.evaluate(standing), "switch"
+    page.get_by_role("button", name="Wide", exact=True).click()
+    assert values()["width"] == 4
+    assert child_button.evaluate(standing), "preset"
+    slider = playground.locator("wa-slider").bounding_box()
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    assert values()["width"] == 1
+    assert child_button.evaluate(standing), "slider"
+    playground.locator(".lf-playground-reset").click()
+    assert values()["ring"] == "thin"
+    assert child_button.evaluate(standing)
+
+    # The same holds in the preview's own light DOM.
+    preview_button = page.locator("#preview-button")
+    preview_button.focus()
+    page.get_by_role("radio", name="Thick", exact=True).click()
+    expect(preview_button).to_be_focused()
+
+    # A text control is operated from focus, so a press there takes it.
+    note = page.get_by_role("textbox", name="Note")
+    note.click()
+    expect(note).to_be_focused()
+
+    # From outside the preview, a click takes the user to the control, and the next
+    # key acts there.
+    thin = page.get_by_role("radio", name="Thin", exact=True)
+    thin.click()
+    expect(thin).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert values()["ring"] == "thick"
+    playground.locator("wa-switch").click()
+    page.keyboard.press("Space")
+    assert values()["dim"] is False
+
+    # A sample whose page stands on nothing holds no one there.
+    page.frame_locator("#ring-sample iframe").get_by_text(
+        "The page the candidate"
+    ).click()
+    thin.click()
+    expect(thin).to_be_focused()
 
 
 def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
@@ -10117,9 +10213,10 @@ def test_a_column_of_moments_is_time_only_where_each_states_its_zone(browser, se
     """A moment that states its zone is one instant for every reader, so a column of them
     is a time axis, and twelve hours of them are ticked by the hour rather than held to a
     day. Without a zone the browser would read the moment in the viewer's own zone, so
-    that column stays the words the body wrote. Two labels naming one instant would draw
-    two rows at one x on a line, and are refused like two rows sharing a label; a bar
-    chart keeps a slot per label, so there they are two bars."""
+    that column stays the words the body wrote, as does one shaped like months that names
+    none. Two labels naming one instant would draw two rows at one x on a line, and are
+    refused like two rows sharing a label; a bar chart keeps a slot per label, so there
+    they are two bars, and a row chart draws its dated rows as the labels they are."""
     hours = "".join(f"2026-06-01T{h:02}:00Z, {h}\n" for h in range(12))
     source = leaf_page(
         "moments",
@@ -10133,6 +10230,11 @@ hour, depth
 2026-06-01T09:00, 4
 2026-06-01T10:00, 7
 </pre></lf-chart>
+<lf-chart id="c-winters" kind="line" y="gas, kWh"><pre>
+winter, gas
+2021-22, 4
+2022-23, 7
+</pre></lf-chart>
 <lf-chart id="c-same" kind="line" y="queue depth"><pre>
 day, depth
 2026-06, 4
@@ -10142,6 +10244,11 @@ day, depth
 day, depth
 2026-06, 4
 2026-06-01, 7
+</pre></lf-chart>
+<lf-chart id="c-rows" kind="rows" y="queue depth"><pre>
+day, depth
+2026-06-01, 4
+2026-06-02, 7
 </pre></lf-chart>
 """,
     )
@@ -10157,10 +10264,13 @@ day, depth
     # UTC, whatever the reader's zone: the first hour is 12 AM, not the day before.
     assert "May" not in " ".join(zoned), zoned
     assert page.evaluate(ticks, "c-bare") == ["2026-06-01T09:00", "2026-06-01T10:00"]
+    # Shaped like months, and naming none: autoType reads each as an Invalid Date.
+    assert page.evaluate(ticks, "c-winters") == ["2021-22", "2022-23"]
     expect(page.locator("#c-same .lf-error")).to_contain_text(
         "2026-06-01 is the same x as another row"
     )
     assert page.evaluate(ticks, "c-bars") == ["2026-06", "2026-06-01"]
+    expect(page.locator("#c-rows [data-lf-part=bar] rect")).to_have_count(2)
 
 
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
@@ -11241,10 +11351,27 @@ fn merge_sort()
     assert page.evaluate("document.querySelector('#film').point('3')") is False
     expect(marked).to_have_count(0)
 
-    copied = page.evaluate(
-        """() => { getSelection().selectAllChildren(document.querySelector('#walk pre'));
-                   return getSelection().toString(); }"""
+    # The user drags from the excerpt's first word to its last.
+    ends = page.locator("#walk pre").evaluate(
+        """pre => {
+          const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT,
+            (node) => node.data.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP);
+          const texts = [];
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node);
+          const glyph = (node, at) => {
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + 1);
+            return range.getBoundingClientRect();
+          };
+          const first = texts[0], last = texts.at(-1);
+          const a = glyph(first, first.data.search(/\\S/));
+          const b = glyph(last, last.data.trimEnd().length - 1);
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
     )
+    select(page, *ends)
+    copied = page.evaluate("() => getSelection().toString()")
     # The notes come along on lines of their own, as authored text; the numbers,
     # the elided mark and its count do not.
     assert copied == (

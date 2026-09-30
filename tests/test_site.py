@@ -42,6 +42,7 @@ from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
+from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -329,24 +330,35 @@ def test_page_layers_stay_inside_their_page_directories(site):
         assert not (site / name).exists(), f"unscoped runtime directory: {name}"
 
 
+def test_the_readme_draws_its_images_from_the_pinned_assets():
+    """GitHub renders the README with no build to fetch into, so its images are raw
+    URLs into max-sixty/leaf-assets. Each names the pinned revision, which `publish`
+    moves them to, and a file that revision holds."""
+    repository, revision = specification()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    images = re.findall(
+        rf"{re.escape(raw_prefix(repository))}([0-9a-f]{{40}})/([^\"\s)]+)", readme
+    )
+    assert images, "the README draws no image from the asset repository"
+    assert {pinned for pinned, _ in images} == {revision}
+    assets = pinned_assets()
+    assert [path for _, path in images if not (assets / path).is_file()] == []
+
+
 def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
+    pinned = pinned_assets()
     product_media = {
         Path(media_url(source)).name: source
         for source in (
-            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
+            pinned / site_build.SOCIAL_CARD,
+            *(
+                pinned / "examples" / f"example-{page.stem}.jpg"
+                for page in catalog_sources()
+            ),
         )
     }
-    product_media.update(
-        {
-            Path(media_url(source)).name: source
-            for source in (
-                site_build.example_previews() / f"example-{page.stem}.jpg"
-                for page in catalog_sources()
-            )
-        }
-    )
     assert {path.name for path in (assets / "media").iterdir()} == set(product_media)
     for name, source in product_media.items():
         assert (assets / "media" / name).read_bytes() == source.read_bytes()
@@ -1105,7 +1117,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expected = {source.stem for source in catalog_sources()}
     authored = {source.stem for source in authored_examples()}
     assert authored - expected, "the fixture has no unlisted example route to exercise"
-    previews = site_build.example_previews()
+    previews = pinned_assets() / "examples"
     assert {path.name for path in previews.glob("example-*.jpg")} >= {
         f"example-{stem}.jpg" for stem in expected
     }

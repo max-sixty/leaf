@@ -815,36 +815,23 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
                 parent.rmdir()
 
 
-def test_every_tracked_experiment_screenshot_is_named_by_its_written_up_result():
-    """The archive keeps the screenshots its prose reads, and no others.
-
-    The probe's evidence is scratch, and `notes/mcp-apps/probe/README.md` says what a
-    maintainer copies back out of it: "a screenshot earns its megabyte only where
-    the prose points at it." Nothing held that rule over what was already tracked,
-    so the archive carried a re-render of the same fixture for each run of a chain
-    of repeats — 4.0M across eleven files no write-up mentioned, three of them
-    byte-identical to another tracked screenshot. A copied-back file is a
-    maintainer's `git add` rather than a script's output, so the payload test above
-    cannot see it coming; this reads the rule off the archive itself. The prose that
-    licenses a screenshot is its own experiment's, not the archive's as a whole,
-    or one write-up's citation would license every other run's copy of the shot.
-    """
-    archive = PLUGIN_ROOT / "notes" / "mcp-apps" / "experiments"
-    unread = []
+def test_the_payload_is_text():
+    """Every tracked byte ships in every install and stays in history, so the tree
+    holds no screenshot, recording or other binary (`AGENTS.md`, "The install runs
+    this tree"). Screenshots came in under `notes/` twice, 5.6M of a probe's evidence
+    and then 1.8M of a design study's before/after pairs, each by a maintainer's
+    `git add` that no test of a tool's output path sees coming. An image lives in
+    max-sixty/leaf-assets, at the path its reader looks for it, and evidence in
+    `.tmp/`."""
+    binary = []
     for path in shipped_payload():
-        if path.suffix != ".png" or not path.is_relative_to(archive):
+        if not path.is_file():
             continue
-        experiment = path.relative_to(archive).parts[0]
-        prose = "".join(
-            note.read_text(encoding="utf-8")
-            for note in sorted((archive / experiment).glob("*.md"))
-        )
-        if path.name not in prose:
-            unread.append(path.relative_to(PLUGIN_ROOT).as_posix())
-    assert unread == [], (
-        "these screenshots ship in the payload and no write-up reads them: "
-        + ", ".join(unread)
-    )
+        try:
+            path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            binary.append(path.relative_to(PLUGIN_ROOT).as_posix())
+    assert binary == [], "binary files in the tree: " + ", ".join(binary)
 
 
 def test_claude_and_codex_read_the_same_repository_skills():

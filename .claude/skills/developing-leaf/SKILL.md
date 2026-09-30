@@ -51,9 +51,8 @@ and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
 (`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
-candidates: a `choice` control naming them, the candidates in its preview, and
-an output saying what to build. Add presets and further controls only where the
-user tunes more than the choice.
+candidates: the controls and presets the user explores them with, the
+candidates in its preview, and an output saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
@@ -216,22 +215,29 @@ default) and the working tree's at once, and prints each case's passes per arm a
 cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
 the skill and the references and every run answers with no guidance, while
 `loads-leaf` still passes on the attempt. So every case also grades that the child
-read the reference it tests, and a run that fails that check measured nothing.
+read the reference it tests, and a run that fails that check measured nothing. The
+grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
+refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
 
-Grow the suite slowly, toward a modest set of cases that each tell two wordings
-apart. Measure with whatever scenarios and guardrails the change needs, then add a
-case only if it pins a clause no existing case pins and it separated two arms you ran:
-the base failed most runs and the change passed every run, or a blunter draft failed
-a guardrail the change passes. That is usually one case per problem, and rarely more
-than two. A case both arms passed goes in the commit message, not the suite. The
-comment above `schema_version` says where the case came from and what it measured;
+The suite is a library that grows with the guidance, so a later edit, whether a fix
+or a cut, is scored against the behaviors earlier edits had to produce. Add to it
+where a change's behavior gives the library breadth, a behavior or kind of situation
+no case yet covers. First try to extend an existing case, with a grader, a
+criterion, or context in its prompt, so coverage grows without the cases
+proliferating; add a new case only where no existing one can carry the behavior.
+Keep a case small: one prompt carrying only the context the behavior needs, and a
+few graders. Measure with whatever scenarios and guardrails the change needs, and
+keep what you add whether or not it separated the arms. The comment above
+`schema_version` says where the case came from and what it measured, so a reader can
+tell a case that told two wordings apart from one that has only guarded;
 `description` names the clause it pins, and `tags` its area.
 
 A prompt ends by asking for the HTML in the reply, since the child has no page
 directory. It cannot search the plugin either, so it answers from the references
-without the registry. The prompt never states the behavior under test. Grade a fixed
-form with a `regex` grader, and a judgment with an `llm` grader whose `criteria`
-state the passing reading without requiring particular wording.
+without the registry, and a prompt that points it at a file beyond the references
+names that file from the skill's base directory. The prompt never states the behavior under test.
+Grade a fixed form with a `regex` grader, and a judgment with an `llm` grader whose
+`criteria` state the passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
@@ -245,10 +251,12 @@ No grader has been checked against a person's judgment, so a pass is weak eviden
 When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
-first viewport. It pushes the stills to `max-sixty/leaf-assets` and updates
-`example-previews.json`; that push is part of the authorized change. Run
-`wt setup` first in a new checkout; if Worktrunk asks to approve the project
-commands, ask the user to run `wt config approvals add`.
+first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
+in `leaf-assets.json` and the README's image URLs; that push is part of the
+authorized change. `uv run leaf-dev record-demo` does the same for the README's
+recording and stills and the site's card. Run `wt setup` first in a new checkout;
+if Worktrunk asks to approve the project commands, ask the user to run
+`wt config approvals add`.
 
 ## Land a change
 

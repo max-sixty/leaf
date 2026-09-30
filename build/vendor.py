@@ -340,10 +340,18 @@ def build_plot(work: Path) -> list[Path]:
     today. Naming the marks here would put the module's mark list in a second
     place, where a chart kind added in the module renders as a TypeError instead;
     the list is worth about 100KB, against a 385KB bundle.
+
+    d3-dsv's `autoType` rides along because Plot draws values and never reads
+    text: it types no strings, and says to parse them before they reach it. So
+    a chart's cells are typed by the reading Plot's own ecosystem hands it
+    rather than by one of lf-chart's. d3-dsv's CSV parser stays out: it lives
+    in one module with `csvParse`, which compiles each header into a function,
+    so bundling it trips the CSP check below whichever half is called.
     """
     out = package_vendor("default") / "plot.esm.js"
     (work / "entry.mjs").write_text(
-        'export * from "@observablehq/plot";\n', encoding="utf-8"
+        'export * from "@observablehq/plot";\nexport { autoType } from "d3-dsv";\n',
+        encoding="utf-8",
     )
     esbuild(
         "entry.mjs",

@@ -153,6 +153,8 @@
     }
   };
   window.lfUnwatched = unwatched;
+  // shift_watch.js names what moved the same way.
+  window.lfPlace = place;
   const probing = (driver) =>
     driver &&
     Object.freeze({

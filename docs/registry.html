@@ -136,6 +136,7 @@
           <a href="#x-exhibit"><code>x-exhibit</code></a>
           <a href="#x-face"><code>x-face</code></a>
           <a href="#x-guidance"><code>x-guidance</code></a>
+          <a href="#x-height"><code>x-height</code></a>
           <a href="#x-history"><code>x-history</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
@@ -333,6 +334,32 @@
                 package-wide guidance, so instructions travel with the contribution they
                 explain rather than with whichever package happened to distribute it.
               </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-height">
+            <h3><code>x-height</code></h3>
+            <div class="reference-copy">
+              <p>
+                The height, in CSS pixels, the page reserves for the element before its
+                module draws: the declaration's number, or an authored occurrence's
+                data-height, which overrides it; <code>true</code> declares no number,
+                so only an occurrence's data-height reserves.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-height contract">Full contract</summary>
+                <p>
+                  Delivery paints it into the served document as data-lf-height, and on
+                  a live page the theme holds the box to it from the first paint until
+                  the module marks the element drawn (<code>lf-rendered</code>), when
+                  the box becomes the drawing's own. Declare it on a widget whose
+                  drawing cannot be sized from its markup before the module draws. A
+                  module that can draw to any height, as a chart's can, draws at the
+                  stated one, so nothing moves when the reservation ends; one whose
+                  content has a height of its own draws that, and the reservation is the
+                  author's estimate of it. A failure takes the height of the message it
+                  shows.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-history">

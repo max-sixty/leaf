@@ -131,10 +131,6 @@ and its chrome coordinate.
   deletion). Folding the pair into one marker that opens Accept and Reject, only where
   the pair has no room, is the nearest design; it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
   a finger) stays the escape.
-- **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
-  rail's width at every width, so on a phone it leaves a 295px column. The margin pass
-  admits residents by measuring the room they leave (`settleResidency`), which a rail
-  the shell has already reserved never fails.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus

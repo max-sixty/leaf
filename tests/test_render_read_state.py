@@ -629,14 +629,15 @@ DIAG_PROBE = """
 
 def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     root = "a1b2c3d4"
+
     # Each child is taller than the window, so its frame is too, and the thread panel it
     # opens stands its message near the frame's top.
-    lines = "".join(f"<p>Line {n} of the child page.</p>" for n in range(80))
-
     def sample(name):
         return f"""<lf-sample id="{name}-practice" label="Read practice">
   <template id="{name}-source" data-sample data-sample-threads="{root}">
-    <h1>Child page</h1>{lines}
+    <style>#child-rest {{ height: 3000px; }}</style>
+    <h1>Child page</h1>
+    <div id="child-rest"></div>
   </template>
 </lf-sample>"""
 

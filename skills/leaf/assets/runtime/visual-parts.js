@@ -104,9 +104,10 @@ export function visualPartProblems(source, declaration) {
     const outside = declaration.prefixes
       ? ids.filter((id) => admission.rank(id) < 0)
       : [];
-    const unlisted = declaration.complete && admission.declared.length
-      ? ids.filter((id) => admission.rank(id) < 0)
-      : [];
+    const unlisted =
+      declaration.complete && admission.declared.length
+        ? ids.filter((id) => admission.rank(id) < 0)
+        : [];
     return [
       ...(missing.length
         ? [`did not register declared parts ${missing.join(", ")}`]

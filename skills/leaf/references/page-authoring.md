@@ -94,7 +94,9 @@ the stack from these:
   children in equal cells, as many to a row as fit. Each cell holds a surface — a
   metric, chart, table, list or log, with at most a caption — rather than paragraphs;
   a row of headline numbers is `lf-metric` tiles in one. Tiles of paragraphs are prose
-  cut into columns, and read worse than the column.
+  cut into columns, and read worse than the column. A row that wraps to leave one tile
+  alone, such as four as three and one, looks unfinished. The render check's screens
+  show where each tile row wraps.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.

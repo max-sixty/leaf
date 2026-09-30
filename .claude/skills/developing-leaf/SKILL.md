@@ -30,6 +30,18 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+## Leave taste to the authoring agent
+
+Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
+the user relies on, such as a gesture being recorded or nothing moving under the
+pointer. Taste, formatting and aesthetics go in the shipped guidance, as a goal and
+its reason, so the authoring agent weighs them against the page in front of it. How
+many tiles share a row, where a heading breaks, which column is wider: a rule in CSS,
+a validator or a Layout that fixes one of these for every page overrides the agent
+where its page needs something else, and breaks on the next case it wasn't written
+for. A check may report what it sees, as the render check names where a tile row
+wraps, and leave the call to the agent.
+
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A

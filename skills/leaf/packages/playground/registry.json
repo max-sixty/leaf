@@ -47,7 +47,7 @@
         "unit": "widget"
       }
     },
-    "x-reserve": true,
+    "x-height": true,
     "x-example": "<lf-ask id=\"notification-ask\"><h2>Which notification should we build?</h2><lf-playground id=\"notification-playground\" data-height=\"598\" submit-label=\"Create notification\"><lf-playground-control name=\"format\" label=\"Format\" kind=\"choice\" value=\"banner\"><lf-playground-choice value=\"banner\" label=\"Banner\"></lf-playground-choice><lf-playground-choice value=\"status strip\" label=\"Status strip\"></lf-playground-choice></lf-playground-control><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-preset label=\"Status strip\"><lf-playground-setting for=\"format\" value=\"status strip\"></lf-playground-setting><lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting></lf-playground-preset><lf-playground-preview><section aria-label=\"Notification candidates\"><article data-candidate=\"banner\"><h3>Banner</h3><p>The real banner responds to the shared controls.</p></article><article data-candidate=\"status strip\"><h3>Status strip</h3><p>The real status strip responds to the same controls.</p></article></section></lf-playground-preview><lf-playground-output>Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners. Replace the notification component and show me its browser test.</lf-playground-output></lf-playground></lf-ask>"
   },
   "lf-playground-control": {

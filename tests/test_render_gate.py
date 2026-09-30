@@ -402,7 +402,7 @@ RESERVING_LAYER = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-upgrade": True,
-        "x-reserve": True,
+        "x-height": True,
         "x-example": '<lf-test-drawn id="drawn" data-height="120"></lf-test-drawn>',
     }
 }
@@ -447,10 +447,11 @@ def test_a_widget_drawn_at_a_height_its_first_paint_did_not_reserve_gets_advice(
 
     assert reading.failures == []
     assert reading.advice == [
-        "<lf-test-drawn id='unreserved'> draws 120px tall and reserves no height, so "
-        'what follows it moves when it is drawn: state data-height="120"',
-        "<lf-test-drawn id='misreserved'> draws 120px tall and reserves "
-        "data-height='40', so what follows it moves when it is drawn: state "
+        "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
+        "reserves no height, so what follows it moves when it is drawn: state "
+        'data-height="120"',
+        "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
+        "reserves 40px, so what follows it moves when it is drawn: state "
         'data-height="120"',
     ]
 

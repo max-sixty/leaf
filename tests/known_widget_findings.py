@@ -31,7 +31,7 @@ KNOWN = {
     # The module builds each control's inputs and the instruction's current values,
     # which it restores per viewer from the tab's storage, so neither the rail's
     # members nor the words the instruction wraps exist before it runs. The
-    # playground's own height is reserved (x-reserve), and the stage stands in its
+    # playground's own height is reserved (x-height), and the stage stands in its
     # region from first paint.
     "playground": {
         ("lf-playground-control", "keeps-first-box"),

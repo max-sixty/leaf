@@ -24,7 +24,7 @@
       "complete": true
     },
     "x-space": "available",
-    "x-reserve": true,
+    "x-height": true,
     "x-example": "<lf-diagram id=\"checkout-flow\" data-height=\"364\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\nflowchart TD\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class Receipt done\n</pre></lf-diagram>"
   }
 }

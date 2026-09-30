@@ -82,7 +82,7 @@ lf-playground:has(> .lf-playground-split) {
 }
 
 /* Before the module builds the regions, the page holds the playground's height
- * (x-reserve) and the stage already stands where its region will: first in the stack,
+ * (x-height) and the stage already stands where its region will: first in the stack,
  * or on the wide split's two thirds beside the rail, the whole held height. The rail's
  * controls, readings and actions are the module's to build, and its members stand in
  * the rail's column until then. A quoted playground builds no regions. */

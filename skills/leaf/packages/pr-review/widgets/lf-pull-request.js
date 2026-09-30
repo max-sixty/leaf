@@ -173,7 +173,7 @@ customElements.define(
       // the observed age when the shared clock crosses a display boundary.
       this.paintSnapshot = clocked(this, (snapshot) => {
         const record = snapshot?.value ?? null;
-        // Drawn from its data, which lifts the height the page reserved (x-reserve),
+        // Drawn from its data, which lifts the height the page reserved (x-height),
         // and held at that height again while the data is absent.
         this.classList.toggle("lf-rendered", record !== null);
         const projected = record

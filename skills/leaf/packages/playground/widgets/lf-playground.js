@@ -131,7 +131,7 @@ customElements.define(
       try {
         this.#build();
         this.#ready = true;
-        // Built, so the height the page reserved for it lifts (x-reserve).
+        // Built, so the height the page reserved for it lifts (x-height).
         this.classList.add("lf-rendered");
         if (this.#interactive)
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());

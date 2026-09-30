@@ -187,7 +187,7 @@
         "unit": "widget"
       }
     },
-    "x-reserve": true,
+    "x-height": true,
     "x-example": "<lf-ask id=\"landing-change-ask\"><h2>Which landing-page changes should the agent make?</h2><lf-targeting id=\"landing-targeting\" data-height=\"767\"><lf-target-preview id=\"landing-preview\"><section id=\"hero\" class=\"landing-section\"><h3 class=\"section-title\">Build the next release</h3><p>Keep the request path visible.</p><button type=\"button\">Start review</button></section><section class=\"landing-section\"><h3 class=\"section-title\">Inspect the evidence</h3></section></lf-target-preview></lf-targeting></lf-ask>"
   },
   "lf-target-preview": {

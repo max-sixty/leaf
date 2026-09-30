@@ -7,7 +7,7 @@ lf-targeting {
    * track sizes to its widest item's minimum, so on a phone the editor's widest control
    * widened the preview and every section past the card's edge. */
   grid-template-columns: minmax(0, 1fr);
-  /* The preview keeps its own height while the page holds the workbench's (x-reserve)
+  /* The preview keeps its own height while the page holds the workbench's (x-height)
    * before the editor is built beneath it. */
   align-content: start;
   gap: var(--sp-3);

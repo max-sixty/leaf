@@ -322,37 +322,28 @@ const withFirstSizes = (holder, inside) => {
   return { width, height };
 };
 
-// Each widget whose module draws at a height nothing ahead of it can lay out (x-reserve)
-// and whose height changed between the page's first paint and now: `drawn` is the height
-// to state as its data-height, which is the block size CSS gives it, so its padding and
-// border are left out where its box sizing leaves them out; `stated` is what it states.
+// Each widget whose module draws at a height nothing ahead of it can lay out (x-height)
+// and whose border box, which is the box the theme reserves, changed height between the
+// page's first paint and now: `drawn` is the height to state as its data-height, and
+// `reserved` the height its first paint held (`data-lf-height`), if any.
 export function unreservedHeights(declarations) {
   return globalThis.__leafRenderDriver
     .firstBoxes()
     .filter(
-      ({ element }) => declarations[element.localName]?.["x-reserve"] && shown(element),
+      ({ element }) => declarations[element.localName]?.["x-height"] && shown(element),
     )
     .flatMap(({ element, height }) => {
       const now = element.getBoundingClientRect().height;
-      if (Math.abs(now - height) < ROUNDING) return [];
-      const style = getComputedStyle(element);
-      const inset =
-        style.boxSizing === "border-box"
-          ? 0
-          : [
-              style.paddingTop,
-              style.paddingBottom,
-              style.borderTopWidth,
-              style.borderBottomWidth,
-            ].reduce((sum, value) => sum + parseFloat(value), 0);
-      return [
-        {
-          tag: element.localName,
-          id: element.id,
-          drawn: Math.round(now - inset),
-          stated: element.getAttribute("data-height"),
-        },
-      ];
+      return Math.abs(now - height) < ROUNDING
+        ? []
+        : [
+            {
+              tag: element.localName,
+              id: element.id,
+              drawn: Math.round(now),
+              reserved: element.getAttribute("data-lf-height"),
+            },
+          ];
     });
 }
 

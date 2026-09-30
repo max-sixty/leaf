@@ -147,7 +147,7 @@
       "author": "Place one empty `lf-pull-request` before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description itself, so the surrounding prose can stay the reviewer's analysis."
     },
     "x-upgrade": true,
-    "x-reserve": true,
+    "x-height": true,
     "x-example": "<lf-pull-request id=\"reviewed-pr\" data-height=\"640\" source=\"pr-1842\"></lf-pull-request>"
   },
   "lf-call-diff": {
@@ -187,7 +187,7 @@
       "diff": {}
     },
     "x-upgrade": true,
-    "x-reserve": true,
+    "x-height": true,
     "x-example": "<lf-call-diff id=\"request-calls\" data-height=\"480\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
   }
 }

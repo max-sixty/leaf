@@ -238,7 +238,7 @@ customElements.define(
         );
         return;
       }
-      // Drawn from its data, which lifts the height the page reserved (x-reserve), and
+      // Drawn from its data, which lifts the height the page reserved (x-height), and
       // held at that height again while the data is absent.
       this.classList.toggle("lf-rendered", records.length > 0);
       if (!records.length) {

@@ -20,7 +20,7 @@ KNOWN_UNASKED = {
         "test_incoming_reply_follows_a_selected_thread_before_later_cards",
     },
     "test_render_aim.py": {
-        # aside#lf-margin-preview.lf-ui.lf-margin-preview, span.lf-margin-marker.lf-ui.l
+        # aside#lf-margin-preview.lf-ui.lf-margin-preview
         "test_a_declared_flowchart_node_keeps_its_comment_across_renderings",
         # span.lf-shortcut
         "test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds",
@@ -36,7 +36,7 @@ KNOWN_UNASKED = {
         "test_a_diff_anchors_to_the_side_it_was_read_on",
         # button.lf-shortcut-more
         "test_a_diff_is_colored_by_each_files_own_path",
-        # http://127.0.0.1:44091/versions/v1.html: a node since removed, button.lf-short
+        # http://127.0.0.1:44091/versions/v1.html: a node since removed
         "test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline",
         # button.lf-shortcut-more
         "test_a_passage_among_padded_emoji_confirms_its_neighbours",
@@ -66,7 +66,7 @@ KNOWN_UNASKED = {
         "test_pending_comparison_moves_with_a_live_revision",
         # button.lf-shortcut-more
         "test_quotes_cross_preserving_containers_and_remain_attached",
-        # div.lf-ui.lf-fab-bar.lf-target-paint, button.lf-ui.lf-response-more.lf-respons
+        # div.lf-ui.lf-fab-bar.lf-target-paint
         "test_real_page_passages_can_be_quoted",
         # button.lf-shortcut-more
         "test_staged_widget_controls_name_the_presses_their_owners_make",
@@ -156,7 +156,7 @@ KNOWN_UNASKED = {
         "test_a_page_at_rest_does_nothing",
         # li in ol in div.lf-toc-rows, lf-tab#bg-view-interactions
         "test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room",
-        # button.lf-btn.lf-auxiliary-toggle.lf-threads-toggle, dialog#lf-threads.lf-ui.l
+        # button.lf-btn.lf-auxiliary-toggle.lf-threads-toggle
         "test_a_resized_page_comes_back_as_it_was",
         # p#left
         "test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it",
@@ -290,11 +290,11 @@ KNOWN_UNASKED = {
         "test_one_supplied_attempt_cannot_name_two_queued_actions",
         # span.lf-shortcut
         "test_the_composer_never_stands_on_its_own_mark",
-        # button.lf-ui.lf-margin-entry.lf-sug-accept, button.lf-ui.lf-margin-entry.lf-su
+        # button.lf-ui.lf-margin-entry.lf-sug-accept
         "test_undo_preserves_the_place_and_restores_passage_marks",
     },
     "test_render_pages.py": {
-        # leaf-banner-status.lf-banner-status, button.lf-btn.lf-auxiliary-toggle.lf-thre
+        # leaf-banner-status.lf-banner-status
         "test_a_box_that_shows_less_than_it_holds_says_so",
         # div.lf-compose-field
         "test_a_failed_agent_root_restores_the_focused_first_message_composer",
@@ -362,7 +362,7 @@ KNOWN_UNASKED = {
         "test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves",
         # lf-agent#ag-finch, lf-agent#ag-siskin
         "test_claims_and_reports_share_one_canonical_update_feed",
-        # span.lf-margin-marker.lf-ui.lf-margin-entry, leaf-margin-cluster.lf-ui.lf-marg
+        # span.lf-margin-marker.lf-ui.lf-margin-entry
         "test_command_hub_an_absorbed_input_stays_fulfilled",
         # li.lf-activity-row, p.lf-activity-excerpt
         "test_command_hub_keeps_projection_focus_when_unrelated_news_arrives",
@@ -458,9 +458,9 @@ KNOWN_UNASKED = {
         "test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it",
         # div.lf-compose-field, a node since removed
         "test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading",
-        # div.lf-ui.lf-visual-mark.lf-target-paint.lf-visual-mark-here, div.lf-say.lf-ui
+        # div.lf-ui.lf-visual-mark.lf-target-paint.lf-visual-mark-here
         "test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in",
-        # http://127.0.0.1:40119/versions/v1.html: a node since removed, time.lf-thread-
+        # http://127.0.0.1:40119/versions/v1.html: a node since removed
         "test_two_standard_thread_lists_share_updates_but_not_local_state",
     },
     "test_render_visual_review_journey.py": {
@@ -512,7 +512,7 @@ KNOWN_UNASKED = {
         "test_swipe_deck_activation_restores_a_standing_swipe_without_motion",
         # lf-swipe-pile#session-pass, div.lf-swipe-controls.lf-ui
         "test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe",
-        # p#target-lifecycle-targeting-status.lf-targeting-status.lf-ui, button.lf-short
+        # p#target-lifecycle-targeting-status.lf-targeting-status.lf-ui
         "test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit",
         # main.layout-column
         "test_the_page_says_a_change_is_only_proposed",
@@ -528,11 +528,11 @@ KNOWN_UNASKED = {
         "test_every_product_route_is_a_live_leaf_page@site",
         # h3.lf-vr-case-title, div.lf-vr-shot-host
         "test_every_published_page_stands_as_a_live_page@site",
-        # button.lf-shortcut-more, button.lf-ui.lf-response-more.lf-response-control.lf-
+        # button.lf-shortcut-more
         "test_interaction_gallery_contains_page_chrome@site",
         # div.lf-banner-actions, button.lf-shortcut-more
         "test_interaction_gallery_waits_for_a_restored_frame_tab@site",
-        # li in ol in div.lf-toc-rows, button.lf-btn.lf-auxiliary-toggle.lf-threads-togg
+        # li in ol in div.lf-toc-rows
         "test_published_product_page_renders",
         # h3.lf-vr-case-title, div.lf-vr-shot-host
         "test_published_visual_evidence_loads_from_its_page@site",

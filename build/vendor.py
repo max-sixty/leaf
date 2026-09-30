@@ -305,7 +305,7 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
+    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",

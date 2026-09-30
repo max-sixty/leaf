@@ -235,12 +235,12 @@ def pytest_addoption(parser):
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
-    """A test body that returns has its last shifts judged before its fixtures end
-    (`render_harness.judge_shifts`)."""
-    from render_harness import judge_shifts
+    """A test body that returns has its last shifts and lost words judged before its
+    fixtures end (`render_harness.judge_watches`)."""
+    from render_harness import judge_watches
 
     result = yield
-    judge_shifts()
+    judge_watches()
     return result
 
 

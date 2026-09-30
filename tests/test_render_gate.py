@@ -111,6 +111,7 @@ from render_harness import (
     resized,
     root_overflow,
     scroll_followers,
+    scroll_settled,
     scroll_writes,
     state_changes,
     still_page,
@@ -2749,6 +2750,112 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
                 )
                 break
     assert findings == [], "\n\n".join(findings)
+
+
+# The field holding the focus, through the shadow trees on the way to it, and whether
+# it takes words; and each laid-out field's words, found the same way.
+FOCUSED_FIELD = """() => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return Boolean(at?.matches('textarea, input, [contenteditable], leaf-text'));
+}"""
+SHOWN_WORDS = """() => {
+  const found = [];
+  const walk = (root) => {
+    for (const node of root.querySelectorAll('*')) {
+      if (node.matches('textarea, input, [contenteditable], leaf-text')
+          && node.checkVisibility()) found.push(node.value ?? node.textContent);
+      if (node.shadowRoot) walk(node.shadowRoot);
+    }
+  };
+  walk(document);
+  return found;
+}"""
+# Every scroller the page holds sent to one end on both axes, remembering where each
+# stood, or put back there.
+SCROLL_ALL_TO = """(end) => {
+  const scrolls = (el) => el === document.scrollingElement
+    || /auto|scroll/.test(getComputedStyle(el).overflow);
+  const scrollers = [document.scrollingElement, ...document.querySelectorAll('*')]
+    .filter((el) => scrolls(el) && (el.scrollHeight > el.clientHeight + 1
+      || el.scrollWidth > el.clientWidth + 1));
+  window.__lfScrolledFrom = scrollers.map((el) => [el, el.scrollTop, el.scrollLeft]);
+  for (const el of scrollers) {
+    el.scrollTop = end === 'start' ? 0 : el.scrollHeight;
+    el.scrollLeft = end === 'start' ? 0 : el.scrollWidth;
+  }
+}"""
+SCROLL_ALL_BACK = """() => {
+  for (const [el, top, left] of window.__lfScrolledFrom) {
+    el.scrollTop = top;
+    el.scrollLeft = left;
+  }
+}"""
+
+
+def into_the_page(page):
+    """Tab to the first stop inside the page's content, where `c` names its item."""
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if page.evaluate("() => Boolean(document.activeElement?.closest('main'))"):
+            return True
+    return False
+
+
+# Every box the user types into from the keyboard, by how they reach it: a comment on
+# the item they stand at, the page's own comment, and a thread card's reply where the
+# page has a thread to open. Each route takes the user from the page to where the
+# box's keys apply and returns them, or nothing where the page offers no such box. A
+# new box joins by its route.
+TYPED_BOXES = {
+    "comment on an item": lambda page: into_the_page(page) and ["c"],
+    "comment on the page": lambda page: ["c"],
+    "thread card reply": lambda page: (
+        page.locator(
+            '.lf-threads-toggle:text-matches("Open threads: [1-9]")'
+        ).first.is_visible()
+        and ["t", "c"]
+    ),
+}
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
+    """A box the user is typing in is still there, holding their words, after every
+    scroller on the page has been sent to either end and back: scrolling is reading,
+    and what the user wrote waits for them. The browser fixture fails a box that went
+    away on the way even where it came back (`words_watch.js`)."""
+    url = serve(source)
+    findings = []
+    for box, route in TYPED_BOXES.items():
+        page = still_page(browser, url)
+        left_alone(page)
+        page.evaluate(RELEASE_FOCUS)
+        keys = route(page)
+        if not keys:
+            page.close()
+            continue
+        for key in keys:
+            page.keyboard.press(key)
+            rendered(page)
+        if not page.evaluate(FOCUSED_FIELD):
+            findings.append(f"{'+'.join(keys)} put the user in no {box} to type in")
+            page.close()
+            continue
+        words = f"Words for the {box}"
+        page.keyboard.type(words)
+        for end in ("end", "start"):
+            page.evaluate(SCROLL_ALL_TO, end)
+            scroll_settled(page)
+            rendered(page)
+            page.evaluate(SCROLL_ALL_BACK)
+            scroll_settled(page)
+            rendered(page)
+            if words not in page.evaluate(SHOWN_WORDS):
+                findings.append(f"the {box} scrolled to the {end} and back is gone")
+                break
+        page.close()
+    assert findings == [], "\n".join(findings)
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

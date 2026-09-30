@@ -172,6 +172,12 @@ the report. `known_shifts.py` names the tests whose pages still shift without in
 each with the region its known shift moves: a defect waiting on its fix, whose entry
 goes when it is fixed.
 
+Typed words leaving the screen without a key or press, which the "Words stay where
+they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
+included. A key that typed is editing rather than putting away, and a scroll, a
+resize, a script, and the server's news are none of them, so a test that closes a box
+must do it the way a user does.
+
 ## A page is ready when it says what has finished
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
@@ -298,11 +304,13 @@ standing actions or reports twice and checking the visible state and idempotence
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
 surface's round trips fail where one leaves a different `page_state` than the first,
-or `live_counts` climb on every trip; and a resize fails where a width says something
-other than it said on the way out. The last three read a `still_page`, whose reduced
-motion and stopped clock leave only what the test did. All of them run on every
-corpus page, so a new widget or page joins without a case of its own; a new surface
-joins the round trips by its keys. Run generated-markup probes (`undeclaredAttrs`,
+or `live_counts` climb on every trip; a resize fails where a width says something
+other than it said on the way out; and a box the user types in fails where sending
+every scroller to either end and back loses its words. The last four read a
+`still_page`, whose reduced motion and stopped clock leave only what the test did.
+All of them run on every corpus page, so a new widget or page joins without a case of
+its own; a new surface joins the round trips by its keys, and a new box the typed
+boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
 `relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 

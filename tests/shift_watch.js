@@ -27,10 +27,9 @@
 //
 // Every input, a key, a press, a keystroke or a resize, has a rendering: the frames
 // from the input until the first frame after the runtime's settled reading
-// (runtime/rendering.js) says nothing it queued is waiting and no motion begun since the
-// input still moves a box, the first such frame on a page without the runtime, a second
-// at most, or the next input. The rendering says which frames motion the input began
-// moved.
+// (runtime/rendering.js) says nothing it queued is waiting and no motion the input began
+// still moves a box, the first such frame on a page without the runtime, a second at
+// most, or the next input. The rendering says which frames that motion moved.
 //
 // News is the page adopting a server reading (`data-lf-reading`,
 // runtime/presentation.js), the one a send of the user's returns included: what the

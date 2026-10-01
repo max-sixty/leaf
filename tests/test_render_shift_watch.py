@@ -1,10 +1,28 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
+from known_faults import known
 from render_harness import consume_browser_errors, judge_watches
+
+
+def test_known_thread_fold_classifies_each_source_of_the_same_shift():
+    test = SimpleNamespace(
+        path=Path("test_website_server.py"),
+        originalname="test_a_website_turn_posts_its_answer_when_the_move_is_settled_first",
+    )
+    assert known(
+        test,
+        "span.lf-thread-topic moved without input by (8, 0)px; "
+        "the same frame moved details.lf-thread-compact.flash.lf-thread, "
+        "span.lf-thread-trailing",
+    )
+    assert not known(test, "span.lf-thread-topic moved without input by (8, 0)px")
+
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.

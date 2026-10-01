@@ -149,6 +149,17 @@ test("rows only the taller image has are a change, though they draw nothing", ()
   assert.equal(describeDifference(reading), "1 changed area");
 });
 
+test("content in rows only the taller image has is one area with them", () => {
+  const reading = differingRegions(
+    painted(blank(64, 40), [10, 10, 20, 8]),
+    painted(blank(64, 60), [10, 10, 20, 8], [10, 46, 20, 8]),
+  );
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 0, y: 40, width: 64, height: 20, kind: "changed" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area");
+});
+
 test("a strong change over most of the image points nowhere", () => {
   const image = page(160, 160);
   const most = differingRegions(image, painted(image, [0, 0, 160, 90, 1, 0]));

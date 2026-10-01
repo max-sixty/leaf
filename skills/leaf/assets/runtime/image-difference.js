@@ -48,7 +48,8 @@
  * chart is outlined at the foot of before and beside the chart in after, and nothing
  * marks the empty place it left. A change where neither image draws an edge, such as
  * rows of ground only the taller image has, lies inside no block; its struck squares
- * are outlined as a change in each image that reaches them.
+ * are outlined as a change in each image that reaches them, joined with the outlines
+ * they touch there.
  *
  * A block that holds another outline is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
@@ -144,8 +145,8 @@ export function differingRegions(a, b) {
   const readBefore = reading(before, a, one, after, b, other);
   const readAfter = reading(after, b, other, before, a, one);
   // A change where neither image draws an edge, such as rows of ground only the taller
-  // image has, lies inside no block's box, so its squares are outlined on their own, in
-  // each image that reaches them.
+  // image has, lies inside no block's box, so its squares are outlined too, in each
+  // image that reaches them, joined with the outlines they touch there.
   const owned = new Uint8Array(struck.length);
   for (const block of [...before, ...after])
     for (let r = Math.floor(block.y / CELL); r * CELL < block.y + block.height; r += 1)
@@ -188,9 +189,8 @@ export function differingRegions(a, b) {
     }),
   );
   const regions = [
-    ...outlines(before, readBefore, struck, columns, "before"),
-    ...outlines(after, readAfter, struck, columns, "after"),
-    ...unowned,
+    ...outlines(before, readBefore, struck, columns, "before", unowned),
+    ...outlines(after, readAfter, struck, columns, "after", unowned),
   ]
     .sort((p, q) => p.y - q.y || p.x - q.x)
     .map(({ x, y, width, height, side, kind }) => ({
@@ -204,8 +204,9 @@ export function differingRegions(a, b) {
   return { width, height, changed, throughout: false, regions };
 }
 
-/* One image's outlines from its blocks and their readings. */
-function outlines(blocks, states, struck, columns, side) {
+/* One image's outlines from its blocks and their readings, joined with the changes on
+ * its side that lie in no block (`bare`), so content inside added ground is one area. */
+function outlines(blocks, states, struck, columns, side, bare) {
   const marks = [];
   for (const [i, block] of blocks.entries()) {
     const { state, d } = states[i];
@@ -241,7 +242,7 @@ function outlines(blocks, states, struck, columns, side) {
       else shown.push({ ...group, side, kind: "changed" });
     }
   }
-  const joined = join(shown);
+  const joined = join([...shown, ...bare.filter((box) => box.side === side)]);
   return joined.filter(
     (mark) =>
       mark.kind !== "moved" ||

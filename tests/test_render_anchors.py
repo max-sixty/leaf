@@ -5463,6 +5463,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     told(page)
+    # The inline seat holds arrivals that would move the on-screen diff. Opening its
+    # notice makes the replies visible before comparing their workflow lines with
+    # the panel's copy.
+    news = thread.get_by_role("button", name="3 new replies")
+    expect(news).to_be_visible()
+    news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         active = view.locator(
             f'.lf-page-thread-msg[{message_attr}="{question["id"]}"] '

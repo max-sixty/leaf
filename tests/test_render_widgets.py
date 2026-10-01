@@ -1079,8 +1079,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     page.keyboard.type("A thread on the paragraph.")
     with sending(page, "the comment on the paragraph"):
         page.keyboard.press("ControlOrMeta+Enter")
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # off the paragraph the send landed on, and its card
     row = page.locator('.lf-margin-lane > [data-lf-margin-for="only"]')
     expect(row).to_have_count(1)
     expect(row).to_have_attribute("data-lf-place", "pin")

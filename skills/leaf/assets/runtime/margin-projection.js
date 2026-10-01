@@ -57,7 +57,8 @@
    for focus and presses. Keyboard arrival at a commented element puts the card up
    beside it; standing elsewhere on the page, letting go (`declareRelease`), or pressing
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
-   card lands on its target. With Threads open the list's one expanded thread plays the
+   card lands on its target, and so does a send from it (`cardTarget`), with the card
+   still up showing what was sent. With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
    The rest of the runtime reads both directions from here: `threadHere` gives the thread
    a user standing on the page is at, and the side this owner declares to
@@ -860,12 +861,20 @@ export function createMarginProjection({
         const boundary = threadCardBoundary(target);
         if (!boundary.width || !boundary.height) return {};
         const replyEditor = previewList.querySelector(REPLY_BOX);
-        // Drafting is standing anywhere in the reply's row, Send included. A send leaves
-        // the user in the box it empties, and the card must not move then.
+        // Drafting is standing anywhere in the reply's row, Send included, holding words
+        // in it, or having the newest turn: a send takes the user out of the box it
+        // empties (`landSent`), and the turn it adds must not move the reply row or
+        // Send from under the press. An answer arriving ends it.
+        const newest = [
+          ...(replyEditor?.closest(".lf-page-thread")?.querySelectorAll(
+            ".lf-page-thread-msg",
+          ) ?? []),
+        ].at(-1);
         const drafting = Boolean(
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
-            replyEditor.value !== ""),
+            replyEditor.value !== "" ||
+            newest?.classList.contains("user")),
         );
         const clusterBox = cluster.getBoundingClientRect();
         // Client pixels per positioning-space pixel.
@@ -2567,9 +2576,9 @@ export function createMarginProjection({
       optionsRung(),
     );
   };
-  const stepsOut = () => {
+  const stepsOut = (from = focused()) => {
     const target = targetFor(previewEntry);
-    return preview.contains(focused()) &&
+    return preview.contains(from) &&
       !unfoldedUnder() &&
       target?.isConnected &&
       target.checkVisibility()
@@ -3203,6 +3212,9 @@ export function createMarginProjection({
     closePreview,
     inlineThreadView,
     keyboardRung,
+    // The element a thread in the card is about, where a send from it leaves the user
+    // with the card still up: the same step Escape takes out of the card.
+    cardTarget: stepsOut,
     optionsRung,
     openInlineThread,
     openPageThread,

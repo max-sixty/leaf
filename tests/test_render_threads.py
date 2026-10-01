@@ -4009,8 +4009,11 @@ def test_a_thread_completion_keeps_the_users_later_destination(
             "value",
             "The user is working here now." if destination == "other-thread" else "",
         )
-    elif kind in {"reply", "unresolve"}:
+    elif kind == "unresolve":
         expect(thread.locator("leaf-text")).to_be_focused()
+    elif kind == "reply":
+        # The send left the user on the thread's title, and its delivery keeps them there.
+        expect(thread.locator(".lf-thread-summary")).to_be_focused()
     else:
         expect(
             page.locator(
@@ -7300,7 +7303,8 @@ def focus_clear_of_the_bar(page):
 
 def pressed_send_surface(browser, serve, surface):
     """A page with words typed into `surface`'s box, and that box, the control that
-    submits it, and the box the user continues in once it has sent."""
+    submits it, where the user stands once it has sent, and the reply box a follow-up
+    is written in: the same box for one that stays to take more, else None."""
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")
         page = open_page(browser, url)
@@ -7309,7 +7313,9 @@ def pressed_send_surface(browser, serve, surface):
         box.scroll_into_view_if_needed()
         name = "Send & pause" if surface == "pause" else "Send"
         send = seat.get_by_role("button", name=name, exact=True)
-        after = (
+        # A seat that gives its box up leaves the user on the thread it started.
+        after = box if surface == "pause" else seat.locator(":scope > .lf-page-thread")
+        reply = (
             box
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-say leaf-text")
@@ -7342,16 +7348,23 @@ def pressed_send_surface(browser, serve, surface):
                 holder = page.locator(".lf-general")
                 box = holder.locator("leaf-text")
         send = holder.locator(".lf-compose-submit")
-        # A first anchored comment lands the user on the thread it starts, as Enter
-        # does (#961); every other box keeps them.
-        after = (
-            page.locator(".lf-margin-preview .lf-page-thread")
-            if surface == "composer"
+        # A send in the margin card, a reply's or the comment that opens it, leaves the
+        # user on the element the card is about; a panel reply on its thread's title;
+        # the panel's general box stays to take more.
+        after = {
+            "card": page.locator("#how-store"),
+            "composer": page.locator("#how-cap"),
+            "panel": holder.locator(".lf-thread-summary"),
+            "general": box,
+        }[surface]
+        reply = (
+            page.locator(".lf-margin-preview .lf-say leaf-text")
+            if surface in {"card", "composer"}
             else box
         )
     write(box, "Sent from the box.")
     rendered(page)
-    return page, box, send, after
+    return page, box, send, after, reply
 
 
 @pytest.mark.parametrize(
@@ -7365,15 +7378,14 @@ def pressed_send_surface(browser, serve, surface):
         if (surface, how) != ("composer", "keyboard")
     ],
 )
-def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how):
-    """Pressing a box's submit control is its send key pressed from the box: the user
-    goes on typing where Enter would leave them. A pointer press left the focus on the
-    button, so the `o` and `k` of an "ok" typed next hid every mark and closed the
-    margin card, and neither letter reached the box. A keyboard press on the button
-    ends in the box too, so after any send the user is in it — or, where the seat gives
-    its box up, in the reply of the thread it started, as after Enter. The anchored
-    composer hands the user to the thread its comment starts, as Enter does there."""
-    page, box, send, after = pressed_send_surface(browser, serve, surface)
+def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
+    """Pressing a box's submit control is its send key pressed from the box, so it leaves
+    the user where Enter would, never on the button, where the next letters fall on
+    nothing. A box that stays to take more keeps them in it, typing on. A reply, or the
+    comment that starts a thread, finishes what they were writing: they stand on the
+    thread, or on the element the margin card is about with the card still up, and `c`
+    writes the follow-up."""
+    page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -7392,10 +7404,12 @@ def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how)
             page.mouse.up()
     rendered(page)
     expect(after).to_be_focused()
-    if surface != "composer":
-        page.keyboard.type("ok")
-        expect(after).to_have_js_property("value", "ok")
     expect(after).to_be_visible()
+    if after != reply:
+        page.keyboard.press("c")
+        expect(reply).to_be_focused()
+    page.keyboard.type("ok")
+    expect(reply).to_have_js_property("value", "ok")
     expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box." for event in sent), sent
@@ -7406,7 +7420,7 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     leaving the box is what finishes them: the send carries the finished words, and the
     box it empties stays empty. Held in the box, the words went out unfinished and the
     input method's commit afterwards wrote them back into the emptied box."""
-    page, box, send, after = pressed_send_surface(browser, serve, "general")
+    page, box, send, after, _ = pressed_send_surface(browser, serve, "general")
     ended = box.evaluate_handle(
         """box => {
           const ended = {count: 0};
@@ -7433,9 +7447,10 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
 
 
-def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):
+def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
     """A seat that gives its box up to the thread its first message starts took the
-    focus with it, so the next keys the user typed ran page commands."""
+    focus with it, dropping the user on the page. They stand on the thread instead,
+    where any send leaves them."""
     url, host = seated_page(serve, "verdict")
     page = open_page(browser, url)
     box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
@@ -7445,7 +7460,7 @@ def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):
         page.keyboard.press("Enter")
     thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
     expect(thread).to_have_count(1)
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_focused()
+    expect(thread).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])
@@ -7465,9 +7480,12 @@ def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
     sent = page.locator(f"{host} .lf-page-thread .lf-page-thread-msg").last
     expect(sent).to_contain_text("First thought.")
     assert clear_of_the_bar(page, sent), "the sent message was left below the fold"
-    focused = page.locator(f"{host} leaf-text:focus")
+    # Where the send left the user: the box a task seat keeps, or the thread a verdict
+    # seat gave its box up to.
+    focused = page.locator(f"{host} :is(leaf-text, .lf-page-thread):focus")
     expect(focused).to_have_count(1)
-    assert clear_of_the_bar(page, focused), "the box the user is in went below the fold"
+    if kind == "task":
+        assert clear_of_the_bar(page, focused), "the box went below the fold"
 
 
 def shown_in(page, node, scroller):

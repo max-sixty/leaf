@@ -38,7 +38,8 @@
    placed. A top chosen here is the spot's own, before the boundary clamped it, so a
    card opened low in the window rises back to its cluster once a scroll gives it room;
    every other offset is where the card stood. The caller passes the hold back on every
-   later placement, saying whether the user is `drafting` a reply in it. The card keeps
+   later placement, saying whether the user is `drafting` a reply in it, which lasts
+   from their first keystroke until an answer follows what they sent. The card keeps
    its side and one edge at its offset, and grows from it; which edge is whichever holds
    still what the user is working in.
 

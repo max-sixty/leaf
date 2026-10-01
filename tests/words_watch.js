@@ -66,14 +66,33 @@
     gestures.push({ at, node });
     if (gestures.length > 20) gestures.shift();
   };
-  for (const type of ["pointerdown", "mousedown", "touchstart", "click", "contextmenu"])
-    addEventListener(
-      type,
-      (event) => {
-        if (event.isTrusted) gestured(event.timeStamp, event.composedPath()[0]);
-      },
-      true,
-    );
+  // A press in this document, or in a same-origin document holding it, as a sample's
+  // host page drives the sample inside it, on this document's clock.
+  for (let view = window; ; view = view.parent) {
+    let held;
+    try {
+      held = view.document;
+    } catch {
+      break;
+    }
+    const skew = view.performance.timeOrigin - performance.timeOrigin;
+    for (const type of [
+      "pointerdown",
+      "mousedown",
+      "touchstart",
+      "click",
+      "contextmenu",
+    ])
+      held.addEventListener(
+        type,
+        (event) => {
+          if (event.isTrusted)
+            gestured(event.timeStamp + skew, event.composedPath()[0]);
+        },
+        true,
+      );
+    if (view === view.parent) break;
+  }
   // The same user's edit in another tab of the page, which reaches this one as storage
   // news and may take the words over: what they did there they did here.
   addEventListener("storage", (event) => {

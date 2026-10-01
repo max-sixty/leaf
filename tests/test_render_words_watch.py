@@ -104,3 +104,19 @@ def test_words_a_press_elsewhere_puts_away_are_put_away(browser):
     page = box_page(browser, "press-hides")
     page.locator("#elsewhere").click()
     judge_watches()
+
+
+def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<iframe srcdoc='<textarea id=field></textarea>'></iframe>"
+            "<button id='clear' onclick=\""
+            "frames[0].document.getElementById('field').remove()"
+            '">Clear</button>'
+        )
+    )
+    page.frame_locator("iframe").locator("#field").fill("Half a thought")
+    page.locator("#clear").click()
+    judge_watches()

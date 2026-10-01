@@ -1353,7 +1353,6 @@ export function createMarginProjection({
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
       order,
-      priority: 10,
       move: (into) => moveHost(row, into),
       fold: {
         able: () =>

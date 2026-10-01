@@ -1546,6 +1546,7 @@ def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve
     assert text == "new = 2"
 
 
+@pytest.mark.watch_shifts
 def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
@@ -3872,6 +3873,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
     """The picker is a press and a menu rather than a select, which buys the notes

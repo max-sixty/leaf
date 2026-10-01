@@ -2335,9 +2335,8 @@ export function createMarginProjection({
         hosts.set(entry.key, host);
       }
       registerMarginRow(host, markerOptions(host, order));
-      // Parked in the root lane, in the inventory's order and off screen until the layout
-      // pass anchors it, so the controls it renders are in the document, and in the tab
-      // order where they belong, from their first render.
+      // Insert in inventory order; the theme keeps the row unpainted and measurable
+      // until the layout pass assigns its anchored posture.
       if (!host.isConnected)
         toolbar.insertBefore(
           host,

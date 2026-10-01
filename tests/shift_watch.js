@@ -1,7 +1,7 @@
 // Watches every page for layout shifts the "Stability" rule forbids
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it after write_watch.js
-// on every page a test opens (render_harness.watched), so every test checks it, except
-// a nightly-marked one for now (known_faults.py, `watches_shifts`).
+// on every ordinary test's page and on nightly tests marked watch_shifts
+// (known_faults.py, `watches_shifts`).
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,

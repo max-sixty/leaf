@@ -125,6 +125,7 @@ def choose_comment_target(page, selector):
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("box", ["general", "reply", "composer"])
 def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
     """The shared field and both drawing-aware variants admit the smallest message.

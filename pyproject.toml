@@ -111,4 +111,7 @@ leaf-website = { workspace = true }
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
-markers = ["nightly: a pull request can land without it; `--run-nightly` runs it"]
+markers = [
+  "nightly: a pull request can land without it; `--run-nightly` runs it",
+  "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
+]

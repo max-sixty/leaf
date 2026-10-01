@@ -1656,6 +1656,12 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * sheet's (chrome.css), which states it above the page paint the item summons; a second
  * one here would tie it and win or lose by where each sheet stands. */
 .lf-margin-cluster.lf-withheld { display: none; }
+/* A row the layout has not placed yet has no anchor and no posture, and stands at its
+ * fallback until the next frame's pass (`registerMarginRow`, margin-layout.js). Unseen
+ * there rather than out of layout, so the pass can measure it, it first appears where it
+ * stands: shown, its move from the fallback into the rail read as a layout shift, an
+ * arriving marker's (1006, 265)px in a seat test on Linux. */
+.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
 .lf-margin-inline { display: block; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }

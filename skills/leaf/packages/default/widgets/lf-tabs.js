@@ -261,10 +261,16 @@ customElements.define(
       this.#contextObserver = null;
       this.#stopAsks?.();
       this.#stopAsks = null;
+      // A revision that rebuilds the page's set disconnects this one and connects its
+      // replacement in one operation, so the header is withdrawn only once that
+      // operation is over and no strip has taken this one's place: withdrawn and
+      // declared again, it would restyle the whole document for nothing.
       if (this.#covering) {
         this.#covering = false;
-        if (!document.querySelector(PAGE_STRIP))
-          removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+        queueMicrotask(() => {
+          if (!document.querySelector(PAGE_STRIP))
+            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+        });
       }
     }
 

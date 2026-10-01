@@ -8437,7 +8437,7 @@ def test_a_command_goal_s_words_flow_as_prose(browser, serve):
           words.selectNodeContents(a.previousSibling);
           const lines = [...words.getClientRects()];
           const box = a.getBoundingClientRect();
-          const chip = a.closest('[data-lf-command-goal]')
+          const chip = a.closest('lf-task')
             .querySelector(':scope > .lf-task-meta > span');
           return {display: getComputedStyle(a).display,
                   sameLine: Math.abs(lines.at(-1).top - box.top) < 2,

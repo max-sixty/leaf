@@ -341,6 +341,7 @@ export function presentMarginEntry(control, offered, options = {}) {
   const record = presentMarginEntryHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncMarginEntrySelection(control, options.selected);
+  if (Object.hasOwn(options, "awaitsUser")) syncMarginTurn(control, options.awaitsUser);
   control.classList.toggle("lf-margin-entry", true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];

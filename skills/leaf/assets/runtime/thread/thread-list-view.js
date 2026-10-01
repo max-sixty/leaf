@@ -13,6 +13,7 @@ import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
+import { replyHasWords } from "./replies.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -31,6 +32,7 @@ class ThreadListView extends RetainedFace {
   #expandedKey = null;
   #draftViews = new Set();
   #draftFrame = 0;
+  #intent = null;
 
   #visibleRows() {
     const eligible = new Set(
@@ -60,6 +62,14 @@ class ThreadListView extends RetainedFace {
     // second press leaves it selected; choosing another title moves disclosure.
     this.#expandedKey = row.key;
     this.#showExpanded();
+  }
+
+  // A filter change can put a draft away; incoming settlement cannot. The model
+  // builder combines this mechanical lifetime with the new narrowing result,
+  // so visibility, disclosure and navigation consume one complete reading.
+  keepsDraftVisible(key, intent) {
+    const view = this.#views.get(`thread:${key}`);
+    return this.#intent === intent && view?.model.visible && replyHasWords(key);
   }
 
   navigationThreads() {
@@ -139,6 +149,7 @@ class ThreadListView extends RetainedFace {
   willUpdate(changed) {
     if (!changed.has("model") || !this.#commands) return;
     this.#focusListAfterPaint ||= this.contains(focused());
+    this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
     for (const row of this.model.rows) {
@@ -171,7 +182,8 @@ class ThreadListView extends RetainedFace {
       }
       let descriptor = row.descriptor;
       const prior = view.model;
-      if (this.#retaining || !descriptor.resolved) finishFold(view.node);
+      if (this.#retaining || !descriptor.resolved || descriptor.visible)
+        finishFold(view.node);
       const folding =
         !this.#retaining &&
         descriptor.resolved &&
@@ -212,8 +224,13 @@ class ThreadListView extends RetainedFace {
     this.#draftViews.add(view);
     this.#draftFrame ||= nextRender(() => {
       this.#draftFrame = 0;
+      let reconcile = false;
       for (const changed of this.#draftViews)
-        if ([...this.#views.values()].includes(changed)) changed.present(changed.model);
+        if ([...this.#views.values()].includes(changed)) {
+          changed.present(changed.model);
+          reconcile ||= changed.model.resolved;
+        }
+      if (reconcile) this.#commands.repaintThread();
       this.#draftViews.clear();
     });
   }

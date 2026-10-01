@@ -7126,9 +7126,8 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
 ):
     """Reading, a turn arriving extends the card downward. Drafting, so does each wrap
     of the reply: the thread being answered and the reply's first line stay where the
-    user reads them, and Send moves down a line per wrap, until the window's foot, where
-    the card rises. (#1159 held the foot while drafting, so every wrap raised the whole
-    thread; the user chose this instead.)"""
+    user reads them, and Send moves down a line per wrap until the window's foot.
+    After that the editor scrolls internally, keeping the card and its first line still."""
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -7185,13 +7184,14 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     for edge in ("editorBottom", "cardBottom", "send"):
         assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
 
-    # A draft with no room left under the card raises it, its foot on the window's, and
-    # scrolls inside the editor only once the card fills the window.
+    # A draft with no room left under the card scrolls inside its editor, holding
+    # the card and the editor's top where the user began writing.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
     tall = page.evaluate(CARD_AND_REPLY)
     assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
-    assert 49 <= tall["cardTop"] < before["cardTop"], tall
+    for edge in ("cardTop", "turn", "editorTop"):
+        assert tall[edge] == pytest.approx(before[edge], abs=0.5), (before, tall)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
 
     # A short draft brings the card back to its top.
@@ -7302,10 +7302,9 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
     browser, serve, size
 ):
     """Each new line keeps the card on its side and the reply's first line where it was,
-    until the card's foot meets the window's; from there the card rises, its foot held
-    there, and only once it fills the window does the editor scroll. So no keystroke
-    flips the card over its cluster (800x520 stands over it) or slides it along the
-    boundary (1000x600 stands under it)."""
+    until the card's foot meets the window's; further lines scroll inside the editor.
+    No keystroke flips the card over its cluster (800x520 stands over it) or carries
+    its first line along the boundary (1000x600 stands under it)."""
     page, _preview, editor = drafting_in_a_short_card(browser, serve, *size)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]
@@ -7316,11 +7315,11 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
     for now in readings:
         assert now["placement"] == held["placement"], (held, now)
         assert now["cardBottom"] <= now["foot"] + 0.5, now
-        if now["cardBottom"] < now["foot"] - 0.5:
-            assert now["editorTop"] == pytest.approx(held["editorTop"], abs=0.5), now
+        for edge in ("cardTop", "turn", "editorTop"):
+            assert now[edge] == pytest.approx(held[edge], abs=0.5), (held, now)
     last = readings[-1]
     assert last["cardBottom"] == pytest.approx(last["foot"], abs=0.5), last
-    assert last["editorTop"] < held["editorTop"] - 5, (held, last)
+    assert last["editorTop"] == pytest.approx(held["editorTop"], abs=0.5), (held, last)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
         "thirty lines never outgrew the editor's room"
     )
@@ -7330,7 +7329,7 @@ def test_scrolling_a_drafting_card_leaves_its_editor_s_height_alone(browser, ser
     """The editor's height follows its words and the room the card has, never the
     scroll: a scroll carries the card whole, so a draft that fits keeps its lines."""
     page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
-    write(editor, "\n".join(f"line {n}" for n in range(8)))
+    write(editor, "First line\nSecond line")
     rendered(page)
     height = editor.evaluate("box => box.getBoundingClientRect().height")
     assert not editor.evaluate("box => box.scrollHeight > box.clientHeight")
@@ -9756,3 +9755,28 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
     page.wait_for_function("visualViewport.offsetTop > 0")
     after = stands_in_the_visible_viewport()
     assert after["scrolled"][0] == before["scrolled"][0], (before, after)
+
+
+@pytest.mark.parametrize("size", [(1440, 900), (1440, 600), (1000, 700)])
+def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
+    browser, serve, size
+):
+    """A bounded pane supplies the drafting room just as the window does. Growing
+    past that room scrolls the editor without carrying the card or its first line."""
+    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
+    resized(page, *size)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    page.locator('[data-lf-margin-for="pane-top"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    editor = card.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    rendered(page)
+    before = page.evaluate(CARD_AND_REPLY)
+    for _ in range(40):
+        editor.type("One more line of the reply")
+        editor.press("Shift+Enter")
+        rendered(page)
+        after = page.evaluate(CARD_AND_REPLY)
+        for edge in ("cardTop", "turn", "editorTop"):
+            assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")

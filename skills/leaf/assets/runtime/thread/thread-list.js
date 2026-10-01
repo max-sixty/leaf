@@ -237,7 +237,11 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // and so is the order it shows it in. The page's order is kept either way for the
     // walk with the panel shut.
     const narrowing = commands.narrowing.model(threads, places);
-    const shown = narrowing.shown;
+    const shown = threads.filter(
+      (thread) =>
+        narrowing.shown.includes(thread) ||
+        threadsBox.keepsDraftVisible(threadKey(thread), narrowing.intent),
+    );
     const inPage = inPageOrder(threads, commands.placedAt);
     const recent = narrowing.intent.order === "recent";
     const ordered = recent ? inRecentOrder(threads) : inPage;
@@ -285,6 +289,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       );
     return Object.freeze({
       rows: Object.freeze(rows),
+      intent: narrowing.intent,
       count: open.length,
       unread: threads.filter((t) => t.unread.length).length,
       narrowing: narrowing.presentation,

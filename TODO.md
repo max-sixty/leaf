@@ -38,18 +38,6 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **Keep a reply's words on screen when another actor settles its thread.** An agent
-  resolving a thread while the user types a reply takes the reply box away, words and
-  all; the draft is kept but gone from view, against "Words stay where they were
-  typed" (`skills/leaf/assets/AGENTS.md`). Three tests carry it in
-  `tests/known_faults.py` (`KNOWN_LOSSES`). Likely shape: the box stays while it holds
-  words, and sending it reopens the thread.
-- **Decide where `c` goes once the user has left a withheld comment box.** A comment
-  box whose target a pane has scrolled past waits hidden, and `c` brings it back even
-  after the user has walked to another item, where before the box had closed and `c`
-  commented where they stood. Likely shape: after a focus placement since the
-  withhold, `c` comments at the standing item and the draft follows it
-  (`commentOnTarget`).
 - **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
   Follow one task through reading, panes, comments, and Threads.
 

@@ -41,7 +41,11 @@
    It grows away from what it is about, down beside or under and up over it (floating.js,
    `held`), and the boundary holds it in only while what it stands by is in the window:
    Floating UI's shift keeps it inside, and its limiter lets it leave with `row` beside,
-   or with `clear` under or over, once a scroll carries that away. A surface whose
+   or with `clear` under or over, once a scroll carries that away. Once wholly outside
+   that boundary, a seen reference keeps the surface's unshifted attachment: CSS anchor
+   positioning carries it back in the compositor before a scroll event re-places it,
+   so shifting offscreen would paint a stale attachment on its first returning frame.
+   A surface whose
    `clear` has not stood in the boundary since its side was chosen, as after a resize
    that left what it is about out of the window, stays in the window until it has.
    Under or over, a surface taller than the room shown there first has the reading
@@ -216,7 +220,10 @@ export function commentPlacement() {
     },
     options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
       const across = vertical(side);
-      seen ||= clear.bottom > boundary.top && clear.top < boundary.bottom;
+      // Once seen, a reference wholly outside the boundary keeps its declared attachment.
+      // Native scrolling carries its CSS anchor back before this middleware runs again.
+      const visible = clear.bottom > boundary.top && clear.top < boundary.bottom;
+      seen ||= visible;
       // Beside on the right, the margin row is kept clear too where the room past it
       // holds the card's minimum; where it does not, the surface stands over it.
       const past =
@@ -303,34 +310,35 @@ export function commentPlacement() {
             });
           },
         }),
-        ui.shift({
-          ...overflow,
-          mainAxis: true,
-          crossAxis: true,
-          limiter: {
-            ...attachment,
-            fn(state) {
-              if (!seen) {
-                heldIn = true;
-                return { x: state.x, y: state.y };
-              }
-              // Beside, it goes with the line it stands level with, overlapping it by
-              // no less than an edge; under or over, with the box it keeps clear of.
-              const limited = across
-                ? attachment.fn(state)
-                : {
-                    x: state.x,
-                    y: clamp(
-                      state.y,
-                      measure(state).line - state.rects.floating.height,
-                      measure(state).line,
-                    ),
-                  };
-              heldIn = Math.abs(limited.y - state.y) < 0.5;
-              return limited;
+        (!seen || visible) &&
+          ui.shift({
+            ...overflow,
+            mainAxis: true,
+            crossAxis: true,
+            limiter: {
+              ...attachment,
+              fn(state) {
+                if (!seen) {
+                  heldIn = true;
+                  return { x: state.x, y: state.y };
+                }
+                // Beside, it goes with the line it stands level with, overlapping it by
+                // no less than an edge; under or over, with the box it keeps clear of.
+                const limited = across
+                  ? attachment.fn(state)
+                  : {
+                      x: state.x,
+                      y: clamp(
+                        state.y,
+                        measure(state).line - state.rects.floating.height,
+                        measure(state).line,
+                      ),
+                    };
+                heldIn = Math.abs(limited.y - state.y) < 0.5;
+                return limited;
+              },
             },
-          },
-        }),
+          }),
       ].filter(Boolean);
       return {
         reference: box,

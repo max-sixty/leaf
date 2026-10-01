@@ -106,6 +106,7 @@ import {
 
 import { paintReactionStanding } from "../reaction-standing.js";
 import { threadInput, standingThread } from "../thread/landing.js";
+import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
@@ -166,6 +167,7 @@ export function createResponseSurface({
   visualActionAnchor,
   hideComposer,
   openComposer,
+  carryComposerToReply,
   resetResponseOptions,
   responseOptionsAvailable,
   setResponseOptions,
@@ -1381,8 +1383,10 @@ export function createResponseSurface({
   // already crosses there. A page key that takes the user somewhere owes them an answer
   // once they are standing there.
   //
-  // One aim and then one climb, rather than four cases. The pointer's aim outranks
-  // position, being the more recent thing the user said; below it the answer walks
+  // One live aim and then one climb, rather than four cases. A selection outranks
+  // position; a captured target does too until the user stands elsewhere. The draft
+  // keeps its words independently of which target the next press names. Below the
+  // aim, the answer walks
   // outward from where they are standing — the nearest thread's box, then the nearest
   // addressable element, then the page, which is what is left when they are standing
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
@@ -1399,24 +1403,14 @@ export function createResponseSurface({
         box: selectionComment,
         go: commentOnTouchSelection,
       };
+    const here = standingElement();
     const anchor = fabAnchorAt();
-    if (anchor)
-      return {
-        ...commenting(
-          anchor.quote
-            ? "selection"
-            : addressableWord(elementById(anchor.section)) || "element",
-        ),
-        box: fabInput,
-        go: focusFabComment,
-      };
     // The thread the user is at continues where it is about what they stand on: they
     // are in it, or its target lies within the element they stand at — the Ask holding
     // focus, answered or not, else the element itself — as an Ask's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
     // about that block, so an element inside it, such as an Ask in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
-    const here = standingElement();
     const inline = threadHere();
     const target = inline && threadTarget(inline);
     const inlineBox =
@@ -1427,11 +1421,34 @@ export function createResponseSurface({
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    // A captured passage outranks the focus it preceded, but a kept draft is not a
+    // standing target. Read both page and thread standing before choosing the aim.
+    // After the user lands elsewhere, Comment names that new place;
+    // commentOnAddressable carries the old words without replacing a destination's
+    // independent draft.
+    if (
+      anchor &&
+      (pageSelection() ||
+        fabHoldsCapturedPassage() ||
+        (!said && (!here || here === fabTargetAt())))
+    )
+      return {
+        ...commenting(
+          anchor.quote
+            ? "selection"
+            : addressableWord(elementById(anchor.section)) || "element",
+        ),
+        box: fabInput,
+        go: focusFabComment,
+      };
     if (said)
       return {
         ...commenting("thread"),
         box: said.box,
-        go: () => landIn(said),
+        go: () => {
+          carryComposerToReply(replyDraftContext(said.box));
+          landIn(said);
+        },
       };
     if (here)
       return {
@@ -1467,9 +1484,8 @@ export function createResponseSurface({
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
-  // Standing outranks the page and not the pointer: a user who has just selected words or
-  // raised the 💬 on something has said what they mean more recently than the focus they
-  // left behind, which is the order the destination reading above uses.
+  // Standing outranks the page; a live selection or a newly captured target outranks
+  // standing. The draft stored on an earlier target supplies words, not that priority.
   pageCommand({
     id: "comment.create",
     touch: false,

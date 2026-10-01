@@ -27,16 +27,26 @@ the diff beside those pictures:
 
   uv run pytest --regtest-reset -n0 tests/test_render_send_placement.py"""
 
+import base64
 import io
 import re
 from pathlib import Path
 
-from interact_support import yaml_document
+import pytest
+from interact_support import wait_for, yaml_document
 from leaf.render_checks import rendered
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
-from render_harness import judge_watches, open_page, select
+from render_harness import (
+    judge_watches,
+    open_page,
+    pane_posture,
+    regions_side_by_side,
+    resized,
+    scroll_settled,
+    select,
+)
 
 SHOTS = Path(__file__).resolve().parent.parent / ".tmp" / "send-placement"
 
@@ -376,3 +386,113 @@ def test_where_a_comment_stands_before_and_after_send(browser, serve, snapshot):
             {name: sent(browser, serve, name) for name in CASES},
         )
     )
+
+
+@pytest.mark.parametrize("region", ["document", "pane"])
+@pytest.mark.parametrize("route", ["target", "selection"])
+def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_frame(
+    browser, serve, region, route
+):
+    """The compositor returns CSS-anchored boxes before JS gets the scroll event.
+    Reading rectangles in a frame forces layout and hides the stale placement, so
+    observe compositor screenshots. Colored authored bands locate the two surfaces;
+    their relative positions are the claim, independent of fonts or screenshot bytes."""
+    marker_style = """<style>
+      #paint-target { background: #ff0044; }
+      .lf-fab-bar { outline: 2px solid #00cc44 !important; }
+    </style>"""
+    passage = '<p id="paint-target">The export keeps each tenant in an archive.</p>'
+    if region == "document":
+        source = leaf_page(
+            "Compositor attachment",
+            '<h1 id="title">Comments follow the passage</h1>'
+            '<div style="height:650px"></div>'
+            + passage
+            + '<div style="height:1800px"></div>',
+            head=marker_style,
+        )
+        size, wheel, scroller = (900, 600), 1500, None
+    else:
+        source = leaf_page(
+            "Compositor attachment in a pane",
+            '<header><h1 id="title">Comments follow the passage</h1></header>'
+            '<div id="paint-split"><lf-pane id="paint-pane" label="Findings"><div>'
+            '<div style="height:180px"></div>'
+            + passage
+            + '<div style="height:1600px"></div></div></lf-pane>'
+            '<lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane></div>',
+            head=marker_style + regions_side_by_side("paint-split"),
+            layout="workspace",
+        )
+        size, wheel, scroller = (1440, 600), 1200, "#paint-pane > div"
+    page = open_page(browser, serve(source))
+    resized(page, *size)
+    target = page.locator("#paint-target")
+    if region == "document":
+        target.evaluate(
+            "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 400)"
+        )
+        rendered(page)
+    else:
+        pane_posture(page, page.locator("#paint-pane"), "bounded")
+    if route == "target":
+        target.click(modifiers=["Alt"], position={"x": 30, "y": 10})
+    else:
+        box = target.bounding_box()
+        select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+        page.locator(".lf-fab-input").click()
+    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
+    rendered(page)
+    cdp = page.context.new_cdp_session(page)
+    events, complete = [], []
+    cdp.on("Tracing.dataCollected", lambda data: events.extend(data["value"]))
+    cdp.on("Tracing.tracingComplete", lambda _: complete.append(True))
+    cdp.send(
+        "Tracing.start",
+        {
+            "categories": "disabled-by-default-devtools.screenshot,benchmark",
+            "transferMode": "ReportEvents",
+        },
+    )
+    page.mouse.move(120 if scroller else 100, 350)
+    page.mouse.wheel(0, wheel)
+    scroll_settled(page, scroller)
+    page.mouse.wheel(0, -wheel)
+    scroll_settled(page, scroller)
+    cdp.send("Tracing.end")
+
+    def trace_finished():
+        # Pump CDP delivery without reading the page or forcing its layout.
+        cdp.send("Tracing.getCategories")
+        return bool(complete)
+
+    wait_for(
+        trace_finished,
+        bool,
+        failure="Chrome never completed the compositor screenshot trace",
+        timeout=10,
+    )
+    frames = [event for event in events if event["name"] == "Screenshot"]
+    readings = []
+    for event in frames:
+        image = Image.open(
+            io.BytesIO(base64.b64decode(event["args"]["snapshot"]))
+        ).convert("RGB")
+        pixels = image.load()
+        target_rows, box_rows = [], []
+        for y in range(image.height):
+            for x in range(image.width):
+                red, green, blue = pixels[x, y]
+                if red - green > 60 and red - blue > 20:
+                    target_rows.append(y)
+                if green - red > 20 and green - blue > 20 and green > 130:
+                    box_rows.append(y)
+        readings.append(
+            (min(target_rows), min(box_rows)) if target_rows and box_rows else None
+        )
+    shown = [reading for reading in readings if reading is not None]
+    assert len(shown) >= 2 and None in readings, readings
+    offset = shown[-1][1] - shown[-1][0]
+    assert all(
+        abs(box_top - target_top - offset) <= 1 for target_top, box_top in shown
+    ), readings

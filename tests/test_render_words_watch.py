@@ -3,6 +3,7 @@ forbids (`words_watch.js`): typed words leaving the screen without a key or pres
 
 from urllib.parse import quote
 
+import pytest
 from render_harness import consume_browser_errors, judge_watches
 
 # A box holding a field, on a page long enough to scroll. What the page does to the box
@@ -76,13 +77,18 @@ def test_words_a_scroll_clears_fail(browser):
     consume_browser_errors(page, "typed words left the screen without a key or press")
 
 
-def test_words_a_handler_clears_in_their_own_turn_fail(browser):
+@pytest.mark.parametrize("announced", [False, True])
+def test_words_a_handler_clears_in_their_own_turn_fail(browser, announced):
+    """A handler that empties the field as the edit lands, and may announce that with an
+    `input` of its own, has still taken the user's words."""
+    announce = "field.dispatchEvent(new Event('input'));" if announced else ""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             "<textarea id=field></textarea><script>"
-            "field.addEventListener('input', () => { field.value = ''; });"
+            "field.addEventListener('input', (event) => {"
+            f" if (event.isTrusted) {{ field.value = ''; {announce} }} }});"
             "</script>"
         )
     )

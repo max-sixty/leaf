@@ -123,9 +123,10 @@
   );
   // Fields a trusted `beforeinput` named, with when, read at the next frame once the edit
   // has applied. `beforeinput` rather than `input`: a `leaf-text` announces its edits
-  // with an `input` of its own making, which is not trusted. The edit's own `input` is
-  // read too, ahead of the page's handlers, so words a handler takes away in the same
-  // turn are still the words the user typed.
+  // with an `input` of its own making, which is not trusted. The edit's own trusted
+  // `input` is read too, ahead of the page's handlers, so words a handler takes away in
+  // the same turn, announcing it with an `input` of its own or not, are still the words
+  // the user typed.
   const edited = new Map();
   addEventListener(
     "beforeinput",
@@ -144,7 +145,7 @@
     "input",
     (event) => {
       const edit = edited.get(event.composedPath()[0]);
-      if (edit) edit.words = text(event.composedPath()[0]);
+      if (edit && event.isTrusted) edit.words = text(event.composedPath()[0]);
     },
     true,
   );

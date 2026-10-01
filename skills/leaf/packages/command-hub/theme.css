@@ -96,14 +96,16 @@ lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
 lf-task > strong { margin-right: 6px; }
 /* A task outside a command gets its chip row (lf-task.js) where its authored tree gives
  * it one: an owner, a `when`, tags, or subtasks to count. Until the upgrade draws the row
- * after the title, the title stands on its own line and holds a row of the chips'
- * height under it, in the row's own margins (.lf-chips, theme.css). */
-html[data-lf-live]
-  lf-tasks lf-task:is([owner], [when], [tags], :has(lf-task)):not(:has(> .lf-chips))
-  > strong {
-  display: block;
-  &::after { content: ""; display: block; height: calc(var(--t-6) * var(--chip-lh));
-             margin: 2px 0 6px; }
+ * after the title, the title stands on its own line and holds one row of the chips'
+ * height under it, in the row's own margins (.lf-chips, theme.css); a task with no title
+ * holds it at its top, where the row will stand. Chips that wrap onto a second row are
+ * not held: how many fit on a line is known only once they are drawn. */
+html[data-lf-live] lf-tasks lf-task:not(:has(> .lf-chips)):is(
+    [owner]:not([owner=""]), [when]:not([when=""]), [tags]:not([tags=""]), :has(lf-task)) {
+  & > strong:first-of-type { display: block; }
+  & > strong:first-of-type::after { content: ""; display: block;
+    height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
+  &:not(:has(> strong)) { padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
 }
 lf-task[status="done"] > strong { color: var(--muted); }
 

@@ -18,7 +18,12 @@ theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row sits in the
+Auxiliary runtime controls overlay the page's existing geometry. Adding a control
+preserves content position, wrapping, and block size, including when its CSS loads
+before first paint. Keep covered content reachable through placement or disclosure
+rather than padding or a reserved row.
+
+A margin row sits in the
 rail beside its target (`rowPosture`), or as a pin by its target: in room found where
 it covers no words and no other box that paints its own extent, clear of neighbouring
 blocks where its target has room of its own, and reaching one line of words further

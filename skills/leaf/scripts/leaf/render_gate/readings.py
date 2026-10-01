@@ -241,13 +241,17 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     unmarkable = evaluate_probe(page, "unmarkableElements")
-    overflow = evaluate_probe(page, "rootOverflow")
-    misplaced = evaluate_probe(page, "misplacedBoxes")
-    stranded = evaluate_probe(page, "strandedMargins")
+    column = evaluate_probe(page, "columnGeometry")
+    overflow = column["overflow"]
+    misplaced = column["misplaced"]
+    stranded = column["stranded"]
+    # This experiment writes and removes a temporary wrapping rule. Preserve its
+    # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
-    clipped = evaluate_probe(page, "clippedControls")
-    unreachable = evaluate_probe(page, "unreachableWords")
-    covered = evaluate_probe(page, "coveredWords")
+    reachability = evaluate_probe(page, "reachabilityReading")
+    clipped = reachability["clipped"]
+    unreachable = reachability["unreachable"]
+    covered = reachability["covered"]
     unread = evaluate_probe(page, "unreadSyntax")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an

@@ -997,8 +997,8 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
 def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     browser, serve
 ):
-    """An editable field owns slash as text. From the thread list, the same key opens
-    that panel's find box rather than the page search standing behind it."""
+    """An editable field owns slash as text. From a thread in the panel, the same key
+    opens that panel's find box rather than the page search standing behind it."""
     html = leaf_page(
         "scoped slash",
         '<label>Path <input id="path"></label><p>Searchable page words.</p>',
@@ -1014,7 +1014,11 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(
+        page.locator(
+            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
+        )
+    ).to_be_focused()
     page.keyboard.press("/")
     thread_search = page.get_by_role("searchbox", name="Find in threads")
     expect(thread_search).to_be_focused()

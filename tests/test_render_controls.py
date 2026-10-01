@@ -2626,7 +2626,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
         edge_control = page.locator(edge_selector)
         edge_control.evaluate("edge => edge.blur()")
-        for _ in range(80):
+        # Every thread title Tab reaches opens its thread, so the walk crosses each
+        # thread's own controls on the way to the grip.
+        for _ in range(400):
             page.keyboard.press("Tab")
             if edge_control.evaluate("edge => document.activeElement === edge"):
                 break
@@ -4136,10 +4138,8 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
     reading_place()
 
-    # The card releases to whole-panel selection, and the press after that closes the
-    # sheet.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # A panel thread has no release of its own: Escape from it is the panel's, and with
+    # nothing narrowed that closes the sheet.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
@@ -4783,13 +4783,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `g T` lands the user; `c` there
-    # enters its page comment box.
+    # The panel, and then the thread its list shows open — which is where `g T` lands
+    # the user; `c` there enters that thread's reply box. The page comment box below the
+    # list is the panel's other box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    sweep("standing on the comment list")
+    shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    expect(shown.locator(":scope > .lf-thread-summary")).to_be_focused()
+    sweep("standing on the open thread")
     page.keyboard.press("c")
+    expect(shown.locator("leaf-text")).to_be_focused()
+    sweep("standing in a reply box")
+    page.locator(".lf-general leaf-text").focus()
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     sweep("standing in the general box")
     page.keyboard.press("Escape")
@@ -5810,7 +5815,13 @@ RING_CASES = (
         (),
         {"pr-walkthrough": (("leaf-text.lf-fab-input", "inline-response"),)},
     ),
-    ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    # The list holds focus itself only while it shows no thread, so the sample finds
+    # nothing and backs out of the find box onto the emptied list.
+    (
+        "the thread list",
+        ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
+        {"corpus": ((None, "thread-list"),)},
+    ),
     (
         "a thread title",
         (),
@@ -6164,8 +6175,10 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     # The thread list's ring is a later-painted pseudo-element because its scrolling
     # contents can cover an outline on the list itself. Prove that paint is part of the
     # reading, then take it away without moving focus and require the list to be reported.
-    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
-    page.evaluate("() => document.activeElement?.blur()")
+    # The list keeps focus itself only while it shows no thread, so this half stands on
+    # a page with none.
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(RING_FOCUS_START)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)

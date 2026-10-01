@@ -393,10 +393,11 @@ def test_where_a_comment_stands_before_and_after_send(browser, serve, snapshot):
 def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_frame(
     browser, serve, region, route
 ):
-    """The compositor returns CSS-anchored boxes before JS gets the scroll event.
-    Reading rectangles in a frame forces layout and hides the stale placement, so
-    observe compositor screenshots. Colored authored bands locate the two surfaces;
-    their relative positions are the claim, independent of fonts or screenshot bytes."""
+    """The compositor returns the passage before JS gets the scroll event. The draft
+    may still occupy its window attachment, then reattach to the passage; neither
+    posture permits a stale shifted page attachment. Reading rectangles in a frame
+    forces layout and hides that paint, so locate both surfaces in actual compositor
+    screenshots, independent of fonts or screenshot bytes."""
     marker_style = """<style>
       #paint-target { background: #ff0044; }
       .lf-fab-bar { outline: 2px solid #00cc44 !important; }
@@ -488,11 +489,27 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
                 if green - red > 20 and green - blue > 20 and green > 130:
                     box_rows.append(y)
         readings.append(
-            (min(target_rows), min(box_rows)) if target_rows and box_rows else None
+            (
+                min(target_rows) if target_rows else None,
+                min(box_rows) if box_rows else None,
+            )
         )
-    shown = [reading for reading in readings if reading is not None]
-    assert len(shown) >= 2 and None in readings, readings
+    shown = [
+        (target_top, box_top)
+        for target_top, box_top in readings
+        if target_top is not None and box_top is not None
+    ]
+    assert len(shown) >= 2 and any(top is None for top, _ in readings), readings
+    # The offscreen passage leaves an active draft in the window. A returning
+    # compositor frame may still show that declared posture before JS reattaches it.
+    window_tops = {
+        box_top
+        for target_top, box_top in readings
+        if target_top is None and box_top is not None
+    }
     offset = shown[-1][1] - shown[-1][0]
     assert all(
-        abs(box_top - target_top - offset) <= 1 for target_top, box_top in shown
+        abs(box_top - target_top - offset) <= 1
+        or any(abs(box_top - window_top) <= 1 for window_top in window_tops)
+        for target_top, box_top in shown
     ), readings

@@ -476,8 +476,6 @@ declareCovering({
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
 declareStanding({
-  threadsBox,
-  narrowing,
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||
@@ -527,7 +525,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
 selectionComposer = createSelectionComposer({

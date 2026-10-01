@@ -126,6 +126,7 @@ def choose_comment_target(page, selector):
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("box", ["general", "reply", "composer"])
 def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
     """The shared field and both drawing-aware variants admit the smallest message.
@@ -3711,16 +3712,20 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     )
     assert threads_now == threads_was, "the panel took a key aimed at the document"
 
-    # Into the panel, standing on its list rather than in a box — `g T`'s landing,
-    # which travels nothing, so the baseline below is the one the control left. The
-    # address toggles the panel it names, so from the standing one the first completion
-    # closes it and the second is the arrival.
+    # Into the panel, standing on its open thread's title rather than in a box — `g T`'s
+    # landing, which travels nothing, so the baseline below is the one the control left.
+    # The address toggles the panel it names, so from the standing one the first
+    # completion closes it and the second is the arrival.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(
+        page.locator(
+            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
+        )
+    ).to_be_focused()
 
     page_was, threads_was = offsets()
     page.keyboard.press("d")

@@ -1,5 +1,28 @@
 {
   "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDECODE\" ] || exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDECODE\" ] || exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

@@ -721,7 +721,13 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
     assert before > 0
     later_card = threads.locator(":scope > .lf-thread:not([hidden])").last
     if intent == "focus":
-        later_card.locator(".lf-thread-summary").focus()
+        # Walked to by key, so the later thread opens under the user's own input and
+        # the thread above closes: the reader stands in the later thread.
+        for _ in range(4):
+            page.keyboard.press("t")
+        expect(later_card.locator(".lf-thread-summary")).to_be_focused()
+        expect(later_card).to_have_attribute("open", "")
+        rendered(page)
     else:
         later_card.locator(".lf-thread-summary").hover()
     later_top = later_card.evaluate("el => el.getBoundingClientRect().top")

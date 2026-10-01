@@ -18,7 +18,12 @@ theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row sits in the
+Auxiliary runtime controls overlay the page's existing geometry. Adding a control
+preserves content position, wrapping, and block size, including when its CSS loads
+before first paint. Keep covered content reachable through placement or disclosure
+rather than padding or a reserved row.
+
+A margin row sits in the
 rail beside its target (`rowPosture`), or as a pin by its target: in room found where
 it covers no words and no other box that paints its own extent, clear of neighbouring
 blocks where its target has room of its own, and reaching one line of words further
@@ -78,9 +83,9 @@ thread the agent starts wait behind a notice in a row the seat already draws
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page moves
-a box on screen without input, news landing just after a press included, or whose
-typing carries its field (`tests/shift_watch.js`).
+suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+for a box moving on screen without input, news landing just after a press included,
+or typing carrying its field (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-interactive]`, the size its module will draw it at, so first paint
@@ -116,8 +121,10 @@ words closes only in answer to a key or a press that means to close it (Send,
 Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
 document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
 news never closes it. Geometry decides where a box stands, never whether: a box
-with nowhere to stand waits out of view with its words, anchor, and caret, and
-stands again, focus returned, when its target comes back (`standFab`,
+whose existing subject loses its visible attachment stays in the usable window,
+keeping its words, anchor, and focus, and reattaches when that target returns.
+Only where no usable window remains does it wait out of view with its words,
+anchor, and caret, standing again, focus returned, when room returns (`standFab`,
 `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and

@@ -351,7 +351,11 @@ def read_delivery(delivery_id: str) -> dict:
 
 
 def cmd_delivery_read(delivery_id: str) -> None:
-    print(json.dumps(read_delivery(delivery_id), indent=2, ensure_ascii=False))
+    from .codex import accept_codex_delivery_read
+
+    payload = read_delivery(delivery_id)
+    accept_codex_delivery_read(delivery_id)
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
 def record_pickup(

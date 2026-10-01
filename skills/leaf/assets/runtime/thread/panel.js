@@ -18,7 +18,6 @@ import {
 } from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { standingThread } from "./landing.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 
@@ -45,7 +44,6 @@ export function createPanelComposer({
   stepThread,
   firstUnread,
   unreadCount,
-  fabAnchorAt,
   paintDrawings,
 }) {
   let sync = () => {};
@@ -113,33 +111,6 @@ export function createPanelComposer({
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
 
-  // The panel's local route to the contextual Comment capability. From the Threads list
-  // this puts the user in the page-comment box; page `c` reaches the same box directly,
-  // and this is the same contextual intent from a surface whose local `w` and `/` commands
-  // remain useful until the user asks to write.
-  const PANEL_SAY = {
-    id: "comment.write",
-    keys: ["c"],
-    does: () => generalHint(),
-    line: "comment",
-    // Dead while the user has a passage or an item in hand. `t` is a page key that lands
-    // focus in the panel, so a user who selected a paragraph and then walked the threads
-    // is standing in this scope with their selection still live — and this row, being the
-    // innermost, would have taken the press and spent it on the general box, collapsing
-    // the selection as the box took focus. A gesture the user made outranks the room
-    // they happen to be standing in, so the row stands down and the page's own c answers,
-    // on the passage, saying so on the shortcut bar first.
-    //
-    // Dead inside a thread for the same reason read the other way. This scope is
-    // live wherever focus is in the panel, a card the user has walked to included, and
-    // that card's own reply box is a nearer answer to "comment" than the general box is —
-    // the one `Enter` reaches from here. A resolved card has no box to be the nearer
-    // answer, and standingThread reads the box rather than the class, so the press
-    // there is the general box's after all.
-    when: () => !fabAnchorAt() && !standingThread(),
-    run: () => generalInput.focus({ preventScroll: true }),
-  };
-
   const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",
     root: focused,
@@ -205,11 +176,6 @@ export function createPanelComposer({
           findInput.select();
         },
       },
-      // Last, because `w` and `/` are the list's own operations while this is a contextual
-      // route through it. The way out already owns the first key-line slot; the remaining
-      // one should say what the list can do. The page-comment box advertises `c`
-      // in its own placeholder, and the complete reference retains this row.
-      PANEL_SAY,
     ],
   });
 

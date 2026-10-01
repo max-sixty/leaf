@@ -116,6 +116,23 @@ the room a page has depends only on the window, and nothing Leaf draws moves the
 content: the rail stands in room the page leaves beside its column ("The rail and the
 margin", below).
 
+### Contents navigation
+
+Long scrolling documents include a contents outline. It gives the reader a
+persistent route between sections and shows where they are in the document. A short
+document that can be read at a glance needs no outline. Put an empty `lf-toc` with a
+stable id in an `aside.sidebar`, directly inside `main` near the opening:
+
+```html
+<aside class="sidebar" id="contents-sidebar">
+  <lf-toc id="contents"></lf-toc>
+</aside>
+```
+
+On a column page with room in the desktop margin, Leaf presents it as the contents
+spine; in a narrow window it is an open outline in the page's flow ("The rail and the
+margin"). Workspaces and root page tabs use their own navigation.
+
 ### Layouts
 
 A Layout is a class that arranges the box it is on. Three set the page's shape, on

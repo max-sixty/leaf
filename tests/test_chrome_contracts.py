@@ -40,6 +40,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     resized,
+    scroll_settled,
     sending,
     told,
     watched,
@@ -298,14 +299,134 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(earlier_place, abs=2)
 
 
-@pytest.mark.parametrize("earlier_cards,later_cards", [(0, 0), (1, 0), (0, 3)])
-def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
-    browser, serve, earlier_cards, later_cards
+# Where an open card's reply box stands, the field the caret is drawn in, and the
+# caret itself: the field holding focus and the selection in it; and the list's scroll.
+REPLY_BOX = """card => {
+  const box = card.querySelector(':scope > .lf-compose');
+  const field = box.querySelector('leaf-text');
+  const at = (el) => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; };
+  return {
+    box: at(box),
+    field: at(field),
+    caret: [document.activeElement === field, field.selectionStart, field.selectionEnd],
+    scroll: card.parentElement.scrollTop,
+  };
+}"""
+
+
+@pytest.mark.parametrize(
+    "earlier_cards,later_cards,answers,back_to_top",
+    [
+        (0, 0, 1, False),
+        (1, 0, 1, False),
+        (1, 0, 1, True),
+        (0, 3, 1, False),
+        (0, 3, 14, False),
+        (2, 0, 14, False),
+    ],
+    ids=[
+        "alone",
+        "below-a-card",
+        "pinned-below-a-card",
+        "above-cards",
+        "scrolled",
+        "scrolled-below-cards",
+    ],
+)
+def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_its_caret(
+    browser, serve, earlier_cards, later_cards, answers, back_to_top
 ):
+    """An open card's reply box stands at the list's foot, and a reply arriving grows
+    above it: a short one into the free room between the thread and the box, a long one
+    past it, which the list follows so its newest words end at the box. The box and the
+    caret in it stay where they stood through both, whether the thread is short enough
+    to leave free room or long enough to scroll, and where the user has scrolled the
+    card's end below the fold, pinning the box over the free room.
+
+    The replies land past the half second in which Chrome counts the user's typing as
+    recent input, so the browser fixture's shift watch fails any move they cause."""
     url = serve(LONG_PAGE)
     for index in range(earlier_cards):
         panel_comment(serve.page_dir, f"An earlier thread {index}.")
-    root = panel_comment(serve.page_dir, "A short thread.")
+    root = panel_comment(serve.page_dir, "The thread I am answering.")
+    for index in range(answers):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Answer {index}. " * 5,
+            },
+        )
+    for index in range(later_cards):
+        panel_comment(serve.page_dir, f"A later thread {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    card.locator(".lf-compose leaf-text").click()
+    page.keyboard.type("My reply")
+    if back_to_top:
+        # Back up to the card above, which puts the open card's end below the fold.
+        page.mouse.wheel(0, -200)
+        page.wait_for_function(
+            "() => document.querySelector('.lf-threads').scrollTop === 0"
+        )
+        scroll_settled(page, ".lf-threads")
+    rendered(page)
+    list_box = page.locator(".lf-threads").evaluate(
+        "el => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; }"
+    )
+    standing = card.evaluate(REPLY_BOX)
+    assert standing["caret"] == [True, 8, 8]
+    # The box stands at the list's foot, the fold later cards wait below.
+    assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
+
+    for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
+        # Past the half second a key counts as recent input (`shift_watch.js`).
+        typed = page.evaluate("performance.now()")
+        page.wait_for_function("at => performance.now() - at > 500", arg=typed)
+        newest = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": text,
+            },
+        )
+        told(page)
+        rendered(page)
+        # The list scrolls by whole pixels and a reply's height need not be one, so a
+        # box the list follows lands within a pixel of where it stood (0.875px measured
+        # on CI's Linux Chrome, nothing on macOS).
+        now = card.evaluate(REPLY_BOX)
+        assert now["caret"] == standing["caret"]
+        assert now["box"] == pytest.approx(standing["box"], abs=0.99), (standing, now)
+        assert now["field"] == pytest.approx(standing["field"], abs=0.99), (
+            standing,
+            now,
+        )
+        tail = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
+            "el => el.getBoundingClientRect().bottom"
+        )
+        assert list_box[0] < tail <= standing["box"][0] + 1
+
+
+def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, serve):
+    """Lines typed into an open card's reply box grow it up from the list's foot into
+    the room above it: the list does not scroll, and the thread's words stay where they
+    stood. Later cards below the fold give the list room to scroll, so a growth paid
+    for as though it covered the words would move them."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "The thread I am answering.")
     events_model.append_event(
         serve.page_dir,
         {
@@ -313,38 +434,37 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
             "author": "agent",
             "agent": "Codex",
             "parent": root,
-            "text": "A short first answer.",
+            "text": "A short answer.",
         },
     )
-    for index in range(later_cards):
+    for index in range(3):
         panel_comment(serve.page_dir, f"A later thread {index}.")
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    if earlier_cards:
-        page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-summary').click()
-        expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_have_attribute(
-            "open", ""
-        )
-    threads = page.locator(".lf-threads")
-    assert threads.evaluate("el => el.scrollHeight - el.clientHeight") == 0
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).to_have_attribute("open", "")
+    card.locator(".lf-compose leaf-text").click()
+    rendered(page)
+    reading = """card => ({
+      scroll: card.parentElement.scrollTop,
+      box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-compose')
+        .getBoundingClientRect()),
+      words: [...card.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect().top,
+    })"""
+    before = card.evaluate(reading)
 
-    newest = events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root,
-            "text": "A long answer should bring its newest words into view. " * 120,
-        },
-    )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
-    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert page.evaluate(FOLLOWED, newest["id"])
+    page.keyboard.type("First line")
+    for line in ("Second line", "Third line", "Fourth line"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    rendered(page)
+    after = card.evaluate(reading)
+    assert after["box"][0] < before["box"][0] - 40, (before, after)
+    assert after["box"][1] == pytest.approx(before["box"][1], abs=1)
+    assert after["scroll"] == before["scroll"]
+    assert after["words"] == pytest.approx(before["words"], abs=1)
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
@@ -481,9 +601,8 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
-    card.locator(".lf-msg").last.evaluate(
-        "el => el.scrollIntoView({block: 'end', behavior: 'instant'})"
-    )
+    # At the thread's end: its last words stand above the reply box at the list's foot.
+    card.evaluate("el => el.scrollIntoView({block: 'end', behavior: 'instant'})")
     threads = page.locator(".lf-threads")
     before = threads.evaluate("el => el.scrollTop")
     assert (
@@ -776,7 +895,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 ):
     """Submit belongs to the field while Resolve stands with the root metadata.
 
-    Growing the field carries Submit with it and leaves Resolve fixed. The field
+    Growing the field leaves Submit at its foot and Resolve fixed. The field
     stands on the messages' column, and its draft words start as far inside it as the
     page composer's do, leaving room for Submit in the same row.
     Resolve aligns with the root author and time instead of the quoted target. The
@@ -909,8 +1028,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
     assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
-    assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-    assert grown["send"]["y"] > short["send"]["y"]
+    # The box stands at the list's foot, so the field grows up and Submit stays put.
+    assert grown["field_box"]["y"] < short["field_box"]["y"]
+    assert grown["send"] == pytest.approx(short["send"], abs=1)
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0

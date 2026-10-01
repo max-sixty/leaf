@@ -388,10 +388,14 @@ def card_body(page, says):
 
     Low on the card *as the user sees it*: the list scrolls, so the last card's own
     bottom can sit below the scroller and behind the panel's foot. A point read off the
-    card's rect alone lands on the general box there, which hovers no card at all. Read
-    once the panel has finished sliding in, which is where the user's hand finds it."""
+    card's rect alone lands on the general box there, which hovers no card at all. A
+    card below the list's fold, as every card after an open one is, is scrolled to
+    first, as the user's hand would. Read once the panel has finished sliding in, which
+    is where the user's hand finds it."""
     panel_settled(page)
-    box = page.locator(".lf-thread").filter(has_text=says).first.bounding_box()
+    card = page.locator(".lf-thread").filter(has_text=says).first
+    card.evaluate("el => el.scrollIntoView({block: 'nearest', behavior: 'instant'})")
+    box = card.bounding_box()
     seen = page.locator(".lf-threads").bounding_box()
     bottom = min(box["y"] + box["height"], seen["y"] + seen["height"])
     return box["x"] + box["width"] / 2, bottom - 8

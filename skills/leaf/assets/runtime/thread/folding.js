@@ -62,8 +62,11 @@ export function foldOut(node, repaintThread) {
   folding.delete(node);
   standing?.played.cancel();
   const style = getComputedStyle(node);
+  // Every length holding the box open folds to nothing: an open panel card's floor
+  // (`min-height`, chrome.css) as well as its height.
   const from = {
     height: node.getBoundingClientRect().height + "px",
+    minHeight: style.minHeight,
     marginBottom: style.marginBottom,
     borderTopWidth: style.borderTopWidth,
     borderBottomWidth: style.borderBottomWidth,

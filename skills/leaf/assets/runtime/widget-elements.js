@@ -540,7 +540,6 @@ function floor(control, labels) {
   control.style.minWidth = Math.ceil(widest) + "px";
   forgetDetached();
   reservations.set(control, { labels, face: reservedFace(control) });
-  reservedFaces.observe(document.documentElement);
 }
 
 // What of a control's computed face a reserved floor was measured in.
@@ -562,12 +561,16 @@ function forgetDetached() {
     if (!control.isConnected) reservations.delete(control);
 }
 // When the window's size changes, a control whose face has changed measures its words
-// again, through `reserve`, so one undrawn by then waits for its box.
+// again, through `reserve`, so one undrawn by then waits for its box. The root is
+// watched from the start rather than by each reservation: a floor is often taken inside
+// `measure`'s own resize delivery, and observing the root there asks for a delivery
+// shallower than the one in progress, which the browser reports as undelivered.
 const reservedFaces = sizeObserver(() => {
   forgetDetached();
   for (const [control, { labels, face }] of reservations)
     if (reservedFace(control) !== face) reserve(control, labels);
 });
+reservedFaces.observe(document.documentElement);
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such

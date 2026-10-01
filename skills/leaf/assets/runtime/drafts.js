@@ -366,12 +366,19 @@ export async function sendDraft(ctx, owns, send) {
 // round trip happens behind them.
 //
 // The returned handle names the message the send drew. It is what a caller opens or
-// focuses, and the log's answer renames that same node rather than replacing it.
+// focuses, and the log's answer renames that same node rather than replacing it. A send
+// the page refuses before posting, such as a reply to a thread being settled, drew
+// nothing: the words stay in the box and the caller hears null, as for a draft it could
+// not claim.
 export function sendMessage(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
   const flight = send(current.attempt, current.payload);
   const answer = standGesture(ctx, current);
+  if (!flight) {
+    answer(null);
+    return null;
+  }
   void Promise.resolve(flight).then(answer);
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }

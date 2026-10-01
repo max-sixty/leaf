@@ -26,10 +26,12 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. */
+   supplies the caller-owned return target through `landInThread`. A send from a
+   thread's box leaves it the same way, onto the thread, except in the margin card,
+   whose thread stands for the element it is about (`landSent`). */
 import { landingBand, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { takesLetters } from "../focus.js";
+import { focusDestination, takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
@@ -157,20 +159,24 @@ pageScope("text entry", {
         const target = back?.target ?? panelList;
         if (!target) return;
         if (!target.matches?.(THREAD)) return target.focus();
-        // Coming back out of the box is no arrival. A thread too tall to show whole is
-        // already on screen around the box, and landing its title would take the user
-        // away from the turn they were answering.
-        if (fitsWhole(target)) return focusThread(target);
-        keepingPlace = true;
-        try {
-          focusThread(target, { preventScroll: true });
-        } finally {
-          keepingPlace = false;
-        }
+        standOnThread(target);
       },
     },
   ],
 });
+
+// Coming back out of a thread's box onto the thread, by Escape or by a send, is no
+// arrival. A thread too tall to show whole is already on screen around the box, and
+// landing its title would take the user away from the turn they were answering.
+export function standOnThread(thread) {
+  if (fitsWhole(thread)) return focusThread(thread);
+  keepingPlace = true;
+  try {
+    focusThread(thread, { preventScroll: true });
+  } finally {
+    keepingPlace = false;
+  }
+}
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
 // click on its words focuses, the quote, a link in a reply. `r` settles the thread from any
@@ -455,6 +461,7 @@ export function createThreadLanding({
   scrollToThread,
   revealThread,
   threadsBox,
+  cardTarget,
 }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
@@ -469,6 +476,16 @@ export function createThreadLanding({
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });
+  // Where a sent reply or first comment leaves the user: out of the box, standing on the
+  // thread, or, for a thread in the margin card, on the element the thread is about, with
+  // the card still up (`cardTarget`, the card's own step out). A user who sends is
+  // usually done with the thread until the agent answers, so they move on from there
+  // without Escaping out of the box first.
+  const landSent = (thread) => {
+    const target = cardTarget(thread);
+    if (target) focusDestination(target);
+    else standOnThread(thread);
+  };
   const showThread = (id, { focus = "reply" } = {}) => {
     setPanel(true);
     const ready = showThreadNow(id, focus, revealThread, threadsBox);
@@ -483,6 +500,7 @@ export function createThreadLanding({
   return {
     landIn,
     landInThread,
+    landSent,
     showThread,
     accompaniedThread: (ids) => accompaniedThread(ids, threadsBox),
     accompanyThread: (ids) => accompanyThread(ids, threadsBox),

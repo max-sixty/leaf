@@ -1180,8 +1180,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     page.keyboard.type("A thread on the paragraph.")
     with sending(page, "the comment on the paragraph"):
         page.keyboard.press("ControlOrMeta+Enter")
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # off the paragraph the send landed on, and its card
     row = page.locator('.lf-margin-lane > [data-lf-margin-for="only"]')
     expect(row).to_have_count(1)
     expect(row).to_have_attribute("data-lf-place", "pin")
@@ -11289,7 +11288,7 @@ fn merge_sort()
     assert rows.evaluate_all(
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
                    ? ['elided', r.dataset.elided, r.textContent]
-                   : r.classList.contains('lf-code-note') ? ['note']
+                   : r.localName === 'lf-note' ? ['note']
                    : [getComputedStyle(r, '::before').content, r.classList.contains('hi')])"""
     ) == [
         ['"1505"', False],
@@ -11304,12 +11303,13 @@ fn merge_sort()
 
     code_x, note_x = page.evaluate(
         """() => {
-          const range = document.createRange();
-          const text = document.querySelector('#walk .lf-code-line');
-          range.setStart(text.firstChild.firstChild ?? text.firstChild, 0);
-          return [range.getBoundingClientRect().left,
-                  document.querySelector('#walk .lf-code-note lf-note')
-                    .getBoundingClientRect().left];
+          const start = (node) => {
+            const range = document.createRange();
+            range.setStart(node.firstChild.firstChild ?? node.firstChild, 0);
+            return range.getBoundingClientRect().left;
+          };
+          return [start(document.querySelector('#walk .lf-code-line')),
+                  start(document.querySelector('#walk pre > lf-note'))];
         }"""
     )
     assert abs(code_x - note_x) < 1, (code_x, note_x)

@@ -28,9 +28,19 @@ lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--
  * a reason to lose the rest of the row; the elapsed line takes the free width to its
  * left (margin-left: auto) so it ends every row at the same column and grows leftward
  * into space nothing else has claimed — a fact that gains a character every minute
- * must not be able to move anything, and there is nothing to its right to move. */
+ * must not be able to move anything, and there is nothing to its right to move.
+ *
+ * One line of the row's own type tall, which is the height `doing` sets it at, so a
+ * report arriving fills the line rather than growing the row. The upgrade draws the
+ * line (lf-agent.js); until it does, the row holds that line's room where the line
+ * will stand, ahead of the worker's worktree evidence or else at the row's end, so the
+ * first paint has the row's final height (assets/AGENTS.md, "Stability"). */
 .lf-agent-line { display: flex; flex-wrap: wrap; align-items: baseline;
-                 gap: var(--sp-1) var(--sp-2); margin-top: 3px; }
+                 align-content: center; gap: var(--sp-1) var(--sp-2); min-height: 1lh; }
+html[data-lf-interactive] lf-agent:not(:has(> .lf-agent-line)):not(:has(> lf-worktree))::after {
+  content: ""; display: block; height: 1lh; }
+html[data-lf-interactive] lf-agent:not(:has(> .lf-agent-line)) > lf-worktree:first-of-type {
+  margin-top: calc(1lh + var(--sp-2)); }
 /* The elapsed line and the call-out beside it are one statement about freshness, so the
  * free width opens before whichever of them comes first rather than between the two —
  * two auto margins would have split it and stood "quiet" in the middle of the row,
@@ -67,9 +77,9 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * the milestone's, plus `review` in the warn tint: finished by its holder and
  * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
-/* A goal row stacks its chips under its name from the room the command has, which a
-   command inside a worker's disclosure or beside an open drawer has less of than the
-   window says. */
+/* A goal row packs its chips from the left and breaks their words by the room the
+   command has, which a command inside a worker's disclosure or beside an open drawer
+   has less of than the window says. */
 lf-command { container: lf-command / inline-size; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
@@ -84,6 +94,21 @@ lf-task[status="review"]::before  { background: var(--warn); border-color: var(-
 lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
                     --lf-block-frame: 1; }
 lf-task > strong { margin-right: 6px; }
+/* A task outside a command gets its chip row (lf-task.js) where its authored tree gives
+ * it one: an owner, a `when`, tags, or subtasks to count. Until the upgrade draws the row
+ * after the title, the title stands on its own line and holds one row of the chips'
+ * height under it, in the row's own margins (.lf-chips, theme.css); a task with no title
+ * holds it at its top, where the row will stand. Chips that wrap onto a second row are
+ * not held: how many fit on a line is known only once they are drawn. */
+html[data-lf-interactive] lf-tasks lf-task:not(:has(> .lf-chips)):is(
+    [owner]:not([owner=""]), [when]:not([when=""]), [tags]:not([tags=""]), :has(lf-task)) {
+  & > strong:first-of-type { display: block; }
+  & > strong:first-of-type::after { content: ""; display: block;
+    height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
+}
+html[data-lf-interactive] lf-tasks lf-task:not(:has(> .lf-chips, > strong)):is(
+    [owner]:not([owner=""]), [when]:not([when=""]), [tags]:not([tags=""]), :has(lf-task)) {
+  padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
 lf-task[status="done"] > strong { color: var(--muted); }
 
 /* Command tree: the plan is canonical; these are projections generated around it.
@@ -157,10 +182,15 @@ lf-command-readings > section.panel { margin: 0; }
    stood on three rows with its full stop alone on the last. The generated chips lead
    the goal (lf-command.js) and float to its right, level with the title, which wraps
    short of them. Containing the float makes the goal a frame its children's margins
-   stop at, so it says so and the theme trims them there. */
-lf-command [data-lf-command-goal] { display: flow-root; --lf-block-frame: 1; }
-lf-command [data-lf-command-goal] > strong { display: block; }
-lf-command [data-lf-command-goal] > .lf-task-meta { float: right;
+   stop at, so it says so and the theme trims them there.
+
+   These rules read the authored tree, a task and a worker inside a command, rather than
+   anything the upgrade writes, so the first paint lays each goal out as it will stand
+   (assets/AGENTS.md, "Stability"). A package adding its own goal or worker widget to
+   `$command.widgets` lays that widget out in its own theme. */
+lf-command lf-task { display: flow-root; --lf-block-frame: 1; }
+lf-command lf-task > strong { display: block; }
+lf-command lf-task > .lf-task-meta { float: right;
   display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;
   gap: var(--sp-1); margin-left: var(--sp-3); max-width: 50%; }
 .lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r);
@@ -169,18 +199,32 @@ lf-command [data-lf-command-goal] > .lf-task-meta { float: right;
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-meta > .lf-task-held { color: var(--warn-ink); background: var(--warn-tint); }
 .lf-task-meta > .lf-task-signal { color: var(--accent); }
-lf-command [data-lf-command-goal] > [data-lf-command-worker] {
-  display: none; margin: var(--sp-2) 0 0 12px; }
-lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { display: block; }
-lf-command [data-lf-command-goal][data-lf-held] {
+/* A goal's workers stand behind its crew chip, which the upgrade draws. A reading with
+   no runtime has no chip to open them with, so it keeps them in view. */
+lf-command lf-task > lf-agent { margin: var(--sp-2) 0 0 12px; }
+@media screen {
+  html[data-lf-interactive] lf-command lf-task:not([data-lf-open]) > lf-agent { display: none; }
+}
+/* A goal that invites talk ends in its own composer (lf-command.js, x-thread-seat), and
+   holds the empty seat's room, in the seat's own margin (.lf-thread-seat, shadow.css),
+   until the upgrade seats it. A goal quoted into a message, or shown as an exhibit,
+   gets no composer, so it holds none. */
+html[data-lf-interactive] main lf-command
+  lf-task[talk]:not([data-lf-exhibit] *):not(:has(> .lf-thread-seat))::after {
+  content: ""; display: block; height: var(--lf-compose-h); margin-top: var(--sp-2); }
+lf-command lf-task[data-lf-held] {
   background: linear-gradient(90deg, var(--warn-tint), transparent 72%); }
 
+/* The evidence stands shut, its head one line of the UI's type, and the room for that
+ * line is held until the upgrade draws the head from the host's snapshot. */
 lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   border-left: 2px solid var(--rule); }
+html[data-lf-interactive] lf-worktree:not(:has(> .lf-worktree-snapshot)) {
+  min-height: calc(var(--t-6) * var(--lf-ui-lh) + 2 * var(--sp-1)); }
 .lf-worktree-snapshot { display: block; }
 .lf-worktree-head { display: block; width: 100%; border: 0; padding: var(--sp-1) 0;
-  background: none; color: var(--ink-2); font: var(--t-6) var(--mono); text-align: left;
-  cursor: pointer; }
+  background: none; color: var(--ink-2); font: var(--t-6) / var(--lf-ui-lh) var(--mono);
+  text-align: left; cursor: pointer; }
 .lf-worktree-source { margin: 1px 0 var(--sp-2); color: var(--muted);
   font: var(--t-7) var(--sans); letter-spacing: .055em; text-transform: uppercase; }
 .lf-worktree-evidence { margin: var(--sp-2) 0; }
@@ -193,16 +237,13 @@ lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) 
 
 @media print {
   .lf-worktree-head { cursor: default; }
-  lf-command [data-lf-command-goal] > [data-lf-command-worker],
   lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) {
     display: block; }
 }
 
 @container lf-command (width <= 520px) {
-  lf-command [data-lf-command-goal] { grid-template-columns: minmax(0, 1fr); }
-  lf-command [data-lf-command-goal] > .lf-task-meta {
-    grid-column: 1; justify-content: flex-start; flex-wrap: wrap;
-    min-width: 0; margin-top: 2px; }
-  lf-command [data-lf-command-goal] > .lf-task-meta > span {
+  lf-command lf-task > .lf-task-meta {
+    justify-content: flex-start; min-width: 0; margin-top: 2px; }
+  lf-command lf-task > .lf-task-meta > span {
     max-width: 100%; overflow-wrap: anywhere; }
 }

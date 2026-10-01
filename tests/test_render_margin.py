@@ -6432,8 +6432,12 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
         preview_box = preview.bounding_box()
         assert preview_box["x"] >= 0, preview_box
         assert preview_box["x"] + preview_box["width"] <= width, preview_box
+    # The send leaves the user on the thread's title in the panel, or on the passage
+    # the card is about.
     focus_target = (
-        thread.locator(":scope > .lf-thread-summary") if panel_open else thread
+        thread.locator(":scope > .lf-thread-summary")
+        if panel_open
+        else page.locator("#mounts-p")
     )
     expect(focus_target).to_be_focused()
     if panel_open:
@@ -6482,9 +6486,10 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     """The send lands on its thread, and each press takes off one level.
 
     `c` opens the box on whatever the user is standing in without moving them off it,
-    and the send carries them into the thread the comment became: a card it puts up, or
-    the thread's place in a panel that was already open. The thread hands them to the
-    surface holding it. The control `c` was pressed from is not a landing.
+    and the send leaves them where the comment became a thread: the thread's place in a
+    panel that was already open, or, with a card it puts up, the target that card is
+    about. The thread hands them to the surface holding it. The control `c` was pressed
+    from is not a landing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6509,12 +6514,13 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
             threads.locator(f'.lf-thread[data-id="{sent["id"]}"] > .lf-thread-summary')
         ).to_be_focused()
     else:
-        expect(preview).to_be_visible()
+        # A card's thread stands for the target it is about: the send lands there, and
+        # the card stays beside it until the user lets go of that.
         expect(
             preview.locator(f'.lf-page-thread[data-thread="{sent["id"]}"]')
-        ).to_be_focused()
+        ).to_be_visible()
+        assert page.evaluate(ON_THE_PAGE)
 
-    # The thread releases to what holds it, which then lets go.
     page.keyboard.press("Escape")
     if panel_open:
         # In Threads the thread releases to the whole panel, which closes on the next.
@@ -6522,14 +6528,6 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
         page.keyboard.press("Escape")
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
-        # A card's thread releases to the target it is about, and the card stays
-        # beside it until the user lets go of that.
-        expect(preview).to_be_visible()
-        assert page.evaluate(
-            "() => !document.activeElement.closest('.lf-chrome') && "
-            "document.activeElement !== document.body"
-        )
-        page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
@@ -6563,10 +6561,8 @@ def seeded_thread(page, page_dir, passage):
     with sending(page, f"the comment on {passage}"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(page_dir)[-1]
-    page.keyboard.press(
-        "Escape"
-    )  # out of the thread the send landed in, onto its passage
-    page.keyboard.press("Escape")  # and letting go of the passage takes the card
+    # The send lands on the passage, and letting go of it takes the card.
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     return sent
 
@@ -6801,7 +6797,9 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
         page.keyboard.type("A third thought.")
         with sending(page, "the comment from the control"):
             page.keyboard.press("ControlOrMeta+Enter")
-        expect(card).to_be_focused()
+        # The send lands on the target the new card is about.
+        expect(card).to_be_visible()
+        assert page.evaluate(ON_THE_PAGE)
     shown = card.get_attribute("data-thread")
 
     page.keyboard.press("t")
@@ -7211,19 +7209,39 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     pressed = send.evaluate("button => button.getBoundingClientRect().top")
     send.click()
     expect(preview).to_contain_text("Sent")
-    # The user stays in the box they sent from, and the card holds under the pressed
-    # Send; leaving the reply row ends the drafting, and the card holds its top where it
-    # now stands.
+    # The send leaves the user on the element the card is about, the card still up, and
+    # the card holds under the pressed Send. An answer arriving then extends it downward,
+    # holding its top, as a turn arriving while the user reads does.
     rendered(page)
-    expect(editor).to_be_focused()
+    about = marker.evaluate(
+        "node => node.closest('[data-lf-margin-for]').dataset.lfMarginFor"
+    )
+    expect(page.locator(f"#{about}")).to_be_focused()
+    expect(preview).to_be_visible()
     assert send.evaluate(
         "button => button.getBoundingClientRect().top"
     ) == pytest.approx(pressed, abs=0.5)
     sent = page.evaluate(CARD_AND_REPLY)
-    editor.evaluate("box => box.blur()")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root["id"],
+            "responds": root["id"],
+            "text": "Noted.",
+        },
+    )
+    told(page)
+    expect(preview).to_contain_text("Noted.")
     rendered(page)
-    read = page.evaluate(CARD_AND_REPLY)
-    assert read["cardTop"] == pytest.approx(sent["cardTop"], abs=0.5), (sent, read)
+    answered = page.evaluate(CARD_AND_REPLY)
+    assert answered["cardTop"] == pytest.approx(sent["cardTop"], abs=0.5), (
+        sent,
+        answered,
+    )
 
 
 def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve):
@@ -7461,10 +7479,11 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
 
 @pytest.mark.parametrize("how", ["key", "press"])
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
-def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size, how):
-    """The sent turn joins the transcript above the box the user sent it from. The send
-    empties the box, and the card read that as the drafting over: it chose its spot
-    again, flipping sides under the pointer."""
+def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
+    """The sent turn joins the transcript above the box the user sent it from, and the
+    send leaves the user on the element the card is about with the card still up. The
+    send ends the drafting, and the card read that as leave to choose its spot again,
+    flipping sides under the pointer; the reply row stays where the press was."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
     send = preview.locator(".lf-say .lf-compose-submit")
@@ -7475,7 +7494,7 @@ def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size,
             send.click()
     expect(preview.locator(".lf-page-thread-msg").last).to_contain_text("words")
     rendered(page)
-    expect(editor).to_be_focused()
+    expect(page.locator("#open")).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
@@ -9574,6 +9593,50 @@ def test_a_comment_in_a_table_wider_than_the_column_keeps_the_rail(browser, serv
     expect(
         page.locator('.lf-margin-cluster[data-lf-margin-for="first-cell"]')
     ).to_have_attribute("data-lf-place", "rail")
+
+
+CELL_TARGET_PAGE = leaf_page(
+    "a comment in a table's last column",
+    """
+<h1 id="t">Phases</h1>
+<p id="before">A paragraph above the table.</p>
+<table id="phases">
+<thead><tr><th>Phase</th><th>Contents</th><th>Choice</th></tr></thead>
+<tbody>
+<tr id="phase-1"><td>1</td><td>Maintainer guidance rewritten.</td><td>Committed</td></tr>
+<tr id="phase-2"><td>2</td><td>Agent guidance rewritten.</td><td>Delivery depth</td></tr>
+</tbody>
+</table>
+""",
+)
+
+
+def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
+    """Resolving from the card hands the user to the thread's target, here a cell in
+    the table's last column. The table clips to its own edges, which that cell stands
+    flush with, so the ring it wears there has to be whole inside the table."""
+    page = open_page(
+        browser,
+        serve(
+            CELL_TARGET_PAGE,
+            events=[_comment_on("phase-2", quote="Delivery depth")],
+        ),
+    )
+    resized(page, 1440, 900)
+    page.keyboard.press("Tab")  # keyboard modality, so the landing's ring is drawn
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.focus()
+    page.keyboard.press("Enter")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+
+    page.keyboard.press("r")
+    expect(preview).to_be_hidden()
+    cell = page.locator("#phase-2 > td").last
+    expect(cell).to_be_focused()
+    ring = standing_ring(page)
+    assert ring, "the cell the user stands on wears no ring"
+    assert ring["cuts"] == [], ring["cuts"]
 
 
 def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):

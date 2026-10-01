@@ -761,7 +761,28 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     _read_by_the_sample(page, child)
 
 
-def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
+def _past_recent_input(page):
+    """Wait until Chrome no longer counts the last key or press as recent input, so the
+    browser fixture's shift watch reports whatever the next news moves: the input window
+    is half a second (`shift_watch.js`), and this waits over twice that."""
+    since = page.evaluate("performance.now()")
+    page.wait_for_function("at => performance.now() - at > 1200", arg=since)
+
+
+def _box_height(locator):
+    return locator.evaluate("node => node.getBoundingClientRect().height")
+
+
+def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
+    browser, serve
+):
+    """A reply landing in the diff thread the user had just written grew the thread at
+    its foot, on screen, and everything after the diff moved down the page. It waits
+    behind a notice in the thread's head row, which appears without changing the
+    thread's height, and stays unread while none of it has shown. The keyboard reaches
+    the notice from the thread and opens it, and the reply's body, drawn inside the
+    widget's shadow tree, is read once shown. The browser fixture's shift watch holds
+    the rest: the reply lands well past the last key."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
@@ -776,6 +797,10 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    height = _box_height(thread)
+    _past_recent_input(page)
     reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
@@ -784,8 +809,24 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
         for_event=root,
     )
     told(page)
-    body = page.locator(
-        f'lf-diff .lf-diff-thread-outlet .lf-page-thread-msg[data-event="{reply["id"]}"] .lf-page-thread-body'
+    news = thread.locator(":scope > .lf-thread-root-meta").get_by_role(
+        "button", name="1 new reply"
+    )
+    expect(news).to_be_visible()
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(1)
+    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    assert not _read_events(serve.page_dir)
+
+    thread.locator(":scope > .lf-say leaf-text").focus()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(news).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(news).to_have_count(0)
+    expect(thread).to_be_focused()
+    body = thread.locator(
+        f'.lf-page-thread-msg[data-event="{reply["id"]}"] .lf-page-thread-body'
     )
     expect(body).to_be_visible()
     assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
@@ -794,6 +835,328 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}
     ]
+
+
+# A task whose seat stands past a screen of prose, with more prose after it for a
+# thread's growth to move.
+def _seat_filler(name):
+    return "".join(
+        f"<p id='{name}-{n}'>Filler paragraph {n}, long enough to take a line.</p>"
+        for n in range(30)
+    )
+
+
+TASK_SEAT_PAGE = leaf_page(
+    "seat",
+    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-command id='hub' "
+    "label='Before the frost'><lf-task id='jobs' status='active' talk>"
+    f"<strong>Which jobs are worth starting?</strong></lf-task></lf-command>"
+    f"{_seat_filler('tail')}",
+)
+
+
+@pytest.mark.parametrize("end", ["opened", "replied", "left"])
+def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
+    browser, serve, end
+):
+    """Replies landing while a seated thread's foot is on screen wait behind one
+    notice that counts them, and show together, in the order they came: when the user
+    presses the notice, when they send a turn of their own, which answers the replies
+    and so follows them, and when they scroll the thread below the window, where its
+    growth moves nothing they see. Nothing before the ending is input, so the browser
+    fixture's shift watch also checks that holding the replies moved nothing."""
+    url = serve(TASK_SEAT_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which of these can wait until spring?",
+            "anchor": {"section": "jobs"},
+        },
+    )["id"]
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread.evaluate(
+        """thread => document.scrollingElement.scrollBy({
+          top: thread.getBoundingClientRect().top - innerHeight / 3,
+          behavior: 'instant'})"""
+    )
+    height = _box_height(thread)
+    replies = []
+    for n in (1, 2):
+        replies.append(
+            events_model.append_event(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "agent": "Codex",
+                    "parent": root,
+                    "revision": 1,
+                    "text": f"Answer {n}: the gutters can wait, the roof cannot.",
+                },
+            )["id"]
+        )
+        told(page)
+    news = thread.locator(":scope > .lf-thread-root-meta").get_by_role(
+        "button", name="2 new replies"
+    )
+    expect(news).to_be_visible()
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(1)
+    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+
+    if end == "opened":
+        news.click()
+    elif end == "replied":
+        write(thread.locator(":scope > .lf-say leaf-text"), "Then the roof first.")
+        with sending(page, "the user's reply"):
+            page.keyboard.press("Enter")
+    else:
+        thread.evaluate(
+            """thread => document.scrollingElement.scrollBy({
+              top: thread.getBoundingClientRect().top - innerHeight - 400,
+              behavior: 'instant'})"""
+        )
+    shown = thread.locator(".lf-page-thread-msg")
+    expect(shown).to_have_count(4 if end == "replied" else 3)
+    expect(news).to_have_count(0)
+    events = shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)")
+    assert events[:3] == [root, *replies]
+    if end == "replied":
+        expect(shown.last).to_contain_text("Then the roof first.")
+
+
+def _seat_comment(page_dir, author, text):
+    event = {
+        "kind": "comment",
+        "author": author,
+        "revision": 1,
+        "text": text,
+        "anchor": {"section": "jobs"},
+    }
+    if author == "agent":
+        event["agent"] = "Codex"
+    return events_model.append_event(page_dir, event)["id"]
+
+
+def _agent_turn(page_dir, root, text):
+    return events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "revision": 1,
+            "text": text,
+        },
+    )["id"]
+
+
+def _to_upper_third(locator):
+    """Scroll the page, without input, so the element's top stands a third of the way
+    down the window and the page after it is on screen."""
+    locator.evaluate(
+        """node => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().top - innerHeight / 3,
+          behavior: 'instant'})"""
+    )
+
+
+@pytest.mark.parametrize("pointer", ["fine", "coarse"])
+def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, pointer):
+    """An agent's reply to a resolved thread reopens it. Drawn at once, the reopened
+    thread grew in place under the reader: its new turn and its reply box pushed the
+    page after it down. It stands as drawn, resolved, and its resolved row says what is
+    waiting in Reopen's place and face, at the row's height under either pointer (a
+    chip's face stood 6px shorter than Reopen at a fine pointer). On a phone a tap opens
+    it; on the desktop `r` on the thread, which reopens a resolved thread, does. The
+    thread shows open, with the new turn after the earlier ones and a reply box. Nothing
+    before the opening is input, so the shift watch checks that the hold moved nothing."""
+    context = (
+        browser.new_context(
+            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+        )
+        if pointer == "coarse"
+        else None
+    )
+    url = serve(TASK_SEAT_PAGE)
+    root = _seat_comment(serve.page_dir, "user", "Which of these can wait?")
+    first = _agent_turn(serve.page_dir, root, "The gutters can wait.")
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": root, "revision": 1},
+    )
+    page = open_page(browser, url, context=context)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    _to_upper_third(thread)
+    height = _box_height(thread)
+    second = _agent_turn(serve.page_dir, root, "The roof cannot wait after all.")
+    told(page)
+    row = thread.locator(":scope > .lf-page-thread-resolved")
+    news = row.get_by_role("button", name="Reopened · 1 new reply")
+    expect(news).to_be_visible()
+    expect(row.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(2)
+    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+
+    if pointer == "coarse":
+        news.tap()
+    else:
+        # The key before the focus makes the shortcut bar's redraw an answer to input.
+        page.keyboard.press("Shift")
+        thread.focus()
+        page.keyboard.press("r")
+    expect(row).to_have_count(0)
+    shown = thread.locator(".lf-page-thread-msg")
+    expect(shown).to_have_count(3)
+    assert shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)") == [
+        root,
+        first,
+        second,
+    ]
+    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_visible()
+
+
+def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve):
+    """A resolved diff thread stands folded to its summary. An agent's reply that
+    reopened it unfolded it under the reader, and every diff line after it moved down by
+    the whole thread. It stays folded, its summary says what is waiting, and the
+    keyboard, left on the thread by the resolve, reaches the summary and opens it to the
+    thread, open, with the new turn."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
+    _select_new_route(page)
+    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
+    with sending(page, "diff comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    # The send leaves the user on the thread, and Resolve is its first stop.
+    page.keyboard.press("Tab")
+    with sending(page, "the resolve"):
+        page.keyboard.press("Enter")
+    expect(thread).to_be_focused()
+    summary = thread.locator(":scope > summary")
+    expect(summary).to_have_text("Resolved · 1 message")
+    _to_upper_third(thread)
+    height = _box_height(thread)
+    _past_recent_input(page)
+    # Resolving answered the comment, so the agent's turn is one nothing asked for.
+    reply = thread_model.cmd_reply(
+        serve.page_dir, root, "The route stays.", None, for_event=None
+    )
+    told(page)
+    expect(summary).to_have_text("Reopened · 1 new reply")
+    expect(thread).not_to_have_attribute("open", "")
+    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+
+    page.keyboard.press("Tab")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(thread).to_have_attribute("open", "")
+    expect(summary).to_be_hidden()
+    expect(
+        thread.locator(f'.lf-page-thread-msg[data-event="{reply["id"]}"]')
+    ).to_be_visible()
+    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_visible()
+
+
+@pytest.mark.parametrize(
+    ("beside", "end"),
+    [
+        ("box", "opened"),
+        ("box", "left"),
+        ("box", "standing"),
+        ("thread", "opened"),
+        ("thread", "started"),
+    ],
+)
+def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_follow(
+    browser, serve, beside, end
+):
+    """A thread the agent starts in a seat lands at the seat's foot, and drawn at once
+    it pushed the page after the seat down. It waits behind a notice in a row of fixed
+    size: the head row of the seat's last thread, or, in a seat that draws no thread, a
+    row standing in place of the first-message row at that row's height, since the row
+    has no room beside its box. It shows when the user opens the notice from the
+    keyboard, when they start a thread of their own, which shows after it, and when they
+    scroll the seat below the window. A user standing in the first-message box keeps it:
+    the thread shows above the box, which stays where it stood. Nothing before the
+    ending is input, so the shift watch checks that the hold moved nothing."""
+    url = serve(TASK_SEAT_PAGE)
+    earlier = (
+        _seat_comment(serve.page_dir, "user", "Which of these can wait?")
+        if beside == "thread"
+        else None
+    )
+    page = open_page(browser, url)
+    seat = page.locator('.lf-thread-seat[data-lf-thread-seat="jobs"]')
+    box = seat.locator(":scope > .lf-say leaf-text")
+    threads = seat.locator(":scope > .lf-page-thread")
+    _to_upper_third(seat)
+    height = _box_height(seat)
+    if end == "standing":
+        box.focus()
+        top = box.evaluate("box => box.getBoundingClientRect().top")
+    started = _seat_comment(serve.page_dir, "agent", "Should the gutters wait too?")
+    told(page)
+    if end == "standing":
+        expect(threads).to_have_count(1)
+        expect(box).to_be_focused()
+        assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
+            top, abs=0.5
+        )
+        return
+    row = (
+        seat.locator(":scope > .lf-seat-news")
+        if beside == "box"
+        else threads.first.locator(":scope > .lf-thread-root-meta")
+    )
+    news = row.get_by_role("button", name="1 new thread")
+    expect(news).to_be_visible()
+    expect(threads).to_have_count(1 if earlier else 0)
+    assert _box_height(seat) == pytest.approx(height, abs=0.5)
+
+    if end == "opened":
+        # The notice as a Tab stop of its own, in keyboard modality. The key before the
+        # focus makes the shortcut bar's redraw for the new stop an answer to input.
+        page.keyboard.press("Shift")
+        news.focus()
+        page.keyboard.press("Shift+Tab")
+        page.keyboard.press("Tab")
+        expect(news).to_be_focused()
+        page.keyboard.press("Enter")
+    elif end == "started":
+        write(box, "And the shed roof?")
+        with sending(page, "the user's thread"):
+            page.keyboard.press("Enter")
+    else:
+        seat.evaluate(
+            """seat => document.scrollingElement.scrollBy({
+              top: seat.getBoundingClientRect().top - innerHeight - 400,
+              behavior: 'instant'})"""
+        )
+    expect(news).to_have_count(0)
+    expect(box).to_be_visible()
+    keys = [key for key in (earlier, started) if key]
+    expect(threads).to_have_count(len(keys) + (end == "started"))
+    shown = threads.evaluate_all("threads => threads.map(t => t.dataset.thread)")
+    assert shown[: len(keys)] == keys
+    if end == "started":
+        expect(threads.last).to_contain_text("And the shed roof?")
+    if end == "opened":
+        # The notice goes with what it held, and the keyboard lands on the thread it
+        # stood in, or on the thread it showed.
+        expect(threads.first if earlier else threads.last).to_be_focused()
 
 
 @pytest.mark.parametrize(("width", "under_panel"), [(900, True), (1920, False)])
@@ -839,6 +1202,10 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         for_event=root,
     )
     told(page)
+    # The answer landed on screen, so the user opens it where it waits.
+    page.locator("lf-diff .lf-page-thread").get_by_role(
+        "button", name="1 new reply"
+    ).click()
     body = page.locator(
         f'lf-diff .lf-diff-thread-outlet .lf-page-thread-msg[data-event="{reply["id"]}"]'
         " .lf-page-thread-body"

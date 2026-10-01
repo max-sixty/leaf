@@ -22,7 +22,6 @@ Python.
 wt setup
 uv run pytest tests                  # everyday gate; no network after setup
 npm run test:runtime                 # the gate's other half: tests/runtime/, under Node
-uv run pytest tests --run-nightly    # everything
 uv run pytest tests/test_render_widgets.py -q -n0 -k board   # one case, kept local
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
@@ -32,12 +31,16 @@ Mark a test `nightly` when a pull request can land without it, including any tes
 needs the network; expense alone does not make a test nightly. Broad discovery skips
 nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
-in the test files the change touches. Before handing over a browser-facing change, run its whole browser file, the
-everyday gate, and the smallest nightly selection covering it. Run a new or changed
-browser test through `uv run leaf-dev flake NODEID`, which runs it as concurrent
-copies: a serial rerun samples only the idle machine that already passes it. The
-copies share every fixed path a test writes in the checkout, such as an export under
-`.tmp/`, so a failure naming one is the copies racing there, not load.
+whose own lines the change edits.
+
+A change lands only on a green landing gate. Every other nightly test is CI's to
+report: the `nightly` job in `ci.yaml` runs the complete suite once main moves, and
+`tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
+run the everyday gate and the few browser tests that hold the behavior you changed,
+named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
+file locally: each takes minutes to over an hour and slows every other session on the
+machine. To learn what main fails, read that job's run, and reproduce a failure it
+names by node id.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -241,9 +244,9 @@ changes the outcome, run the gesture both ways and assert they agree. Before
 ## State races are arrangements, not probabilities
 
 If a race appears only under load, order it with `page.route` rather than repeating
-the test. `leaf-dev flake` reproduces it and prints every failing copy's message,
-which differs run to run and names the mechanism; the same run then confirms the
-route holds. Register the route before the gesture it catches, or through `primed` or
+the test. `leaf-dev flake` (`dev/AGENTS.md`) reproduces it and prints every failing
+copy's message, which differs run to run and names the mechanism; the same run then
+confirms the route holds. Register the route before the gesture it catches, or through `primed` or
 `held_events` for the first navigation; raw and `browser.unwatched` pages are not
 armed for later routes. Where the driver loses a fact, such as the Page for a tab
 Chromium opened, observe the browser's record (`opened_tab`).
@@ -291,14 +294,10 @@ borders, outlines, and shadows.
 ## Make a green test non-vacuous
 
 Name the single product change that would make each assertion fail, and arrange the
-fixture so that change reaches the measured surface. Reintroduce the defect and run
-the gate before accepting a test, and again when a refactor changes how an existing
-failure shows. `uv run leaf-dev bugback NODEID...` does it on a committed branch: it
-runs the named tests with the branch's non-test change reverted and says which went
-red. To prove each of several guards, flip one at a time by hand. An assertion that
-nothing moved straddles a transition that would move without the rule. Check what a
-lower layer already guarantees: a send queue that drops a second POST hides whether
-the widget refused it.
+fixture so that change reaches the measured surface. An assertion that nothing moved
+straddles a transition that would move without the rule. Check what a lower layer
+already guarantees: a send queue that drops a second POST hides whether the widget
+refused it.
 
 The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying

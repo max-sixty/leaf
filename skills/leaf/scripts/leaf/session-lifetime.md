@@ -157,8 +157,8 @@ of its life unheld and picks up again when a session takes it.
 
 ## The hook
 
-The `hook` command, registered on Stop, UserPromptSubmit, and SessionEnd,
-keeps a turn from ending while it leaves one of this session's pages unwatched
+The `hook` command, registered on Stop, UserPromptSubmit, SessionEnd, and Codex's
+PostToolUse and Interrupt, keeps a turn from ending while it leaves one of this session's pages unwatched
 (a page whose carrier is a process of its own; Claude Code's watch is its next
 Stop hook)
 or a delivered move unanswered and unclaimed, stamps that turn's ending and the
@@ -178,7 +178,16 @@ turns (`session.watch_between_turns`): its exit 2 wakes the session with its
 stderr, and every other ending is silent.
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
-itself. The App Server adapter presents at most one thread reply in each turn's
+itself. Codex's synchronous prompt hook records the provider turn even before a
+page is claimed. Its asynchronous PostToolUse hook renews only that observed
+running turn and offers one immutable pointer between steps. The observation's
+revision advances on a prompt, ending, or tool step: the queue rechecks it under
+the same delivery lock before reserving its route, so even a renewed step within
+the same turn invalidates an idle reading taken before it. Completing the hook does not prove
+the model read its output: `delivery read` in the owning task takes receipt and
+records opened pickup. Stop or Interrupt closes the observed turn, including a
+page acquired before its first tool hook, and a newer prompt protects its claims.
+The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
 workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
 exact response; the hook lets the provider turn close, and the observer commits the
@@ -274,14 +283,23 @@ reads `idle`; with no record, not until a Stop closes a later turn. An `adapter`
 `embedded` carrier declares no nudge and needs none: its process queues or starts
 turns itself, and if that process is gone so is the session it served.
 
-In Codex, on either transport, the adapter collects available input, then freezes the delivery. Input
-collected after that boundary belongs to a later delivery. Without an App Server
+In Codex, the adapter and tool hook collect available input into the same delivery
+records under the session's delivery lock. Capture excludes events already in any
+standing record, including an offer whose transport has not yet accepted it.
+While a proven tool hook can reach the running claimant turn, the queue adapter
+holds input for that hook. The hook freezes a plain-reply envelope and records
+its offer's exact turn; another hook does not repeat that pointer or take an offer
+another transport owns. Reading the pointer in the task reserves acceptance before
+taking page receipts. The adapter reconciles interrupted receipts the same way as
+every accepted delivery. An unread hook offer takes the idle queue once Stop or
+Interrupt closes the turn, or the canonical activity reading stops believing it.
+Input collected after the freeze belongs to a later delivery. Without an App Server
 observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable
 same-task queue. A failed or uncertain queue call retries the same frozen pointer while
 the session owns a page. With an observer, as with the embedded host below, Leaf
 retains the frozen delivery in its own offering state until the task is idle, then
-starts it directly; neither steers page input into the running turn nor copies the
-delivery into App Server's queue. Losing the session's final page leaves the
+starts it directly; tool-hook delivery during work remains a plain reply, while
+an idle App Server delivery binds the final message. Losing the session's final page leaves the
 collecting or offering record standing but inactive until the same session claims a
 page again. Acceptance has crossed the external-effect boundary, so its remaining page
 receipts are reconciled before the adapter checks ownership and retires.

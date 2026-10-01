@@ -252,7 +252,7 @@ def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None
     ), None
 
 
-def carry_turn(event: str | None, sid: str, payload: dict) -> None:
+def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
     """Answer a prompt, Stop, or other page-reading hook for a session holding a
     page: open or close its turn, hand over its pending input, and name what its
     pages are owed."""
@@ -278,8 +278,11 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
         # turn with what it says as new context. Stamp only a turn the hook lets
         # end.
         if not owed and (not reasons or payload.get("stop_hook_active")):
-            close_session_turn(sid)
-            return
+            # A provider-named turn closes through the synchronous observation
+            # in cmd_hook, which also covers a page acquired mid-turn.
+            if not payload.get("turn_id"):
+                close_session_turn(sid)
+            return True
     else:
         reasons = unattended_pages(sid)
     if not reasons and not batches:

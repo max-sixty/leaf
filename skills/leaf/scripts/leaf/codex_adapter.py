@@ -6,9 +6,14 @@ the agent to ask again. It owns the session watch: it captures each batch into t
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-One of two transports carries an offer. The `codex queue` command is the default,
-and the only one open to a task whose App Server Leaf cannot reach, such as the Codex
-desktop app's. It leaves a pointer for the task's next turn; the task reads that
+While a proven async tool hook has a running turn, it can offer the shared record
+between steps (`codex.offer_hook_delivery`). The adapter reserves its own route
+only when that turn is idle or no such hook has run, and an unread hook pointer
+then falls back to the same durable delivery.
+
+One of two transports carries the adapter's offer. The `codex queue` command is the
+default for a task whose App Server Leaf cannot reach, such as the Codex desktop
+app's. It leaves a pointer for the task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
 reply included. Over App Server, `start_delivery_turn` opens a turn on a connection of
 its own as soon as the task is idle and `DeliveryTurn` follows it there until it ends,
@@ -59,15 +64,17 @@ from .codex import (
     delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
+    hook_turn,
     offer_delivery,
+    receive_codex_batch,
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
+    step_delivery_turn,
     stop_app_server,
     stream_reply_target,
     write_record,
 )
-from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
 from .files import read_json
@@ -82,7 +89,6 @@ from .leases import (
 from .machine import state_home
 from .schema import EVENTS_FILE
 from .service import (
-    PageTransaction,
     owned_pages,
     starting_claim,
 )
@@ -126,8 +132,6 @@ def queue_delivery(
     prompt: str,
 ) -> None:
     """Hand one pointer prompt to Codex's durable same-task queue."""
-    # TODO(2026-09-12): Route active-turn delivery through `turn/steer` once
-    # Codex exposes the desktop task's App Server endpoint or an equivalent CLI command.
     arguments = ["queue"]
     arguments.extend(["--thread", thread_id, "--message", prompt])
     _run_codex(codex_path, *arguments)
@@ -603,27 +607,6 @@ def capture_batch(session_id: str, reading) -> bool:
     return captured is not None
 
 
-def _finish_batch(batch: dict, transport: dict | None = None) -> None:
-    """Take receipt for one persisted batch, preserving a successor's claim."""
-    page_dir = Path(batch["page"])
-    try:
-        with (
-            PageTransaction(page_dir) as page,
-            receive_batch(page, batch, session_id=batch["session"]) as delivered,
-        ):
-            record_pickup(
-                page,
-                delivered,
-                phase=(transport or {}).get("phase", "queued"),
-                session=batch["session"],
-                turn=(transport or {}).get("turn"),
-            )
-    except (FileNotFoundError, ReceiptRefused):
-        # The accepted transport record survives, but a removed or transferred
-        # page has no cursor this carrier may advance.
-        pass
-
-
 def _page_acknowledged(batch: dict) -> bool:
     page_dir = Path(batch["page"])
     if not (page_dir / EVENTS_FILE).is_file():
@@ -675,7 +658,7 @@ def _recover_receipt(session_id: str) -> bool:
     if pending is None:
         return False
     path, batch_index, batch, transport = pending
-    _finish_batch(batch, transport)
+    receive_codex_batch(batch, transport)
     with flocked(lock):
         _record_receipt(path, batch_index)
     return True
@@ -701,8 +684,17 @@ def _offer_queued_delivery(
         # opening a connection a second to ask the task instead is what this avoids.
         # Saying so is not work done: the loop goes on watching pages meanwhile.
         return False
+    observed_hook_turn = hook_turn(session_id)
+    if observer is None and step_delivery_turn(session_id) is not None:
+        # A trusted tool hook can offer this input before the running turn ends.
+        # Stop/Interrupt closes that turn; unread pointers then take this queue.
+        return False
     lock = delivery_lock_path(session_id)
     with flocked(lock):
+        if hook_turn(session_id) != observed_hook_turn:
+            # A prompt, ending, or tool step changed while activity was read.
+            # Retry before reserving a route against that newer observation.
+            return False
         records = delivery_records(session_id)
         unoffered = next(
             (
@@ -718,6 +710,11 @@ def _offer_queued_delivery(
             prepared = offer_delivery(
                 path, record, "queue" if observer is None else "app-server"
             )
+            record["transport"] = {
+                "phase": "queue" if observer is None else "app-server",
+                "turn": None,
+            }
+            write_record(prepared.record_path, record)
             offered = prepared.record_path, record, prepared
     if offered is None:
         return False

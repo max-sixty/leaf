@@ -12,7 +12,8 @@ readings on a claimed page, and the durable records a delivery passes through.
 A delivery record under the state home is the handoff between Leaf capturing a
 user's moves and a carrier taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
-the `codex queue` command — so preparing, accepting, opening and abandoning one live
+the `codex queue` command, or an async tool hook — so preparing, accepting, opening
+and abandoning one live
 here rather than beside either carrier. The immutable payload itself belongs to
 `delivery`; what this module keeps is which task holds it and how far it has got.
 
@@ -38,6 +39,7 @@ from websockets.sync.client import connect, unix_connect
 from .delivery import (
     DELIVERY_FORMAT,
     DeliveryIdConflict,
+    ReceiptRefused,
     batch_data,
     current_responses,
     delivery_path,
@@ -51,8 +53,8 @@ from .delivery import (
 )
 from .event_log import flocked
 from .files import read_json, write_json
-from .host import Harness
-from .leases import session_state_path, sessions_home
+from .host import Harness, session_harness
+from .leases import session_state_path, sessions_home, step_hook_ran
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
@@ -62,6 +64,7 @@ from .service import (
     restore_page_claim,
     unacknowledged,
 )
+from .state_paths import HOOK_TURN_SUFFIX, session_file
 from .thread import (
     DeliveryReply,
     release_delivery_reply,
@@ -1305,7 +1308,8 @@ def append_batch(
 
     delivered = {
         (entry["page"], event["seq"], event["id"])
-        for entry in record["batches"]
+        for _, standing in delivery_records(session_id)
+        for entry in standing["batches"]
         for event in entry["events"]
     }
     fresh = [
@@ -1345,6 +1349,201 @@ def append_batch(
     record["batches"].append(entry)
     write_record(path, record)
     return path, len(record["batches"]) - 1, entry
+
+
+def hook_turn(session_id: str) -> dict | None:
+    """The latest synchronous hook's provider turn observation, even before a page.
+
+    Async callbacks are not turn openers. This observation lets them bind a page
+    acquired mid-turn without replacing a newer turn, and serializes route choice
+    against a prompt or ending under the task's delivery lock.
+    """
+    observation = read_json(session_file(session_id, HOOK_TURN_SUFFIX))
+    if (
+        not isinstance(observation, dict)
+        or not {"turn", "running", "revision"} <= observation.keys()
+    ):
+        return None
+    return observation
+
+
+def _write_hook_turn(session_id: str, turn_id: str, *, running: bool) -> dict:
+    """Advance a provider observation under the task's delivery lock.
+
+    A new tool step renews the same turn, so turn identity alone cannot serialize
+    route choice against the activity reading a queue offer took before its lock.
+    """
+    previous = hook_turn(session_id)
+    observation = {
+        "turn": turn_id,
+        "running": running,
+        "revision": previous["revision"] + 1 if previous else 1,
+    }
+    write_json(session_state_path(session_id, HOOK_TURN_SUFFIX), observation)
+    return observation
+
+
+def start_hook_turn(session_id: str, turn_id: str) -> None:
+    with flocked(delivery_lock_path(session_id)):
+        _write_hook_turn(session_id, turn_id, running=True)
+
+
+def end_hook_turn(session_id: str, turn_id: str) -> None:
+    """Close the current observed turn, including pages acquired mid-turn.
+
+    A newly claimed page can still have a minted turn id if no tool hook bound
+    it. The synchronous observation authorizes closing those claims too, while
+    a newer prompt prevents this ending from touching that prompt's pages.
+    """
+    lock = delivery_lock_path(session_id)
+    with flocked(lock):
+        observed = hook_turn(session_id)
+        if not observed or observed["turn"] != turn_id or not observed["running"]:
+            return
+        ended = _write_hook_turn(session_id, turn_id, running=False)
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page, flocked(lock):
+                if hook_turn(session_id) != ended:
+                    return
+                page.close_turn(session_id)
+        except FileNotFoundError:
+            continue
+
+
+def step_delivery_turn(session_id: str) -> str | None:
+    """The running claimant turn a proven step hook can deliver into.
+
+    Use the same dated activity reading as the page, so an interrupted or stale
+    turn never holds the idle queue indefinitely. Read outside the delivery lock:
+    capture takes a page transaction before that lock.
+    """
+    observed = hook_turn(session_id)
+    if not step_hook_ran(session_id) or not observed or not observed["running"]:
+        return None
+    from .presence import claimant_reading
+
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                present, turn = claimant_reading(page_dir, page.events)
+                if (
+                    present["claim_session"] == session_id
+                    and turn.running
+                    and present["claim_turn"] == observed["turn"]
+                ):
+                    return present["claim_turn"]
+        except FileNotFoundError:
+            continue
+    return None
+
+
+def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
+    """Offer one plain-reply pointer through an async tool hook, without receipt.
+
+    The agent's actual `delivery read` proves this pointer entered a turn. If the
+    hook output arrives after the turn ends, the adapter queues the same frozen
+    pointer instead. An offering already owned by another transport is left alone.
+    """
+    lock = delivery_lock_path(session_id)
+    expected = hook_turn(session_id)
+    if not expected or expected["turn"] != turn_id or not expected["running"]:
+        return None
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                if page.active_claim is None or page.active_claim["id"] != session_id:
+                    continue
+                with flocked(lock):
+                    if hook_turn(session_id) != expected:
+                        return None
+                    expected = _write_hook_turn(session_id, turn_id, running=True)
+                    page.open_turn(session_id, turn_id)
+                    if batch := unacknowledged(page.events, page.cursor):
+                        append_batch(session_id, page_dir, page, batch)
+        except FileNotFoundError:
+            continue
+    with flocked(lock):
+        records = delivery_records(session_id)
+        if hook_turn(session_id) != expected:
+            return None
+        if any(record["state"] != "collecting" for _, record in records):
+            return None
+        pending = next(
+            (
+                (path, record)
+                for path, record in records
+                if record["state"] == "collecting"
+            ),
+            None,
+        )
+        if pending is None:
+            return None
+        path, record = pending
+        prepared = offer_delivery(path, record, "queue")
+        record["transport"] = {"phase": "hook", "turn": turn_id}
+        write_record(prepared.record_path, record)
+        return prepared.prompt
+
+
+def read_hook_delivery(payload: dict) -> None:
+    """Confirm a hook pointer only when its task actually reads it in a turn.
+
+    Reserve acceptance under the route lock before taking any page receipt. The
+    adapter's usual accepted-record recovery finishes interrupted receipts.
+    """
+    harness = session_harness()
+    if harness is None or (turn := step_delivery_turn(harness.session)) is None:
+        return
+    session_id = harness.session
+    lock = delivery_lock_path(session_id)
+    observed = hook_turn(session_id)
+    if not observed or observed["turn"] != turn or not observed["running"]:
+        return
+    path = record_path(session_id, payload["id"])
+    with flocked(lock):
+        record = read_json(path)
+        if (
+            hook_turn(session_id) != observed
+            or record is None
+            or record.get("format") != RECORD_FORMAT
+            or record["state"] != "offering"
+            or record.get("transport", {}).get("phase") != "hook"
+        ):
+            return
+        record["state"] = "accepted"
+        record["transport"] = {"phase": "opened", "turn": turn}
+        write_record(path, record)
+    for batch in record["batches"]:
+        receive_codex_batch(batch, record["transport"])
+    with flocked(lock):
+        record = read_json(path)
+        if record is not None:
+            for batch in record["batches"]:
+                batch["receipted"] = True
+            write_record(path, record)
+
+
+def receive_codex_batch(batch: dict, transport: dict | None = None) -> None:
+    """Receipt one accepted batch, preserving a successor or removed page.
+
+    Loss of one captured page never prevents the agent reading the immutable
+    envelope's remaining input. The accepted record still retires its batch.
+    """
+    try:
+        with (
+            PageTransaction(Path(batch["page"])) as page,
+            receive_batch(page, batch, session_id=batch["session"]) as events,
+        ):
+            record_pickup(
+                page,
+                events,
+                phase=(transport or {}).get("phase", "queued"),
+                session=batch["session"],
+                turn=(transport or {}).get("turn"),
+            )
+    except (FileNotFoundError, ReceiptRefused):
+        pass
 
 
 def delivery_owed_moves(payload: dict) -> list[dict]:

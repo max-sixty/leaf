@@ -1,15 +1,16 @@
 """Transport-neutral reads of one page's browser projection."""
 
+from contextlib import contextmanager
 from pathlib import Path
 
 from .. import presence as presence_model
-from ..event_log import now_iso
-from ..files import active_descriptor, missing_revision
+from ..files import missing_revision
 from ..revisioning import activate_source
 from ..service import PageTransaction
 from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
+from .context import read_page
 
 
 class PageStateService:
@@ -35,57 +36,42 @@ class PageStateService:
         self.preview = preview
         self.publication = publication
 
-    def _full_state(
-        self,
-        events: list,
-        source_error: str | None = None,
-        view_revision: int | None = None,
-    ) -> dict:
-        active_override = None
-        snapshot = self.page_snapshot
-        if snapshot is not None:
-            active_override = snapshot.active
-        return served_page.full_state(
-            self.page_dir,
-            events,
-            layer_identity=self.layer_identity,
-            preview=self.preview,
-            publication=self.publication,
-            source_error=source_error,
-            view_revision=view_revision,
-            active_override=active_override,
-            readings_override=snapshot.readings if snapshot is not None else None,
-            data_override=snapshot.data if snapshot is not None else None,
-            versions_override=snapshot.versions if snapshot is not None else None,
-            presence_override=snapshot.presence if snapshot is not None else None,
-            live_stream_override=snapshot.live_stream if snapshot is not None else None,
-            now_override=snapshot.now if snapshot is not None else None,
-            taken_override=snapshot.taken if snapshot is not None else None,
-        )
-
-    def page_state(
-        self,
-        view_revision: int | None = None,
-    ) -> dict:
-        if self.page_snapshot is None:
+    @contextmanager
+    def _read(self, *, with_token: bool = False):
+        if self.page_snapshot is not None:
+            yield self.page_snapshot.context, self.page_snapshot.reading, None
+        else:
             with PageTransaction(self.page_dir) as page:
                 activation = activate_source(self.page_dir)
-                reading = served_reading.page_reading(self.page_dir)
-                state = self._full_state(
-                    page.events, activation.error, view_revision=view_revision
+                # Only the complete state response carries a news token. Take it
+                # after activation and before the facts it names.
+                reading = (
+                    served_reading.page_reading(self.page_dir) if with_token else None
                 )
-        else:
-            reading = self.page_snapshot.reading
-            state = self._full_state(
-                list(self.page_snapshot.events), view_revision=view_revision
-            )
+                yield (
+                    read_page(
+                        self.page_dir, page.events, layer_identity=self.layer_identity
+                    ),
+                    reading,
+                    activation.error,
+                )
+
+    def page_state(self, view_revision: int | None = None) -> dict:
+        with self._read(with_token=True) as (context, reading, source_error):
+            state = served_page.read_served_page(
+                context,
+                preview=self.preview,
+                publication=self.publication,
+                source_error=source_error,
+                view_revision=view_revision,
+            ).state
         state["others"] = (
             list(self.page_snapshot.others)
             if self.page_snapshot is not None
             else presence_model.other_leaves(self.page_dir)
         )
         state["reading"] = (
-            self.page_snapshot.reading
+            reading
             if self.page_snapshot is not None
             else served_reading.join_reading(
                 reading, presence_model.presence_fingerprint(state, state["others"])
@@ -94,43 +80,17 @@ class PageStateService:
         return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
-        if self.page_snapshot is None:
-            with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir)
-                active = active_descriptor(self.page_dir, page.events)
-                if active is None:
-                    raise ValueError(missing_revision(self.page_dir))
-                events = page.events
-                readings_override = None
-        else:
-            active = self.page_snapshot.active
-            events = list(self.page_snapshot.events)
-            readings_override = self.page_snapshot.readings
-        latest_seq = events[-1]["seq"] if events else 0
-        if through_seq > latest_seq:
-            raise ValueError(
-                f"view sequence {through_seq} is newer than log sequence {latest_seq}"
+        with self._read() as (context, _reading, _source_error):
+            if context.active is None:
+                raise ValueError(missing_revision(self.page_dir))
+            projected = served_browser.project_browser_state(
+                context.through(through_seq),
+                view_revision,
+                include_active_view=False,
             )
-        events = [event for event in events if event["seq"] <= through_seq]
-        present = (
-            self.page_snapshot.presence
-            if self.page_snapshot is not None
-            else presence_model.presence(self.page_dir, events)
-        )
-        projected = served_browser.project_browser_state(
-            self.page_dir,
-            events,
-            view_revision,
-            active,
-            present,
-            now_iso(),
-            readings_override=readings_override,
-            include_active_view=False,
-        )
-        if projected is None:
-            raise ValueError("page registry cannot be projected")
-        view, _reading = projected
-        # Activity belongs to the complete state reading, not a historical
-        # document-view fetch. Keep one public route for the canonical answer.
+            if projected is None:
+                raise ValueError("page registry cannot be projected")
+            view, _reading = projected
+        # Activity belongs to complete state, not a historical document fetch.
         view.pop("activity", None)
         return view

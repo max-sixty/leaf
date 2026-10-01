@@ -522,7 +522,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         status, raw = fetch(
             preview.origin + "/api/samples",
             data=b'{"template":"practice"}',
-            layer=snapshot.layer["generation"],
+            layer=snapshot.context.layer["generation"],
             headers={"Leaf-View-Revision": "2"} if explicit_revision else {},
         )
         assert status == 200, raw
@@ -2540,7 +2540,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
 
     own_state_read = threading.Event()
     scanned = threading.Event()
-    original = served_page.full_state
+    original = served_page.read_served_page
 
     def own_state(*args, **kwargs):
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
@@ -2553,7 +2553,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         scanned.set()
         return []
 
-    monkeypatch.setattr(served_page, "full_state", own_state)
+    monkeypatch.setattr(served_page, "read_served_page", own_state)
     monkeypatch.setattr(presence_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
@@ -2573,13 +2573,13 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
         "text": "The write landed before its response failed.",
         "attempt": "attempt-state-fault-001",
     }
-    original_state = served_page.full_state
+    original_state = served_page.read_served_page
 
     def fail_state(*_args, **_kwargs):
         raise RuntimeError("state response failed")
 
     layer = registry_storage.layer_generation(page_dir)
-    monkeypatch.setattr(served_page, "full_state", fail_state)
+    monkeypatch.setattr(served_page, "read_served_page", fail_state)
     status, body = fetch(
         f"{server}/api/event", data=json.dumps(sent).encode(), layer=layer
     )
@@ -2596,7 +2596,7 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     ]
     assert len(accepted) == 1
 
-    monkeypatch.setattr(served_page, "full_state", original_state)
+    monkeypatch.setattr(served_page, "read_served_page", original_state)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
     assert status == 200
     receipt = next(
@@ -3872,11 +3872,12 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         assert status == 200
         assert json.loads(state)["reading"] == snapshot.reading
         assert fetch(f"{server.origin}/")[0] == 200
-        assert fetch(f"{server.origin}{snapshot.versions[0]['url']}")[0] == 200
+        assert fetch(f"{server.origin}{snapshot.context.versions[0]['url']}")[0] == 200
         revision_url = "/revisions/" + snapshot.revision_names[active["revision"]]
         assert fetch(f"{server.origin}{revision_url}")[0] == 200
         assert (
-            json.loads(fetch(f"{server.origin}/registry.json")[1]) == snapshot.registry
+            json.loads(fetch(f"{server.origin}/registry.json")[1])
+            == snapshot.context.registry
         )
         held = projection["data"]["sources"]["patches"]["revision"]
         status, deferred = fetch(
@@ -3890,6 +3891,85 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         response = stream.getresponse()
         assert response.readline().decode().strip() == f"data: {snapshot.reading}"
         stream.close()
+
+
+def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
+    """A captured preview keeps old gesture words, even without its source directory.
+
+    The shown document asks for history only after an older revision received a
+    gesture. Reading just the shown/active documents is therefore insufficient.
+    """
+    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir, 1)
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
+    )
+    (page_dir / "index.html").write_text(
+        source.replace("Flag first", "A renamed plan")
+        .replace('id="flag-first"', 'id="flag-first" restated')
+        .replace("</main>", '<lf-activity id="recent"></lf-activity></main>')
+    )
+    publish(page_dir, 2)
+    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, active["revision"]).document,
+        active,
+    )
+    service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
+    before = service.page_state()
+    [gesture] = [
+        row for row in before["browser"]["history"] if row["id"] == picked["id"]
+    ]
+    assert gesture["gesture"] == {"form": "choice", "chosen": ["Flag first"]}
+    comparison = service.page_browser_view(2, picked["seq"])
+    assert comparison["basis"] == {"through_seq": picked["seq"]}
+    assert comparison["history"][0]["gesture"] == gesture["gesture"]
+
+    shutil.rmtree(page_dir)
+
+    assert service.page_state() == before
+    assert service.page_browser_view(2, picked["seq"]) == comparison
+
+
+def test_comparison_revision_reads_stay_inside_the_page_transaction(
+    server, page_dir, monkeypatch
+):
+    """A lazy historical projection holds the log/claim boundary until it finishes."""
+    from leaf.served_state import context as read_context
+
+    publish(page_dir, 1)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "A revised plan"))
+    publish(page_dir, 2)
+    latest = event_model.read_events(page_dir)[-1]["seq"]
+    observed = []
+    original = read_context.read_revision
+
+    def held_revision(directory, revision):
+        observed.append(revision)
+        assert leases_model.lock_is_held(page_dir / "events.jsonl")
+        return original(directory, revision)
+
+    def unrelated_read(*_args):
+        raise AssertionError(
+            "a document comparison needs neither data nor a news token"
+        )
+
+    monkeypatch.setattr(read_context, "read_revision", held_revision)
+    monkeypatch.setattr(read_context, "read_data", unrelated_read)
+    monkeypatch.setattr(served_reading, "page_reading", unrelated_read)
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
+    assert status == 200, body
+    assert set(observed) == {1, 2}
 
 
 def _coarse_write_clock(monkeypatch):
@@ -4841,14 +4921,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = served_page.full_state
+    original = served_page.read_served_page
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(served_page, "full_state", held_state)
+    monkeypatch.setattr(served_page, "read_served_page", held_state)
     response = []
 
     def read_state():

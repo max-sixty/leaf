@@ -165,12 +165,13 @@ that reason. A test that reads the page by changing it and putting it back does 
 inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
-of those problems (`shift_watch.js`): one Chrome reports without recent input, and
+of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
 both; the nightly-marked tests watch again once the defect most of their shifts share is
-fixed (`known_shifts.watches_shifts`). Playwright's
-clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
-written by script, and the server's news are not. Fix what moved rather than consuming
+fixed (`known_shifts.watches_shifts`). Playwright's clicks and keys are input, as is a
+viewport resize; a script's `click()`, a `value` written by script, and the server's
+news are not, even in the half second after a click, so a test delivers news whenever
+its story does. Fix what moved rather than consuming
 the report. `known_shifts.py` names the tests whose pages still shift without input,
 each with the region its known shift moves: a defect waiting on its fix, whose entry
 goes when it is fixed.

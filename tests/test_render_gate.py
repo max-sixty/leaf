@@ -270,6 +270,35 @@ def _pane_regions(columns: str, media: str) -> str:
     )
 
 
+def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
+    """A workspace is a screen the reader moves through, so a region of it that has to
+    scroll is the exception, and the gate names each one at the desktop viewport, as
+    advice: the page still passes. Here the detail pane runs past its room and the
+    queue fits, so only the detail is named."""
+    source = leaf_page(
+        "screen regions",
+        """
+  <header><h1>Alerts</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
+    <lf-pane id="detail" label="Detail"><div><p>Disk pressure on db-2.</p>"""
+        + "".join(f"<p>Evidence line {n}.</p>" for n in range(60))
+        + """</div></lf-pane>
+  </div>
+""",
+        head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
+        "gap: var(--sp-4); }</style>",
+        layout="workspace",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    assert [region["id"] for region in reading.overflowing] == ["detail"]
+    (advice,) = [line for line in reading.advice if "past the region" in line]
+    assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+
+
 STACK = "{ #regions { grid-template-columns: 1fr; } }"
 SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
 

@@ -98,8 +98,11 @@ the stack from these:
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
-- **Regions that stay in view together** while each scrolls on its own, such as a
-  queue beside its detail, are a workspace (below).
+- **A screen the reader moves through rather than scrolls**, like a mail client or a
+  dashboard, such as a queue worked one item at a time or a run's log beside the chart
+  it explains, is a workspace (below). A document read top to bottom beside a panel
+  kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
+  page whose `aside` sticks ("A wide page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
@@ -142,7 +145,7 @@ A Layout is a class that arranges the box it is on. Three set the page's shape, 
 | --- | --- |
 | `layout-column` | the reading column, and a block's breakout beside it |
 | `layout-wide` | as wide as the window, up to a cap, holding one flow |
-| `layout-workspace` | fills the window: `header`, one body, `footer` |
+| `layout-workspace` | a screen filling the window: `header`, one body, `footer` |
 
 Two arrange a box's children, on `main` or on any block:
 
@@ -209,11 +212,13 @@ glance.
 
 ### A workspace
 
-`<main class="layout-workspace">` fills the window's height below the banner: its
-`header` and `footer` take what they hold, and its one body between them takes the
-rest. The header is one row, the title with the page's state beside it as `.tag`
-chips, so the panes keep the window: write no lede, eyebrow or legend there, and put
-what a lede would say at the top of the pane it is about. The body is one `lf-pane`, a
+`<main class="layout-workspace">` is a screen: it fills the window's height below the
+banner, and the reader moves through it, choosing what its regions show, rather than
+scrolling it. Its `header` and `footer` take what they hold, and its one body between
+them takes the rest. The header is one row, the title with the page's state beside it
+as `.tag` chips, so the regions keep the window: write no lede, eyebrow or legend there,
+and put what a lede would say at the top of the region it is about, or in a footer of a
+line or two. The body is one `lf-pane`, a
 widget that composes its own regions, or the page's own grid of panes, such as a run's
 log beside the chart it explains, which the page's `<style>` places:
 
@@ -241,11 +246,19 @@ decide, is one `lf-tabs list="side"` as the body: its list is the queue and each
 the Asks its item still holds. Write no script to select, hide or mark an item; the tab
 set does all three.
 
-Each pane's body scrolls on its own, and a widget that fills the body of a full-height
-workspace, such as a playground's stage, grows to the window's height. The `lf-pane`
-entry says what a pane holds. Let the Layout allocate the height: page-specific
-positioning should not be needed to keep a pane or footer reachable. Where the window is
-too small to hold the regions, the panes take their natural height and the page scrolls.
+The page itself does not scroll; a region does, where what it holds runs past it. Each
+pane's body scrolls on its own, and a widget that fills the body, such as a playground's
+stage, grows to the window's height. The `lf-pane` entry says what a pane holds. Let the
+Layout allocate the height: page-specific positioning should not be needed to keep a
+pane or footer reachable. Where the window is too small to hold the regions, they take
+their natural height and the page scrolls.
+
+Make a region show what it holds, so scrolling one stays the exception: a region a
+reader has to scroll through to reach its decision is read in two halves. `page check
+--render` names each pane or body that runs past its region at a desktop size; trim it
+to what the region shows, or split it. A pane that is a reader for something long, such
+as a source file or a log, is the exception the region scrolls for, and the advice on it
+can stand.
 
 ### Bounds and widths
 

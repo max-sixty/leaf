@@ -135,5 +135,6 @@ leaf page state <page>
 Read the active revision's HTML (`active.file`) and the standing `state` over it,
 then open Asks, current thread state, and `measurement_lag` for figures whose sources
 have run again. Before editing, follow `authoring-revisions.md`'s "Read
-before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
+before editing" section. Then run `leaf wait <page>` to claim it, or, where your
+host contract says its own hook watches between turns, `leaf page claim <page>`. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.

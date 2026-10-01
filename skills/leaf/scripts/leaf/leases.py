@@ -19,7 +19,6 @@ from pathlib import Path
 
 from leaf.event_log import (
     EventRefused,
-    flocked,
     require_cross_process_locking,
     still_named,
 )
@@ -226,59 +225,6 @@ def hooks_ran(session_id: str) -> bool:
 def adapter_is_live(session_id: str) -> bool:
     """Whether this session has a detached delivery carrier right now."""
     return lock_is_held(adapter_lease_path(session_id))
-
-
-def take_session_wait(session_id: str):
-    """Take this session's wait lease and mark the wait started, returning both
-    held, or None when another wait holds the lease.
-
-    The mark is a lock on `sessions/<id>.started`, held for the wait's life and
-    removed when a tool hook names the start (`name_wait_start`), or else when
-    the wait ends (`release_session_wait`). Lease and mark
-    are taken under the lock naming takes, so a reader sees a wait either not yet
-    started or started and marked, never the lease without its mark."""
-    lease_path = waiter_lease_path(None, session_id)
-    mark_path = session_state_path(session_id, "started")
-    with flocked(session_state_path(session_id, "started.lock")):
-        lease = take_lease(lease_path)
-        if lease is None:
-            return None
-        mark = open(mark_path, "a+b")  # noqa: SIM115 - held by the wait
-        # Readers ask about the mark only under the lock held here, and a wait
-        # lets its mark go before its lease, so this never waits.
-        fcntl.flock(mark, fcntl.LOCK_EX)
-        return lease, mark
-
-
-def release_session_wait(session_id: str, mark) -> None:
-    """Let a wait's start mark go, removing it if no tool hook named the start.
-
-    A foreground wait returns before its hook runs, so nothing names it; the file
-    is removed here, under the lock naming takes, rather than left for a later
-    reader to find unheld. The wait still holds its lease, so no other wait's mark
-    can stand at that name."""
-    with flocked(session_state_path(session_id, "started.lock")):
-        session_state_path(session_id, "started").unlink(missing_ok=True)
-        mark.close()
-
-
-def name_wait_start(session_id: str) -> bool | None:
-    """Whether a wait has started for this session that nothing has named yet,
-    naming it if so; None when the wait holding the lease is already named, so no
-    other can start while it runs.
-
-    Naming removes the mark, which the wait goes on holding, so a start is named
-    once. The question and the removal share one lock across readers: two
-    unlinks of one name can both succeed on macOS, so a removal alone does not
-    say which reader named it."""
-    mark_path = session_state_path(session_id, "started")
-    with flocked(session_state_path(session_id, "started.lock")):
-        if lock_is_held(mark_path):
-            mark_path.unlink()
-            return True
-        if lock_is_held(waiter_lease_path(None, session_id)):
-            return None
-        return False
 
 
 def wait_is_live(page_dir: Path, session_id: str | None) -> bool:

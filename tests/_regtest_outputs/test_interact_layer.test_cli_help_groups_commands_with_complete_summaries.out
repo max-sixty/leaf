@@ -78,6 +78,7 @@ Options:
 
 Commands:
   check       Check the mutable page source.
+  claim       Take a page this session did not serve.
   events      Print the event log as JSON lines.
   export      Export a stamped version to one HTML file.
   guidance    List or print composed guidance by audience.

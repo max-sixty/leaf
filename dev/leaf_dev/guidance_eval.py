@@ -26,7 +26,7 @@ from leaf_dev.leaf_assets import pinned_copy
 
 OUT = ROOT / ".tmp" / "guidance-eval"
 ARMS = ("base", "candidate")
-# `/developing-leaf`, "Score a guidance change", says why each is needed.
+# `/developing-leaf`, "Score a guidance change", says why `--allow-tools` is needed.
 FLAGS = (
     "--no-publish", "--ablation", "none", "--trust-plugin", "--judge-model", "opus",
     "-j", "8", "--allow-tools", "Skill", "Read",

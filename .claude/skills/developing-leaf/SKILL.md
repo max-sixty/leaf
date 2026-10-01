@@ -66,7 +66,7 @@ Playwright screenshot of an element taller than the viewport draws fixed overlay
 the wrong place.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
-a key, run `uv run leaf-dev probe` (`dev/AGENTS.md`) rather than writing a Playwright
+a key, run `uv run leaf-dev probe` (its `--help`) rather than writing a Playwright
 script.
 
 `uv run leaf-dev stills` crops each state in its catalogue that changed between the

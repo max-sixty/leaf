@@ -88,7 +88,8 @@ the composed static gate, and `command` the CLI and render handoff.
 Each boundary shared across modules or runtimes has its reference beside the code:
 
 - `leaf/page-storage.md`: page files and atomic state;
-- `leaf/events.md`: event shapes, threads, undo, edits, and reactions;
+- `leaf/events.md`: what each event kind means, admission, threads, undo, edits, and
+  reactions;
 - `leaf/layer-registry.md`: composition, vendoring, and layer generations;
 - `leaf/session-lifetime.md`: claims, watchers, and service lifetime;
 - `leaf/validation.md`: where each input is validated, static and browser checks,

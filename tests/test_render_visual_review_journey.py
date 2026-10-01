@@ -580,7 +580,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     marks = case.locator(".lf-shotframe").first.locator(".lf-shotdiff > span")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     expect(case.locator(".lf-vr-case-position")).to_have_text(
-        "Case 1 of 3 · Changed · 5 changed areas"
+        "Case 1 of 3 · Changed · 5 changed areas (1 outside the focus)"
     )
     expect(marks.first).to_be_hidden()
 

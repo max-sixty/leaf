@@ -504,18 +504,26 @@ export function describeDifference(reading) {
       throughout: "changed throughout",
       slight: "only slight changes",
     }[kind];
-  const changes = reading.regions.filter((region) => region.kind === "changed");
-  const before = changes.filter((region) => region.side === "before");
-  const after = changes.filter((region) => region.side === "after");
-  // Changes that overlap across the frames are one change seen twice.
-  const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
-  const changedCount = before.length + after.length - shared;
-  const movedCount = reading.regions.filter(
-    (region) => region.kind === "moved" && region.side === "after",
-  ).length;
+  const { changed: changedCount, moved: movedCount } = countAreas(reading.regions);
   const areas = (n) => `${n} ${n === 1 ? "area" : "areas"}`;
   if (!changedCount) return `${areas(movedCount)} moved`;
   return `${areas(changedCount).replace(" ", " changed ")}${movedCount ? `, ${movedCount} moved` : ""}`;
+}
+
+/* How many areas `regions` mark: `changed` and `moved`. A change outlined in both frames,
+ * where the two outlines overlap, is one change seen twice and counts once; a move
+ * counts once, by its place in after. */
+export function countAreas(regions) {
+  const changes = regions.filter((region) => region.kind === "changed");
+  const before = changes.filter((region) => region.side === "before");
+  const after = changes.filter((region) => region.side === "after");
+  const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
+  return {
+    changed: before.length + after.length - shared,
+    moved: regions.filter(
+      (region) => region.kind === "moved" && region.side === "after",
+    ).length,
+  };
 }
 
 /* `differingRegions` for two decoded images: HTMLImageElements, ImageBitmaps, or any

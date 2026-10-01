@@ -333,6 +333,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
   only what every page needs. Try it on non-Leaf captures first (another site, a
   terminal, a plot); where the capture is a browser's, recording each element's box
   beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
+  Known gaps: a pane that scrolled within itself reads as scattered changes and moves
+  rather than one region, a border that changed length draws a thin outline, and a
+  1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which a worker
+  would take off it.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

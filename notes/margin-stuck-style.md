@@ -68,13 +68,13 @@ import pytest
 from render_harness import FEATURE_GALLERY, open_page, resized, round_trip
 
 OUT = pathlib.Path(__file__).parents[1] / ".tmp" / "stuck"
-STUCK = """(ids) => Object.fromEntries(ids.map(id => {
+STUCK = """(ids) => window.lfUnwatched(() => Object.fromEntries(ids.map(id => {
   const t = document.getElementById(id);
   t.style.setProperty('--lf-stuck-probe', 'q1');
   const ok = getComputedStyle(t).getPropertyValue('--lf-stuck-probe').trim() === 'q1';
   t.style.removeProperty('--lf-stuck-probe');
   return [id, !ok];
-}))"""
+})))"""
 REJECT = (
     '[data-lf-margin-entry-owner="suggestion:bg-insert"]'
     '[data-lf-margin-entry-key="reject"]'
@@ -101,8 +101,9 @@ uv run pytest tests/test_scratch_stuck.py -m 'not nightly' -n 8 -p no:randomly
 grep -l '"bg-insert-line": true' .tmp/stuck/*.json | wc -l
 ```
 
-The tests themselves pass; the browser fixture reports the page's layout shifts at
-teardown, which this throttling provokes and the count ignores.
+The probe writes inside `lfUnwatched` (`tests/write_watch.js`), so the browser
+fixture does not count its own writes; every copy passes, and the count is the
+measurement. A run on 2026-10-01 counted 9 of 48.
 
 About 2.5 minutes. On main (2026-10-01) the span stayed stuck in 6–15 of 48 copies
 across runs; at 10x throttling, 2 of 24. The flake predates #1493: CI nightly at

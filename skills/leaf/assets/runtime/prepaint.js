@@ -1,8 +1,8 @@
 // What a document Leaf's runtime will run in, served or exported, has to say before its
 // first paint, which no module can reach: modules run once the document has parsed, and
 // the browser paints what has arrived well before that. Delivery places this script
-// after the head's canonical link and before the theme (`compose_document`), so the
-// page root that link declares is in the document when it runs.
+// after the head's canonical link, so the page root that link declares is in the
+// document when it runs, and before the bootstrap and the theme (`compose_document`).
 (() => {
   const root = document.documentElement;
   // The runtime will run here and upgrade the page's widgets, so the themes give each
@@ -10,6 +10,49 @@
   // with no runtime, a source file or a page with scripts off, keeps the readable
   // fallback, and only a served page draws the live chrome (`data-lf-live`, bootstrap.js).
   root.toggleAttribute("data-lf-interactive", true);
+
+  // Whether the runtime could not start, which the same themes read to give back the
+  // readable fallback a widget that will not upgrade needs, such as a tab set's stacked
+  // panels (`data-lf-startup-error`). A fault is `incomplete` where something the page
+  // needs did not arrive: its entry module or one it imports, its theme, or what the
+  // page declares itself (`lf-startup-failed`). An uncaught error in code that did load,
+  // before the page presents, is a fault too. Each is said once more as
+  // `lf-startup-fault`, which a served page's bootstrap answers by waiting for a server
+  // that can start the page (bootstrap.js); an export has no server to wait for.
+  const fault = (reason, incomplete) => {
+    root.dataset.lfStartupError = reason;
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-fault", { detail: { reason, incomplete } }),
+    );
+  };
+  window.addEventListener(
+    "error",
+    (event) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLScriptElement &&
+        target.matches("[type=module][data-lf-runtime]")
+      )
+        fault("entry module did not load", true);
+      else if (
+        target instanceof HTMLLinkElement &&
+        target.matches("[rel=stylesheet][data-lf-runtime]")
+      )
+        fault("theme stylesheet did not load", true);
+      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
+        // A browser that treats the script as another origin gives "Script error." and
+        // nothing else, so the file and line ride along: between them they are enough
+        // to find the fault in a build nobody here can run.
+        fault(
+          `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
+          false,
+        );
+    },
+    true,
+  );
+  window.addEventListener("lf-startup-failed", (event) =>
+    fault(event.detail?.reason || "the page reported it could not start", true),
+  );
 
   // Which page this document is, as the prefix of what the browser tab keeps for it.
   // Two leaf pages on one origin is what needs it: web storage is the origin's, so the

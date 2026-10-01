@@ -137,11 +137,13 @@ capability and imports what it needs, and `leaf.js` imports them and runs the
 boot sequence. Two classic scripts run before the first paint, which no module
 reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
 else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
-it can show a startup failure even if the module graph never loads; and it holds page
-keys pressed before presentation. `runtime/prepaint.js` runs in every document the
-runtime runs in, served or exported. It marks the root `data-lf-interactive`, so the
-themes give each widget its upgraded box; it declares the page's storage scope; and it
-decides which member an `x-views` holder opens on. Content modules import only
+it shows a startup failure and waits for a server that can start the page, even if
+the module graph never loads; and it holds page keys pressed before presentation.
+`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
+ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
+each widget its upgraded box, and `data-lf-startup-error` when the runtime could not
+start, so they give back the readable fallback; it declares the page's storage scope;
+and it decides which member an `x-views` holder opens on. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and

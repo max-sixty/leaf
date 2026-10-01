@@ -20,7 +20,7 @@ from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_harness import displayed
+from render_harness import consume_browser_errors, displayed
 
 # The base layer's two halves and every bundled package, each reported on its own
 # widgets as a package author's `package check --render` would.
@@ -226,7 +226,8 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
     """An export runs the runtime, so its widgets take the boxes their modules will
     draw from the first paint, as a served page's do; it draws no live chrome, so it
     reserves no banner. Its first paint is the export without its entry module, which
-    is the document the browser lays out before the module graph runs."""
+    is the document the browser lays out before the module graph runs. One whose entry
+    cannot load falls back to the readable page."""
     serve(
         leaf_page(
             "Exported",
@@ -248,11 +249,16 @@ feeders/
     )
     exported = tmp_path / "exported.html"
     exporting_model.cmd_export(serve.page_dir, exported, None)
-    entry = re.compile(r'<script type="module" src="[^"]*" data-lf-runtime></script>')
-    held_source, entries = entry.subn("", exported.read_text(encoding="utf-8"))
+    entry = re.compile(
+        r'(<script type="module" src=)"[^"]*"( data-lf-runtime></script>)'
+    )
+    source = exported.read_text(encoding="utf-8")
+    held_source, entries = entry.subn("", source)
     assert entries == 1, "the export no longer names one entry module to leave out"
     held = tmp_path / "held.html"
     held.write_text(held_source, encoding="utf-8")
+    failed = tmp_path / "failed.html"
+    failed.write_text(entry.sub(r'\1"missing.js"\2', source), encoding="utf-8")
 
     first_page = browser.new_page(viewport={"width": 1200, "height": 900})
     first_page.goto(held.as_uri(), wait_until="load")
@@ -272,3 +278,13 @@ feeders/
         )
         == "0px"
     )
+
+    # An export whose runtime cannot start has no server to wait for, but it still
+    # gives back the readable fallback: every panel, under its label.
+    broken = browser.new_page(viewport={"width": 1200, "height": 900})
+    broken.goto(failed.as_uri(), wait_until="load")
+    expect(broken.locator("html")).to_have_attribute(
+        "data-lf-startup-error", "entry module did not load"
+    )
+    assert broken.evaluate(SHOWN)["panels"] == ["one", "two", "near", "far"]
+    consume_browser_errors(broken, "missing.js", "net::ERR_FAILED")

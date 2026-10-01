@@ -254,6 +254,14 @@ widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
+A widget whose entry declares `x-height`, such as `lf-chart` or `lf-diagram`, is drawn
+by its module at a height the page holds before the drawing arrives: the entry's
+number, or an occurrence's `data-height`, in CSS pixels. `lf-chart` draws at that
+height. A widget whose drawing has a height of its own, such as `lf-diagram` or
+`lf-diff`, has no number, so what follows it moves when it is drawn unless the
+occurrence states that height. `page check --render` advises the height to state
+wherever a drawing differs from what the page held.
+
 Show evidence at the scale needed to judge it. For a local change, supply an aligned
 detail view with the complete object available for context; use whole frames when their
 composition is the subject. A fitted thumbnail is an overview, not a substitute for

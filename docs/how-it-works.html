@@ -135,7 +135,11 @@
               the page.
             </p>
 
-            <lf-diagram id="arch" parts="node:Agent node:Leaf node:Browser">
+            <lf-diagram
+              id="arch"
+              data-height="286"
+              parts="node:Agent node:Leaf node:Browser"
+            >
               <pre>
 sequenceDiagram
   participant Agent as agent session
@@ -381,6 +385,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </p>
             <lf-diagram
               id="turn-end-move"
+              data-height="1086"
               parts="node:Sent node:Queued node:Held node:Picked node:Working node:Settled"
             >
               <pre>
@@ -414,6 +419,7 @@ stateDiagram-v2
             </p>
             <lf-diagram
               id="turn-end-check"
+              data-height="1000"
               parts="node:Stop node:New node:Hand node:Again node:Owed node:Claimed node:Watched node:Remind node:Ends"
             >
               <pre>

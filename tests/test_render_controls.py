@@ -5043,10 +5043,10 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
                     foot: rect(document.querySelector(".lf-thread-panel-foot")),
                     status: rect(document.querySelector(".lf-bottom-status")),
-                    standingThread: standing ? rect(standing) : null,
+                    standingTitle: standing ? rect(document.activeElement) : null,
                     lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
-                    listInlinePad: list.style.paddingBottom,
+                    listInlinePad: list.style.getPropertyValue("--lf-threads-foot"),
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
@@ -5076,7 +5076,8 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, multiline
 
     # A thread walk introduces foreground status above the panel. Reach the last thread
-    # through the real keyboard route and prove its card lands clear of that status band.
+    # through the real keyboard route and prove its title lands clear of that status band.
+    # The open card itself fills the list, its free room reaching under the status.
     field.evaluate("field => field.blur()")
     page.locator(".lf-threads").focus()
     for _ in range(6):
@@ -5086,8 +5087,8 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     walked = boxes()
     assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
     assert walked["listInlinePad"], walked
-    assert walked["standingThread"], walked
-    assert walked["standingThread"]["bottom"] <= walked["status"]["top"], (
+    assert walked["standingTitle"], walked
+    assert walked["standingTitle"]["bottom"] <= walked["status"]["top"], (
         f"the last walked thread landed under its live status: {walked}"
     )
 

@@ -198,6 +198,13 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "plan-panel-touch",
+        "review-a-plan",
+        threads_panel,
+        viewport=(390, 844),
+        touch=True,
+    ),
     # Last on its page, since the reply it sends stays in the log.
     State("plan-panel-sent", "review-a-plan", panel_reply_sent),
     State("triage", "triage-board", at_rest),

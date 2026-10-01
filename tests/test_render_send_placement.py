@@ -33,7 +33,7 @@ from leaf.render_checks import rendered
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
-from render_harness import open_page, select
+from render_harness import judge_watches, open_page, select
 
 SHOTS = Path(__file__).resolve().parent.parent / ".tmp" / "send-placement"
 
@@ -358,6 +358,8 @@ def sent(browser, serve, name):
     }
     # Read, the case is over. A page left open while the later cases run sees its
     # message's age turn from "just now" to "1m ago", which is not what this test reads.
+    # Its last frames, Send's included, are judged first, as a test's end judges them.
+    judge_watches()
     context.close()
     return reading
 

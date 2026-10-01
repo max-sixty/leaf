@@ -206,7 +206,9 @@ the step between. The browser fixture fails a write that changes
 nothing in any test (`tests/write_watch.js`), and
 `test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 
-What a page says follows from where it stands now, not from how it got there. A page
+What a page says follows from where it stands now, not from how it got there. The one
+history its arrangement keeps is the order its margin rows came in, since a row that
+arrives yields to those already there rather than moving them (`margin-layout.js`). A page
 nobody touches writes nothing, asks for no frame, and moves no focus; a surface opened
 and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever

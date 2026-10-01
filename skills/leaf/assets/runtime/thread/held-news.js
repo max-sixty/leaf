@@ -174,10 +174,10 @@ export class HeldNews {
     // it does in the turn they send it. Their words from another tab, or a turn a seat
     // first draws after the log answered it, as a package mirror whose render waited
     // on work of its own does, arrive like the agent's.
-    const sending = new Set(
+    const ledger = new Set(
       readApplication().unresolved.map(({ event }) => event.attempt),
     );
-    const own = ({ author, attempt }) => author === "user" && sending.has(attempt);
+    const own = ({ author, attempt }) => author === "user" && ledger.has(attempt);
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ messages }) => messages[0] && own(messages[0])))

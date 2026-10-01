@@ -103,12 +103,15 @@ KNOWN_LOSSES = {
 def watches_shifts(test):
     """Whether a pytest node `test`'s pages watch for shifts at all.
 
-    The nightly-marked tests do not yet: their pages make hundreds of shifts, most of
-    them widgets that upgrade after the authored document has painted and move what
-    follows them after presentation, and a nightly run on Linux finds more than a run
-    here does. They watch again, with the entries a fresh survey finds, once that
-    upgrade is fixed."""
-    return test.get_closest_marker("nightly") is None
+    Ordinary tests watch by default. A surveyed nightly test opts in with
+    `watch_shifts`, independently of when it runs. The remaining nightly tests await
+    a fresh survey after the widget prepaint fixes; the earlier survey found hundreds
+    of shifts and more failures on Linux than on macOS. This selection does not lift
+    the watcher's separate first-presentation exemption (`shift_watch.js`)."""
+    return (
+        test.get_closest_marker("nightly") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
 
 
 def known(test, problem):

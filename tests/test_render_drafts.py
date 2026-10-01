@@ -2729,8 +2729,9 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
     expect(third.locator(".lf-composer leaf-text")).to_have_js_property("value", late)
 
 
-def test_comment_follows_a_new_standing_instead_of_a_withheld_draft(browser, serve):
-    """The old box is a saved draft; a later keyboard landing names the next comment."""
+def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
+    """The earlier draft keeps its subject while a later keyboard landing names
+    the next comment, even though the active editor stays in the window."""
     source = LONG_PAGE.replace(
         "<p id='p40'>", '<p id="p40"><a id="later-link" href="#p41">Later item</a> '
     )
@@ -2741,7 +2742,11 @@ def test_comment_follows_a_new_standing_instead_of_a_withheld_draft(browser, ser
     page.keyboard.press("Shift+Tab")
     page.locator("#later-link").scroll_into_view_if_needed()
     go_to_address(page, "Link", "later-link")
-    expect(page.locator(".lf-fab-input")).not_to_be_in_viewport()
+    expect(page.locator("#p3")).not_to_be_in_viewport()
+    earlier = page.locator(".lf-fab-input")
+    expect(earlier).to_be_in_viewport()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
     expect(page.locator("#p41")).to_be_focused()
 
     page.keyboard.press("c")
@@ -2779,7 +2784,11 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-fab-input")).not_to_be_in_viewport()
+    expect(page.locator("#p3")).not_to_be_in_viewport()
+    earlier = page.locator(".lf-fab-input")
+    expect(earlier).to_be_in_viewport()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
     page.keyboard.press("c")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()

@@ -1,0 +1,39 @@
+# Added when restoring the contents default after its advice was removed (#1242).
+# Measures whether the main authoring route supplies navigation for a long report.
+# Base at 3ba1bb7f6 supplied it in 1 of 3 runs; the restored guidance in 3 of 3.
+schema_version: '1.0'
+name: long-document-has-contents
+description: "A long scrolling report includes an opening contents sidebar so the reader can move between sections and see their position."
+tags:
+- layout
+- navigation
+execution:
+  prompt: |
+    Write a Leaf report for the user explaining a service migration from Redis to
+    Postgres. They will read it on a desktop and return to different parts during the
+    rollout. Keep it as one continuous document, about 1500 words, with six sections:
+    why the store is changing, the target schema, copying existing sessions, shadow
+    reads and consistency checks, switching traffic, and rollback. Each section should
+    explain the approach, the risk, and the evidence needed to proceed.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/page-authoring\.md
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if the report is one scrolling column document with a
+    contents outline: main has class layout-column, and an aside with class sidebar
+    is a direct child near its opening, before the report's substantive sections.
+    That aside contains an empty lf-toc with an explicit end tag and a stable id.
+    A hand-written navigation list alone does not supply that generated outline.
+    Fail if the report is divided into page tabs,
+    placed in a workspace, or given a separate layout-sidebar track for navigation.

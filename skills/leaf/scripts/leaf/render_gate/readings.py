@@ -440,14 +440,6 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 # above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
-# What of the page's own stands in its margin: the tokens the margin pass writes on
-# `main` (margin-layout.js, `settleResidency`), less the rail, which holds only Leaf's
-# markers and never moves the column.
-MARGIN_READING = (
-    "(document.querySelector('main')?.getAttribute('data-lf-margin') ?? '')"
-    ".split(' ').filter(t => t && t !== 'rail').join(' ')"
-)
-
 
 def _settle_at(page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
@@ -481,18 +473,7 @@ def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
         _settle_at(page, width, height)
-        readings.append(
-            (
-                width,
-                {
-                    "overflow": evaluate_probe(page, "rootOverflow"),
-                    "misplaced": evaluate_probe(page, "misplacedBoxes"),
-                    "margin": page.evaluate(MARGIN_READING),
-                    "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
-                    "panes": evaluate_probe(page, "heldPanes"),
-                },
-            )
-        )
+        readings.append((width, evaluate_probe(page, "geometryReading", open_tags)))
     return readings
 
 
@@ -569,7 +550,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
         while high - low > 1:
             middle = (low + high) // 2
             _settle_at(page, middle, height)
-            if page.evaluate(MARGIN_READING) == above:
+            if evaluate_probe(page, "marginResidents") == above:
                 high = middle
             else:
                 low = middle

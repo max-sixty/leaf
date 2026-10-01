@@ -439,7 +439,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     for example in examples:
         fixture = read_fixture(example)
 
-        # By path, since two notes may each preview a `playground.html`.
+        # Named by its path, since notes each keep a `playground.html`.
         d = tmp_path / "-".join(example.relative_to(ROOT).with_suffix("").parts)
 
         def initialize(target, packages=fixture.packages):

@@ -105,8 +105,10 @@ html[data-lf-live] lf-tasks lf-task:not(:has(> .lf-chips)):is(
   & > strong:first-of-type { display: block; }
   & > strong:first-of-type::after { content: ""; display: block;
     height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
-  &:not(:has(> strong)) { padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
 }
+html[data-lf-live] lf-tasks lf-task:not(:has(> .lf-chips, > strong)):is(
+    [owner]:not([owner=""]), [when]:not([when=""]), [tags]:not([tags=""]), :has(lf-task)) {
+  padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
 lf-task[status="done"] > strong { color: var(--muted); }
 
 /* Command tree: the plan is canonical; these are projections generated around it.

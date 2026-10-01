@@ -86,7 +86,7 @@ lf-playground:has(> .lf-playground-split) {
  * or on the wide split's two thirds beside the rail, the whole held height. The rail's
  * controls, readings and actions are the module's to build, and its members stand in
  * the rail's column until then. A quoted playground builds no regions. */
-html[data-lf-live]
+html[data-lf-interactive]
   lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
   position: relative;
   align-content: start;
@@ -97,7 +97,7 @@ html[data-lf-live]
 }
 
 @container (min-width: 43.5rem) {
-  html[data-lf-live]
+  html[data-lf-interactive]
     lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
     & > lf-playground-preview {
       position: absolute;

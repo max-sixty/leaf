@@ -304,6 +304,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
+/* What a seat holds while it would move the page under the reader (thread/held-news.js).
+   The rows it appears in already stand at the height of a control beside it: the head
+   row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
+   it asks for none of the depth below the words; in the resolved row it stands at the
+   end, beside Reopen, or in Reopen's place and face where it holds the reopening. A seat
+   that draws no thread shows it in its first-message row's place, at the height the
+   runtime measured that row at. */
+.lf-thread-news { flex: none; align-self: center; }
+.lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
+.lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-page-thread-head time { color: var(--muted-2); }
 .lf-page-thread-head .lf-edited { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */

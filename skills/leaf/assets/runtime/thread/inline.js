@@ -9,6 +9,7 @@ import { holdFocus } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
+import { HeldNews, seatNotice } from "./held-news.js";
 
 const seats = new WeakMap();
 const activeSeats = new Set();
@@ -18,7 +19,12 @@ let activeBatch = null;
 class ThreadSeat {
   #views = new Map();
   #model = EMPTY;
+  #shown = EMPTY;
   #committed = EMPTY;
+  // A seat in the page's flow holds back news that would move what the reader reads, and
+  // says so in place of its first-message row while it draws no thread (held-news.js).
+  #held = null;
+  #notice = null;
   #commands = null;
   #response = () => null;
   #connected = false;
@@ -40,13 +46,32 @@ class ThreadSeat {
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const restoreBox = this.node.contains(standing) ? holdBox(standing) : () => {};
-    const added = model.threads.filter(
-      (thread) => !this.#model.threads.some(({ key }) => key === thread.key),
-    );
     this.#model = model;
-    const wanted = new Set(model.threads.map((thread) => thread.key));
+    if (model.surface === "page" || model.surface === "outlet")
+      this.#held ??= new HeldNews(
+        this.node,
+        (key) => this.#views.get(key),
+        () => this.present(this.#model),
+      );
+    const prior = this.#shown;
+    // The first-message row the seat drew, which a thread arriving in a seat that gives
+    // its box up takes out of the reading even while the seat holds that thread.
+    const box = model.surface === "page" ? this.#response() : null;
+    const row = Boolean(box) && prior.response && !box.contains(standing);
+    const shown = this.#held ? this.#held.hold(model, { row }) : model;
+    let foot = shown.response ? this.#response() : null;
+    if (shown.news) {
+      this.#notice ??= seatNotice();
+      this.#notice.set(shown.news, box);
+      foot = this.#notice.node;
+    }
+    this.#shown = shown;
+    const added = shown.threads.filter(
+      (thread) => !prior.threads.some(({ key }) => key === thread.key),
+    );
+    const wanted = new Set(shown.threads.map((thread) => thread.key));
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
-    const nodes = model.threads.map((descriptor) => {
+    const nodes = shown.threads.map((descriptor) => {
       let view = this.#views.get(descriptor.key);
       if (!view)
         this.#views.set(
@@ -64,13 +89,16 @@ class ThreadSeat {
           (item) => item.key,
           (item) => item.node,
         ),
-        model.response ? this.#response() : null,
+        foot,
       ],
       this.node,
     );
     // The seat's own box gives way to the thread its message started, and the user stands
-    // on that thread, where any send leaves them (`landSent`).
-    const started = added.length === 1 && this.#views.get(added[0].key).node;
+    // on that thread, where any send leaves them (`landSent`). Threads the seat held back
+    // show with the user's, which is the one they stand on.
+    const own = added.filter(({ messages }) => messages[0]?.author === "user");
+    const start = own.length === 1 ? own[0] : added.length === 1 ? added[0] : null;
+    const started = start && this.#views.get(start.key).node;
     restoreFocus?.(started && (() => this.#commands?.reply.landSent(started)));
     restoreBox();
     if (!batch) this.commit();
@@ -78,7 +106,7 @@ class ThreadSeat {
 
   commit() {
     this.#committed = this.#model;
-    const wanted = new Set(this.#model.threads.map((thread) => thread.key));
+    const wanted = new Set(this.#shown.threads.map((thread) => thread.key));
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -94,6 +122,7 @@ class ThreadSeat {
   }
   prune() {
     if (!this.#connected || this.node.isConnected) return false;
+    this.#held?.dispose();
     for (const view of this.#views.values()) view.dispose();
     this.#views.clear();
     return true;
@@ -115,6 +144,7 @@ function seatReading(threads, surface, commands, response) {
     threads: Object.freeze(
       threads.map((thread) => threadReading(thread, surface, commands, {})),
     ),
+    surface,
     response: Boolean(response),
   });
 }

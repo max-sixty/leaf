@@ -1887,6 +1887,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
     expect(page.locator("html")).to_have_attribute("data-lf-live", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (
@@ -8885,6 +8886,8 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
         "The hunk is complete; see the run and park."
     )
+    # The reply landed where the user was looking, so it waits for them to open it.
+    seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()

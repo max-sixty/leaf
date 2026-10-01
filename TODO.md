@@ -57,6 +57,17 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
+### Prose
+
+- **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** Six phases cover
+  the guidance, the website, UI and CLI copy, and the examples. Each phase is a
+  `/iteration:descartes` rewrite in Worktrunk's register, judged by the words it cuts.
+  Phase 0 has landed (#1476). Phase 1, the maintainer guidance, is written 26% shorter
+  and waits on review and landing. Phase 2, the agent guidance, needs no decision and is
+  scored with `evals/`. Phases 3–6 wait on five decisions the note lays out with a
+  recommendation for each: banner and delivery depth, how far to restructure the site,
+  the word for the user's input, `layout-sidebar`'s name, and the playground examples.
+
 ## Next
 
 ### User continuity and mobile access
@@ -136,6 +147,34 @@ and its chrome coordinate.
   (`leaf-dev corpus`) sets every example's body in one column page, so only the
   nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
   own Layout.
+- **Show each floating surface across the content it can hold.** `leaf-dev stills`
+  screenshots the same states on the base and the branch, so it reports a change but
+  misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
+  the room right of the text, 584px around the one word "why?" at 1920px, and no still
+  showed it, because every card in the catalogue held a long thread. Build a suite that
+  varies what a surface holds as well as the window:
+  - Graded content for each surface. For a thread card that is one word, one line, two
+    short lines, a paragraph, an exchange with an agent reply, and an unbreakable URL,
+    each opened at 1920, 1440, beside an open panel, 1024 and 360px and cropped to the
+    card and the marker that opened it. The comment box, the selection action bar and
+    the Threads panel take the same treatment.
+  - Measurements beside each still: the surface's box, how much of its width its
+    content fills, whether it covers the control that opened it while there is room
+    beside it, and whether it crosses the visible edge. A threshold on each fails a
+    surface that was already wrong, on both arms, which a comparison cannot do.
+  - One page showing every still in a grid, a row per window width with the content
+    growing along it and changed cells outlined. `lf-visual-review` steps through one
+    case at a time, so the grid is a new view, in that package or beside it.
+  - For thread placement alone, an SVG atlas of `thread-card-geometry.js` over a grid
+    of inputs, which `npm run test:runtime` can draw without a browser.
+
+  How to keep the candidates maintainable is not yet thought through, and comes before
+  building. Adding a few dozen hand-written entries to `STATES` grows a list that
+  nothing keeps complete. Decide whether a surface declares the ways its content
+  varies and the suite takes every combination, where the graded fixtures live so one
+  edit reaches every surface, how the matrix stays small enough to run and to read,
+  and which measurements become thresholds a test enforces rather than numbers a
+  person reads.
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.

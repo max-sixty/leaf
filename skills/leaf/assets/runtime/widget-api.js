@@ -145,7 +145,7 @@ export {
 } from "./target-references.js";
 export { projectData } from "./application.js";
 export { retainUserIntent } from "./user-intent.js";
-export { tabStore } from "./storage.js";
+export { keepView, openingView, tabStore } from "./storage.js";
 export {
   highlightBlocks,
   langForPath,

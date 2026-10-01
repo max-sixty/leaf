@@ -7411,9 +7411,44 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
     ).to_have_attribute("aria-label", re.compile(r"^Sent\b"))
+    for _ in range(2):
+        rendered(page)
+        assert preview.evaluate(where) == card
+        assert thread.evaluate(where) == row
+        # A later pass, which any repaint of the margin brings, moves nothing either.
+        margins_laid_out(page)
+
+
+def test_a_row_arriving_takes_the_room_below_the_markers_already_standing(
+    browser, serve
+):
+    """A pick's receipt is news to the thread marker beside the options: it lands in the
+    room below that marker rather than seating itself first, from the top, and pushing
+    the marker out from beside the option the user may press next."""
+    root = {**LONG_THREAD_ROOT, "anchor": {"section": "row"}}
+    page = open_page(browser, serve(PICK_UNDER_A_CARD, events=[root]))
+    resized(page, 1400, 900)
     rendered(page)
-    assert preview.evaluate(where) == card
+    thread = page.locator('[data-lf-margin-for="row"]')
+    where = "node => node.getBoundingClientRect().toJSON()"
+    row = thread.evaluate(where)
+    with sending(page, "the pick"):
+        page.locator("#two").click(position={"x": 20, "y": 10})
+    receipt = page.locator('[data-lf-margin-for="choice"]')
+    expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
+        "aria-label", re.compile(r"^Sent\b")
+    )
+    rendered(page)
     assert thread.evaluate(where) == row
+    assert receipt.evaluate(where)["top"] >= row["bottom"]
+    stands = receipt.evaluate(where)
+    # A later pass, which any repaint of the margin brings, moves neither, and nor does
+    # the receipt being held where it stands.
+    receipt.locator(".lf-margin-marker").hover()
+    margins_laid_out(page)
+    rendered(page)
+    assert thread.evaluate(where) == row
+    assert receipt.evaluate(where) == stands
 
 
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
@@ -9558,6 +9593,50 @@ def test_a_comment_in_a_table_wider_than_the_column_keeps_the_rail(browser, serv
     expect(
         page.locator('.lf-margin-cluster[data-lf-margin-for="first-cell"]')
     ).to_have_attribute("data-lf-place", "rail")
+
+
+CELL_TARGET_PAGE = leaf_page(
+    "a comment in a table's last column",
+    """
+<h1 id="t">Phases</h1>
+<p id="before">A paragraph above the table.</p>
+<table id="phases">
+<thead><tr><th>Phase</th><th>Contents</th><th>Choice</th></tr></thead>
+<tbody>
+<tr id="phase-1"><td>1</td><td>Maintainer guidance rewritten.</td><td>Committed</td></tr>
+<tr id="phase-2"><td>2</td><td>Agent guidance rewritten.</td><td>Delivery depth</td></tr>
+</tbody>
+</table>
+""",
+)
+
+
+def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
+    """Resolving from the card hands the user to the thread's target, here a cell in
+    the table's last column. The table clips to its own edges, which that cell stands
+    flush with, so the ring it wears there has to be whole inside the table."""
+    page = open_page(
+        browser,
+        serve(
+            CELL_TARGET_PAGE,
+            events=[_comment_on("phase-2", quote="Delivery depth")],
+        ),
+    )
+    resized(page, 1440, 900)
+    page.keyboard.press("Tab")  # keyboard modality, so the landing's ring is drawn
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.focus()
+    page.keyboard.press("Enter")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+
+    page.keyboard.press("r")
+    expect(preview).to_be_hidden()
+    cell = page.locator("#phase-2 > td").last
+    expect(cell).to_be_focused()
+    ring = standing_ring(page)
+    assert ring, "the cell the user stands on wears no ring"
+    assert ring["cuts"] == [], ring["cuts"]
 
 
 def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):

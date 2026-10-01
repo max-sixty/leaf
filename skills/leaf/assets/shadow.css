@@ -740,3 +740,42 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
   cursor: auto !important; }
+/* Code reserves its copy row before paint; the control stays outside the
+   horizontal scroller and never covers source text. */
+:root {
+  --lf-code-copy-size: max(32px, var(--aim-floor));
+  --lf-code-copy-space: 0px;
+}
+html[data-lf-interactive] { --lf-code-copy-space: var(--lf-code-copy-size); }
+:root pre:has(> code) { padding-block-start: calc(12px + var(--lf-code-copy-space)); }
+.lf-code-copy {
+  position: absolute;
+  top: calc(anchor(top) + 4px);
+  left: calc(anchor(right) - var(--lf-code-copy-size) - 4px);
+  width: var(--lf-code-copy-size);
+  height: var(--lf-code-copy-size);
+  z-index: 1;
+  white-space: normal;
+  font-size: 0;
+  line-height: 0;
+}
+.lf-code-copy::part(button) {
+  width: var(--lf-code-copy-size);
+  height: var(--lf-code-copy-size);
+  padding: 6px;
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+  background: var(--pre-bg);
+  color: var(--muted);
+  display: flex;
+  font-size: var(--t-5);
+}
+.lf-code-copy::part(button):hover { color: var(--ink); }
+.lf-code-copy::part(button):focus-visible {
+  outline: var(--focus-ring);
+  --lf-focus-ring: code-copy;
+}
+@media print {
+  :root, html[data-lf-interactive] { --lf-code-copy-space: 0px; }
+  .lf-code-copy { display: none; }
+}

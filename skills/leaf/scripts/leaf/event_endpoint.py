@@ -154,21 +154,8 @@ def _execute_event(
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
-            if (
-                requires_agent_attention(event)
-                and claim
-                and not wait_is_live(page_dir, claim["id"])
-            ):
-                present, turn = claimant_reading(page_dir, page.events)
-                stamp = claim.get("turn_closed") or claim.get("turn_opened")
-                mark = f"{claim['turn']}@{stamp}"
-                if (
-                    turn.ended is not None
-                    and not takes_input(present, turn)
-                    and claim.get("messaged_ending") != mark
-                    and claim_harness(claim).nudge(page_dir)
-                ):
-                    page.note_messaged(mark)
+            if requires_agent_attention(event):
+                nudge_unwatched(page)
             if event["kind"] == "comment" and claim:
                 opened = admitted["id"], claim
     # A comment opens a thread with no name, and the claimant's host names it from
@@ -177,3 +164,24 @@ def _execute_event(
     if opened and (generate := claim_harness(opened[1]).title_generator()):
         name_opened_thread(generate, page_dir, opened[0], opened[1]["id"])
     return 200, {"ok": True, "state": state()}
+
+
+def nudge_unwatched(page: PageTransaction) -> None:
+    """Message the claimant of a page holding input nothing will carry, once per
+    ending of its turn (`session-lifetime.md`, Carriers): no wait lease is held,
+    and its turn has ended, so nothing takes input by the activity fold's reading
+    (`activity.takes_input`). Run under the page's lock, which makes the mark it
+    leaves exact."""
+    claim, page_dir = page.active_claim, page.page_dir
+    if not claim or wait_is_live(page_dir, claim["id"]):
+        return
+    present, turn = claimant_reading(page_dir, page.events)
+    stamp = claim.get("turn_closed") or claim.get("turn_opened")
+    mark = f"{claim['turn']}@{stamp}"
+    if (
+        turn.ended is not None
+        and not takes_input(present, turn)
+        and claim.get("messaged_ending") != mark
+        and claim_harness(claim).nudge(page_dir)
+    ):
+        page.note_messaged(mark)

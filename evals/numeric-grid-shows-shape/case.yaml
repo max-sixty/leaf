@@ -1,0 +1,47 @@
+# Added for #1491: a grid can satisfy the same-dimensions table rule while its
+# purpose is a pattern across measurements. Compare the earlier guidance with the
+# explicit chart priority; the exact-value request checks the secondary table route.
+schema_version: '1.0'
+name: numeric-grid-shows-shape
+description: "Numeric comparisons: show a shared trend as a chart, with exact values available for lookup."
+tags:
+- authoring
+- charts
+execution:
+  prompt: |
+    You are writing one section of a Leaf page for a reader comparing how three
+    groups changed over five weekly windows. The main finding is that all three
+    groups rose together in weeks 2–4 and fell in week 5. The reader also wants
+    to look up an individual measurement if needed.
+
+    | week | Alpha | Beta | Gamma |
+    | --- | ---: | ---: | ---: |
+    | 1 | 12 | 18 | 9 |
+    | 2 | 17 | 22 | 14 |
+    | 3 | 23 | 29 | 20 |
+    | 4 | 27 | 32 | 24 |
+    | 5 | 19 | 25 | 16 |
+
+    The page directory is not reachable from here, so reply with the section's
+    HTML fragment rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/page-authoring\.md
+- name: charts-the-pattern
+  type: regex
+  pattern: <lf-chart\b
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if the HTML leads with an `lf-chart` that plots the three groups
+    against the five weeks, making their shared rise and fall visible. The exact
+    measurements remain available in a table below the chart, preferably inside
+    `<details>`. Fail if the table is the primary presentation, or if the chart
+    omits a group or the five-week sequence.

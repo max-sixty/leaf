@@ -942,6 +942,25 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
               button.setAttribute('data-lf-said', '');
               button.textContent = 'Lax, host-only';
               option.prepend(shown, row, button);
+
+              // A visible control and an otherwise identical one below an
+              // unscrollable clip keep the control-reachability field non-vacuous.
+              const holder = document.createElement('div');
+              holder.id = 'clipped-holder';
+              holder.className = 'lf-ui';
+              holder.style.cssText = 'position:fixed;left:0;top:100px;width:120px;'
+                + 'height:40px;overflow:hidden';
+              for (const [id, words] of [['shown-offer', 'Reachable'], ['clipped-offer', 'Clipped']]) {
+                const offer = document.createElement('button');
+                offer.id = id;
+                offer.className = 'lf-reach-control lf-ui';
+                offer.setAttribute('data-lf-offer', '');
+                offer.textContent = words;
+                offer.style.cssText = 'display:block;height:20px;margin:0';
+                if (id === 'clipped-offer') offer.style.marginTop = '40px';
+                holder.append(offer);
+              }
+              document.body.append(holder);
             }, {once: true});"""
         )
 
@@ -955,13 +974,21 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
         == 5
     )
     assert page.locator("#hidden-note").is_hidden()
+    assert page.locator("#shown-offer, #clipped-offer").count() == 2
+    assert page.locator("#shown-offer").is_visible()
     page.close()
 
     found = render_gate_model.render_version(
         primed_browser, serve(CARRIED_PAGE)
     ).failures
-    assert len(found) == 6, found
-    assert sorted({f.split("] ", 1)[1] for f in found}) == [
+    assert len(found) == 8, found
+    clipped = [f for f in found if "(#clipped-offer)" in f]
+    assert len(clipped) == 2, found
+    assert all(
+        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
+    )
+    assert not [f for f in found if "(#shown-offer)" in f], found
+    assert sorted({f.split("] ", 1)[1] for f in found if f not in clipped}) == [
         (
             '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
             "can reach it"

@@ -1,9 +1,28 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import quote
 
-from render_harness import consume_browser_errors, judge_shifts
+import pytest
+from known_faults import known
+from render_harness import consume_browser_errors, judge_watches
+
+
+def test_known_thread_fold_classifies_each_source_of_the_same_shift():
+    test = SimpleNamespace(
+        path=Path("test_website_server.py"),
+        originalname="test_a_website_turn_posts_its_answer_when_the_move_is_settled_first",
+    )
+    assert known(
+        test,
+        "span.lf-thread-topic moved without input by (8, 0)px; "
+        "the same frame moved details.lf-thread-compact.flash.lf-thread, "
+        "span.lf-thread-trailing",
+    )
+    assert not known(test, "span.lf-thread-topic moved without input by (8, 0)px")
+
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -19,9 +38,15 @@ FIELD = """<!doctype html><body style="margin:0">
 </script>"""
 
 
+# Chrome reports no shift before a page first paints, and `load` can come before it.
+PAINTED = """() => new Promise((done) => requestAnimationFrame(() =>
+  requestAnimationFrame(done)))"""
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
+    page.evaluate(PAINTED)
     page.evaluate("key => { document.body.dataset.key = key; }", key)
     return page
 
@@ -29,20 +54,20 @@ def field_page(browser, key=""):
 def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page = field_page(browser, "carry")
     page.locator("#field").fill("a")
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
 def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
-    judge_shifts()
+    judge_watches()
 
 
 def test_a_shift_without_input_fails(browser):
     page = field_page(browser)
     page.evaluate("document.getElementById('above').style.height = '40px'")
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
 
 
@@ -69,7 +94,7 @@ def foot_page(browser):
 def test_typing_may_grow_a_field_whose_holder_paints_past_the_viewport(browser):
     page = foot_page(browser)
     page.locator("#field").fill("a")
-    judge_shifts()
+    judge_watches()
 
 
 def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
@@ -80,7 +105,7 @@ def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
     )
     page.locator("#field").fill("a")
     page.locator("#field").fill("ab")
-    judge_shifts()
+    judge_watches()
 
 
 def test_a_shift_without_input_after_typing_fails(browser):
@@ -91,8 +116,90 @@ def test_a_shift_without_input_after_typing_fails(browser):
           requestAnimationFrame(() => requestAnimationFrame(done))))"""
     )
     page.evaluate("document.getElementById('above').style.height = '40px'")
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "textarea#field moved without input")
+
+
+# News three frames after a press, as a reply lands just after a click: the page adopts
+# a server reading. A stand-in for the runtime never settles its rendering, so the
+# press's rendering is still open when the news lands. What moves the line is the
+# page's `data-motion`: the news growing a box above it (none), the news beginning a
+# bar's slide above it (`news`), or the press beginning that slide, which runs on past
+# news that moves nothing (`press`).
+NEWS = """<!doctype html><body style="margin:0">
+<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
+<button id="press">Press</button>
+<div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<script>
+  const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
+  const motion = () => document.body.dataset.motion;
+  const slide = () => document.getElementById("bar").animate(
+    [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
+  document.getElementById("press").addEventListener("pointerdown", (event) => {
+    if (motion() === "press") slide();
+    const pressed = event.timeStamp;
+    frames(3, () => {
+      document.body.setAttribute("data-lf-reading", "news");
+      if (motion() === "news") slide();
+      if (!motion()) document.getElementById("above").style.height = "40px";
+      document.body.dataset.newsAfter = performance.now() - pressed;
+    });
+  });
+</script>"""
+
+
+def news_page(browser, motion=""):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(NEWS))
+    # The stand-in's page has presented, so its shifts are judged.
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.evaluate("motion => { document.body.dataset.motion = motion; }", motion)
+    page.locator("#press").click()
+    page.wait_for_function("document.body.dataset.newsAfter !== undefined")
+    # Chrome counts the press as recent input for half a second, so news after it is
+    # what this page tests.
+    assert float(page.evaluate("document.body.dataset.newsAfter")) < 500
+    return page
+
+
+@pytest.mark.parametrize("motion", ["", "news"], ids=["grows a box", "begins a slide"])
+def test_news_just_after_a_press_moves_nothing(browser, motion):
+    page = news_page(browser, motion)
+    judge_watches()
+    consume_browser_errors(page, "div#below moved without input")
+
+
+def test_motion_a_press_began_is_the_press_s_through_news(browser):
+    news_page(browser, "press")
+    judge_watches()
+
+
+# Rows in a box that clips without scrolling, as a diff's file does, and a box among
+# them that grows by script. Above the window, the root's scroll anchoring holds the rows
+# where they stand, though Chrome measures them against the clipping box and reports
+# them moved by the anchoring's amount. In view, the rows below it move.
+CLIPPED = """<!doctype html><body style="margin:0">
+<div style="overflow: clip">
+  <div id="grows" style="height: 100px"></div>
+  {rows}
+</div>
+<div style="height: 3000px"></div>"""
+
+
+@pytest.mark.parametrize("where", ["above the window", "in view"])
+def test_a_row_moved_only_where_its_box_moves_on_screen(browser, where):
+    rows = "".join(
+        f'<div id="r{n}" style="height: 15px">Row {n}</div>' for n in range(60)
+    )
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CLIPPED.format(rows=rows)))
+    if where == "above the window":
+        page.evaluate("scrollTo(0, document.getElementById('r8').offsetTop)")
+    page.evaluate(PAINTED)
+    page.evaluate("document.getElementById('grows').style.height = '300px'")
+    judge_watches()
+    if where == "in view":
+        consume_browser_errors(page, "moved without input by (0, 200)px")
 
 
 # A frame nested in the page, whose button grows a box above a paragraph in that frame.
@@ -109,7 +216,7 @@ def test_a_press_in_a_nested_frame_is_input(browser):
         + quote(f'<iframe src="data:text/html,{quote(NESTED)}"></iframe>')
     )
     page.frame_locator("iframe").locator("#grow").click()
-    judge_shifts()
+    judge_watches()
 
 
 def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
@@ -124,4 +231,4 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
         )
     )
     page.locator("#grow").click()
-    judge_shifts()
+    judge_watches()

@@ -239,9 +239,11 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     state = PageStateService(
         page_dir,
         page_snapshot=snapshot,
-        layer_identity=snapshot.layer,
+        layer_identity=snapshot.context.layer,
     ).page_state(revision)
-    html = export_document(artifact, document, state, snapshot.data, revision, version)
+    html = export_document(
+        artifact, document, state, snapshot.context.data, revision, version
+    )
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

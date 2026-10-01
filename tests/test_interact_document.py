@@ -64,6 +64,7 @@ from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
+from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source import check_source
@@ -711,7 +712,9 @@ def folded(page_dir, board="b1"):
     """Each column of `board` in the order the page draws it: the position fold over
     the revision `page state` activates."""
     revision = state_json(page_dir)["active"]["revision"]
-    _, reading, _ = read_served_page(page_dir, events_model.read_events(page_dir))
+    _, reading, _ = read_served_page(
+        read_page(page_dir, events_model.read_events(page_dir))
+    )
     document = reading.documents[revision]
     registry = require_registry(page_dir)
     return projection_model.folded_positions(
@@ -5513,10 +5516,10 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
         return native(*args, **kwargs)
 
     monkeypatch.setattr(passages_model, "page_passages", counted)
-    read_served_page(page_dir, events_model.read_events(page_dir))
+    read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
     assert walks
     walks.clear()
-    read_served_page(page_dir, events_model.read_events(page_dir))
+    read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
     assert walks == []
 
 

@@ -1040,7 +1040,6 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve
     expect(summary).to_have_text("Resolved · 1 message")
     _to_upper_third(thread)
     height = _box_height(thread)
-    _past_recent_input(page)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
     reply = thread_model.cmd_reply(
         serve.page_dir, root, "The route stays.", None, for_event=None

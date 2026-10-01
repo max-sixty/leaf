@@ -4,7 +4,7 @@
 from urllib.parse import quote
 
 import pytest
-from render_harness import consume_browser_errors, judge_shifts
+from render_harness import consume_browser_errors, judge_watches
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -36,20 +36,20 @@ def field_page(browser, key=""):
 def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page = field_page(browser, "carry")
     page.locator("#field").fill("a")
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
 def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
-    judge_shifts()
+    judge_watches()
 
 
 def test_a_shift_without_input_fails(browser):
     page = field_page(browser)
     page.evaluate("document.getElementById('above').style.height = '40px'")
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
 
 
@@ -76,7 +76,7 @@ def foot_page(browser):
 def test_typing_may_grow_a_field_whose_holder_paints_past_the_viewport(browser):
     page = foot_page(browser)
     page.locator("#field").fill("a")
-    judge_shifts()
+    judge_watches()
 
 
 def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
@@ -87,7 +87,7 @@ def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
     )
     page.locator("#field").fill("a")
     page.locator("#field").fill("ab")
-    judge_shifts()
+    judge_watches()
 
 
 def test_a_shift_without_input_after_typing_fails(browser):
@@ -98,7 +98,7 @@ def test_a_shift_without_input_after_typing_fails(browser):
           requestAnimationFrame(() => requestAnimationFrame(done))))"""
     )
     page.evaluate("document.getElementById('above').style.height = '40px'")
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "textarea#field moved without input")
 
 
@@ -147,13 +147,13 @@ def news_page(browser, motion=""):
 @pytest.mark.parametrize("motion", ["", "news"], ids=["grows a box", "begins a slide"])
 def test_news_just_after_a_press_moves_nothing(browser, motion):
     page = news_page(browser, motion)
-    judge_shifts()
+    judge_watches()
     consume_browser_errors(page, "div#below moved without input")
 
 
 def test_motion_a_press_began_is_the_press_s_through_news(browser):
     news_page(browser, "press")
-    judge_shifts()
+    judge_watches()
 
 
 # Rows in a box that clips without scrolling, as a diff's file does, and a box among
@@ -179,7 +179,7 @@ def test_a_row_moved_only_where_its_box_moves_on_screen(browser, where):
         page.evaluate("scrollTo(0, document.getElementById('r8').offsetTop)")
     page.evaluate(PAINTED)
     page.evaluate("document.getElementById('grows').style.height = '300px'")
-    judge_shifts()
+    judge_watches()
     if where == "in view":
         consume_browser_errors(page, "moved without input by (0, 200)px")
 
@@ -198,7 +198,7 @@ def test_a_press_in_a_nested_frame_is_input(browser):
         + quote(f'<iframe src="data:text/html,{quote(NESTED)}"></iframe>')
     )
     page.frame_locator("iframe").locator("#grow").click()
-    judge_shifts()
+    judge_watches()
 
 
 def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
@@ -213,4 +213,4 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
         )
     )
     page.locator("#grow").click()
-    judge_shifts()
+    judge_watches()

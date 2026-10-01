@@ -39,6 +39,18 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **Keep a reply's words on screen when another actor settles its thread.** An agent
+  resolving a thread while the user types a reply takes the reply box away, words and
+  all; the draft is kept but gone from view, against "Words stay where they were
+  typed" (`skills/leaf/assets/AGENTS.md`). Three tests carry it in
+  `tests/known_faults.py` (`KNOWN_LOSSES`). Likely shape: the box stays while it holds
+  words, and sending it reopens the thread.
+- **Decide where `c` goes once the user has left a withheld comment box.** A comment
+  box whose target a pane has scrolled past waits hidden, and `c` brings it back even
+  after the user has walked to another item, where before the box had closed and `c`
+  commented where they stood. Likely shape: after a focus placement since the
+  withhold, `c` comments at the standing item and the draft follows it
+  (`commentOnTarget`).
 - **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
   Follow one task through reading, panes, comments, and Threads.
 
@@ -101,6 +113,17 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
+  a comment's target in a single wheel step draws the box about 60px off for a frame
+  before it lands, on `main` too and for selected words as well as items; a script's
+  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
+  target's far edge while the target left the window, and the correction lands a frame
+  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
+  `shift_watch.js` reproduces it.
+- **Keep a thread card still while the user types in it inside a pane.** Typing in a
+  margin thread card's reply, with its target in a pane that scrolls on its own, moves
+  the whole card (`shift_watch.js`: "typing in leaf-text moved
+  aside#lf-margin-preview"), on `main` too.
 - **Decide whether a workspace's panes scroll on their own.** Its regions could instead
   stick to the root scroller, which keeps native keyboard scrolling and restoration on
   workspace pages and settles the side list's full-height form; then drop the bottom

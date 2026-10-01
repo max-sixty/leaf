@@ -16,7 +16,8 @@
      no move of the user's.
 
    Each asks what the browser asks of an ordinary control: whether the window shows all of
-   it, below the banner and above the bottom bar. A surface half under the banner is as
+   it, below the banner and above the bottom bar. A surface waiting hidden for room to
+   stand says so (`away`), since its hidden box measures wherever it was left. A surface half under the banner is as
    unseen there as one scrolled off altogether. What a scroller inside the surface hides
    is the browser's to reveal, so the control is measured within the surface's own box.
 
@@ -42,12 +43,15 @@ const unseen = (node, surface) => {
 };
 
 function follow(surface, node, behavior) {
-  const { floats, bringBack } = surfaces.get(surface);
-  if (floats() && unseen(node, surface)) bringBack(behavior);
+  const { floats, away, bringBack } = surfaces.get(surface);
+  if (floats() && (away() || unseen(node, surface))) bringBack(behavior);
 }
 
-export function declareOffFlowSurface(surface, { floats = () => true, bringBack }) {
-  surfaces.set(surface, { floats, bringBack });
+export function declareOffFlowSurface(
+  surface,
+  { floats = () => true, away = () => false, bringBack },
+) {
+  surfaces.set(surface, { floats, away, bringBack });
   surface.addEventListener(
     "beforeinput",
     (event) => follow(surface, event.target, scrollBehavior()),

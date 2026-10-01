@@ -660,9 +660,10 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
     draft.locator("textarea").fill("A send held long enough to need progress paint.")
 
     # Sample on the CSS animation's own clock rather than racing wall time across a
-    # Playwright round trip. The host is the surface without a margin entry that owns aria-busy.
-    frames = page.evaluate(
-        """async save => {
+    # Playwright round trip, from just before the user's press on Save until well past
+    # the delay. The host is the surface without a margin entry that owns aria-busy.
+    page.evaluate(
+        """() => {
           const el = document.getElementById('draft-ops');
           const out = [];
           let stop = false;
@@ -679,15 +680,17 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
             if (!stop) requestAnimationFrame(tick);
           };
           requestAnimationFrame(tick);
-          document.querySelector(
-            '[data-lf-margin-for="draft-ops"] ' + save
-          ).click();
-          await new Promise(resolve => setTimeout(resolve, 700));
-          stop = true;
-          return out;
-        }""",
-        margin_entry(draft_owner("draft-ops"), "save"),
+          window.__lfBusyFrames = new Promise(resolve => setTimeout(() => {
+            stop = true;
+            resolve(out);
+          }, 700));
+        }"""
     )
+    page.locator(
+        '[data-lf-margin-for="draft-ops"] '
+        + margin_entry(draft_owner("draft-ops"), "save")
+    ).click()
+    frames = page.evaluate("() => window.__lfBusyFrames")
     holding(page, held, 1, "the draft edit")
 
     early = [

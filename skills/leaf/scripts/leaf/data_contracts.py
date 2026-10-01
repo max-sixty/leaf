@@ -120,22 +120,22 @@ def page_data_document_readings(
     page without revisions uses the initial registry. Consumers can retain this
     inventory to compare candidate interpretations without reopening revisions.
     """
-    revisions = {
-        revision: read_revision(page_dir, revision)
-        for revision in list_revisions(page_dir)
-    }
-    documents = [
-        (reading.document.lf_elements, f"revision r{revision}", reading.registry)
-        for revision, reading in revisions.items()
-    ]
+    documents = []
+    registries = {}
+    for revision in list_revisions(page_dir):
+        reading = read_revision(page_dir, revision)
+        registries[revision] = reading.registry
+        documents.append(
+            (reading.document.lf_elements, f"revision r{revision}", reading.registry)
+        )
     for event in events:
         if event.get("markup"):
-            revision = event.get("revision") or max(revisions, default=None)
+            revision = event.get("revision") or max(registries, default=None)
             documents.append(
                 (
                     logged_fragment(event).lf_elements,
                     f"event {event['id']!r} markup",
-                    revisions[revision].registry if revisions else registry,
+                    registries[revision] if registries else registry,
                 )
             )
     return documents

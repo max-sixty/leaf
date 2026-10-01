@@ -4945,7 +4945,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # 44px reaches the document, the chrome and every declared widget tree from one
         # rule. Each name below is a press the chrome also dresses inside its scope, so
         # the floor is a second, document-level rule on a scoped name. It states a
-        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # minimum and nothing else. The chip and the margin entry are on
         # that list too and are not here: nothing inside the scope names them any more,
         # so they are no longer a scoped vocabulary this exception has to cover.
         "lf-command-reference-command",

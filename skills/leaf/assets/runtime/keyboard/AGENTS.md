@@ -120,7 +120,8 @@ command reference and caret browsing describe or extend the keyboard itself.
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
 (native editing claims), `layer-stack.js` (popovers and dialogs over the page),
-`page.js` (the page's own parts and the foot of the ladder), `control-keys.js`,
+`page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
+(the `g` grammar), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
 for the keys).

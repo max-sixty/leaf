@@ -492,8 +492,10 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     A named initial wait claims that page. A receipt resumes the session's
     current ownership set without taking any page back from a successor. A
     standalone consumer watches the pages its delivery names. Exit 0 carries
-    the next immutable delivery; exit 2 names why the watch ended. A refused
-    receipt raises before a watch starts, leaving that page's cursor unchanged.
+    the next immutable delivery, or, under a harness that bounds a wait's
+    lifetime (`Harness.wait_lifetime`), says the wait reached it with no input;
+    exit 2 names why the watch ended. A refused receipt raises before a watch
+    starts, leaving that page's cursor unchanged.
     """
     if page_dir is not None and ack is not None:
         raise ValueError("PAGE and --ack cannot be used together")
@@ -521,6 +523,8 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         else:
             print(delivery_json(reading, harness), flush=True)
 
+    lifetime = harness.wait_lifetime if harness else None
+    deadline = None if lifetime is None else time.monotonic() + lifetime
     try:
         while True:
             mark = watch.mark()
@@ -529,6 +533,10 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
                 return reading.outcome
             if not reading.live:
                 return _ended_watch(reading.readings, named)
-            watch.await_news(mark)
+            left = REVIVAL_CHECK_S if deadline is None else deadline - time.monotonic()
+            if left <= 0:
+                print(harness.wait_lapsed(), flush=True)
+                return 0
+            watch.await_news(mark, timeout=min(left, REVIVAL_CHECK_S))
     finally:
         watch.release()

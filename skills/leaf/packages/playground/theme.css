@@ -196,9 +196,12 @@ lf-playground-control > wa-radio-group::part(form-control-label) {
   --wa-form-control-border-color: var(--muted);
 }
 
+/* The switch and the radio buttons below state their aim floor as padding: a flex or
+   grid track squeezes a min-height down to itself, and a label that wraps would be
+   drawn over the next control. */
 lf-playground-control > wa-switch::part(switch) {
   width: 100%;
-  min-height: var(--aim-floor);
+  padding-block: max(0px, (var(--aim-floor) - 1lh) / 2);
   flex-direction: row-reverse;
   justify-content: space-between;
   gap: var(--sp-2);
@@ -231,8 +234,12 @@ lf-playground-choice {
   display: contents;
 }
 
+/* 2rem, or the aim floor where a finger raises it past that, less the line and the 1px
+   border. Web Awesome's own minimum for a button radio, its form-control height, goes
+   with it, as the 2rem this states in its place always took it. */
 lf-playground-choice > wa-radio {
-  min-height: max(var(--aim-floor), 2rem);
+  min-height: auto;
+  padding-block: max(0px, (max(var(--aim-floor), 2rem) - 1lh) / 2 - 1px);
   justify-content: center;
   text-align: center;
 }

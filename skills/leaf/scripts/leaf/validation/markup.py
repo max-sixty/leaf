@@ -6,10 +6,10 @@ from markdown_it import MarkdownIt
 
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
-    AUTHORED_ALLOCATIONS,
     PAGE_ALLOCATIONS,
     SECTIONING_TAGS,
     SourceDocument,
+    allocation_expects,
     links_with_rel,
 )
 from leaf.styles import inline_presentation_override_errors
@@ -176,9 +176,16 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
     return (
         [
             f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
-            f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
+            f"expected {expected}"
             for item in parser.authored_allocations
-            if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+            if (expected := allocation_expects(item["attr"], item["value"]))
+        ]
+        + [
+            f"{at(item, item['attr'])} states the height of a widget that draws into "
+            f"its box, and <{item['tag']}> is not one: a block takes the height of what "
+            "it holds"
+            for item in parser.authored_allocations
+            if item["attr"] == "data-height" and not item["tag"].startswith("lf-")
         ]
         + [
             f"{at(item, item['attr'])} belongs on <body>, where it says whether the page "
@@ -191,7 +198,8 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
             "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
             "layout-workspace)"
             for item in parser.authored_allocations
-            if item["attr"] not in PAGE_ALLOCATIONS and item["tag"] == "main"
+            if item["attr"] not in PAGE_ALLOCATIONS | {"data-height"}
+            and item["tag"] == "main"
         ]
     )
 

@@ -166,6 +166,12 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         if page.locator('script[src$="/leaf.js"]').count() != 1:
             raise RuntimeError("the document has no single canonical Leaf entry")
         reaching("its theme stylesheet", lambda: wait_for_theme(page))
+        # The held entry is a module script, which runs only once the parser is done,
+        # so the whole authored document is parsed here and not yet upgraded.
+        reaching(
+            "the end of its markup",
+            lambda: page.wait_for_function("document.readyState !== 'loading'"),
+        )
         findings = pre_upgrade_findings(page)
         if len(held) != 1:
             raise RuntimeError("the browser did not request one canonical Leaf entry")

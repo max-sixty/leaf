@@ -1,8 +1,7 @@
 # Keyboard runtime
 
 This file owns the contracts the modules here share; each module's header owns its
-own. The parent `../../AGENTS.md` owns interactions with state, widgets, threads,
-and chrome.
+own.
 
 ## Ownership
 
@@ -20,7 +19,7 @@ scopes join the register only while the instance exists. Owners declare their ke
 during construction: element scopes through `keys(element, …)` and
 `commandScope(…)` in `scopes.js`, core scopes through `pageScope`, `pageCommand`,
 and `pageRung` in `register.js`. A new scope, page command, or Escape rung also
-needs an entry in the register's ordering tables.
+needs its place in `STACK`, `PAGE_COMMANDS`, or `RUNG_LADDER`.
 
 ## Scope resolution
 
@@ -53,9 +52,9 @@ browser's order.
   to its thread, then the whole panel, which clears narrowing before closing.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread once sent. A thread in the margin card leaves them on the element it
-  is about, with the card still up, so one Escape takes the card down and moving
-  elsewhere needs none. A box that stays open for more messages, such as a seat's
-  or the Threads panel's general box, keeps the user in it.
+  is about, its parent, with the card still up, so one Escape takes the card down
+  and moving elsewhere needs none. A box that stays open for more messages, such as
+  a seat's or the Threads panel's general box, keeps the user in it.
 - Threads has two selection levels, the whole panel (`g T`) and one thread, and a
   title selects the same thread as its body. Enter or Space selects a closed
   title and keeps an open one selected; Comment enters the reply box even from a
@@ -65,7 +64,6 @@ browser's order.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
   document, through `letGo`, which lands on the visible block rather than an
   earlier chrome invoker.
-- A thread in the margin card has the element it is about as its parent.
 
 Bounded interactions (Go-to, target hints, page search, reactions, the command
 reference) own the keyboard and their return while active and add no page mode.
@@ -97,19 +95,18 @@ control's words. A row with `routes` makes a different press per route, so it de
 derives the control from that declaration, so its words, enabled state, and press come
 from the one row the key uses.
 
-- A page command's control is an entry in the banner's More. - A page-scope row's
-  control is a gesture step on the banner's row while its scope is the innermost
-  applying scope that has steps, since a phone's row fits one interaction's steps. A
-  mode or bounded interaction a finger can enter declares its way out, since Escape
-  and the mode's letter are keys, and whatever else inside it a finger has no other
-  way to do, such as walking search matches.
+- A page command's control is an entry in the banner's More.
+- A page-scope row's control is a gesture step on the banner's row while its scope is
+  the innermost applying scope that has steps, since a phone's row fits one
+  interaction's steps. A mode or bounded interaction a finger can enter declares its
+  way out, since Escape and the mode's letter are keys, and whatever else inside it a
+  finger has no other way to do, such as walking search matches.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the
 reader, which a finger does by scrolling and by tapping the Threads list, the Asks drawer,
 or the Page Map. `n` walks a search that has closed, which a finger searches again from
-More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
-The ⌥ aim names a target, which a finger does by selecting words or through Select
+More. The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
 selection's Comment on selection step and response options, a thread's own controls,
 and the Threads box all take a tap. Ask digits duplicate the Decision's own control. The

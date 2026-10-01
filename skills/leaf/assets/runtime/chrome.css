@@ -137,27 +137,17 @@
   outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
   color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
-/* A gesture the log has not answered yet, in the platform's own word for it, which
-   is why no tag is named here: any widget that says aria-busy is painted, and
-   lf-draft was saying it to screen readers alone before this rule existed.
-
-   Delayed, and that is the whole design. A press paints nothing until the log
-   takes it, which locally is about 40ms — a look that appeared and left inside
-   that window would be a second flicker put where the first one was removed. Past
-   the delay there is something to say, and the cases where there is are the ones
-   that need it: a heavy page, or a user who reached a --host page across a
-   network. So a surface goes quiet only once the wait has run long enough to notice,
-   and a fast answer never shows this rule at all. The agent workflow remains legible
-   through the fade, so one control can carry both durable work and its transient
-   confirmation wait. The reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
-   which is the right reading of it: the fade is what a user asked not to have, the
-   waiting is not.
-
-   Opacity and the cursor, never geometry: the line a press is made on holds still
-   (lf-suggestion.js), and a busy surface that reflowed would move the control out
-   from under the pointer that just pressed it. */
+/* Existing controls delay delivery feedback so a quick answer causes no busy flash.
+   New messages already show the gesture's result and start unconfirmed: they are
+   dim from insertion until admission, on the page and in the panel. Accessibility's
+   aria-busy describes both waits, but does not give them the same visual timing.
+   Neither treatment changes geometry or obscures the message's workflow. */
 [aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
+}
+:is(.lf-msg, .lf-page-thread-msg)[aria-busy="true"] {
+  animation: none;
+  opacity: .5;
 }
 [aria-busy="true"],
 [aria-busy="true"] :is(button, [role="button"]) {

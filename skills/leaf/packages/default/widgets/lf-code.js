@@ -163,11 +163,9 @@ customElements.define(
           // Moved, not copied: the authored element keeps its text and id.
           pre.append(...(byLine.get(n) ?? []));
         });
-        this.replaceChildren(
-          pre,
-          copyCodeBlock(pre, () => source),
-        );
+        this.replaceChildren(pre);
         this.classList.add("lf-rendered");
+        this.append(copyCodeBlock(pre, () => source));
         layoutChanged(this);
       } catch (err) {
         failSoft(this, err, source);

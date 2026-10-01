@@ -1383,7 +1383,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             "copy source",
             '<h1 id="title">Copy source</h1>'
             + (
-                '<pre id="colored"><code class="language-python">'
+                '<pre id="colored" style="anchor-name: --authored-colored, --authored-secondary">'
+                '<code class="language-python">'
                 + escape(colored_source)
                 + "</code></pre>"
                 if keep_colored
@@ -1395,6 +1396,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + escape(widget)
             + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
             + '<lf-draft id="draft"><pre>Non-code data has no copy control.</pre></lf-draft>',
+            head="<style>#plain { anchor-name: --authored-plain; }"
+            "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
 
     page = open_page(browser, live_url(serve(document())))
@@ -1403,6 +1406,24 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(controls).to_have_count(3)
     expect(page.locator("#numbered lf-note")).to_contain_text("not source")
     expect(page.locator("#numbered .lf-quiet")).to_have_count(1)
+
+    anchors = controls.evaluate_all(
+        """copies => Object.fromEntries(copies.map(copy => {
+          const pre = copy.previousElementSibling;
+          return [pre.id || pre.parentElement.id, {
+            names: getComputedStyle(pre).anchorName.split(',').map(name => name.trim()),
+            copyAnchor: getComputedStyle(copy).positionAnchor,
+          }];
+        }))"""
+    )
+    authored = {
+        "colored": {"--authored-colored", "--authored-secondary"},
+        "plain": {"--authored-plain"},
+        "numbered": {"--authored-numbered"},
+    }
+    for block, reading in anchors.items():
+        assert authored[block].issubset(reading["names"]), anchors
+        assert reading["copyAnchor"] in reading["names"], anchors
 
     def copy(selector, expected, *, keyboard=False):
         control = page.locator(selector)

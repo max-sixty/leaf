@@ -66,6 +66,14 @@ class ThreadListView extends RetainedFace {
     return this.#visibleRows().map((row) => row.node);
   }
 
+  // The one card the list shows expanded, which the list stands for while it holds
+  // focus: its reply box is the one on screen (`standingThread`, landing.js).
+  expandedThread() {
+    return (
+      this.#visibleRows().find((row) => row.key === this.#expandedKey)?.node ?? null
+    );
+  }
+
   // The shown cards in the page's order, whichever order the list stands in.
   inPageOrder(cards) {
     const seats = this.model.pageSeats;

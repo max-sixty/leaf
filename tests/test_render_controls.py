@@ -4784,12 +4784,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("the page as it arrives")
 
     # The panel, and then its list — which is where `g T` lands the user; `c` there
-    # enters its page comment box.
+    # enters the reply box of the card the list shows expanded. The page comment box
+    # below the list is the panel's other box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
     sweep("standing on the comment list")
     page.keyboard.press("c")
+    expect(
+        page.locator(".lf-threads > .lf-thread:not([hidden])[open] leaf-text")
+    ).to_be_focused()
+    sweep("standing in a reply box")
+    page.locator(".lf-general leaf-text").focus()
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     sweep("standing in the general box")
     page.keyboard.press("Escape")

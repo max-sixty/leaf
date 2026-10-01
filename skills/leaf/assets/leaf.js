@@ -527,7 +527,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
 selectionComposer = createSelectionComposer({

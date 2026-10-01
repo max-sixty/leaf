@@ -94,8 +94,11 @@ export function threadInput(node) {
 }
 
 const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
+// The Threads list holding focus stands for the one card it shows expanded, as the
+// margin card stands for its thread: that card's reply box is the one in front of the
+// user, and the list's focus ring draws round the card wherever the card fills the list.
 export const standingThread = () => {
-  const held = heldThreadOrSeat();
+  const held = heldThreadOrSeat() ?? focused()?.expandedThread?.();
   const box = threadInputOf(held);
   return box ? { held, box } : null;
 };

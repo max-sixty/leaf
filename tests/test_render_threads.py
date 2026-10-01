@@ -3335,13 +3335,17 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     expect(page.locator(".lf-needs")).to_have_text("You (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
-    # `c` from that list enters the general box, and there `w` is a character like any other —
-    # the typing scope claims what types one, so the row stands down and the line drops
-    # it. Escape backs out onto the list and it is live again. Both directions, because
-    # a key that were live in the box would type nothing and read as a dead keyboard.
+    # `c` from that list enters the reply box of the card it shows expanded, and there `w`
+    # is a character like any other — the typing scope claims what types one, so the row
+    # stands down and the line drops it. Escaping out through the thread onto the list
+    # makes it live again. Both directions, because a key that were live in the box would
+    # type nothing and read as a dead keyboard.
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(
+        page.locator(".lf-threads > .lf-thread:not([hidden])[open] leaf-text")
+    ).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
@@ -6763,15 +6767,17 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(shown.nth(0)).to_contain_text("waiting on you")
     expect(shown.nth(1)).to_contain_text("close threads")
 
-    # And the press it displaced still works, from the placeholder that advertises it.
-    # The badge inside the painted placeholder is where the box states that key, and
-    # it stands only while the box is hinted and empty, so reading it holds what the
-    # user can see rather than how the hint's two parts happen to be joined.
-    advertised = page.locator(".lf-general .lf-compose-placeholder kbd")
+    # And the press it displaced still works, from the placeholder that advertises it:
+    # the reply box of the card the list shows expanded. The badge inside the painted
+    # placeholder is where the box states that key, and it stands only while the box is
+    # hinted and empty, so reading it holds what the user can see rather than how the
+    # hint's two parts happen to be joined.
+    card = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    advertised = card.locator(".lf-compose-placeholder kbd")
     expect(advertised).to_be_visible()
     expect(advertised).to_have_text("c")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(card.locator("leaf-text")).to_be_focused()
 
 
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(

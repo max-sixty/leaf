@@ -100,7 +100,12 @@ import {
 import { paintReactionStanding } from "../reaction-standing.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
-import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
+import {
+  coveringAuxiliarySurface,
+  pageCommand,
+  pageRung,
+  pageScope,
+} from "../keyboard/register.js";
 
 import { elementById, inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
@@ -132,12 +137,8 @@ import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
 import { pointBand, standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
 
-// The two routes to one Comment capability: the page's own, and the Threads list's local
-// one. The destination box's placeholder names whichever of them dispatch would answer.
-const COMMENT_COMMANDS = ["comment.create", "comment.write"];
-
 export function createResponseSurface({
-  panelElements: { generalInput, panel, threadsBox },
+  panelElements: { generalInput, panel, threadsBox, inPanel },
   panelIsOpen,
   landIn,
   setPanel,
@@ -1557,7 +1558,7 @@ export function createResponseSurface({
   // still decides whether either row can be reached from the current scope.
   const commentHint = () => ({
     box: commentDestination().box,
-    label: activeCommandLabel(COMMENT_COMMANDS),
+    label: activeCommandLabel(["comment.create"]),
   });
 
   // c goes where commenting happens: a live selection gets the composer (what the floating
@@ -1583,7 +1584,15 @@ export function createResponseSurface({
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
-    when: () => anchoringIsReady() || !pageSelection(),
+    //
+    // One row answers from the page and from the Threads panel alike, whether the panel
+    // stands beside the page or covers it: a covering surface drops every page row not
+    // marked `covering`, and a copy of this one in the panel's scope knew only the page box.
+    // Under any other covering surface there is nothing here to comment on.
+    covering: true,
+    when: () =>
+      (anchoringIsReady() || !pageSelection()) &&
+      (!coveringAuxiliarySurface() || inPanel(panelIsOpen)),
     run: () => {
       updateFab(); // the selection may be newer than the mouseup that last placed the bar
       commentDestination().go();

@@ -3427,6 +3427,55 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
     expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
+# Ways to stand in the Threads list where it shows one card expanded: on the list
+# itself, or on that card's title.
+EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
+LIST_ROUTES = {
+    "go to Threads": (["g", "Shift+t"], ".lf-threads"),
+    "back out of the page box": (["c", "Escape"], ".lf-threads"),
+    "back out of a walked title": (["g", "Shift+t", "t", "Escape"], ".lf-threads"),
+    "walk to a title": (["g", "Shift+t", "t"], EXPANDED + " > .lf-thread-summary"),
+}
+
+
+@pytest.mark.parametrize("width", [1600, 420])
+@pytest.mark.parametrize("route", LIST_ROUTES.values(), ids=LIST_ROUTES.keys())
+def test_the_threads_list_answers_c_in_the_card_it_shows_expanded(
+    browser, serve, route, width
+):
+    """Standing on the list is standing at its expanded card, as at a margin card.
+
+    The list always shows one card expanded, and where that card fills the list the
+    list's focus ring draws round it, so the user reads the card as selected and its
+    reply box as the one `c` writes in. `c` once sent them to the page box from here,
+    a rule settled while the list showed only titles. The page box remains `c`'s answer
+    from a list showing no card (`test_c_comments_and_g_t_navigates_to_threads`).
+
+    At 420px the panel covers the page, which drops the page's own `c`, so the panel's
+    row is the only one that can answer; it once knew only the page box, and stood down
+    on a title for the page's row to answer, so `c` there did nothing at all.
+    """
+    steps, standing = route
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    page.set_viewport_size({"width": width, "height": 900})
+    for step in steps:
+        page.keyboard.press(step)
+        rendered(page)
+
+    expect(page.locator(standing)).to_be_focused()
+    card = page.locator(EXPANDED)
+    expect(card).to_have_count(1)
+    reply = card.locator("leaf-text")
+    if width > 420:  # the narrow line and boxes draw no key badges
+        expect(page.locator("leaf-text[placeholder$=' c']")).to_have_count(1)
+        expect(reply).to_have_attribute("placeholder", "Reply c")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+
+
 def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
     url = serve(PANEL_PAGE)
     roots = [panel_comment(serve.page_dir, f"Thread {i}.") for i in range(3)]
@@ -9582,7 +9631,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads").focus()
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.keyboard.press("c")
+    page.locator(".lf-general leaf-text").focus()
     expect(visible_hints).to_have_count(2)
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to list")

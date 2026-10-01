@@ -12,7 +12,10 @@
    from. `row` is the line it stands level with beside `clear`: a passage's first line,
    else `clear`'s top. `margin` is where across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins.
+   or nothing where no row stands and its rows would be pins. An existing subject
+   with no visible attachment supplies `clear: null`: its open editor stands in the
+   usable window, at its upper inline edge, through the same sizing and placement
+   machinery. A visible attachment returning chooses the side afresh.
 
    Both stand in one boundary (`commentBoundary`): the part of the window the page shows,
    within the reading region where that holds a card, else within the page shell.
@@ -189,7 +192,12 @@ export function commentPlacement() {
       return side === "bottom" ? clear.bottom : side === "top" ? clear.top : row;
     },
     choose({ clear, extent = clear, boundary, minimum, scroller, coarse }) {
+      // No visible attachment puts the editor in the window. The authored subject
+      // remains its semantic anchor; no rectangle here pretends to represent it.
+      const unanchored = !clear;
+      extent ??= boundary;
       const key = [
+        Number(unanchored),
         boundary.left,
         boundary.top,
         boundary.right,
@@ -204,19 +212,26 @@ export function commentPlacement() {
       }
       input = key;
       const fresh = side === null;
-      side ??= commentSide({
-        clear,
-        extent,
-        boundary,
-        width: minimum.width,
-        scroller,
-        coarse,
-      });
+      side ??= unanchored
+        ? "bottom"
+        : commentSide({
+            clear,
+            extent,
+            boundary,
+            width: minimum.width,
+            scroller,
+            coarse,
+          });
       return { side, fresh };
     },
     options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
       const across = vertical(side);
-      seen ||= clear.bottom > boundary.top && clear.top < boundary.bottom;
+      const unanchored = !clear;
+      // Floating UI reads a window attachment point for the unanchored posture,
+      // sharing the same sizing, shift and coordinate conversion as an anchored box.
+      clear ??= new DOMRect(boundary.left, boundary.top, minimum.width, 0);
+      seen ||=
+        !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
       // Beside on the right, the margin row is kept clear too where the room past it
       // holds the card's minimum; where it does not, the surface stands over it.
       const past =

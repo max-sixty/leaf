@@ -2092,11 +2092,18 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Wait until the page has finished arriving: rendered, with any notice it opened
-    with gone and the pointer off its controls, so nothing the arrival started is still
-    changing it when a test begins its own reading."""
+    """Prepare a still_page for its reading: rendered, arrival notices retired, and
+    the pointer off its controls. Advance its controlled timer clock through every
+    callback while Date.now stays fixed; the following test keeps real-time timers.
+    """
     rendered(page)
-    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    notice = page.locator(".lf-notice.show")
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while notice.count():
+        assert time.monotonic() < deadline, "the arrival notice never retired"
+        # still_page fixes Date.now but its timer clock otherwise runs in real time.
+        # Run every callback until the notice retires; fast_forward would skip ticks.
+        page.clock.run_for(100)
     page.mouse.move(2, 300)
     rendered(page)
 
@@ -2136,9 +2143,9 @@ def at_rest(page):
     each frame it asks for, each time it moves the focus, and each animation it runs
     without end, in its own document and each one it frames, such as a live sample.
 
-    It starts once the page is `left_alone` and watches for `REST_SECONDS`. Frames are
-    counted where they are asked for, so a loop that writes nothing but still wakes the
-    page every frame is named too."""
+    It starts once the still_page is `left_alone` and watches in real time for
+    `REST_SECONDS`. Frames are counted where they are asked for, so a loop that writes
+    nothing but still wakes the page every frame is named too."""
     left_alone(page)
     frames = page.frames
     for frame in frames:

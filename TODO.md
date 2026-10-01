@@ -57,6 +57,17 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
+### Prose
+
+- **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** Six phases cover
+  the guidance, the website, UI and CLI copy, and the examples. Each phase is a
+  `/iteration:descartes` rewrite in Worktrunk's register, judged by the words it cuts.
+  Phase 0 has landed (#1476). Phase 1, the maintainer guidance, is written 26% shorter
+  and waits on review and landing. Phase 2, the agent guidance, needs no decision and is
+  scored with `evals/`. Phases 3–6 wait on five decisions the note lays out with a
+  recommendation for each: banner and delivery depth, how far to restructure the site,
+  the word for the user's input, `layout-sidebar`'s name, and the playground examples.
+
 ## Next
 
 ### User continuity and mobile access

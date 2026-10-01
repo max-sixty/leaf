@@ -19,15 +19,10 @@ KNOWN_UNASKED = {
         "test_a_repaint_unsettles_the_rendering_until_it_lands": r"lf-shortcut",
     },
     "test_render_read_state.py": {
-        # The margin marker an arriving thread or a reopening brings, which the margin
-        # projection inserts unplaced and the layout places a frame later. On Linux's
-        # headless shell the unplaced row stands at the window's origin, and its move
-        # into the rail reads as a shift. In the second, also the shortcut line's More as
-        # its hints change, where the test focuses the notice by script after a reading
-        # landed.
-        "test_a_reopening_in_a_page_seat_waits_where_reopen_stood": r"lf-margin-",
+        # The shortcut line's More as its hints change, where the test focuses the
+        # notice by script after a reading landed.
         "test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_follow": (
-            r"lf-margin-|lf-shortcut"
+            r"lf-shortcut"
         ),
     },
     "test_render_application_boundary.py": {
@@ -67,6 +62,11 @@ KNOWN_UNASKED = {
             r"lf-margin-cluster"
         ),
     },
+    "test_render_send_placement.py": {
+        # The shortcut line's More as its hints change when the answer to the send lands,
+        # where load puts that answer past the press's own frames.
+        "test_where_a_comment_stands_before_and_after_send": r"lf-shortcut",
+    },
     "test_website_server.py": {
         # The panel's later cards rising, and what they hold coming into view, as a card
         # whose thread news resolved folds away under the Open filter: the user's next
@@ -103,19 +103,25 @@ KNOWN_LOSSES = {
 def watches_shifts(test):
     """Whether a pytest node `test`'s pages watch for shifts at all.
 
-    The nightly-marked tests do not yet: their pages make hundreds of shifts, most of
-    them widgets that upgrade after the authored document has painted and move what
-    follows them after presentation, and a nightly run on Linux finds more than a run
-    here does. They watch again, with the entries a fresh survey finds, once that
-    upgrade is fixed."""
-    return test.get_closest_marker("nightly") is None
+    Ordinary tests watch by default. A surveyed nightly test opts in with
+    `watch_shifts`, independently of when it runs. The remaining nightly tests await
+    a fresh survey after the widget prepaint fixes; the earlier survey found hundreds
+    of shifts and more failures on Linux than on macOS. This selection does not lift
+    the watcher's separate first-presentation exemption (`shift_watch.js`)."""
+    return (
+        test.get_closest_marker("nightly") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
 
 
 def known(test, problem):
     """Whether a browser `problem` from a pytest node `test` is its known shift or loss."""
     region = KNOWN_UNASKED.get(test.path.name, {}).get(test.originalname)
     moved, unasked, _ = problem.partition(" moved without input")
-    if region and unasked and re.search(region, moved):
+    # Chrome can report a card and its children as separate sources of one layout
+    # shift. The child report still names the card among that frame's sources.
+    frame = problem.partition("; the same frame moved ")[2]
+    if region and unasked and re.search(region, f"{moved}, {frame}"):
         return True
     words = KNOWN_LOSSES.get(test.path.name, {}).get(test.originalname)
     _, lost, what = problem.partition("typed words left the screen")

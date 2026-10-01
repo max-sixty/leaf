@@ -1703,12 +1703,14 @@ lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
-/* Where the pair differs: one outline per changed region, over both frames at the same
-   place, so the region reads on either side of the divider. The marks take the pair's
+/* Where the pair differs: each frame outlines its own regions where they sit in it, so
+   content that moved is marked at its old place in before and its new place in after,
+   and an outline never stands over a place the frame left empty. What changed takes a
+   solid warning rule and what only moved a dashed accent one. The marks take the pair's
    own frame (natural width by the taller image's height), stand a little outside what
-   changed rather than over it, and stop at the frame's edge, so a region that reaches
-   the edge still shows its outline there. The rail counts the outlines, and says so
-   when there is none to draw: identical, throughout the image, or only slight. */
+   they mark rather than over it, and stop at the frame's edge, so a region that reaches
+   the edge still shows its outline there. The rail counts the regions, and says so when
+   there is none to draw: identical, throughout the image, or only slight. */
 lf-shot .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
     aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
 lf-shot .lf-shotdiff > span { position: absolute;
@@ -1717,6 +1719,8 @@ lf-shot .lf-shotdiff > span { position: absolute;
     right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 4px));
     bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
     border: 2px solid var(--warn); border-radius: 2px; }
+lf-shot .lf-shotdiff > span[data-lf-shot-mark="moved"] {
+    border-style: dashed; border-color: var(--accent); }
 lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
 /* A pair that is identical, or changed only slightly, is what a handoff most often
    describes wrong, so the rail raises those readings. */
@@ -1851,7 +1855,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                /* Between the banner and the bottom bar, as every region is: the bar is
                 * attached to the window's foot at one stated height, so the map ends above
                 * it rather than losing its last entry under the keyboard's line. */
-               height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-bottom-bar-h, 0px));
+               height: var(--lf-view-height);
                margin: 0; }
       lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
@@ -2257,6 +2261,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
    face's `ch`. */
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
+             padding-block-start: calc(12px + var(--lf-code-copy-space));
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
 /* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
    frame hid its end behind a scrollbar at the block's foot, and the end is where a log
@@ -2328,6 +2333,7 @@ html[data-lf-interactive] lf-code:not(.lf-rendered) {
   & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
             border-radius: var(--r);
             padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+            padding-block-start: calc(12px + var(--lf-code-copy-space));
             white-space: pre-wrap; overflow-wrap: anywhere; }
   & > lf-note { margin-inline: 1px; }
 }

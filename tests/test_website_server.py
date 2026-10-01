@@ -35,7 +35,7 @@ from interact_support import (
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.delivery import current_responses
-from leaf.event_log import append_event, read_events
+from leaf.event_log import append_event, flocked, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
@@ -58,7 +58,13 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
     open_session_turn(thread_id, turn)
-    accept_codex_delivery(thread_id, turn)
+    with flocked(leaf_codex.delivery_lock_path(thread_id)):
+        [(path, _)] = [
+            (path, record)
+            for path, record in delivery_records(thread_id)
+            if record["state"] == "offering"
+        ]
+    accept_codex_delivery(thread_id, path.stem, turn)
 
 
 @pytest.fixture(autouse=True)
@@ -3039,7 +3045,7 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
     def faulting_state(*_args, **_kwargs):
         raise RuntimeError("the projection could not be read")
 
-    monkeypatch.setattr(served_page, "full_state", faulting_state)
+    monkeypatch.setattr(served_page, "read_served_page", faulting_state)
     with running_http_server(httpd):
         with pytest.raises(urllib.error.HTTPError) as refused:
             get(f"{origin}/examples/decision/api/state")
@@ -3103,7 +3109,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         capsys.readouterr()
-        monkeypatch.setattr(served_page, "full_state", faulting_state)
+        monkeypatch.setattr(served_page, "read_served_page", faulting_state)
         with pytest.raises(urllib.error.HTTPError) as refused:
             get(f"{origin}{child['url']}api/state")
         assert refused.value.code == 500

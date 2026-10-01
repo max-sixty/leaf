@@ -7680,20 +7680,22 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
-    # the repeatable category walk and the thread-local reply route explicit.
+    # reaches Threads, on the title of the thread it shows open. A stray digit there
+    # neither travels nor picks; t then c makes the repeatable category walk and the
+    # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
-    # completion closes it and the second is the arrival on the list.
+    # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    title = page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")
+    expect(title).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(title).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()

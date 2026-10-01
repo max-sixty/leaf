@@ -28,6 +28,7 @@ from leaf.projection import folded_positions
 from leaf.registry.storage import require_registry
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import served
+from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from PIL import Image
 from playwright.sync_api import Page
@@ -85,7 +86,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
     """The board with the user's move folded in, as the page draws it: the order an
     agent writes into its next version."""
     state = json.loads(run_leaf("page", "state", str(page_dir)))
-    _, reading, _ = read_served_page(page_dir, read_events(page_dir))
+    _, reading, _ = read_served_page(read_page(page_dir, read_events(page_dir)))
     document = reading.documents[state["active"]["revision"]]
     registry = require_registry(page_dir)
     order = folded_positions(

@@ -52,8 +52,8 @@ export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
 // the pointer, with focus in it, or whose entry has the thread card open, as that entry's
 // disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
-// relative to its row (thread-card-geometry.js), so a standing row whose target moves
-// into it would otherwise push the row down and the card the user is reading with it.
+// relative to its row (margin-projection.js), so a standing row whose target moves into
+// it would otherwise push the row down and the card the user is reading with it.
 const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 // The anchor name the rail hangs from: `main`'s own box.
 const PAGE_ANCHOR = "--lf-page";
@@ -207,6 +207,46 @@ function settleResidency() {
 
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
+
+// The rail lies beside the column, so it stands beside the rows of what flows in the
+// column: the document's own, and a bounded block's, which scrolls inside the document
+// as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
+const railBeside = (scroller) => {
+  if (scroller === pageScroller) return true;
+  const block = boundedBlockOf(scroller);
+  return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+};
+// The width of a rail row at rest: one margin entry, a pin's being smaller.
+const restingEntry = () =>
+  layer?.root.parentElement.querySelector(
+    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
+  )?.offsetWidth || 32;
+
+// Where across the page the margin row for a comment on `target` stands, at `point`
+// inside it if a pointing gesture named one (pointed-place.js): the row standing there
+// now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
+// `main`'s edge and one entry wide, and nothing where the rail does not stand beside
+// `target`, whose rows are pins placed as they come. A comment's surfaces keep it clear
+// (comment-placement.js), so the row a sent comment brings stays in view.
+export function marginSpot(target, point = null) {
+  for (const [row, options] of rows)
+    if (
+      options.anchor?.() === target &&
+      (options.point?.() ?? null) === point &&
+      row.checkVisibility()
+    ) {
+      const { left, right } = row.getBoundingClientRect();
+      return { left, right };
+    }
+  const main = marginColumn();
+  if (!railStands(main) || !railBeside(scrollerFor(target))) return null;
+  const hang =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
+    ) || 0;
+  const left = main.getBoundingClientRect().right + hang;
+  return { left, right: left + restingEntry() };
+}
 
 // Said on the chrome root where the margin's standing is decided: where the markers are
 // pins, the banner offers the Page Map in their place (chrome.css). Until the standing
@@ -870,19 +910,8 @@ export function layoutMarginRows() {
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
-  // The rail lies beside the column, so it stands beside the rows of what flows in the
-  // column: the document's own, and a bounded block's, which scrolls inside the document
-  // as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
-  const railBeside = (scroller) => {
-    if (scroller === pageScroller) return true;
-    const block = boundedBlockOf(scroller);
-    return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
-  };
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
-  const entry = layer.root.parentElement.querySelector(
-    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
-  );
-  const size = entry?.offsetWidth || 32;
+  const size = restingEntry();
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]

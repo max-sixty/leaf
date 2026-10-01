@@ -4,10 +4,9 @@
  * when focus was inside. Layout receives no surface commands, and refreshThread is
  * supplied by the application so this owner never imports a presenter.
  *
- * This owner declares the panel's Escape ladder. Once the user releases a selected
- * thread to the whole panel, narrowing unwinds before the panel closes. Closing the
- * panel lands the user on the document. Thread selection and release belong to
- * keyboard/page.js; leaving text entry belongs to thread/landing.js. */
+ * This owner declares the panel's Escape ladder, which is the way out of a thread in
+ * it: narrowing unwinds before the panel closes. Closing the panel lands the user on
+ * the document. Leaving text entry belongs to thread/landing.js. */
 import { handBack, letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";

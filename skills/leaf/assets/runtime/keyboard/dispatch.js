@@ -31,12 +31,12 @@
    the ordinary text-entry row to return to the panel, keeping the query. Exact input
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
-   A key may repeat across nesting scopes to mean the same intent in context. `c` reads
-   that way: from the page it enters the nearest comment box; from the Threads list it
-   enters the page-comment box one layer below that list. `g T`, not `c`, is what enters
-   Threads as a navigable surface and leaves `w` and `/` live. `activeCommandLabel`
-   projects the dispatcher's live result into the destination composition box's
-   placeholder. Each box's `aria-label` remains its shortcut-free accessible name.
+   A page command that a covering surface should not drop says so with `covering`, and
+   gates its own liveness on what it can reach there, rather than standing as a copy in
+   the surface's scope. `c` answers that way from a covering Threads panel, reading the
+   one comment destination the page reads. `activeCommandLabel` projects the
+   dispatcher's live result into the destination composition box's placeholder. Each
+   box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
    It unwinds the state standing in front of the user rather than a history of how they
@@ -468,9 +468,8 @@ function commandMatching(matches) {
   return null;
 }
 const commandFor = (id) => commandMatching((command) => command.id === id);
-// A contextual surface asks the dispatcher which of several routes to one capability is
-// reachable from the user's current scope — `c` on the page and `c` from the Threads
-// list both enter the page-comment box, and the box's placeholder names whichever one
+// A contextual surface asks the dispatcher which of its routes to one capability is
+// reachable from the user's current scope, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
 // reference into another scope's declaration. This includes shadowing by native text entry
 // and modes, not only each row's own liveness.

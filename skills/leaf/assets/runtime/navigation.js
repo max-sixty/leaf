@@ -261,8 +261,8 @@ export function createNavigation({
     repeat: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. In the panel it moves focus from card to
-    // card and the standing scope lets go of whichever one they end on, back to the
-    // list. With the panel shut it stands them on a thread a widget seats on the page,
+    // card, and the panel's own rungs clear its narrowing and close it from whichever
+    // one they end on. With the panel shut it stands them on a thread a widget seats on the page,
     // or opens the margin's thread view for a thread with no seat, and that view
     // is what the Page Map's own step dismisses.
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),

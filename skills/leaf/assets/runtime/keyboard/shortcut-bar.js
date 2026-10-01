@@ -505,6 +505,12 @@ export function renderShortcutBar(goToStatus) {
     .toReversed();
   while (rowsUsed(reserved) > ceiling && removable.length)
     trimmed.add(removable.shift());
+  // A wide row that had to go can free room a narrower one trimmed before it would fit
+  // in, so each trimmed row is offered its place back, highest-ranked first.
+  for (const span of [...trimmed].toReversed()) {
+    trimmed.delete(span);
+    if (rowsUsed(reserved) > ceiling) trimmed.add(span);
+  }
   // A status too wide to leave More and the way out their row gives the room back and
   // stands over them, since it takes no pointer events and the row is the promise.
   const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;

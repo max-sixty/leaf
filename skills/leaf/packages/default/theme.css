@@ -19,8 +19,9 @@ lf-gloss { display: inline; }
  * span takes over. */
 lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
 /* A live page's module puts the words in the card, so the phrase never shows them
- * inline, before the upgrade either. */
-html[data-lf-live] lf-gloss[tip]::after,
+ * inline, before the upgrade either, unless the runtime could not start
+ * (`data-lf-startup-error`, bootstrap.js) and no card will come. */
+html[data-lf-live]:not([data-lf-startup-error]) lf-gloss[tip]::after,
 lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
   html:root lf-gloss {
@@ -619,8 +620,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
     /* On a live page the authored options paint before their generated Add and Done
-     * cells. Keep their rows occupied until upgrade so the next block stays put, and
-     * give the last cell present the hairline it will draw above the first of them. The
+     * cells. Keep their rows occupied until upgrade so the next block stays put. The
      * form needs more room in a card because its action seat sits inside the card
      * inset. */
     --lf-add-cell-height: 32px;
@@ -635,10 +635,12 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
     &[multiple]:not(:has(> lf-options-done)) {
       --lf-missing-cells: calc(var(--lf-done-cell-height) + var(--lf-missing-add, 0px));
     }
-    &:where([data-lf-live] *):is(
-      :not(:where(.lf-chrome *)):not(:has(> .lf-another)),
-      [multiple]:not(:has(> lf-options-done))) > :last-child {
-      border-bottom: 1px solid var(--rule); }
+    /* The last cell present draws the hairline above the first reserved one. */
+    &:where([data-lf-live] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
+    &:where([data-lf-live] *)[multiple]:not(:has(> lf-options-done)) {
+      & > :is(lf-option, .lf-another, lf-options-done):last-child {
+        border-bottom: 1px solid var(--rule); }
+    }
     & > .lf-another { min-height: var(--lf-add-cell-height); }
     & > lf-options-done { min-height: var(--lf-done-cell-height); }
     /* The joined group draws a frame, so it says so, like every box that draws one
@@ -1020,15 +1022,16 @@ lf-milestone > strong { display: block; margin: 0 0 2px; }
  * .lf-chips) has its room from the first paint: one row of chips under the title, or
  * at the top of a milestone that has none. Chips that wrap onto a second row are not
  * reserved. */
-html[data-lf-live] lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(
-    :has(> .lf-chips)) {
-  & > strong:first-of-type::after { content: ""; display: block;
+html[data-lf-live]
+  lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(:has(> .lf-chips))
+  > strong:first-of-type::after { content: ""; display: block;
     height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
-  /* The row's top margin collapses through the milestone once it is the first child,
-   * so the milestone wears it until then. */
-  &:not(:has(> strong)) { margin-top: 2px;
+/* The row's top margin collapses through the milestone once it is the first child, so
+ * the milestone wears it until then. */
+html[data-lf-live]
+  lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(
+    :has(> .lf-chips, > strong)) { margin-top: 2px;
     padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
-}
 lf-milestone[status="done"] > strong { color: var(--muted); }
 /* The status word a user listening gets wears the runtime's .lf-ui .lf-quiet —
  * real text, clipped on screen where the dot already says it. Which attributes get
@@ -1593,8 +1596,10 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * the strip onto a second row, a side list taller than its panel, and a set that
      * opens on another panel, because the address's fragment is inside it or this
      * browser tab last left it open; the browser matches `:target` only once the
-     * document has loaded, and the stored tab is the module's to read. */
-    &[data-lf-live] lf-tabs:not(.lf-rendered):has(> lf-tab) {
+     * document has loaded, and the stored tab is the module's to read. A page whose
+     * runtime could not start (`data-lf-startup-error`, bootstrap.js) keeps the
+     * stacked, labeled panels, since no strip will come to reach the hidden ones. */
+    &[data-lf-live]:not([data-lf-startup-error]) lf-tabs:not(.lf-rendered):has(> lf-tab) {
       margin: var(--sp-4) 0 32px; border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card); --lf-block-frame: 1;
       &::before { content: ""; display: block; box-sizing: border-box;
@@ -1605,14 +1610,15 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       & > lf-tab::before { content: none; }
       & > lf-tab:not(:first-of-type) { display: none; }
     }
-    &[data-lf-live] body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
+    &[data-lf-live]:not([data-lf-startup-error]) body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
         [list="side"]):has(> lf-tab) {
       margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
       & > lf-tab { padding: var(--sp-4) 0 0; }
     }
-    &[data-lf-live] lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
+    &[data-lf-live]:not([data-lf-startup-error])
+      lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
       container-type: inline-size; display: grid;
       grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); align-items: start;
       &::before { grid-column: 1; grid-row: 1; align-self: stretch; border-bottom: 0;
@@ -2240,7 +2246,7 @@ lf-tree .lf-tree-dir { font-weight: 600; }
  * one, it split a two-character badge down the middle and drew half the chip on each
  * line. The name is what breaks now, which is the one of the three that can. */
 lf-tree .lf-tree-badge { font-size: var(--t-6); padding: var(--chip-pad);
-                         margin-left: 6px;
+                         margin-left: 6px; vertical-align: top;
                          border-radius: var(--chip-r); white-space: nowrap; }
 lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
 lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }

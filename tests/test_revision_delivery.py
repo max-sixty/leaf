@@ -452,3 +452,6 @@ def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
     }
     assert media_size(b"GIF89a" + struct.pack("<HH", 321, 123)) == (321, 123)
     assert media_size(b'<svg xmlns="http://www.w3.org/2000/svg"/>') is None
+    # An upload is checked by its signature alone, so a file cut short after it is a
+    # file delivery still serves.
+    assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None

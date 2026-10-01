@@ -1620,6 +1620,38 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     )
 
 
+def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serve):
+    """A live page draws a tab set's first panel alone before its module upgrades it,
+    and the strip the module builds is the only way to the rest. Where the runtime could
+    not start, no strip will come, so every panel stands under its label. Without the
+    startup failure guard the second panel computes to `display: none` and the page
+    keeps a word the user cannot reach."""
+    url = serve(
+        leaf_page(
+            "tabs",
+            '<h1 id="t">Tabs</h1>\n<lf-tabs id="views">'
+            '<lf-tab id="one" label="One"><p id="first">First.</p></lf-tab>'
+            '<lf-tab id="two" label="Two"><p id="second">Second.</p></lf-tab></lf-tabs>',
+        )
+    )
+    page = browser.new_page()
+    page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    ).to_be_visible()
+    expect(page.locator("#views")).not_to_have_class("lf-rendered")
+    expect(page.locator("#first")).to_be_visible()
+    expect(page.locator("#second")).to_be_visible()
+    assert (
+        page.evaluate(
+            "getComputedStyle(document.getElementById('two'), '::before').content"
+        )
+        == '"Two"'
+    )
+    consume_browser_errors(page, "lf-tabs.js", "net::ERR_FAILED")
+
+
 def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
     """The room is for the drawing, and until the module has made one what stands in the
     box is the authored source: evidence, which reads at the column's width from the

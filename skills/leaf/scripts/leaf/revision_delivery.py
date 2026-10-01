@@ -239,7 +239,11 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     """The width and height an image states in its header, for the raster formats page
     media holds (`schema.MEDIA_TYPES`), or None where the bytes state none: an SVG, whose
     size is its layout's, or a file cut short. A JPEG's EXIF rotation is not applied."""
-    if data.startswith(b"\x89PNG\r\n\x1a\n") and data[12:16] == b"IHDR":
+    if (
+        len(data) >= 24
+        and data.startswith(b"\x89PNG\r\n\x1a\n")
+        and data[12:16] == b"IHDR"
+    ):
         return struct.unpack(">II", data[16:24])
     if data.startswith((b"GIF87a", b"GIF89a")) and len(data) >= 10:
         return struct.unpack("<HH", data[6:10])

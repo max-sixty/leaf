@@ -1839,6 +1839,73 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
 lf-ask { display: block; }
+/* The options track. An Ask whose evidence includes a figure (its heading first, a
+ * chart, image or table after it, and one option list last) outruns a window when
+ * stacked: the options land below the figure they turn on. Where the Ask is 46rem
+ * wide or more, the list stands in a 16rem track beside the premise and evidence and
+ * sticks while they scroll, so the question, its figure and every option share one
+ * window. Narrower, the Ask stacks like any other. A reading column is narrower, so in
+ * a column the track takes the room the page grants the Ask with `data-width`
+ * (authoring-asks.md); room the page did not grant stays the render check's to refuse.
+ * The content decides the form, so there is no attribute for it. An Ask of words alone
+ * stays stacked: its context is shorter than a list set at 16rem, so a track would
+ * leave a column of air beside the list. A control other than a list has no room in
+ * 16rem.
+ *
+ * The width is the Ask's own, so the Ask is the size container its children query. A
+ * container cannot restyle itself, so the Ask stays a block and its children make the
+ * form: the context floats in a column at the start, each block clearing the one
+ * above, and the list, the one block left in flow, stands under the heading at the
+ * end, beside the floats, where it can stick. The Ask's `::after` clears the floats, so
+ * the Ask is as tall as its taller column. Floats keep the margins that flow would
+ * collapse, so each block in the column keeps only its start margin.
+ *
+ * A size container is a formatting context of its own, so in either form its first and
+ * last children's margins stay inside it instead of collapsing with its neighbours'.
+ * The heading keeps its start margin, so the block before the Ask drops its end margin
+ * (selected from the Ask's side, since one `:has()` cannot hold another), and the list
+ * drops its end margin in favour of whatever follows. The dropped margin was the
+ * smaller of each pair wherever the theme sets them.
+ *
+ * A container also re-bases `cqi`, which `--lf-room` is written in (layouts.css), so a
+ * breakout inside the Ask would measure the Ask rather than the shell. The Ask resolves
+ * that room once, as its parent would, and hands it to its children as a length.
+ * Beside the list, the free room is set to zero, so nothing in the context reaches
+ * under the track. */
+@property --lf-ask-room { syntax: "<length-percentage>"; inherits: true; initial-value: 0px; }
+lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+  container: lf-ask / inline-size;
+  --lf-ask-room: var(--lf-room, 0px);
+}
+:has(+ lf-ask > :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+  margin-block-end: 0;
+}
+@container lf-ask (width >= 0) {
+  lf-ask > * { --lf-room: var(--lf-ask-room); }
+  lf-ask > lf-options { margin-block-end: 0; }
+}
+@container lf-ask (width >= 46rem) {
+  /* `:nth-child(n)` outranks what sets a block's own width and margins, such as a
+   * declared width (`[data-lf-space]`) or `.facts`. The heading's end margin stands
+   * above the first block and the list alike. */
+  lf-ask > :not(:first-child, lf-options):nth-child(n) {
+    float: inline-start;
+    clear: inline-start;
+    inline-size: calc(100% - 16rem - var(--sp-4));
+    margin-block-end: 0;
+    --lf-free-l: 0px;
+    --lf-free-r: 0px;
+  }
+  lf-ask > :nth-child(2) { margin-block-start: 0; }
+  lf-ask > lf-options {
+    inline-size: 16rem;
+    margin-block-start: 0;
+    margin-inline-start: auto;
+    position: sticky;
+    top: calc(var(--lf-top) + var(--sp-3));
+  }
+  lf-ask::after { content: ""; display: block; clear: both; }
+}
 /* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
  * heading and one answer gives the answer what the heading leaves, so a widget composing
  * its own regions there, such as a playground, fills the window. With context between

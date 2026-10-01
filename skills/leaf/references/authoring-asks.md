@@ -16,6 +16,12 @@ that item, and an Ask that turns on a claim holds the claim and its evidence
 rather than following them. Only an Ask that turns on the whole record comes
 last.
 
+An Ask that holds a figure, such as a chart, image or table, and answers through
+one option list sets the list beside its premise and evidence wherever the Ask
+has the room, so the question, the figure and every option share the window. A
+reading column is too narrow for that, so in a column give such an Ask the wide
+measure with `data-width="wide"` (`page-authoring.md`, "Bounds and widths").
+
 Every Ask is an `lf-ask`: `page check` refuses a widget that takes an answer
 anywhere else. Write related, independently answerable Asks as separate `lf-ask`
 elements in page order. They remain visible as one complete page. The user can press

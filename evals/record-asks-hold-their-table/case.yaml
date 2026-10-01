@@ -44,6 +44,10 @@ graders:
   type: regex
   pattern: <lf-ask\b
   flags: i
+- name: ask-takes-wide-room
+  type: regex
+  pattern: <lf-ask\b[^>]*\bdata-width=["']wide["']
+  flags: i
 - name: judgment
   type: llm
   criteria: |

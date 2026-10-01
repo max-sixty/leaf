@@ -351,7 +351,7 @@ def verify_codex_task() -> None:
     run_leaf(
         ROOT,
         state,
-        "version",
+        "page",
         "stamp",
         str(page),
         "--text",

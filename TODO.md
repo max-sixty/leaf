@@ -361,15 +361,13 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
-- **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  and the host waits for it. In a session holding no page it costs about 50ms
-  warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
-  uv adds about 15ms, Python startup about 10ms, and importing the CLI about
-  15ms. A session holding a page adds about 0.1s to import page reading and
-  read each page's state, so its prompt and Stop hooks cost about 0.15s. That
-  cost limits what else hooks can carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
-  can answer more events itself. Rewriting the hook path in a compiled language
-  is the further step if that is not enough.
+- **Leaf tool-result hooks:** consider a `leaf` filter in front of every
+  tool-result hook so Leaf can observe tool activity itself. Empty-session Stop
+  and prompt hooks now discover ownership using only the standard library,
+  without uv or the CLI. A session holding a page still imports page reading and
+  reads each page's state before answering, which limits the cost of broader
+  tool observation. Rewriting the hook path in a compiled language is the
+  further step if that is not enough.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

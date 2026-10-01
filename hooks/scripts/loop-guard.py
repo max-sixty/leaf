@@ -16,9 +16,12 @@ silent. Codex runs the same `hooks.json`, ignoring `asyncRewake` and so waiting 
 the hook, which is why that registration keeps a `$CLAUDECODE` gate ahead of this
 script.
 
-The CLI owns the turn's active-ownership reading. SessionEnd only releases
-records still naming the ended session, under the page transaction lock. Its
-standard-library path works before this plugin copy has an environment.
+The library owns active-ownership discovery. Its standard-library hook entry
+marks the session and checks the same claim lifetimes the CLI reads, before
+starting uv. A session holding no page never starts the plugin environment;
+SessionEnd releases its claims under the page transaction lock. Both work even
+before this plugin copy has an environment. A host Python older than Leaf's
+3.10 floor leaves library discovery to uv, which supplies the supported runtime.
 
 What is left is the one thing the CLI cannot do for itself: fail open. Anything
 unexpected — no uv on PATH, an install that will not sync, a timeout — is
@@ -51,7 +54,7 @@ PROJECT = Path(__file__).resolve().parents[2]
 COMMAND = ["uv", "run", "-q", "--no-dev", "--project", str(PROJECT), "leaf"]
 
 
-def watch() -> None:
+def watch(payload: str) -> None:
     """Run the watch, and wake the session, by exiting 2 with it on stderr, only
     with what the watch printed on a clean exit. uv and click spend exit 2 on their
     own failures, so the status alone would wake the session with an error at
@@ -70,31 +73,33 @@ def watch() -> None:
         children.append(
             subprocess.Popen(
                 [*COMMAND, "hook", "--watch"],
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
             )
         )
         [child] = children
-        woke, _ = child.communicate()
+        woke, _ = child.communicate(payload)
         if child.returncode == 0 and woke.strip():
             sys.stderr.write(woke)
             sys.exit(2)
 
 
 def main() -> None:
-    if "--watch" in sys.argv[1:]:
-        watch()
-        return
     try:
         payload = sys.stdin.read()
         hook = json.loads(payload)
-        event = hook.get("hook_event_name")
-        if event == "SessionEnd":
+        # The host chooses python3, while uv supplies Leaf's Python >=3.10.
+        # Older launcher interpreters must leave library imports to uv.
+        if sys.version_info >= (3, 10):  # noqa: UP036 — host Python is outside uv
             sys.path.insert(0, str(PROJECT / "skills" / "leaf" / "scripts"))
-            from leaf.state_paths import end_session
+            from leaf.hooks import prepare_hook
 
-            end_session(hook.get("session_id") or "")
+            if not prepare_hook(hook):
+                return
+        if "--watch" in sys.argv[1:]:
+            watch(payload)
             return
         answer = subprocess.run(
             [*COMMAND, "hook"],

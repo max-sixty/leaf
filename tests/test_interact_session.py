@@ -8600,16 +8600,28 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert host_model.session_harness().watches_between_turns()
     monkeypatch.setattr(host_model, "process_argv", launched)
 
+    initialized = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_first_pass(watch, mark, *args, **kwargs):
+        initialized.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_first_pass)
+
     def watching(outcome: list) -> threading.Thread:
+        initialized.clear()
         watch = threading.Thread(
             target=lambda: outcome.append(hooks_model.cmd_watch(stop))
         )
         watch.start()
-        wait_for(
-            lambda: leases_model.wait_is_live(claimed, "s1"),
-            bool,
-            failure="the Stop hook's watch never took the session's lease",
+        # The lease is acquired before the initial log snapshot. A comment sent
+        # after acquisition can still enter that snapshot as pre-existing input;
+        # the first completed pass proves this watch can now read later arrivals.
+        assert initialized.wait(STATED_TIMEOUT), (
+            "the watch never completed its first pass"
         )
+        assert leases_model.wait_is_live(claimed, "s1")
         return watch
 
     # Input pending as the turn ends is the other Stop hook's to hand to the turn
@@ -12510,8 +12522,8 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
-    """The script a host actually runs decides nothing; it runs the `leaf` CLI
-    under uv, out of the payload project beside it.
+    """The script a host actually runs uses the library to discover ownership,
+    then runs page reading under uv, out of the payload project beside it.
 
     Driven the way a host drives it — a separate `python3`, the payload's own copy of
     the guard, the hook payload on stdin — because the wiring is the subject, and no
@@ -12546,8 +12558,7 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     [batch] = json.loads(continued(answered.stdout).split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
 
-    # A session holding nothing is the CLI's answer too, now that the hook keeps
-    # no cheaper reading of the claims to stand itself down by.
+    # The library's ownership reading stands the script down without uv.
     stranger = run(json.dumps({"hook_event_name": "Stop", "session_id": "s2"}))
     assert (stranger.returncode, stranger.stdout, stranger.stderr) == (0, "", "")
 
@@ -12561,6 +12572,103 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
         "",
         "",
     )
+
+
+@pytest.mark.parametrize(
+    "event,watch",
+    [("Stop", False), ("Stop", True), ("UserPromptSubmit", False)],
+)
+def test_an_idle_registered_hook_needs_no_environment(event, watch, tmp_path, page_dir):
+    """A cold hook uses the full ownership reading without third-party imports.
+
+    -S excludes installed libraries; a recording uv proves the hook never starts
+    an environment for absent, unrelated, or released ownership. A live claim is
+    the control that must reach uv, in the guard and the background watch alike.
+    """
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    uv = tools / "uv"
+    uv.write_text('#!/bin/sh\nprintf called > "$UV_CALLED"\n')
+    uv.chmod(0o755)
+    called = tmp_path / "uv-called"
+    env = os.environ | {"PATH": str(tools), "UV_CALLED": str(called)}
+    command = [
+        sys.executable,
+        "-S",
+        str(PLUGIN_ROOT / "hooks/scripts/loop-guard.py"),
+        *(["--watch"] if watch else []),
+    ]
+    payload = json.dumps({"hook_event_name": event, "session_id": "cold-hook"})
+
+    def run():
+        done = subprocess.run(
+            command,
+            input=payload,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+
+    run()
+    assert not called.exists()
+    assert leases_model.hooks_ran("cold-hook")
+    record_claim(page_dir, id="unrelated")
+    run()
+    assert not called.exists()
+    record_claim(page_dir, id="cold-hook", released="2026-10-01T00:00:00")
+    run()
+    assert not called.exists()
+    record_claim(page_dir, id="cold-hook")
+    run()
+    assert called.read_text() == "called"
+
+
+def test_an_older_hook_interpreter_leaves_library_imports_to_uv(tmp_path):
+    """Host python3 is independent of uv's runtime, and may be Python 3.9.
+
+    Exercise its launcher branch without a library or installed dependencies;
+    the real system Python 3.9 also reaches uv through this branch on macOS.
+    """
+    project = tmp_path / "plugin"
+    guard = project / "hooks/scripts/loop-guard.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_bytes((PLUGIN_ROOT / "hooks/scripts/loop-guard.py").read_bytes())
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    uv = tools / "uv"
+    uv.write_text('#!/bin/sh\nprintf called > "$UV_CALLED"\n')
+    uv.chmod(0o755)
+    called = tmp_path / "uv-called"
+    env = os.environ | {"PATH": str(tools), "UV_CALLED": str(called)}
+    # Only the launcher version reading is replaced. The subprocess runs its real
+    # stdin, imports, command construction, uv subprocess, and output handling.
+    bootstrap = (
+        "import runpy, sys; sys.version_info = (3, 9); "
+        "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
+    )
+    for event, watch in (("Stop", False), ("Stop", True), ("UserPromptSubmit", False)):
+        called.unlink(missing_ok=True)
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-S",
+                "-c",
+                bootstrap,
+                str(guard),
+                *(["--watch"] if watch else []),
+            ],
+            input=json.dumps({"hook_event_name": event, "session_id": "old-host"}),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+        assert called.read_text() == "called"
 
 
 def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
@@ -12698,12 +12806,15 @@ def test_cold_session_end_releases_a_claim_from_another_checkout(tmp_path, page_
     assert service_model.page_claim(page_dir)["released"] is not None
 
 
-def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server():
+def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
+    page_dir,
+):
     """A host runs Leaf's hooks at every turn of every session the plugin is
     installed in, and most hold no page. Each waits on `import leaf.hooks`, so
     that import, and a prompt or Stop hook in a session holding nothing, loads
     neither the page servers nor page reading: markup, registry schemas, and
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
+    record_claim(page_dir, id="another-session")
     probe = """\
 import json, sys
 from leaf.hooks import cmd_hook
@@ -12720,8 +12831,11 @@ print(json.dumps([imported, sorted(sys.modules)]))
         check=True,
     )
     heavy = (
-        "uvicorn",
+        "leaf.host",
+        "psutil",
+        "click",
         "leaf.hosting",
+        "uvicorn",
         "leaf.http",
         "leaf.hook_carrier",
         "leaf.served_state.page",

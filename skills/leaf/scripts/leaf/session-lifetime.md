@@ -193,11 +193,15 @@ handling fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were. Absent the harness the environment implies, nothing is
 claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
-run, leaves the active-claim decision to this command. For a cold SessionEnd it
-releases records still naming that session directly under each page's transaction
-lock, without starting `uv`; the CLI uses the same release path. Other hooks run
-the command and stay silent when it cannot get an answer, so a leaf bug costs a
-turn nothing.
+run, calls `hooks.prepare_hook` using only the standard library before starting
+`uv`. That entry marks the session and reads active ownership through
+`service.owned_pages`; a session holding no page starts no environment or CLI.
+SessionEnd releases records still naming that session under each page's transaction
+lock through the same entry. A hook holding a page starts the command under `uv`,
+which rechecks ownership before carrying the turn. The script stays silent when
+it cannot get an answer, so a leaf bug costs a turn nothing. When the host's
+`python3` is older than Leaf's 3.10 floor, the script runs the command under `uv`
+for discovery as well, rather than importing unsupported library code.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`

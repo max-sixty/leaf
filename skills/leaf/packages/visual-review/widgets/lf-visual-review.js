@@ -850,10 +850,11 @@ customElements.define(
         const outside = focus
           ? difference.regions.filter(
               (region) =>
-                region.x >= (focus.x + focus.width) * ratio ||
+                region.side === "after" &&
+                (region.x >= (focus.x + focus.width) * ratio ||
                 region.x + region.width <= focus.x * ratio ||
                 region.y >= (focus.y + focus.height) * ratio ||
-                region.y + region.height <= focus.y * ratio,
+                  region.y + region.height <= focus.y * ratio),
             ).length
           : 0;
         parts.push(

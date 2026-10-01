@@ -5615,17 +5615,24 @@ def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(
 def test_a_block_pasted_into_a_margin_reply_keeps_the_last_turn_above_it(
     browser, serve
 ):
-    """A pinned row grows upward over the transcript, so the transcript moves by what
-    the row now covers. `test_a_growing_margin_reply_keeps_the_previous_turn_visible`
-    reads the same contract on a card too short for the editor to grow."""
+    """A long transcript already fills the card above its reply. A pasted block
+    scrolls in that editor, keeping its starting top and the answered turn in view."""
     page, preview, editor, transcript = long_thread_in_reply(browser, serve)
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     editor.type("first")
     rendered(page)
-    grew = editor.evaluate("box => box.getBoundingClientRect().height")
+    before = page.evaluate(CARD_AND_REPLY)
+    transcript_top = transcript.evaluate("list => list.scrollTop")
     page.keyboard.insert_text("\n" + "\n".join(f"pasted {n}" for n in range(30)))
     rendered(page)
-    assert editor.evaluate("box => box.getBoundingClientRect().height") > grew + 100
+    after = page.evaluate(CARD_AND_REPLY)
+    for edge in ("cardTop", "editorTop", "editorBottom"):
+        assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
+    assert transcript.evaluate("list => list.scrollTop") == transcript_top
+    caret = _focused_editor_caret(page)
+    assert caret["selection"] == caret["length"], caret
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
     reading = preview.locator(".lf-page-thread-msg").last.evaluate(
         SHOWN_ABOVE_THE_REPLY
     )
@@ -7192,6 +7199,10 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     for edge in ("cardTop", "turn", "editorTop"):
         assert tall[edge] == pytest.approx(before[edge], abs=0.5), (before, tall)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    caret = _focused_editor_caret(page)
+    assert caret["selection"] == caret["length"], caret
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
 
     # A short draft brings the card back to its top.
     write(editor, "Sent")
@@ -9799,9 +9810,75 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
     assert after["scrolled"][0] == before["scrolled"][0], (before, after)
 
 
+def test_resizing_a_focused_editor_keeps_the_pane_the_reader_scrolled_away(
+    browser, serve
+):
+    """External room changes reveal within the editor, without treating retained
+    focus as permission to bring the surrounding reading pane back."""
+    page = open_page(browser, serve(PANE_PIN_PAGE))
+    resized(page, 1440, 600)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    page.evaluate("""() => {
+      const body = document.querySelector('#pin-pane > div');
+      body.style.overflowAnchor = 'none';
+      const input = document.createElement('leaf-text');
+      input.id = 'resized-editor';
+      input.className = 'lf-ui';
+      input.style.cssText = 'height:100px;max-height:100px;overflow:auto';
+      body.prepend(input);
+      input.value = 'Words\\n'.repeat(40);
+      input.focus();
+    }""")
+    rendered(page)
+    pane = page.locator("#pin-pane > div")
+    pane.evaluate("body => body.scrollTop = 400")
+    rendered(page)
+    before = pane.evaluate("body => body.scrollTop")
+    assert before == 400
+    editor = page.locator("#resized-editor")
+    expect(editor).to_be_focused()
+    editor.evaluate("input => input.style.height = '80px'")
+    rendered(page)
+    assert editor.bounding_box()["height"] == pytest.approx(80)
+    assert pane.evaluate("body => body.scrollTop") == before
+
+
+def _focused_editor_caret(page):
+    """Read the real caret inside the control's closed root, through Chrome's DOM."""
+    session = page.context.new_cdp_session(page)
+    try:
+        focused = session.send(
+            "Runtime.evaluate", {"expression": "document.activeElement"}
+        )["result"]["objectId"]
+        node = session.send("DOM.describeNode", {"objectId": focused, "depth": 1})[
+            "node"
+        ]
+        root = session.send(
+            "DOM.resolveNode",
+            {"backendNodeId": node["shadowRoots"][0]["backendNodeId"]},
+        )["object"]["objectId"]
+        return session.send(
+            "Runtime.callFunctionOn",
+            {
+                "objectId": root,
+                "returnByValue": True,
+                "functionDeclaration": """function() {
+                  const caret = this.getSelection().getRangeAt(0).getBoundingClientRect();
+                  const box = this.host.getBoundingClientRect();
+                  return {caretTop: caret.top, caretBottom: caret.bottom,
+                    boxTop: box.top, boxBottom: box.bottom,
+                    selection: this.host.selectionEnd, length: this.host.value.length};
+                }""",
+            },
+        )["result"]["value"]
+    finally:
+        session.detach()
+
+
+@pytest.mark.parametrize("route", ["paste", "typing"])
 @pytest.mark.parametrize("size", [(1440, 900), (1440, 600), (1000, 700)])
 def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
-    browser, serve, size
+    browser, serve, size, route
 ):
     """A bounded pane supplies the drafting room just as the window does. Growing
     past that room scrolls the editor without carrying the card or its first line."""
@@ -9814,11 +9891,34 @@ def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     editor.click()
     rendered(page)
     before = page.evaluate(CARD_AND_REPLY)
-    for _ in range(40):
-        editor.type("One more line of the reply")
-        editor.press("Shift+Enter")
-        rendered(page)
+
+    def stays():
         after = page.evaluate(CARD_AND_REPLY)
         for edge in ("cardTop", "turn", "editorTop"):
             assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
+
+    if route == "paste":
+        page.keyboard.insert_text(
+            "\n".join(f"Line {n}: Keep the export per tenant." for n in range(40))
+        )
+        rendered(page)
+        stays()
+    else:
+        for n in range(40):
+            editor.type(f"Line {n}: Keep the export per tenant.")
+            if n < 39:
+                editor.press("Shift+Enter")
+            rendered(page)
+            stays()
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    caret = _focused_editor_caret(page)
+    assert caret["selection"] == caret["length"], caret
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
+    page.keyboard.type(" End")
+    rendered(page)
+    stays()
+    caret = _focused_editor_caret(page)
+    assert caret["selection"] == caret["length"], caret
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret

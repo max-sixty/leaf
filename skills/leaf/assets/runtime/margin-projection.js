@@ -847,11 +847,9 @@ export function createMarginProjection({
       0,
     );
   }
-  // How many lines of the turn being answered stay in view below the fixed metadata
-  // while the reply grows and the transcript gives up room.
-  const ANSWERED_LINES = 3;
-  // The reply takes whatever room the card has left once the transcript keeps those
-  // lines, or all of itself where it is shorter, and scrolls internally only past that.
+  // The reply takes the room below the transcript without carrying the words above
+  // it. A transcript that cannot fit beside even one editor line scrolls itself;
+  // typing then uses the remaining room and scrolls inside the editor.
   function fitThreadCardEditors() {
     const listRoom =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
@@ -868,10 +866,7 @@ export function createMarginProjection({
       // left them. After a resize that editor can exceed the new card's height.
       const answered =
         (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) +
-        Math.min(
-          ANSWERED_LINES * line,
-          thread.querySelector(".lf-thread-transcript").scrollHeight,
-        );
+        thread.querySelector(".lf-thread-transcript").scrollHeight;
       const oneLine =
         input.offsetHeight -
         input.clientHeight +

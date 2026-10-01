@@ -273,7 +273,6 @@
         font: 600 var(--t-6) / 1 var(--mono);
         color: var(--accent);
       }
-
     </style>
     <script type="module">
       import { once, layoutChanged } from "/runtime/widget-api.js";
@@ -285,18 +284,51 @@
         coverage: "Test coverage",
         scope: "Scope of the migration",
       };
-      const OPTIONS = { big: "Big bang", canary: "Canary first", region: "Region by region" };
-      const REPLIES = ["Yes, automatic.", "Add the soak test.", "Agreed.", "Let's talk Monday."];
+      const OPTIONS = {
+        big: "Big bang",
+        canary: "Canary first",
+        region: "Region by region",
+      };
+      const REPLIES = [
+        "Yes, automatic.",
+        "Add the soak test.",
+        "Agreed.",
+        "Let's talk Monday.",
+      ];
       const UNDOABLE = new Set(["choose", "resolve", "unresolve"]);
       // The log as a review page carries it three weeks in: the newest thing the
       // user did was resolve Scope, 21 days ago.
       const SEED = [
-        { kind: "reply", author: "agent", target: "scope", text: "Is reporting in scope?", t: -24 },
+        {
+          kind: "reply",
+          author: "agent",
+          target: "scope",
+          text: "Is reporting in scope?",
+          t: -24,
+        },
         { kind: "choose", author: "user", target: "rollout", option: "canary", t: -23 },
-        { kind: "reply", author: "agent", target: "rollback", text: "Should rollback be automatic?", t: -22 },
-        { kind: "reply", author: "user", target: "scope", text: "No, next quarter.", t: -21.01 },
+        {
+          kind: "reply",
+          author: "agent",
+          target: "rollback",
+          text: "Should rollback be automatic?",
+          t: -22,
+        },
+        {
+          kind: "reply",
+          author: "user",
+          target: "scope",
+          text: "No, next quarter.",
+          t: -21.01,
+        },
         { kind: "resolve", author: "user", target: "scope", t: -21 },
-        { kind: "reply", author: "agent", target: "coverage", text: "Load tests cover the canary stage only.", t: -2 },
+        {
+          kind: "reply",
+          author: "agent",
+          target: "coverage",
+          text: "Load tests cover the canary stage only.",
+          t: -2,
+        },
       ];
 
       const quote = (text) => `“${text}”`;
@@ -322,7 +354,8 @@
 
       // What taking it back will do, as an imperative.
       function takeBack(e) {
-        if (e.kind === "choose") return `take back choosing ${quote(OPTIONS[e.option])}`;
+        if (e.kind === "choose")
+          return `take back choosing ${quote(OPTIONS[e.option])}`;
         if (e.kind === "resolve") return `reopen ${place(e)}`;
         return `resolve ${place(e)} again`;
       }
@@ -336,7 +369,8 @@
 
       // What taking it back did, for the notice.
       function tookBack(e) {
-        if (e.kind === "choose") return `took back choosing ${quote(OPTIONS[e.option])}`;
+        if (e.kind === "choose")
+          return `took back choosing ${quote(OPTIONS[e.option])}`;
         if (e.kind === "resolve") return `reopened ${place(e)}`;
         return `resolved ${place(e)} again`;
       }
@@ -367,7 +401,8 @@
         for (const e of log) {
           if (e.kind !== "undo" || !stands(e)) continue;
           const undo = byId.get(e.undoes);
-          if (undo.kind === "undo") since.set(undo.undoes, Math.max(since.get(undo.undoes), e.idx));
+          if (undo.kind === "undo")
+            since.set(undo.undoes, Math.max(since.get(undo.undoes), e.idx));
         }
         // Each effect reads at its own log position, as Leaf's folds do: the last
         // standing event on a unit decides it, and any reply reopens its thread.
@@ -391,7 +426,10 @@
             return target.kind !== "undo" && !stands(target) && wouldPaint(target);
           })
           .sort((a, b) => b.idx - a.idx);
-        const lastNew = Math.max(-1, ...user.filter((e) => e.kind !== "undo").map((e) => e.idx));
+        const lastNew = Math.max(
+          -1,
+          ...user.filter((e) => e.kind !== "undo").map((e) => e.idx),
+        );
         return {
           byId,
           stands,
@@ -492,27 +530,49 @@
             const toolbar = document.createElement("div");
             toolbar.className = "sim-toolbar";
             toolbar.append(
-              this.#button("Reload the page", () => {
-                this.#visit = this.#log.length;
-                this.#armed = null;
-                this.#notice = { text: "Reloaded: a new visit starts here.", tone: "" };
-                this.#page.scrollTop = 0;
-                this.#render();
-              }, "reload"),
-              this.#button("Agent picks up your moves", () => {
-                this.#pickUp();
-                this.#notice = { text: "The agent has picked up everything you did.", tone: "" };
-                this.#render();
-              }, "pickup"),
-              this.#button("A week passes", () => {
-                this.#now += 7;
-                this.#pickUp();
-                this.#render();
-              }, "week"),
-              this.#button("Start over", () => {
-                this.#start();
-                this.#render();
-              }, "restart"),
+              this.#button(
+                "Reload the page",
+                () => {
+                  this.#visit = this.#log.length;
+                  this.#armed = null;
+                  this.#notice = {
+                    text: "Reloaded: a new visit starts here.",
+                    tone: "",
+                  };
+                  this.#page.scrollTop = 0;
+                  this.#render();
+                },
+                "reload",
+              ),
+              this.#button(
+                "Agent picks up your moves",
+                () => {
+                  this.#pickUp();
+                  this.#notice = {
+                    text: "The agent has picked up everything you did.",
+                    tone: "",
+                  };
+                  this.#render();
+                },
+                "pickup",
+              ),
+              this.#button(
+                "A week passes",
+                () => {
+                  this.#now += 7;
+                  this.#pickUp();
+                  this.#render();
+                },
+                "week",
+              ),
+              this.#button(
+                "Start over",
+                () => {
+                  this.#start();
+                  this.#render();
+                },
+                "restart",
+              ),
             );
             this.#clock = document.createElement("span");
             this.#clock.className = "sim-clock";
@@ -590,7 +650,8 @@
             if (!block) return false;
             const view = this.#page.getBoundingClientRect();
             const box = block.getBoundingClientRect();
-            const shown = Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top);
+            const shown =
+              Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top);
             return shown >= Math.min(box.height / 2, 80);
           }
 
@@ -639,7 +700,9 @@
           // that the agent has already picked up; the second, with it still in view,
           // takes it.
           #needsReveal(act, target) {
-            return this.#values.reach === "confirm" && (act.picked || !this.#inView(target));
+            return (
+              this.#values.reach === "confirm" && (act.picked || !this.#inView(target))
+            );
           }
 
           #armedAndShown(id, target) {
@@ -667,13 +730,19 @@
             const state = fold(this.#log);
             const event = this.#undoTarget(state);
             if (!event) {
-              this.#notice = { text: "z does nothing: the bar doesn't offer it here.", tone: "" };
+              this.#notice = {
+                text: "z does nothing: the bar doesn't offer it here.",
+                tone: "",
+              };
               this.#armed = null;
               this.#render();
               return;
             }
             const act = this.#log[state.since.get(event.id)];
-            if (this.#needsReveal(act, event.target) && !this.#armedAndShown(event.id, event.target)) {
+            if (
+              this.#needsReveal(act, event.target) &&
+              !this.#armedAndShown(event.id, event.target)
+            ) {
               this.#armed = event.id;
               this.#reveal(event.target);
               this.#notice = {
@@ -694,7 +763,8 @@
               text: `${this.#values.name ? cap(tookBack(event)) : TODAY[event.kind]} — sent`,
               tone: "",
             };
-            if (this.#values.reach === "confirm" || this.#values.panel) this.#flashTarget(event.target);
+            if (this.#values.reach === "confirm" || this.#values.panel)
+              this.#flashTarget(event.target);
             this.#render();
           }
 
@@ -713,10 +783,16 @@
               return;
             }
             const target = state.byId.get(undo.undoes);
-            if (this.#needsReveal(undo, target.target) && !this.#armedAndShown(undo.id, target.target)) {
+            if (
+              this.#needsReveal(undo, target.target) &&
+              !this.#armedAndShown(undo.id, target.target)
+            ) {
               this.#armed = undo.id;
               this.#reveal(target.target);
-              this.#notice = { text: `Press Z again to ${putBack(target)}.`, tone: "arm" };
+              this.#notice = {
+                text: `Press Z again to ${putBack(target)}.`,
+                tone: "arm",
+              };
               this.#render();
               return;
             }
@@ -733,7 +809,8 @@
               text: `${this.#values.name ? `Put back: ${did(target)}` : "Put back your last change"} — sent`,
               tone: "",
             };
-            if (this.#values.reach === "confirm" || this.#values.panel) this.#flashTarget(target.target);
+            if (this.#values.reach === "confirm" || this.#values.panel)
+              this.#flashTarget(target.target);
             this.#render();
           }
 
@@ -742,7 +819,8 @@
             const focusKey = this.contains(document.activeElement)
               ? document.activeElement.dataset?.key
               : undefined;
-            this.#clock.textContent = this.#now >= 1 ? `day ${Math.floor(this.#now)}` : "today";
+            this.#clock.textContent =
+              this.#now >= 1 ? `day ${Math.floor(this.#now)}` : "today";
             this.#renderPage();
             this.#renderBar();
             this.#renderSide();
@@ -784,10 +862,14 @@
             const opts = document.createElement("div");
             opts.className = "sim-row";
             for (const [option, label] of Object.entries(OPTIONS)) {
-              const b = this.#button(label, () => {
-                if (state.winner("rollout")?.option === option) return;
-                this.#gesture({ kind: "choose", target: "rollout", option });
-              }, `opt-${option}`);
+              const b = this.#button(
+                label,
+                () => {
+                  if (state.winner("rollout")?.option === option) return;
+                  this.#gesture({ kind: "choose", target: "rollout", option });
+                },
+                `opt-${option}`,
+              );
               b.setAttribute("aria-pressed", String(chosen?.option === option));
               opts.append(b);
             }
@@ -829,16 +911,24 @@
                 (e) => e.kind === "reply" && e.author === "user",
               ).length;
               row.append(
-                this.#button(resolved ? "Reopen" : "Resolve", () => {
-                  this.#gesture({ kind: resolved ? "unresolve" : "resolve", target });
-                }, `res-${target}`),
-                this.#button("Reply", () => {
-                  this.#gesture({
-                    kind: "reply",
-                    target,
-                    text: REPLIES[replies % REPLIES.length],
-                  });
-                }, `reply-${target}`),
+                this.#button(
+                  resolved ? "Reopen" : "Resolve",
+                  () => {
+                    this.#gesture({ kind: resolved ? "unresolve" : "resolve", target });
+                  },
+                  `res-${target}`,
+                ),
+                this.#button(
+                  "Reply",
+                  () => {
+                    this.#gesture({
+                      kind: "reply",
+                      target,
+                      text: REPLIES[replies % REPLIES.length],
+                    });
+                  },
+                  `reply-${target}`,
+                ),
               );
               el.append(row);
             }
@@ -875,7 +965,9 @@
               const target = state.byId.get(redo.undoes);
               chip(
                 "Z",
-                this.#values.name ? cap(putBack(target)) : "Put back what you took back",
+                this.#values.name
+                  ? cap(putBack(target))
+                  : "Put back what you took back",
                 () => this.#pressRedo(),
               );
             }
@@ -952,14 +1044,22 @@
                 if (e.kind === "reply") {
                   keys.append("said");
                 } else if (stands && state.paints(e)) {
-                  keys.append(this.#button("Undo", () => this.#withdraw(e), `toggle-${e.id}`));
+                  keys.append(
+                    this.#button("Undo", () => this.#withdraw(e), `toggle-${e.id}`),
+                  );
                 } else if (stands) {
                   keys.append("superseded");
                 } else if (this.#values.redo && state.wouldPaint(e)) {
                   const standingUndo = this.#log.findLast(
                     (u) => u.kind === "undo" && u.undoes === e.id && state.stands(u),
                   );
-                  keys.append(this.#button("Redo", () => this.#restore(standingUndo), `toggle-${e.id}`));
+                  keys.append(
+                    this.#button(
+                      "Redo",
+                      () => this.#restore(standingUndo),
+                      `toggle-${e.id}`,
+                    ),
+                  );
                 } else {
                   keys.append("undone");
                 }
@@ -970,7 +1070,8 @@
             }
 
             const heading = document.createElement("h4");
-            heading.textContent = "The event log, oldest first (✓ picked up by the agent)";
+            heading.textContent =
+              "The event log, oldest first (✓ picked up by the agent)";
             const log = document.createElement("ol");
             log.className = "sim-log";
             log.setAttribute("aria-label", "Event log");
@@ -1037,8 +1138,7 @@
         confirm:
           "Make z show before it takes: it takes back your newest gesture, but when its target is out of view or the agent has already picked the gesture up, the first press scrolls the target into view, outlines it, and names the gesture and its age, and a second press, with the target still in view, takes it back.",
         age: "Bound z to the last 7 days: it takes back your newest gesture only when you made it within the week.",
-        here:
-          "Scope z to the view: it takes back your newest gesture among the targets on screen, and does nothing when that gesture cannot be taken back.",
+        here: "Scope z to the view: it takes back your newest gesture among the targets on screen, and does nothing when that gesture cannot be taken back.",
       };
 
       customElements.whenDefined("lf-playground").then(() => {
@@ -1076,8 +1176,8 @@
         <p class="lede">
           Leaf's log already keeps every gesture forever, so the storage half of Vim's
           persistent undo is there; the safety half is missing. On a page you left three
-          weeks ago, <kbd>z</kbd> reopens a thread you resolved then, below the fold, and
-          no key or control puts back what an undo took.
+          weeks ago, <kbd>z</kbd> reopens a thread you resolved then, below the fold,
+          and no key or control puts back what an undo took.
         </p>
       </header>
 
@@ -1125,7 +1225,10 @@
             <tr id="row-confirm">
               <td>Show, then take</td>
               <td>No limit</td>
-              <td>No: a target out of view, or one the agent has already picked up, is shown on the first press and taken on the second</td>
+              <td>
+                No: a target out of view, or one the agent has already picked up, is
+                shown on the first press and taken on the second
+              </td>
               <td>Medium</td>
             </tr>
             <tr id="row-here">
@@ -1147,17 +1250,26 @@
           <tbody>
             <tr id="row-name">
               <td>Say what <kbd>z</kbd> takes</td>
-              <td>The shortcut bar and the notice name the gesture and its age, where today they name only its kind</td>
+              <td>
+                The shortcut bar and the notice name the gesture and its age, where
+                today they name only its kind
+              </td>
               <td>Small</td>
             </tr>
             <tr id="row-redo">
               <td>Redo on <kbd>Z</kbd></td>
-              <td>Puts back what an undo took, as Vim's Ctrl-R does, until your next change and while it would still show</td>
+              <td>
+                Puts back what an undo took, as Vim's Ctrl-R does, until your next
+                change and while it would still show
+              </td>
               <td>Large</td>
             </tr>
             <tr id="row-panel">
               <td>Changes panel</td>
-              <td>Every gesture you made, newest first, each with Undo, and Redo once redo exists</td>
+              <td>
+                Every gesture you made, newest first, each with Undo, and Redo once redo
+                exists
+              </td>
               <td>Large</td>
             </tr>
           </tbody>
@@ -1165,23 +1277,53 @@
       </section>
 
       <lf-ask id="undo-ask">
-        <h2>Which undo should Leaf build: a tighter reach, a visible reach, redo, or a panel?</h2>
+        <h2>
+          Which undo should Leaf build: a tighter reach, a visible reach, redo, or a
+          panel?
+        </h2>
         <p>
           Pick a rule or a preset, then operate it on the page below. My recommendation
-          is <strong>Show, then take</strong> with the bar naming its target, now: it has
-          no limit and never acts where you aren't looking. Redo is the other half of
-          Vim's safety, but it costs more than it looks (below), so I'd build it second
-          and the Changes panel on top of both.
+          is <strong>Show, then take</strong> with the bar naming its target, now: it
+          has no limit and never acts where you aren't looking. Redo is the other half
+          of Vim's safety, but it costs more than it looks (below), so I'd build it
+          second and the Changes panel on top of both.
         </p>
 
-        <lf-playground id="undo-playground" submit-label="Build this undo" data-height="770">
-          <lf-playground-control name="reach" label="Where z reaches" kind="choice" value="newest">
-            <lf-playground-choice value="walk" label="Before #1410: walks past"></lf-playground-choice>
-            <lf-playground-choice value="newest" label="Newest (main)"></lf-playground-choice>
-            <lf-playground-choice value="age" label="Last 7 days"></lf-playground-choice>
-            <lf-playground-choice value="visit" label="This visit"></lf-playground-choice>
-            <lf-playground-choice value="confirm" label="Show, then take"></lf-playground-choice>
-            <lf-playground-choice value="here" label="What's in view"></lf-playground-choice>
+        <lf-playground
+          id="undo-playground"
+          submit-label="Build this undo"
+          data-height="770"
+        >
+          <lf-playground-control
+            name="reach"
+            label="Where z reaches"
+            kind="choice"
+            value="newest"
+          >
+            <lf-playground-choice
+              value="walk"
+              label="Before #1410: walks past"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="newest"
+              label="Newest (main)"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="age"
+              label="Last 7 days"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="visit"
+              label="This visit"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="confirm"
+              label="Show, then take"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="here"
+              label="What's in view"
+            ></lf-playground-choice>
           </lf-playground-control>
           <lf-playground-control
             name="name"
@@ -1262,12 +1404,12 @@
         </p>
         <p>
           The costs are these. First, a restored gesture reads at its original place in
-          the log, as every fold reads effects, so it shows nothing once a later event on
-          the same target stands: any reply, the agent's included, reopens a thread, and
-          a later pick supersedes an earlier one. The door has to refuse that redo, and
-          the one general check is to fold the log with and without the undo and compare
-          what the page shows. In the playground, undo the Scope resolve, reply in Scope,
-          and Redo is no longer offered. Second, readers that follow
+          the log, as every fold reads effects, so it shows nothing once a later event
+          on the same target stands: any reply, the agent's included, reopens a thread,
+          and a later pick supersedes an earlier one. The door has to refuse that redo,
+          and the one general check is to fold the log with and without the undo and
+          compare what the page shows. In the playground, undo the Scope resolve, reply
+          in Scope, and Redo is no longer offered. Second, readers that follow
           <code>undoes</code> one level have to follow the chain: the words a delivery
           carries (<code>GestureWords.says</code>) and the browser's coverage lookups.
           Third, an undo owes the agent no answer, but a redo brings back the restored
@@ -1300,7 +1442,8 @@
           <dt>This visit only</dt>
           <dd>
             <code>commands.js</code> notes the undo candidates present at the first
-            reading, and <code>undoable()</code> refuses a head among them. Browser only.
+            reading, and <code>undoable()</code> refuses a head among them. Browser
+            only.
           </dd>
           <dt>Say what <kbd>z</kbd> takes</dt>
           <dd>
@@ -1315,8 +1458,9 @@
           <dd>
             <code>document.py</code> marks each candidate the agent has picked up, from
             the delivery evidence the workflows already read. <code>commands.js</code>
-            holds an armed state that the next gesture or key clears, and so does a scroll
-            that takes the target out of view. The reveal goes to the target the way an
+            holds an armed state that the next gesture or key clears, and so does a
+            scroll that takes the target out of view. The reveal goes to the target the
+            way an
             <code>lf-activity</code> row's link does: a thread opens, a widget scrolls
             into view and is outlined. It needs the words above too.
           </dd>
@@ -1331,14 +1475,15 @@
             <code>taken_back</code> counts an undo only while it stands;
             <code>UndoReading.error</code> admits an undo naming your own standing undo
             when folding without it changes what the page shows;
-            <code>document.py</code> serves a redo list; <code>projection/model.js</code>
-            lets a local redo override the server's reading that the target is withdrawn,
-            as a pending forward action does; <code>commands.js</code> binds
-            <kbd>Z</kbd>; <code>gesture_words.py</code>, the coverage lookup in
-            <code>browser.py</code>, and <code>projection/presentation.js</code> follow
-            the chain; <code>delivery.py</code> carries the restored answer; the undo
-            handling text in <code>registry.json</code>, <code>lf-activity.js</code>'s
-            "undone" label, <code>events.md</code>, and <code>event-batches.md</code>
+            <code>document.py</code> serves a redo list;
+            <code>projection/model.js</code> lets a local redo override the server's
+            reading that the target is withdrawn, as a pending forward action does;
+            <code>commands.js</code> binds <kbd>Z</kbd>; <code>gesture_words.py</code>,
+            the coverage lookup in <code>browser.py</code>, and
+            <code>projection/presentation.js</code> follow the chain;
+            <code>delivery.py</code> carries the restored answer; the undo handling text
+            in <code>registry.json</code>, <code>lf-activity.js</code>'s "undone" label,
+            <code>events.md</code>, and <code>event-batches.md</code>
             learn the redo.
           </dd>
           <dt>Changes panel</dt>

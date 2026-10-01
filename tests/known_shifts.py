@@ -61,10 +61,11 @@ KNOWN_UNASKED = {
         ),
     },
     "test_website_server.py": {
-        # The panel's later cards rising as a card folds away, its thread resolved by
-        # news, while the answer to the user's next comment lands.
+        # The panel's later cards rising, and what they hold coming into view, as a
+        # card folds away, its thread resolved by news, while the answer to the user's
+        # next comment lands.
         "test_a_website_turn_posts_its_answer_when_the_move_is_settled_first": (
-            r"lf-thread-compact|lf-msg|lf-action-icon"
+            r"lf-thread-compact|lf-msg|lf-action-icon|lf-resolve"
         ),
     },
 }

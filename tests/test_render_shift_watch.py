@@ -98,9 +98,10 @@ def test_a_shift_without_input_after_typing_fails(browser):
 
 # News three frames after a press, as a reply lands just after a click: the page adopts
 # a server reading. A stand-in for the runtime never settles its rendering, so the
-# press's rendering is still open when the news lands. Without `data-motion` the press
-# moves nothing and the news grows a box above a line. With it, the press begins a bar's
-# slide, which moves the line on past the news, and the news moves nothing.
+# press's rendering is still open when the news lands. What moves the line is the
+# page's `data-motion`: the news growing a box above it (none), the news beginning a
+# bar's slide above it (`news`), or the press beginning that slide, which runs on past
+# news that moves nothing (`press`).
 NEWS = """<!doctype html><body style="margin:0">
 <script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
 <button id="press">Press</button>
@@ -108,13 +109,14 @@ NEWS = """<!doctype html><body style="margin:0">
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
   const motion = () => document.body.dataset.motion;
+  const slide = () => document.getElementById("bar").animate(
+    [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
   document.getElementById("press").addEventListener("pointerdown", (event) => {
-    if (motion())
-      document.getElementById("bar").animate(
-        [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
+    if (motion() === "press") slide();
     const pressed = event.timeStamp;
     frames(3, () => {
       document.body.setAttribute("data-lf-reading", "news");
+      if (motion() === "news") slide();
       if (!motion()) document.getElementById("above").style.height = "40px";
       document.body.dataset.newsAfter = performance.now() - pressed;
     });
@@ -122,13 +124,12 @@ NEWS = """<!doctype html><body style="margin:0">
 </script>"""
 
 
-def news_page(browser, motion):
+def news_page(browser, motion=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(NEWS))
     # The stand-in's page has presented, so its shifts are judged.
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
-    if motion:
-        page.evaluate("document.body.dataset.motion = '1'")
+    page.evaluate("motion => { document.body.dataset.motion = motion; }", motion)
     page.locator("#press").click()
     page.wait_for_function("document.body.dataset.newsAfter !== undefined")
     # Chrome counts the press as recent input for half a second, so news after it is
@@ -137,14 +138,15 @@ def news_page(browser, motion):
     return page
 
 
-def test_news_just_after_a_press_moves_nothing(browser):
-    page = news_page(browser, motion=False)
+@pytest.mark.parametrize("motion", ["", "news"], ids=["grows a box", "begins a slide"])
+def test_news_just_after_a_press_moves_nothing(browser, motion):
+    page = news_page(browser, motion)
     judge_shifts()
-    consume_browser_errors(page, "div#below moved without input by (0, 40)px")
+    consume_browser_errors(page, "div#below moved without input")
 
 
 def test_motion_a_press_began_is_the_press_s_through_news(browser):
-    news_page(browser, motion=True)
+    news_page(browser, "press")
     judge_shifts()
 
 

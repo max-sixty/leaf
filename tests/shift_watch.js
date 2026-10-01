@@ -41,7 +41,8 @@
 // frame stay the input's. Its first frame paints what the input drew, which news
 // adopted before that frame, such as the answer to the send the input made, paints
 // beside; no reading can tell the two apart. And a frame in which motion the input
-// began still runs, such as a panel sliding in, moves what the input asked to move.
+// began still runs, such as a panel sliding in, moves what the input asked to move:
+// motion begun after the input and before the news, which may begin its own.
 //
 // Chrome's rects are what a node paints, a focus ring or a shadow included, clipped to
 // the viewport, not the node's box. Nor are they always where it was on screen: Chrome
@@ -119,10 +120,10 @@
       .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
     GEOMETRY.test(animation.transitionProperty ?? "");
   // Motion begun since `start` that moves a box; one still pending begins now.
-  const moving = (start) =>
+  const begun = (start) =>
     document
       .getAnimations()
-      .some(
+      .filter(
         (animation) =>
           animation.playState === "running" &&
           (animation.startTime ?? Infinity) >= start &&
@@ -171,8 +172,9 @@
     }
   };
   const boxAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at)?.rect;
-  // Each input's rendering: when it began; the start of its second frame, and of the
-  // latest frame motion it began moved; and a keystroke's typing, which
+  // Each input's rendering: when it began; the start of its second frame; the motion
+  // it began, and the start of the latest frame that motion moved; whether news has
+  // landed since; and a keystroke's typing, which
   // holds its field; the box of the field and of each element holding it at the key; the
   // animations already moving any of them; and until when the typing rule reads it.
   const renderings = [];
@@ -191,7 +193,9 @@
       start,
       second: Infinity,
       moved: -Infinity,
+      own: new Set(),
       motion: false,
+      told: false,
       last: false,
       typing,
     };
@@ -203,9 +207,12 @@
   const tick = (at) => {
     read(at);
     if (open) {
-      // Motion still running here moves this frame, as it moved the one before if it
-      // ran at that frame's start, finishing in it.
-      const motion = moving(open.start);
+      // The input's motion is what began after it and before news since it, which
+      // may begin motion of its own. Still running here, it moves this frame, as it
+      // moved the one before if it ran at that frame's start, finishing in it.
+      if (!open.told)
+        for (const animation of begun(open.start)) open.own.add(animation);
+      const motion = [...open.own].some(({ playState }) => playState === "running");
       if (motion || open.motion) open.moved = at;
       open.motion = motion;
       if (open.first === undefined) {
@@ -255,6 +262,7 @@
   const news = [];
   new MutationObserver(() => {
     unwatch();
+    if (open) open.told = true;
     news.push(performance.now());
     prune(news);
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });

@@ -42,18 +42,21 @@ def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):
             )
         ),
     )
-    before, after = page.evaluate("""async () => {
+    before, after, quote = page.evaluate("""async () => {
       const first = document.querySelector('td strong').firstChild;
       const next = document.querySelector('td span').firstChild;
       const selection = getSelection();
       selection.setBaseAndExtent(first, 0, next, 0);
       const before = selection.toString();
-      const {snapSelection} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+      const {snapSelection, selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
       snapSelection();
-      return [before, selection.toString()];
+      const after = selection.toString();
+      selection.setBaseAndExtent(first, 0, next, 4);
+      return [before, after, selectionAnchor(selection).quote];
     }""")
     assert before == "Short label here\n"
     assert after == before
+    assert quote == "Short label here Then"
 
 
 def test_short_inline_code_selection_offers_comment(browser, serve):

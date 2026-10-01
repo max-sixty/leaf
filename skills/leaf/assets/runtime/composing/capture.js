@@ -126,34 +126,10 @@ export const leftThePage = (sel = getSelection()) =>
 //
 // Asked of two points of the page reading (`pointAt`), by the block and the generated
 // element (`gen`) their segments carry.
-const sameRun = (left, right) => {
-  if (
-    !left ||
-    !right ||
-    segmentBlock(left.segment) !== segmentBlock(right.segment) ||
-    left.segment.gen !== right.segment.gen
-  )
-    return false;
-  if (left.node === right.node) return true;
-  // An explicit line break has no text segment. The passage index gives its two
-  // neighbouring text nodes the same block, but a word must not grow across it.
-  // Walk only the seam; cloning its contents can invoke custom element constructors.
-  let from = left.node;
-  let to = right.node;
-  if (from.compareDocumentPosition(to) & Node.DOCUMENT_POSITION_PRECEDING)
-    [from, to] = [to, from];
-  let node = from;
-  while (node !== to) {
-    if (node.firstChild) node = node.firstChild;
-    else {
-      while (node && !node.nextSibling) node = node.parentNode;
-      node = node?.nextSibling;
-    }
-    if (!node) return false;
-    if (node.nodeName === "BR") return false;
-  }
-  return true;
-};
+const sameRun = (left, right) =>
+  Boolean(left && right) &&
+  segmentBlock(left.segment) === segmentBlock(right.segment) &&
+  left.segment.gen === right.segment.gen;
 const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
 // An EDGE in the reading: a position inside it that holds no character.

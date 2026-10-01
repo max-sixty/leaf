@@ -462,7 +462,8 @@ export const authored = (root) => {
 // A slotted node reads in its light context, which is its host's: the hosts and slots the
 // walk passed keep the context they carried, and a node assigned from anywhere else (a
 // flattened fallback, a host above the root) is asked where it stands.
-function walk(root, onText, skip = null) {
+// A visible <br> contributes a separator even though it has no text node of its own.
+function walk(root, onText, skip = null, onBreak = null) {
   const frame = frameOf(root);
   const retired = retiredSlots();
   const passed = new Map();
@@ -480,7 +481,8 @@ function walk(root, onText, skip = null) {
       }
       if (child.nodeType !== Node.ELEMENT_NODE || skip?.(child)) continue;
       const inner = enter(ctx, child, retired);
-      if (child.localName === "slot") {
+      if (child.localName === "br") onBreak?.(inner);
+      else if (child.localName === "slot") {
         passed.set(child, inner);
         for (const assigned of child.assignedNodes({ flatten: true }))
           assigned.nodeType === Node.TEXT_NODE
@@ -522,12 +524,19 @@ function walk(root, onText, skip = null) {
 export function textNodesUnder(root, reading = "says", boundary = null) {
   const keeps = READINGS[reading];
   const segments = [];
+  let breakBefore = false;
   walk(
     root,
     (node, ctx) => {
-      if (keeps(ctx)) segments.push(segmentIn(node, ctx));
+      if (keeps(ctx)) {
+        segments.push({ ...segmentIn(node, ctx), breakBefore });
+        breakBefore = false;
+      }
     },
     boundary && ((child) => boundary(child, segments.length)),
+    (ctx) => {
+      if (keeps(ctx)) breakBefore = true;
+    },
   );
   return segments;
 }
@@ -689,8 +698,9 @@ export const segmentBlock = (segment) => segment.block ?? segment.node.parentEle
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
-// A block boundary contributes the same collapsed space as authored whitespace, mapped
-// to the start of the segment after it. Text and its DOM route come from this one walk,
+// A block boundary or explicit line break contributes the same collapsed space as
+// authored whitespace, mapped to the start of the segment after it. Text and its DOM
+// route come from this one walk,
 // so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
 function readSegments(segments, mapCharacters) {
   let text = "";
@@ -713,7 +723,7 @@ function readSegments(segments, mapCharacters) {
     if (mapCharacters) units.push({ text: character, start, end });
   };
   segments.forEach((seg, i) => {
-    if (i && segmentBlock(seg) !== segmentBlock(segments[i - 1])) {
+    if (i && (seg.breakBefore || segmentBlock(seg) !== segmentBlock(segments[i - 1]))) {
       const point = { node: seg.node, offset: seg.start };
       push(" ", point, point);
     }
@@ -826,6 +836,7 @@ function spanOf(reading, lo, hi) {
         end: seg.start + b - from,
         block: seg.block,
         gen: seg.gen,
+        breakBefore: seg.breakBefore && a === from,
       });
   }
   return out;
@@ -1049,11 +1060,20 @@ function readPage() {
   const segments = [];
   const cellChains = []; // the cell candidates over each segment, nearest first
   const keeps = READINGS.says;
-  walk(document.body, (node, ctx) => {
-    if (!keeps(ctx)) return;
-    segments.push(segmentIn(node, ctx));
-    cellChains.push(ctx.cells);
-  });
+  let breakBefore = false;
+  walk(
+    document.body,
+    (node, ctx) => {
+      if (!keeps(ctx)) return;
+      segments.push({ ...segmentIn(node, ctx), breakBefore });
+      breakBefore = false;
+      cellChains.push(ctx.cells);
+    },
+    null,
+    (ctx) => {
+      if (keeps(ctx)) breakBefore = true;
+    },
+  );
 
   // Generated page-words that the registry does not model are their own passage cells:
   // the generated element a word of the reading stands in, where it is unmodelled.
@@ -1084,7 +1104,7 @@ function readPage() {
       if (cell) fences.add(0);
     } else {
       if (cell !== previousCell && (cell || previousCell)) fences.add(length);
-      parts.push(EDGE);
+      parts.push(seg.breakBefore ? " " : EDGE);
       length += 1;
     }
     starts.push(length);

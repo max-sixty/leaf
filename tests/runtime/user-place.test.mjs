@@ -1,7 +1,7 @@
 /* The user's place in a scroller, and the band of it they can see.
 
-   The folds (which candidate holds the place, how far a correction scrolls, what a cover
-   takes off a band) are asked directly. The hold itself is asked over boxes this file
+   The folds (which candidate holds the place, how far a correction scrolls) are asked
+   directly. The hold itself is asked over boxes this file
    states, since happy-dom lays nothing out: a node the render replaced hands the place
    to the node now rendered under its identity, and a synchronous hold lands its
    reference whatever the browser's own anchoring did first. */
@@ -9,7 +9,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { declareStickyHeaders, insetBand, visibleBand } from "/runtime/geometry.js";
 import { pointerAt } from "/runtime/pointer.js";
 import { placeCandidates, placeCorrection, placeKeeper } from "/runtime/user-place.js";
 
@@ -75,29 +74,6 @@ test("a correction follows reflow and pays for a limit clamp only once", () => {
   );
 });
 
-test("covers standing over a band's edges take their room off it", () => {
-  const band = { left: 0, right: 300, top: 100, bottom: 500 };
-  const box = (top, bottom, left = 0, right = 300) => ({ left, right, top, bottom });
-  // A heading stuck over the top edge, drawn back 4px above it.
-  assert.deepEqual(insetBand(band, [box(96, 130)]), { ...band, top: 130 });
-  // A heading passing through the middle is content, not a cover.
-  assert.deepEqual(insetBand(band, [box(200, 230)]), band);
-  // One cover resting on another; and a footer over the bottom edge.
-  assert.deepEqual(insetBand(band, [box(128, 150), box(96, 130), box(480, 510)]), {
-    ...band,
-    top: 150,
-    bottom: 480,
-  });
-  // A cover beside the band covers nothing of it; covers taking all of it leave none.
-  assert.deepEqual(insetBand(band, [box(96, 130, 400, 500)]), band);
-  assert.equal(insetBand(band, [box(90, 510)]), null);
-  // A cover stuck at its sticky inset, under a banner, takes the band to its foot; the
-  // same box in flow further down is content passing through.
-  const stuck = (top, bottom) => ({ ...box(top, bottom), stickyTop: 42 });
-  assert.deepEqual(insetBand(band, [stuck(142, 190)]), { ...band, top: 190 });
-  assert.deepEqual(insetBand(band, [stuck(260, 308)]), band);
-});
-
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
 function laidOut() {
@@ -133,44 +109,6 @@ function laidOut() {
     scrollTo: (y) => (scrollTop = y),
   };
 }
-
-test("the band is the scroller's less a stuck sticky header", () => {
-  const { scroller } = laidOut();
-  const heading = document.createElement("h3");
-  heading.getBoundingClientRect = () => new DOMRect(0, -4, 300, 34);
-  scroller.append(heading);
-  // Undeclared, a sticky box is content like any other.
-  assert.equal(visibleBand(scroller).top, 0);
-  declareStickyHeaders(scroller, "--lf-head-room", [heading]);
-  assert.deepEqual(
-    { top: visibleBand(scroller).top, bottom: visibleBand(scroller).bottom },
-    { top: 30, bottom: 400 },
-  );
-  // Read while detached, then put back and declared again, it is still a sticky header.
-  heading.remove();
-  visibleBand(scroller);
-  scroller.append(heading);
-  declareStickyHeaders(scroller, "--lf-head-room", [heading]);
-  assert.equal(visibleBand(scroller).top, 30);
-  // A sticky header does not hide what it holds: read for a node inside it, the band keeps it.
-  const label = document.createElement("span");
-  heading.append(label);
-  assert.equal(visibleBand(scroller, label).top, 0);
-  // A heading stuck in a nested scroller is that scroller's, though this one holds it.
-  heading.remove();
-  const inner = document.createElement("div");
-  inner.style.overflowY = "auto";
-  inner.append(heading);
-  scroller.append(inner);
-  assert.equal(visibleBand(scroller).top, 0);
-  // A sticky header in a widget's shadow tree sticks in the scroller outside it.
-  inner.remove();
-  const widget = document.createElement("div");
-  widget.attachShadow({ mode: "open" }).append(heading);
-  scroller.append(widget);
-  assert.equal(visibleBand(scroller).top, 30);
-  scroller.remove();
-});
 
 test("a hold names only a visible focus or pointer target", () => {
   const { scroller, item, scrollTo } = laidOut();
@@ -220,24 +158,6 @@ test("a wheel leaves the precise pointer position intact", () => {
   document.dispatchEvent(movement);
   document.dispatchEvent(new Event("wheel"));
   assert.deepEqual(pointerAt(), { x: 120.5, y: 240.25 });
-});
-
-test("a host's first sticky header keeps its room from the declaration on", () => {
-  // The first observation comes after the frame's layout, and a document's initial
-  // fragment landing reads the room before it: declared, the room is already there.
-  const { scroller } = laidOut();
-  const strip = document.createElement("div");
-  strip.getBoundingClientRect = () => new DOMRect(0, 42, 300, 47);
-  scroller.append(strip);
-  declareStickyHeaders(scroller, "--lf-strip-room", [strip]);
-  assert.equal(scroller.style.getPropertyValue("--lf-strip-room"), "47px");
-  // A sticky header replacing it starts at the room the host keeps rather than at none.
-  const next = document.createElement("div");
-  next.getBoundingClientRect = () => new DOMRect(0, 42, 300, 30);
-  scroller.append(next);
-  declareStickyHeaders(scroller, "--lf-strip-room", [next]);
-  assert.equal(scroller.style.getPropertyValue("--lf-strip-room"), "47px");
-  scroller.remove();
 });
 
 test("a node the render replaced hands the place across under its identity", () => {

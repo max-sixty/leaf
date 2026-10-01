@@ -1,0 +1,50 @@
+# From session cd29037f, whose layout-shift page drew four of its sections and left
+# #11 as prose calling it "#6's on-screen case in the panel", so the user had to move
+# #6's figure to the panel in their head. Their comment on it: "why no diagrams here?"
+# Written one section at a time, base 4c29f3003 and the glance test in SKILL.md's
+# page contract both drew it (6 of 6 each); the failure came in a whole page.
+schema_version: '1.0'
+name: view-draws-a-case-it-shares
+description: "Drawing: a section whose point has a shape draws it, even when an earlier section drew a similar case elsewhere on the page."
+tags:
+- drawing
+execution:
+  prompt: |
+    You are writing a Leaf page that records the layout shifts left in Leaf, one
+    section per item, each ending in a question for the user. Sections #6 and #10
+    are written. #6 drew a thread seated in the page with a reply landing above the
+    screen, on screen and below it, and asks whether an on-screen reply should wait
+    behind a fixed-size "1 new reply" row. #10 asks whether an open panel card's
+    reply box should be pinned at the panel's foot. Write the section for #11.
+
+    Your notes on #11:
+    - #1464 made a reply in the thread panel scroll the list by the growth when there
+      is room scrolled past above, so the card's end, its reply box and the later
+      cards stay still (measured: within 1px).
+    - The case left: a short open card at the top of the list, with nothing scrolled
+      past. Growing up would scroll away the top the user is aiming at. Growing down
+      moves the reply box and the cards after it 133px.
+    - It is #6's on-screen case in the panel. With #10's pinned reply box, the card's
+      own reply box stays put, but the later cards still move.
+    - The user decides: hold the reply behind a "1 new reply" row, as in #6 (your
+      recommendation), or keep today's rule and let the later cards move.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/page-authoring\.md
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if the section contains its own drawing (an inline `<svg>`, an
+    `<img>`, or an `lf-diagram`) of the thread panel's short card at the top of
+    the list, showing where the reply lands and what moves, or doesn't, under
+    at least one of the alternatives. Fail if the section explains the case only
+    in words, a table, or by pointing at #6's figure.

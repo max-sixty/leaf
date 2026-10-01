@@ -8,10 +8,10 @@ commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each p
 built from this checkout's example source and served by the arm's own launcher, so
 only the runtime, theme and server differ between the two stills of a state.
 
-A state is an example, a viewport and color scheme, and the input that brings a fresh
-tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs). The catalogue
-(`STATES`) covers states a user reaches by acting, not only pages at rest; add one
-where a change touches a surface it does not reach.
+A state is an example, a viewport, a color scheme and a pointer, and the input that
+brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
+The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
+add one where a change touches a surface it does not reach.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
@@ -118,7 +118,7 @@ def card_grabbed(page: Page) -> None:
 
 def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
-    page.locator("pre .lf-code-note").first.evaluate(
+    page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
 
@@ -133,6 +133,13 @@ def pane_focused(page: Page) -> None:
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def versions_menu(page: Page) -> None:
+    """The Versions menu, opened from More: a row for each version, with its note."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-version").click()
+    page.locator(".lf-version-menu .lf-version-row").first.wait_for()
 
 
 def go_to(page: Page) -> None:
@@ -155,6 +162,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_note,
         pane_focused,
         element_thread,
+        versions_menu,
         go_to,
     )
 }
@@ -167,6 +175,7 @@ class State:
     drive: Callable[[Page], None]
     viewport: tuple[int, int] = DESKTOP
     scheme: str = "light"
+    touch: bool = False
 
 
 STATES = (
@@ -182,6 +191,20 @@ STATES = (
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State(
+        "plan-versions-touch",
+        "review-a-plan",
+        versions_menu,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "plan-panel-touch",
+        "review-a-plan",
+        threads_panel,
+        viewport=(390, 844),
+        touch=True,
+    ),
     # Last on its page, since the reply it sends stays in the log.
     State("plan-panel-sent", "review-a-plan", panel_reply_sent),
     State("triage", "triage-board", at_rest),
@@ -198,7 +221,7 @@ STATES = (
 
 def capture(browser, address: str, state: State, path: Path) -> None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme) as page:
+    with tab(browser, state.viewport, state.scheme, state.touch) as page:
         load(page, address)
         state.drive(page)
         settle(page)

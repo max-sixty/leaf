@@ -218,11 +218,22 @@ def package_init(package_path: Path, widget: str | None) -> None:
     type=click.Path(path_type=Path, file_okay=False),
     metavar="PACKAGE",
 )
-def package_check(package_path: Path) -> None:
-    """Check the package as one composed unit."""
+@click.option(
+    "--render",
+    is_flag=True,
+    help="also report on the package's widgets as its worked examples render",
+)
+def package_check(package_path: Path, render: bool) -> None:
+    """Check the package as one composed unit.
+
+    --render also draws each worked example the package's own widgets declare in
+    the host's browser, the one `page check --render` finds, and prints what the
+    widget quality checks find there. A finding is advice for the widgets' author
+    and leaves the exit status alone.
+    """
     from leaf.packages import cmd_package_check
 
-    cmd_package_check(package_path)
+    sys.exit(cmd_package_check(package_path, render))
 
 
 @package.command("install", short_help="Install a package for selection by name.")

@@ -186,12 +186,11 @@
                   the restarting canary missed one probe; the 10:00, 14:00 and 18:00
                   trains alone account for 39. It was never down long enough to act on.
                 </p>
-                <lf-chart id="ar-canary-hours">
+                <lf-chart id="ar-canary-hours" data-height="200">
                   <pre>
 {
   ariaLabel: "Canary pages by hour, UTC: 14 at 10:00, 13 at 14:00 and 12 at 18:00, the three deploy trains; 2 at 11:00 and 3 at 16:00, after other deploys; one each at 03:00, 08:00 and 20:00",
   marginBottom: 40,
-  height: 200,
   x: {
     domain: Array.from({length: 24}, (_, h) => `${String(h).padStart(2, "0")}:00`),
     ticks: ["00:00", "06:00", "10:00", "14:00", "18:00", "22:00"],
@@ -338,12 +337,11 @@
                   settlement batch holds the ledger lock. The lag cleared by 03:20 each
                   night without anyone touching it.
                 </p>
-                <lf-chart id="ar-export-hours">
+                <lf-chart id="ar-export-hours" data-height="220">
                   <pre>
 {
   ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
   marginBottom: 40,
-  height: 220,
   x: {
     domain: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
     ticks: ["22:00", "00:00", "02:00", "04:00", "06:00"],
@@ -550,13 +548,12 @@
                   bank could fix. The third was our own expired signing key, which failed
                   every issuer at once.
                 </p>
-                <lf-chart id="ar-3ds-issuers">
+                <lf-chart id="ar-3ds-issuers" data-height="180">
                   <pre>
 {
   ariaLabel: "Challenge failure rate by issuer during Wednesday's first page: Northbank 34%, Atlas 3%, Crestline 2%, Meridian 2%, Pioneer 1%; the alert pages above 8% overall",
   marginLeft: 80,
   marginTop: 24,
-  height: 180,
   x: {grid: true, label: "challenges failing (%)", domain: [0, 40]},
   y: {label: null},
   marks: [

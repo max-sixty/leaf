@@ -475,11 +475,10 @@
                 The team walks at a sample pace of 300 m of climb an hour, and the last
                 bus leaves the trailhead at 17:00.
               </p>
-              <lf-chart id="bg-track-climb">
+              <lf-chart id="bg-track-climb" data-height="180">
                 <pre>
 {
   ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
-  height: 180,
   marginLeft: 100,
   x: {grid: true, label: "climb (m)"},
   y: {label: null},
@@ -1156,12 +1155,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
-                <lf-chart id="bg-chart">
+                <lf-chart id="bg-chart" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  height: 200,
   x: {label: "run", ticks: 3},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
@@ -1181,11 +1179,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-bars">
+                <lf-chart id="bg-chart-bars" data-height="200">
                   <pre>
 {
   ariaLabel: "Checks complete by run: first 5, second 9, third 12",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks complete"},
   marks: [
@@ -1198,11 +1195,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-stack">
+                <lf-chart id="bg-chart-stack" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks"},
   color: {

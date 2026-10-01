@@ -1620,6 +1620,38 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     )
 
 
+def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serve):
+    """A live page draws a tab set's first panel alone before its module upgrades it,
+    and the strip the module builds is the only way to the rest. Where the runtime could
+    not start, no strip will come, so every panel stands under its label. Without the
+    startup failure guard the second panel computes to `display: none` and the page
+    keeps a word the user cannot reach."""
+    url = serve(
+        leaf_page(
+            "tabs",
+            '<h1 id="t">Tabs</h1>\n<lf-tabs id="views">'
+            '<lf-tab id="one" label="One"><p id="first">First.</p></lf-tab>'
+            '<lf-tab id="two" label="Two"><p id="second">Second.</p></lf-tab></lf-tabs>',
+        )
+    )
+    page = browser.new_page()
+    page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    ).to_be_visible()
+    expect(page.locator("#views")).not_to_have_class("lf-rendered")
+    expect(page.locator("#first")).to_be_visible()
+    expect(page.locator("#second")).to_be_visible()
+    assert (
+        page.evaluate(
+            "getComputedStyle(document.getElementById('two'), '::before').content"
+        )
+        == '"Two"'
+    )
+    consume_browser_errors(page, "lf-tabs.js", "net::ERR_FAILED")
+
+
 def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
     """The room is for the drawing, and until the module has made one what stands in the
     box is the authored source: evidence, which reads at the column's width from the
@@ -2676,8 +2708,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
 
     The task and the note are the two a list of tags could not have named even in
     principle. A task's rail is drawn by `lf-task > lf-task`, so a task frames what it
-    holds only where it is nested, and a note's box is `.lf-code-note`, built by the code
-    block's module and worn by no tag at all. Each let a diagram out ~245px over the
+    holds only where it is nested, and a note's box is drawn by `lf-code > pre > lf-note`,
+    a rule on where the code block's module docks it rather than on the tag. Each let a diagram out ~245px over the
     column until the rule that draws it declared the frame.
 
     The row form is the declaration's limit, and the reason the sizing is asserted
@@ -2714,7 +2746,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
                  boardCard: box('#ek1'), inBoardCard: box('#in-board-card'),
                  metric: box('#me1'), inMetric: box('#in-metric'),
                  task: box('#t-inner'), inTask: box('#in-task'),
-                 note: box('.lf-code-note'), inNote: box('#in-note'),
+                 note: box('lf-code pre > lf-note'), inNote: box('#in-note'),
                  rowGroup: box('#row-pick'), rowCell: box('#row-a'),
                  inRow: box('#in-row'), rowPick: box('#row-a .lf-pick'),
                  ownBox: box('#own-box'), inOwnBox: box('#in-own-box') };

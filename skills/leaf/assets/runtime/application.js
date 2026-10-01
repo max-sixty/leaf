@@ -279,6 +279,7 @@ export function mountApplication(dependencies) {
   const replyView = {
     actions: threadActions,
     wireInput: dependencies.wireInput,
+    landSent: dependencies.landSent,
   };
   const settlementView = {
     pendingEntries: ledger.snapshot,

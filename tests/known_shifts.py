@@ -24,12 +24,6 @@ KNOWN_UNASKED = {
             r"lf-ask#package-ask|p#live-(lead|tail)-|lf-margin-cluster"
         ),
     },
-    "test_render_read_state.py": {
-        # The paragraphs after a diff whose seated thread grows as a reply lands in it.
-        "test_shadow_package_thread_registers_its_real_message_body": (
-            r"p#tail-|lf-shortcut"
-        ),
-    },
 }
 
 

@@ -84,6 +84,20 @@ def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
             if made and not any(page_dir.iterdir()):
                 page_dir.rmdir()
             raise
+    print(json.dumps({"page": str(page_dir)}))
+
+
+def start_throwaway_page(page_dir: Path, composition: LayerComposition) -> None:
+    """Start a page in an empty directory from a layer already composed, for a reading
+    Leaf takes and then deletes, as `package check --render` does with a package's
+    worked examples.
+
+    It records no package selection: the composition may include a package by a path
+    a page cannot record (`layer.resolve_packages`), and nothing re-vendors a page
+    that is thrown away."""
+    layer = _stamp_layer(composition, ())
+    plan = _PagePlan(True, layer, _checked_destinations(page_dir, layer))
+    _commit_layer(page_dir, plan)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
@@ -457,4 +471,3 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
         # an existing page keeps both.
         (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         replace_files([(page_dir / EVENTS_FILE, b"", False)])
-    print(json.dumps({"page": str(page_dir)}))

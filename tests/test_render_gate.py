@@ -27,6 +27,7 @@ from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -389,6 +390,74 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
         "the smallest ("
     ), advice
     assert "from the 11px it was set at" in advice, advice
+
+
+# A widget whose module draws a 120px box, where its authored markup holds nothing.
+RESERVING_LAYER = {
+    "lf-test-drawn": {
+        "description": "A drawing its module makes at a height no rule knows ahead of it.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-height": True,
+        "x-example": '<lf-test-drawn id="drawn" data-height="120"></lf-test-drawn>',
+    }
+}
+RESERVING_WIDGETS = {
+    "lf-test-drawn.js": """
+import { once } from '/runtime/widget-api.js';
+
+customElements.define('lf-test-drawn', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const drawing = document.createElement('div');
+    drawing.style.blockSize = '120px';
+    this.append(drawing);
+    this.classList.add('lf-rendered');
+  }
+});
+"""
+}
+
+
+def test_a_widget_drawn_at_a_height_its_first_paint_did_not_reserve_gets_advice(
+    browser, serve
+):
+    """A widget that states the height its module draws at holds it from first paint,
+    so the gate has nothing to say about it; one stating none, or another height, is
+    told the height to state."""
+    source = leaf_page(
+        "reserved heights",
+        """
+<h1>Reserved heights</h1>
+<lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
+<lf-test-drawn id="unreserved"></lf-test-drawn>
+<lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
+""",
+        head="<style>lf-test-drawn { display: block; }</style>",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(source, layer_registry=RESERVING_LAYER, layer_widgets=RESERVING_WIDGETS),
+    )
+
+    assert reading.failures == []
+    assert reading.advice == [
+        (
+            "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
+            "reserves no height, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
+        (
+            "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
+            "reserves 40px, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
+    ]
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
@@ -1634,6 +1703,24 @@ def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
 def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
     page = TYPED_PARTS_PAGE.replace(
         "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    ).replace(
+        "    Fetch --&gt; Build",
+        "    [*] --&gt; Fetch\n    Fetch --&gt; Build",
+        1,
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
+def test_state_diagram_parts_keep_authored_ids_that_resemble_markers(browser, serve):
+    page = leaf_page(
+        "authored state ids",
+        """<h1 id="title">Authored state ids</h1>
+<lf-diagram id="life" parts="node:_start2 node:_end2"><pre>
+stateDiagram-v2
+  [*] --&gt; _start2
+  _start2 --&gt; _end2
+  _end2 --&gt; [*]
+</pre></lf-diagram>""",
     )
     assert render_gate_model.render_version(browser, serve(page)).failures == []
 
@@ -3060,8 +3147,9 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
-# to follow it there.
-AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+# to follow it there. The list states the inline floor; the block floor is padding on
+# the controls a flex or grid container could squeeze, and min-height on the rest.
+AIM_FLOOR_RULE = "min-width: var(--aim-floor);"
 
 
 def aim_selectors():

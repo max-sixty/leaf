@@ -329,6 +329,7 @@ landing = createThreadLanding({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   scrollToThread: anchorTravel.scrollToThread,
   revealThread: narrowing.revealThread,
+  cardTarget: (thread) => app.margin.cardTarget(thread),
 });
 declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
@@ -399,6 +400,7 @@ app = mountApplication({
     restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
   },
   landInThread: (...args) => landing.landInThread(...args),
+  landSent: (...args) => landing.landSent(...args),
   showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
@@ -549,6 +551,7 @@ selectionComposer = createSelectionComposer({
   createComment: app.createComment,
   focusSurface,
   showThread: landing.showThread,
+  landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
 });

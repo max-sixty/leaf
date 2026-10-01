@@ -214,12 +214,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    them outside it at whatever size it happened to be.
 
    A floor and not a size: every one of these is free to be bigger, and most are. It
-   is written as a minimum on both axes because a target is a box and a control that
-   is tall and two pixels wide is as hard to hit as a short one. Margin entries centre
-   their own label, so nothing here has to say where the words go. A plain list rather
-   than one :is(), so each member keeps its own weight; a rule that states a minimum
-   of its own for one of these folds the floor into it with max(), so which of the two
-   stands later decides nothing.
+   is written on both axes because a target is a box and a control that is tall and two
+   pixels wide is as hard to hit as a short one. Margin entries centre their own label,
+   so nothing here has to say where the words go. A plain list rather than one :is(), so
+   each member keeps its own weight; a rule that states a minimum of its own for one of
+   these folds the floor into it with max(), so which of the two stands later decides
+   nothing.
+
+   The block floor never takes away a control's content minimum. A min-height on a flex
+   or grid item stands in for the automatic one, the item's own content, so a menu
+   capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
+   than scrolling. A control that stands in such a container states its block floor as
+   padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
+   rule that gives it its padding: .lf-btn below, the version menu's rows and Compare
+   (chrome.css). A one-line control rests at the same height either way, and one whose
+   words run longer keeps them. The members left on min-height stand in rows or in
+   flow, or state their own height.
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
@@ -227,7 +237,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
-  min-height: var(--aim-floor); min-width: var(--aim-floor); }
+  min-width: var(--aim-floor); }
+.lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
+  min-height: var(--aim-floor); }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
    the page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
@@ -291,6 +304,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
+/* The replies a thread holds while they would move the page under the reader
+   (thread/held-news.js). The row it appears in already stands at its settlement
+   control's height, and centred rather than on the row's baseline it asks for none of
+   the depth below the words. */
+.lf-thread-news { flex: none; align-self: center; }
 .lf-page-thread-head time { color: var(--muted-2); }
 .lf-page-thread-head .lf-edited { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
@@ -557,8 +575,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* Ordinary action buttons share their face across document and shadow trees.
  * Packages may adjust placement and density; margin entries and reaction chips
- * retain their separate forms. */
-.lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+ * retain their separate forms. The block padding carries the aim floor (above), less
+ * the 1px border, so a rule restating it restates the floor with it. */
+.lf-btn { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 .lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
 .lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
@@ -591,8 +610,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    package wanting to answer it. */
 .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
           --lf-focus-ring: btn; outline-offset: 2px; }
-.lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
-          --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
+/* An icon action's hit box, and the height of an empty composer field, which stands
+   that action inside it with 6px of room either side. Stated at the root, where a widget
+   that seats a composer in its own content reads the height to hold its room before the
+   composer is drawn, and again on each field and action, so a field whose context sizes
+   its action (lf-options' Add row) derives its height from that size. */
+:root, .lf-compose-field, .lf-icon-action { --lf-icon-action-hit: max(28px, var(--aim-floor)); }
+:root, .lf-compose-field { --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px); }
+.lf-compose-field { --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
           position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
           flex: 1; min-width: 0; }
 .lf-compose-field > leaf-text { grid-area: 1 / 1; }
@@ -605,10 +630,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-compose-placeholder > kbd { flex: none; }
 .lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
 .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
-          width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);
+          width: 100%; min-width: 0; min-height: var(--lf-compose-h);
           padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }
-.lf-icon-action { --lf-icon-action-hit: max(28px, var(--aim-floor));
-          box-sizing: border-box; width: var(--lf-icon-action-hit);
+.lf-icon-action { box-sizing: border-box; width: var(--lf-icon-action-hit);
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
           place-items: center; border-radius: var(--r); }

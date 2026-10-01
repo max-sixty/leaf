@@ -273,8 +273,9 @@ if Worktrunk asks to approve the project commands, ask the user to run
 ## Land a change
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
-pre-merge `tests` run the broad selection, which main passes; the nightly-marked
-tests run only once main moves, and `tend-ci-fix` answers them when they fail.
+pre-merge `tests` run the broad selection, which main passes, plus the nightly-marked
+tests in the test files the change touches. The rest of the nightly suite runs once
+main moves, and `tend-ci-fix` answers it when it fails.
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

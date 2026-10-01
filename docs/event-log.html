@@ -54,7 +54,11 @@
           folds the log back into the state the widget draws. Nothing in Leaf's server
           or runtime names a package's verbs.
         </p>
-        <lf-diagram id="layers-flow" parts="node:Widget node:Door node:Log node:Fold">
+        <lf-diagram
+          id="layers-flow"
+          data-height="252"
+          parts="node:Widget node:Door node:Log node:Fold"
+        >
           <pre>
 flowchart LR
   Widget["Widget"] -- "verb" --&gt; Door{"Append door"}

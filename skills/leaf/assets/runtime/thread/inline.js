@@ -9,7 +9,6 @@ import { holdFocus } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
-import { SAY_BOX } from "./selectors.js";
 
 const seats = new WeakMap();
 const activeSeats = new Set();
@@ -69,11 +68,10 @@ class ThreadSeat {
       ],
       this.node,
     );
-    // The seat's own box gives way to the thread its message started: the user goes on
-    // in that thread's reply, as they would have gone on in the box they sent from.
-    const started =
-      added.length === 1 && this.#views.get(added[0].key).node.querySelector(SAY_BOX);
-    restoreFocus?.(started && (() => this.#commands?.landInThread(started)));
+    // The seat's own box gives way to the thread its message started, and the user stands
+    // on that thread, where any send leaves them (`landSent`).
+    const started = added.length === 1 && this.#views.get(added[0].key).node;
+    restoreFocus?.(started && (() => this.#commands?.reply.landSent(started)));
     restoreBox();
     if (!batch) this.commit();
   }

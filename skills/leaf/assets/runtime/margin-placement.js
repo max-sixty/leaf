@@ -42,9 +42,9 @@ export function rowPosture({
 // footer are there for a pin in the body and nobody else.
 //
 // Each row is `{ key, rect, priority, held, fixed }`, its rect the one it takes with no
-// push. A row the user holds, under the pointer or with focus in it, comes before every
-// other (`inSeatingOrder`), so no row pushes it out from under the press. The answer maps
-// each key to its push.
+// push. A row the user holds, under the pointer, with focus in it, or with its thread
+// card open, comes before every other (`inSeatingOrder`), so no row pushes it out from
+// under the press or moves the card it opened. The answer maps each key to its push.
 export function packRows(rows, gap) {
   const placed = [];
   const pushes = new Map();

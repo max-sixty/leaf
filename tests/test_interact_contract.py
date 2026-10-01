@@ -4280,6 +4280,37 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
+def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(page_dir):
+    """`data-height` states the box of a widget whose declaration says it draws into one
+    (x-height), in whole CSS pixels. A chart takes it; a table and a tree take the
+    height of what they hold, so the attribute there would clip their words."""
+    chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format(240))
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + chart.format("240px")
+            + '<table data-height="80"><tr><td>A</td></tr></table>'
+            + '<lf-tree id="t" data-height="80"><pre>src/</pre></lf-tree>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert (
+        "data-height='240px'> (line 9) has an invalid value; expected a whole number "
+        "of CSS pixels" in result.output
+    )
+    assert "<table data-height> (line 9) states the height of a widget" in (
+        result.output
+    )
+    assert "<lf-tree> takes the height of what it holds" in result.output
+
+
 def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
     """A page's width is a Layout class on `main`. `data-width` sizes a block in the
     page's flow, so on `main` it would widen nothing and is refused; a `main` with no

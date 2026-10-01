@@ -192,8 +192,11 @@ than clipping. So write the `aside` where a reader of the stacked page needs it:
 the body when it is what they read first, such as a code review's verdict and the list of
 files it covers, where it also stands on the left; after it when it follows the work, such
 as a dashboard's checks and log, where it stands on the right. A page read in order is not
-one of these, whatever its length: its contents stand in the margin beside the column
-("The rail and the margin"), and its figures keep the column's measure. Stack each
+one of these for its length alone: its contents stand in the margin beside the column
+("The rail and the margin"), and its figures keep the column's measure. It is one when
+the reader keeps a panel of its own in view while reading, such as a verdict with the
+changes and questions it asks beside the document it judges; that panel is the
+`aside`, and sticks (below). Stack each
 track's regions inside it, so every region stands on the same two vertical lines, rather
 than a new split per row whose edges land somewhere new each time.
 

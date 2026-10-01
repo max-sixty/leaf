@@ -1,7 +1,8 @@
 # Added when page-authoring.md began teaching a workspace as a screen the reader moves
 # through rather than scrolls (notes/chrome-and-covers.md): a long read beside a panel
 # kept in view is a document, a sidebar page whose aside sticks, and not a workspace.
-# Not yet scored against the base.
+# Scored 5 of 5 on both the base (67f6dd75d) and the change: it guards the choice
+# rather than separating the two wordings.
 schema_version: '1.0'
 name: long-read-beside-a-panel-is-a-document
 description: "A long read beside a panel the reader keeps in view is a `layout-sidebar` page whose aside sticks, not a workspace: a workspace is a screen moved through rather than scrolled."

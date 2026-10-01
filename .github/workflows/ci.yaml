@@ -1,8 +1,8 @@
 name: ci
 
 # Pull requests and main run the small landing gate, which on a pull request also runs
-# the nightly-marked tests in the test files it changes. Pull requests also run the
-# website gate; relevant pushes to main run that gate in publish-site before deploy.
+# the nightly-marked tests it edits. Pull requests also run the website gate; relevant
+# pushes to main run that gate in publish-site before deploy.
 # A green push to main, the daily schedule, and a manual dispatch each run the
 # complete browser surface.
 on:

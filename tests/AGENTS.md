@@ -34,7 +34,7 @@ names. Both landing gates pass `--nightly-changed-since`, which adds the nightly
 whose own lines the change edits.
 
 A change lands only on a green landing gate. Every other nightly test is CI's to
-report: the `nightly` job in `ci.yaml` runs the complete suite once main moves, and
+report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
 `tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
 run the everyday gate and the few browser tests that hold the behavior you changed,
 named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser

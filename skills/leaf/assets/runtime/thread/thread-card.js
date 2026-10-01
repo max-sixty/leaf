@@ -394,6 +394,14 @@ export class ThreadView {
     const hoistedRoot = headerActions ? messages[0]?.key : null;
     const markerFor = (key) =>
       readBoundary(key === hoistedRoot ? null : boundaries.get(key));
+    const transcript = repeat(
+      ranges,
+      (range) => range.key,
+      (range) =>
+        range.kind === "message"
+          ? html`${markerFor(range.message.key)}${range.node}`
+          : this.#summaryRange(range, markerFor),
+    );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     render(
       html`
@@ -452,14 +460,11 @@ export class ThreadView {
               </div>`
             : nothing
         }
-        ${repeat(
-          ranges,
-          (range) => range.key,
-          (range) =>
-            range.kind === "message"
-              ? html`${markerFor(range.message.key)}${range.node}`
-              : this.#summaryRange(range, markerFor),
-        )}
+        ${
+          model.surface === "margin"
+            ? html`<div class="lf-thread-transcript">${transcript}</div>`
+            : transcript
+        }
         ${reply ? this.#reply.node : nothing}
         ${
           model.resolved && !reply && !model.folding && !marginControls

@@ -113,10 +113,21 @@ and its chrome coordinate.
   margin thread card's reply, with its target in a pane that scrolls on its own, moves
   the whole card (`shift_watch.js`: "typing in leaf-text moved
   aside#lf-margin-preview"), on `main` too.
-- **Decide whether a workspace's panes scroll on their own.** Its regions could instead
-  stick to the root scroller, which keeps native keyboard scrolling and restoration on
-  workspace pages. Compare both scrolling forms before choosing; bottom-bar removal
-  and the phone banner are separate product decisions ([plan](notes/chrome-and-covers.md)).
+- **Give the phone banner one row.** Decided, not built
+  ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
+  short with an ellipsis, with a passing notice taking that slot for a few seconds;
+  then Threads as an icon with its count; then More. Approve moves into More, which
+  wears a dot while approval is open.
+- **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
+  1200×900 `page check --render` advises that its detail pane runs 6890px past its
+  region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves
+  through rather than scrolls shows one alert's decision at a time; the shipped
+  workspace examples are then held to the advice in `test_page_fixture_renders`, with
+  `rust-sort`'s source pane the one reader allowed to scroll
+  ([plan](notes/chrome-and-covers.md)).
+- **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
+  and its status into the banner; the bar is how a desktop user learns the keys
+  without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
 - **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
   beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
   `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
@@ -140,9 +151,7 @@ and its chrome coordinate.
   Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
-  needs it; a workspace page's own pane grid stays plain CSS. Option E of the
-  [chrome plan](notes/chrome-and-covers.md) could remove the scroller-depth constraint;
-  verify it against a concrete nested workspace before choosing.
+  needs it; a workspace page's own pane grid stays plain CSS.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus

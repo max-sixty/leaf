@@ -65,7 +65,8 @@
    standing-target.js gives the page target a card, cluster, or panel thread stands for.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
-   its transcript is the list's own scroll, held through reflow. A landing, send, or
+   its transcript is the messages' own scroll, held through reflow. The metadata and
+   reply row stand outside that scroll. A landing, send, or
    step moves it; a new or growing agent turn follows while the reader is at the tail.
    Other state reads leave the transcript where the user put it.
 
@@ -392,12 +393,30 @@ export function createMarginProjection({
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewList);
   let previewRegionMounted = false;
+  let previewTranscript = null;
+  let previewPlace = null;
+  let stopPreviewRegion = null;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
-  const previewPlace = placeKeeper(previewList, {
-    items: ".lf-page-thread-msg[data-event]",
-    identity: (message) => message.dataset.event,
-  });
+  function syncPreviewTranscript() {
+    const transcript = previewList.querySelector(".lf-thread-transcript");
+    if (transcript === previewTranscript) return;
+    stopPreviewRegion?.();
+    stopPreviewRegion = null;
+    previewTranscript = transcript;
+    previewPlace = transcript
+      ? placeKeeper(transcript, {
+          items: ".lf-page-thread-msg[data-event]",
+          identity: (message) => message.dataset.event,
+        })
+      : null;
+    if (previewRegionMounted && transcript)
+      stopPreviewRegion = registerReadingRegion({
+        id: THREAD_CARD,
+        host: preview,
+        body: transcript,
+      });
+  }
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -776,13 +795,15 @@ export function createMarginProjection({
   // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
   // cap the card wears: a card short of both caps renders the same under either, and a
   // card at its cap takes a new one only once its contents change, when a turn arrives
-  // or a draft grows. A cap that would cut the card it stands on is always taken. Both
+  // or a draft grows. If the complete thread now fits, the cap grows once to let the
+  // transcript leave scrolling behind. A cap that would cut the card it stands on is
+  // always taken. Both
   // are in the card's positioning space, as offsetHeight is.
   let wornContent = null;
   const threadCardContent = () =>
-    [previewList, ...previewList.querySelectorAll(REPLY_BOX)].reduce(
-      (sum, box) => sum + box.scrollHeight,
-      0,
+    [previewTranscript, ...previewList.querySelectorAll(REPLY_BOX)].reduce(
+      (sum, box) => sum + (box ? box.scrollHeight - box.clientHeight : 0),
+      previewList.scrollHeight,
     );
   function measureThreadCard(room, cap) {
     preview.style.setProperty("--lf-thread-width", `${room}px`);
@@ -790,14 +811,23 @@ export function createMarginProjection({
     const height = preview.offsetHeight;
     const content = threadCardContent();
     const atCap = height >= worn - 0.5;
-    if (!(worn >= 0) || cap < height - 0.5 || (atCap && content !== wornContent)) {
+    const overflow = previewTranscript
+      ? previewTranscript.scrollHeight - previewTranscript.clientHeight
+      : 0;
+    const fitsUnscrolled = overflow > 0.5 && height + overflow <= cap;
+    if (
+      !(worn >= 0) ||
+      cap < height - 0.5 ||
+      (atCap && content !== wornContent) ||
+      fitsUnscrolled
+    ) {
       preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
       wornContent = content;
     }
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
-  // The thread's turns, without the reply row pinned under them: what an arriving or a
+  // The thread's complete turns, without the reply row under them: what an arriving or a
   // sent turn changes and a new line of the reply does not. Unrounded, since the row's
   // height is fractional and a rounded difference moves with it.
   const boxHeight = (node) => node.getBoundingClientRect().height;
@@ -806,13 +836,19 @@ export function createMarginProjection({
       (sum, thread) =>
         [...thread.querySelectorAll(".lf-say")].reduce(
           (turns, row) => turns - boxHeight(row),
-          sum + boxHeight(thread),
+          sum +
+            boxHeight(thread) +
+            [...thread.querySelectorAll(".lf-thread-transcript")].reduce(
+              (overflow, transcript) =>
+                overflow + transcript.scrollHeight - transcript.clientHeight,
+              0,
+            ),
         ),
       0,
     );
   }
-  // How many lines of the turn being answered stay in view under the transcript's sticky
-  // head while the reply grows over it.
+  // How many lines of the turn being answered stay in view below the fixed metadata
+  // while the reply grows and the transcript gives up room.
   const ANSWERED_LINES = 3;
   // The reply takes whatever room the card has left once the transcript keeps those
   // lines, or all of itself where it is shorter, and scrolls internally only past that.
@@ -828,11 +864,14 @@ export function createMarginProjection({
       const line = parseFloat(box.lineHeight);
       const furniture = row.offsetHeight - input.offsetHeight;
       const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const answered = Math.min(
+      // Reserve the turns' own content, rather than the room the last-sized editor
+      // left them. After a resize that editor can exceed the new card's height.
+      const answered =
         (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) +
+        Math.min(
           ANSWERED_LINES * line,
-        thread.offsetHeight - row.offsetHeight - inset,
-      );
+          thread.querySelector(".lf-thread-transcript").scrollHeight,
+        );
       const oneLine =
         input.offsetHeight -
         input.clientHeight +
@@ -2401,13 +2440,13 @@ export function createMarginProjection({
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-page-thread-msg";
+      ".lf-page-thread > .lf-thread-transcript > .lf-page-thread-msg";
     const replySelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-say";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
     const lastBox = lastShown?.getBoundingClientRect();
-    const listBox = previewList.getBoundingClientRect();
+    const listBox = previewTranscript?.getBoundingClientRect();
     const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
     const follow =
       !arriving &&
@@ -2415,9 +2454,13 @@ export function createMarginProjection({
       latest?.author === "agent" &&
       (latest.id !== previewLatest.id || latest.text !== previewLatest.text) &&
       lastBox &&
+      listBox &&
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
-      previewList.scrollHeight - previewList.clientHeight - previewList.scrollTop <= 2;
+      previewTranscript.scrollHeight -
+        previewTranscript.clientHeight -
+        previewTranscript.scrollTop <=
+        2;
     const present = () => {
       previewThreadItem = selected?.id ?? null;
       const targetHeading =
@@ -2440,6 +2483,7 @@ export function createMarginProjection({
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
       setChildren(previewList, selected ? [previewItemNode(selected)] : []);
+      syncPreviewTranscript();
       // The list holds the one thread the card shows, so a user whose place in a thread
       // the rebuild took lands on that thread; a step button it hid hands them to Close.
       restoreFocus?.(
@@ -2448,13 +2492,13 @@ export function createMarginProjection({
       );
       placeThreadPreview();
     };
-    if (!arriving) previewPlace.around(present);
+    if (!arriving && previewPlace) previewPlace.around(present);
     else {
-      previewList.scrollTop = 0;
       present();
+      if (previewTranscript) previewTranscript.scrollTop = 0;
     }
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
-    if (follow) previewList.scrollTop = previewList.scrollHeight;
+    if (follow) previewTranscript.scrollTop = previewTranscript.scrollHeight;
   }
 
   function stepPreviewThread(step) {
@@ -3270,11 +3314,14 @@ export function createMarginProjection({
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {
       previewRegionMounted = true;
-      registerReadingRegion({
-        id: THREAD_CARD,
-        host: preview,
-        body: previewList,
-      });
+      // The card may not yet hold a thread. Its region starts with the first transcript.
+      if (previewTranscript) {
+        stopPreviewRegion = registerReadingRegion({
+          id: THREAD_CARD,
+          host: preview,
+          body: previewTranscript,
+        });
+      }
     }
   }
   return {

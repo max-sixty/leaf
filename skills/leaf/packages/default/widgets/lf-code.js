@@ -159,7 +159,8 @@ customElements.define(
           // block is still the source and nothing else.
           if (hi(n)) quietWord(line, "highlighted");
           pre.append(line);
-          for (const note of byLine.get(n) ?? []) pre.append(noteNode(note));
+          // Moved, not copied: the authored element keeps its text and id.
+          pre.append(...(byLine.get(n) ?? []));
         });
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
@@ -185,11 +186,4 @@ function elided(from, to, highlighted, captions) {
   if (highlighted) quietWord(row, "highlighted");
   row.append(...captions);
   return row;
-}
-
-function noteNode(note) {
-  const box = document.createElement("div");
-  box.className = "lf-code-note";
-  box.append(note); // moved, not copied: the authored element keeps its text and id
-  return box;
 }

@@ -8437,7 +8437,7 @@ def test_a_command_goal_s_words_flow_as_prose(browser, serve):
           words.selectNodeContents(a.previousSibling);
           const lines = [...words.getClientRects()];
           const box = a.getBoundingClientRect();
-          const chip = a.closest('[data-lf-command-goal]')
+          const chip = a.closest('lf-task')
             .querySelector(':scope > .lf-task-meta > span');
           return {display: getComputedStyle(a).display,
                   sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
@@ -8885,6 +8885,8 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
         "The hunk is complete; see the run and park."
     )
+    # The reply landed where the user was looking, so it waits for them to open it.
+    seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()

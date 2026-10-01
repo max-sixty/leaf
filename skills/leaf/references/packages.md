@@ -177,6 +177,11 @@ Delivery paints declared layout facts into the served document as `[data-lf-inli
 selectors read those attributes instead of naming widget tags. The registry's `$keys`
 entries for `x-space`, `x-bound`, and `x-height` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
+An element whose attributes name page media also arrives with the largest width and the
+largest height among those images, read from their bytes, as `data-lf-media-width` and
+`data-lf-media-height`, so a theme can give a frame the images' shape before they decode
+(`aspect-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height
+type(<number>))`, as `lf-shot` does).
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may

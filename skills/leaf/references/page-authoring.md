@@ -339,11 +339,14 @@ capture. A proposal or a mechanism has nothing to capture yet, so draw it. A pro
 that unfolds over time is a diagram that moves: draw it in a page module from its
 state and the moment, with controls to pause and scrub, so every moment stays
 readable and its parts stay commentable. A recorded video is flat and heavy, and
-belongs only where the explanation leaves the page. Use a table when the user
-compares the same dimensions across items; use `lf-compare` for a few alternatives
-read as wholes, and `lf-options` when the user must choose among them. A headline
-measurement is a metric, and a pattern across measurements is a chart. Movable
-things form a board. Use images only when they carry information.
+belongs only where the explanation leaves the page. When the shape of numbers is
+the point — a trend, ranking, groups on one scale, or series moving together —
+lead with an `lf-chart`, even if the numbers compare the same dimensions across
+items. Put a table below it in `<details>` when readers also need exact values.
+Use a table for value lookup, mixed units that cannot share an axis, or comparisons
+with text-heavy cells; use `lf-compare` for a few alternatives read as wholes,
+and `lf-options` when the user must choose among them. A headline measurement is
+a metric. Movable things form a board. Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
 

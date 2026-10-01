@@ -171,8 +171,8 @@ sequenceDiagram
             <h2>One turn, from the agent's side</h2>
             <p id="loop-shell-lede">
               This delivery comes from a page asking which of two ways to shed load when
-              a queue backs up. Each wait runs in the background, so the agent can
-              answer while the next input is being watched.
+              a queue backs up. Between turns a Leaf hook watches the page in the
+              background, so the agent ends its turn and is woken when input arrives.
             </p>
             <lf-sample
               id="loop-transcript-sample"
@@ -189,12 +189,13 @@ $ leaf page check ./review
 $ leaf page stamp ./review --text "Two ways to shed load — which?"
 {"kind": "note", "author": "agent", "agent": "Claude", "session": "5c0e2f7a-93d1-4b6e-a8f2-1d4c7e9b3a60", "version": 1, "revision": 1, "text": "Two ways to shed load — which?", "id": "7a31c9e4", "ts": "2026-09-22T11:12:08-07:00", "seq": 1}
 
-$ leaf wait ./review
-/home/you/review has new input; Leaf's prompt hook puts it in your context with this notification
+# the agent hands the URL over and ends its turn; Leaf's Stop hook watches the page
+# in the background, and wakes the session when the user sends input:
+Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context with this notification
 
-# the background wait ends when the user sends input, which opens a turn; as it
-# begins, Leaf's prompt hook adds the delivery to the turn's context as one line of
-# JSON and confirms it; here it is indented as `leaf delivery read` shows it
+# the wake opens a turn; as it begins, Leaf's prompt hook adds the delivery to the
+# turn's context as one line of JSON and confirms it; here it is indented as
+# `leaf delivery read` shows it
 {
   "format": "leaf-delivery-v3",
   "id": "2d5bdcc4",
@@ -309,10 +310,8 @@ $ leaf wait ./review
   ]
 }
 
-# the moves already read Picked up; name the work before starting it, and
-# start the next wait in the background in the same step
+# the moves already read Picked up; name the work before starting it
 $ leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
-$ leaf wait
 
 # revise ./review/index.html; a valid save goes live at once
 $ leaf thread reply ./review --for ebe8f367 --title "Shed policy per caller" --text "Done: [the shed section](#shed-premise) now drops the oldest work for the batch importer and keeps rejection at the API boundary."
@@ -331,10 +330,10 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           <section id="delivery">
             <h2>Each host delivers the same envelope</h2>
             <p id="wait-trick">
-              In Claude Code, a background <code>leaf wait</code> ends when feedback
-              arrives, and Leaf's prompt hook puts it in the turn that starts when the
-              wait ends; feedback that arrives as a turn ends goes into that turn
-              through the Stop hook. In Codex a detached adapter queues it as the task's
+              In Claude Code, a Leaf hook watches in the background from the end of each
+              turn and wakes the agent when feedback arrives, and Leaf's prompt hook
+              puts it in the turn the wake opens; feedback that arrives as a turn ends
+              goes into that turn through the Stop hook. In Codex a detached adapter queues it as the task's
               next message, or, where Leaf is a client of the task's Codex App Server,
               starts a turn with it. Every route carries a delivery of the same shape,
               which names the route and says who acknowledges it. The host owns
@@ -455,10 +454,11 @@ flowchart TD
                 the turn ended.
               </li>
               <li id="turn-end-watch">
-                <strong>A page between turns is watched or closed.</strong> Without a
-                <code>leaf wait</code> or Codex's adapter, what you send next reaches
-                the agent only when Leaf messages its session or something else wakes
-                it. A developer's preview owes no watcher.
+                <strong>A page between turns is watched or closed.</strong> Without
+                Claude Code's watch hook, a <code>leaf wait</code> or Codex's adapter,
+                what you send next reaches the agent only when Leaf messages its
+                session or something else wakes it. A developer's preview owes no
+                watcher.
               </li>
               <li id="turn-end-idle">
                 <strong>Closing answers nothing.</strong>
@@ -770,8 +770,8 @@ flowchart LR
                 ended the moment you press Escape.
               </li>
               <li id="updates-fact-watcher">
-                <strong>The watcher.</strong> A <code>leaf wait</code>, or Codex's
-                adapter, holds a lease while it runs. Leaf counts the agent as taking
+                <strong>The watcher.</strong> Claude Code's watch hook, a
+                <code>leaf wait</code>, or Codex's adapter holds a lease while it runs. Leaf counts the agent as taking
                 input while a watcher runs or while a Claude Code turn runs, since that
                 turn's hooks take new input too.
               </li>

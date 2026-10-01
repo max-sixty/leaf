@@ -304,9 +304,8 @@ Revisit these when their stated trigger becomes real; they are not an active que
   warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
   uv adds about 15ms, Python startup about 10ms, and importing the CLI about
   15ms. A session holding a page adds about 0.1s to import page reading and
-  read each page's state, so its prompt and Stop hooks cost about 0.15s. That cost is why the `PostToolUse`
-  registration keeps its `if` prefilter, and it limits what else hooks can
-  carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
+  read each page's state, so its prompt and Stop hooks cost about 0.15s. That
+  cost limits what else hooks can carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
   can answer more events itself. Rewriting the hook path in a compiled language
   is the further step if that is not enough.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace

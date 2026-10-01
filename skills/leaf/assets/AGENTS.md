@@ -109,6 +109,21 @@ log can supply waits with `aria-busy`, painted on a delay so a fast answer shows
 nothing. Persistent status text is for a state the user must return to, such as
 failure.
 
+### Words stay where they were typed
+
+What the user has typed stays in front of them until they put it away. A box holding
+words closes only in answer to a key or a press that means to close it (Send,
+Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
+document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
+news never closes it. Geometry decides where a box stands, never whether: a box
+with nowhere to stand waits out of view with its words, anchor, and caret, and
+stands again, focus returned, when its target comes back (`standFab`,
+`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+words and caret to the replacement. The suite's browser fixture fails any test
+whose page loses typed words without a key or press (`tests/words_watch.js`), and
+every corpus page is scrolled to both ends and back with each typed box open
+(`test_words_in_a_box_survive_scrolling_away_and_back`).
+
 ### Visual grammar
 
 Use visual treatments to carry hierarchy and state. Contours are solid; a dotted

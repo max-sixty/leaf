@@ -1,5 +1,6 @@
-"""The shifts without input that tests' pages still make, each a defect waiting on its
-fix (`shift_watch.js`, `render_harness.clean_browser`).
+"""The faults the browser fixture's watches report that tests' pages still make, each a
+defect waiting on its fix (`render_harness.clean_browser`): shifts without input
+(`shift_watch.js`) and typed words lost without a key or press (`words_watch.js`).
 
 `KNOWN_UNASKED` names each test by file and function, whatever its parameters, with a
 pattern for the region its known shift moves. A report from that test that names a node
@@ -21,37 +22,38 @@ KNOWN_UNASKED = {
         # The margin marker an arriving thread or a reopening brings, which the margin
         # projection inserts unplaced and the layout places a frame later. On Linux's
         # headless shell the unplaced row stands at the window's origin, and its move
-        # into the rail reads as a shift.
+        # into the rail reads as a shift. In the second, also the shortcut line's More as
+        # its hints change, where the test focuses the notice by script after a reading
+        # landed.
         "test_a_reopening_in_a_page_seat_waits_where_reopen_stood": r"lf-margin-",
         "test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_follow": (
-            r"lf-margin-"
+            r"lf-margin-|lf-shortcut"
         ),
     },
     "test_render_application_boundary.py": {
-        # A node that moves 12px up and is gone before Chrome names it, where the answer
-        # to opening a thread lands while the opened card still renders: with the answer
-        # held back, nothing moves.
+        # The open panel card's messages, 12px up, as the answer to the user's pick in it
+        # lands: the card's summary drops the line saying "On you to answer". Chrome no
+        # longer names the card once it is redrawn ("a node since removed").
         "test_packages_and_panel_share_threads_through_gestures_and_authored_content": (
             r"a node since removed"
         ),
-        # The second mirror's reply box, 60px down, as the answer to a reply sent from
-        # the first lands. Chrome no longer names it once the second mirror's filter
-        # takes the thread away ("a node since removed").
+        # The shortcut line's More as its hints change, when the test focuses the subject
+        # by script after news has landed.
         "test_package_thread_mirrors_share_core_conversation_without_claiming_placement": (
-            r"lf-compose-field|a node since removed"
+            r"lf-shortcut"
         ),
         # A live page's paragraphs and the margin beside them as a package's Ask and a
         # fresh document draw after presentation.
         "test_current_readiness_releases_a_connected_page_widget": (
             r"lf-ask#package-ask|p#live-(lead|tail)-|lf-margin-cluster"
         ),
-        # A live page's Ask and the paragraphs after it, 39px up, the shortcut line and a
-        # margin cluster coming into view from where it waits off the page, as news lands
-        # after a choice on the page's own widget. Chrome no longer names the cluster
-        # once it is replaced ("a node since removed").
+        # The shortcut line, as its hints change when the test takes the focused widget
+        # out by script after news has landed, and a margin cluster coming into view from
+        # where it waits off the page, as news lands after a choice on the page's own
+        # widget. Chrome no longer names the cluster once it is replaced ("a node since
+        # removed").
         "test_page_owned_registry_and_widget_use_the_captured_public_api": (
-            r"lf-ask#package-ask|p#live-(lead|tail)-|lf-shortcut|lf-margin-cluster"
-            r"|a node since removed"
+            r"lf-shortcut|lf-margin-cluster|a node since removed"
         ),
         # As the answer to the user's pick lands: the shortcut line's More, as the hints
         # change, and the Ask's margin cluster, coming into view from where it waits off
@@ -64,23 +66,35 @@ KNOWN_UNASKED = {
         "test_a_settled_delivery_activates_one_fresh_document_with_continuity": (
             r"lf-margin-cluster"
         ),
-        # The second package filter's field and list, 74px up, as the answer to the
-        # user's new thread lands; with the answer held back, they move when it lands.
-        "test_package_thread_widgets_keep_local_filters_and_independent_subscriptions": (
-            r"lf-thread-filter#second"
-        ),
-        # The user's message in the open panel's card, 28px up, as the answer to a
-        # package's thread action lands.
-        "test_package_thread_actions_share_core_admission_and_current_availability": (
-            r"div\.lf-msg"
-        ),
     },
     "test_website_server.py": {
-        # The panel's later cards rising, and what they hold coming into view, as a
-        # card folds away, its thread resolved by news, while the answer to the user's
-        # next comment lands.
+        # The panel's later cards rising, and what they hold coming into view, as a card
+        # whose thread news resolved folds away under the Open filter: the user's next
+        # comment's card stands below the folding one, and the fold's frames after the
+        # comment's answer lands are news.
         "test_a_website_turn_posts_its_answer_when_the_move_is_settled_first": (
             r"lf-thread-compact|lf-msg|lf-action-icon|lf-resolve"
+        ),
+    },
+}
+
+
+# Typed words a page still takes off the screen without the user putting them away, by
+# test, with a pattern for the words. A thread another actor settles takes its reply box,
+# words and all, though the draft is kept: the box should stay with the words in it until
+# the user sends or discards them.
+KNOWN_LOSSES = {
+    "test_render_pages.py": {
+        "test_a_failed_resolution_restores_a_focused_inline_reply": (
+            r"keep this inline reply"
+        ),
+    },
+    "test_render_threads.py": {
+        "test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it": (
+            r"Half a thought"
+        ),
+        "test_an_external_resolution_leaves_the_user_on_the_thread_list": (
+            r"This draft survives the other actor settling its thread"
         ),
     },
 }
@@ -98,7 +112,11 @@ def watches_shifts(test):
 
 
 def known(test, problem):
-    """Whether a browser `problem` from a pytest node `test` is its known shift."""
+    """Whether a browser `problem` from a pytest node `test` is its known shift or loss."""
     region = KNOWN_UNASKED.get(test.path.name, {}).get(test.originalname)
     moved, unasked, _ = problem.partition(" moved without input")
-    return bool(region and unasked and re.search(region, moved))
+    if region and unasked and re.search(region, moved):
+        return True
+    words = KNOWN_LOSSES.get(test.path.name, {}).get(test.originalname)
+    _, lost, what = problem.partition("typed words left the screen")
+    return bool(words and lost and re.search(words, what))

@@ -9,6 +9,7 @@ from interact_support import add_test_widget, append_command
 from leaf import event_log as events_model
 from leaf import projection as projection_model
 from leaf import schema as schema_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -50,11 +51,13 @@ from render_harness import (
     navigate,
     nudge,
     open_page,
+    pane_posture,
     panel_settled,
     refuse,
     resized,
     root_overflow,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     suggestion_control,
@@ -2236,6 +2239,111 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
       const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect();
       return passage.bottom < 0 && composer.bottom < 0;
     }""")
+
+
+PANED_LONG_PAGE = leaf_page(
+    "paned long",
+    """<header><h1 id="t">Paned</h1></header>
+<lf-pane id="reading" label="Reading"><div id="reading-body">{paras}</div></lf-pane>
+""".format(
+        paras="\n".join(
+            f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>"
+            for i in range(60)
+        )
+    ),
+    layout="workspace",
+)
+
+
+@pytest.mark.parametrize("scroller", ["page", "pane"])
+@pytest.mark.parametrize("target", ["passage", "item"])
+def test_a_comment_field_scrolled_away_and_back_is_still_there(
+    browser, serve, target, scroller
+):
+    """Scrolling away from a comment and back returns to the field as the user left
+    it: standing beside its target, with their words and their caret in it. Geometry
+    says where the field stands, never whether: an item's field used to read "the
+    target is off screen" as "the target is gone" and put the field away, words and
+    all, the moment its item left the window. A pane scrolled past the target leaves
+    the field nowhere to stand, so it waits out of view and takes the user back when
+    the target returns."""
+    page = open_page(
+        browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
+    )
+    resized(page, 1440, 900)
+    if scroller == "pane":
+        pane_posture(page, page.locator("#reading"), "bounded")
+    paragraph = page.locator("#p30")
+    paragraph.scroll_into_view_if_needed()
+    if target == "passage":
+        paragraph.click(click_count=3)
+        page.locator(".lf-fab-input").click()
+    else:
+        paragraph.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, "Half a thought")
+    expect(field).to_be_focused()
+    box = page.locator(".lf-fab-bar")
+    at = box.bounding_box()["y"]
+    away = (
+        "document.scrollingElement"
+        if scroller == "page"
+        else "document.getElementById('reading-body')"
+    )
+    start = page.evaluate(f"{away}.scrollTop")
+    page.evaluate(f"{away}.scrollBy({{top: 2000, behavior: 'instant'}})")
+    page.wait_for_function(
+        "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"
+    )
+    scroll_settled(page)
+    rendered(page)
+    page.evaluate(f"{away}.scrollTo({{top: {start}, behavior: 'instant'}})")
+    scroll_settled(page)
+    rendered(page)
+    expect(box).to_be_visible()
+    expect(field).to_have_js_property("value", "Half a thought")
+    expect(field).to_be_focused()
+    assert box.bounding_box()["y"] == pytest.approx(at, abs=1), (
+        "the field came back somewhere other than where it stood"
+    )
+    page.keyboard.type(" more")
+    expect(field).to_have_js_property("value", "Half a thought more")
+
+
+def test_a_comment_field_waiting_out_of_view_takes_no_keys_and_c_brings_it_back(
+    browser, serve
+):
+    """While a pane scrolled past its item leaves the field nowhere to stand, the field
+    waits out of view, and the keys it would answer are not the user's: Escape does not
+    close a box the user cannot see, and Tab does not open its choices. `c` is the way
+    back: it brings the item and the field into view with the words and the focus."""
+    page = open_page(browser, serve(PANED_LONG_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#reading"), "bounded")
+    paragraph = page.locator("#p30")
+    paragraph.scroll_into_view_if_needed()
+    paragraph.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, "Half a thought")
+    box = page.locator(".lf-fab-bar")
+    width = box.bounding_box()["width"]
+    page.evaluate(
+        "document.getElementById('reading-body')"
+        ".scrollBy({top: 2000, behavior: 'instant'})"
+    )
+    scroll_settled(page, "#reading-body")
+    rendered(page)
+    expect(box).to_be_hidden()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Escape")
+    rendered(page)
+    page.keyboard.press("c")
+    expect(box).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Half a thought")
+    assert box.bounding_box()["width"] == pytest.approx(width, abs=1), (
+        "Tab opened the choices of a field the user could not see"
+    )
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):

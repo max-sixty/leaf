@@ -42,7 +42,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
-from known_shifts import known, watches_shifts
+from known_faults import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -67,6 +67,7 @@ from playwright.sync_api import expect
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
+WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -1062,9 +1063,10 @@ def clean_browser(test=None):
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves. The fixture hands over its `test` node, for which `known_shifts` says
-    whether to watch for layout shifts (`shift_watch.js`) and which shift is its known
-    one: a defect waiting on its fix, which `watched` drops as it hears it.
+    themselves. The fixture hands over its `test` node, for which `known_faults` says
+    whether to watch for layout shifts (`shift_watch.js`) and which shift or lost words
+    (`words_watch.js`) are its known ones: defects waiting on their fix, which
+    `watched` drops as it hears them.
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1084,18 +1086,21 @@ def clean_browser(test=None):
     assert problems == [], problems
 
 
-def judge_shifts():
+def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
-    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`).
+    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
 
-    Chrome hands a frame's shifts to the observer only after it paints, so a test whose
-    last act moves the page would end before the report. `conftest.py` calls this as
+    Chrome hands a frame's shifts to the observer only after it paints, and a loss waits
+    a moment for the press that may answer for it, so a test whose last act moves the
+    page or takes words away would end before the report. `conftest.py` calls this as
     the test body returns, while the pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed():
             for frame in page.frames:
                 frame.evaluate("() => window.lfShiftsJudged?.()")
+                frame.evaluate("() => window.lfWordsJudged?.()")
 
 
 def watched(page):
@@ -1105,7 +1110,8 @@ def watched(page):
     without exceptions, installed through the same `install_window_errors` helper
     the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
     by layout shifts without input or that carry a field being typed in
-    (`shift_watch.js`).
+    (`shift_watch.js`), and by typed words leaving the screen without a key or press
+    (`words_watch.js`).
     Call before navigation so the init scripts take effect.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
@@ -1129,6 +1135,7 @@ def watched(page):
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
+    page.add_init_script(path=WORDS_WATCH_SOURCE)
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(path=SHIFT_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.

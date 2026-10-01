@@ -3,11 +3,12 @@
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
    outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
    at the foot of its thread, a turn that reopens a resolved thread unfolding it, a thread
-   the agent starts at the foot of the seat. Where that growth starts above the screen, the
-   browser's scroll anchoring takes it into what the user has scrolled past; where it
-   starts below, it moves nothing they see. Where it starts on screen, everything after it
-   would move under the reader, so the seat draws what it drew before and says what is
-   waiting in a row it already draws at a fixed size:
+   the agent starts at the foot of the seat. A turn of the user's that this page did not
+   just send, such as one from another tab, grows it the same way. Where that growth
+   starts above the screen, the browser's scroll anchoring takes it into what the user
+   has scrolled past; where it starts below, it moves nothing they see. Where it starts
+   on screen, everything after it would move under the reader, so the seat draws what it
+   drew before and says what is waiting in a row it already draws at a fixed size:
 
    - a thread's own news (its new turns, and the reopening they bring) in the thread's
      control row: the head row beside Resolve while it is open, the foot row beside
@@ -19,10 +20,10 @@
    `HeldNews` is that one owner for a seat. It reads each reading the seat is handed
    against the one it drew last, holds what is news, and returns the reading to draw,
    each thread carrying `news` where something waits behind it. What it holds shows when
-   the user opens the notice, when they add a turn of their own (a reply in the thread, or
-   a thread they start in the seat, which answers what came before it and so follows it),
-   or when none of the seat shows in the window, where the growth moves nothing they see.
-   Anything held is not drawn, so it stays unread until it shows. */
+   the user opens the notice, when they add a turn of their own here (a reply in the
+   thread, or a thread they start in the seat, which answers what came before it and so
+   follows it), or when none of the seat shows in the window, where the growth moves
+   nothing they see. Anything held is not drawn, so it stays unread until it shows. */
 import { shownBand } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
@@ -169,9 +170,17 @@ export class HeldNews {
   }
 
   #take(prior, reading, row) {
+    // A turn is the user's gesture while this page's ledger still holds its attempt, as
+    // it does in the turn they send it. Their words from another tab, or a turn a seat
+    // first draws after the log answered it, as a package mirror whose render waited
+    // on work of its own does, arrive like the agent's.
+    const ledger = new Set(
+      readApplication().unresolved.map(({ event }) => event.attempt),
+    );
+    const own = ({ author, attempt }) => author === "user" && ledger.has(attempt);
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
-    // A thread of the user's own is their gesture, and the threads before it show with it.
-    if (arrived.some(({ messages }) => messages[0]?.author === "user"))
+    // A thread the user starts is their gesture, and the threads before it show with it.
+    if (arrived.some(({ messages }) => messages[0] && own(messages[0])))
       this.#threads.clear();
     else if (arrived.length) {
       const last = prior.threads.at(-1)?.key;
@@ -188,10 +197,7 @@ export class HeldNews {
       // A thread settled again stands as drawn.
       if (thread.resolved) this.#reopened.delete(thread.key);
       if (!added.length) continue;
-      if (
-        added.some(({ author }) => author === "user") ||
-        !growthAfterIsSeen(this.#view(thread.key)?.foot)
-      ) {
+      if (added.some(own) || !growthAfterIsSeen(this.#view(thread.key)?.foot)) {
         this.#turns.delete(thread.key);
         this.#reopened.delete(thread.key);
         continue;

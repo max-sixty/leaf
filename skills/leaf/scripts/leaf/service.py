@@ -744,7 +744,8 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the host session the page's watcher, if a host supplied one.
 
-    `server start` and named `leaf wait` claim; authoring commands do not. A
+    `server start`, a named `leaf wait` and `page claim` claim; authoring
+    commands do not. A
     bare-shell serve makes no claim and therefore starts as standing.
     """
     harness = session_harness()

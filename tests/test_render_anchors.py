@@ -4924,15 +4924,15 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         7,
         16,
     ]
+    # Folding the file away leaves the box nowhere to stand, so it waits, words and
+    # focus held, and stands again with them when the file is opened.
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
-    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
     details.evaluate("element => { element.open = true; }")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
     expect(composer_outlet.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )

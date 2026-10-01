@@ -1320,7 +1320,9 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         controls = item
         _unfold(item)
         with sending(page, f"{outcome} {target}"):
-            item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
+            item.get_by_role(
+                "button", name=re.compile(f"^{outcome.title()} the ")
+            ).click()
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         with sending(page, f"undo {target}"):
             suggestion_control(page, target, visible=False).and_(
@@ -1428,7 +1430,9 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         _unfold(item)
         with sending(page, f"{outcome} {target}"):
-            item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
+            item.get_by_role(
+                "button", name=re.compile(f"^{outcome.title()} the ")
+            ).click()
         with sending(page, f"undo {target}"):
             suggestion_control(page, target, visible=False).and_(
                 page.locator('[aria-label^="Undo "]')

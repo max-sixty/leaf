@@ -16,7 +16,8 @@
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, within a moment of the words going: Escape, Send, Cancel, a press
-// elsewhere, choosing another target. What only moves the user around the words does
+// elsewhere, choosing another target, or an edit in another tab of the page that reaches
+// this one as storage news. What only moves the user around the words does
 // not count: a key that typed (one a trusted `beforeinput` followed), a modifier, the
 // caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
@@ -73,21 +74,30 @@
       },
       true,
     );
+  // The same user's edit in another tab of the page, which reaches this one as storage
+  // news and may take the words over: what they did there they did here.
+  addEventListener("storage", (event) => {
+    if (event.isTrusted) gestured(event.timeStamp);
+  });
   // Keys that move the user among the words, or the page under them, rather than
   // doing anything to them.
   const MOVES =
     /^(Shift|Control|Alt|Meta|CapsLock|Tab|Arrow\w+|Home|End|PageUp|PageDown| )$/;
+  // A key counts from its keydown, and a `beforeinput` following it in the same task
+  // takes it back as typing; a chord is a command whatever the field makes of it, as
+  // Linux's Chrome still hands a contenteditable the line break of a Control+Enter the
+  // page sent on.
   let key = null;
   addEventListener(
     "keydown",
     (event) => {
       if (!event.isTrusted || MOVES.test(event.key)) return;
       const at = event.timeStamp;
+      gestured(at);
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       key = at;
-      // A key that types fires its `beforeinput` in this same task, after its keydown.
       later(() => {
-        if (key === at) gestured(at);
-        key = null;
+        if (key === at) key = null;
       });
     },
     true,
@@ -100,6 +110,7 @@
     "beforeinput",
     (event) => {
       if (!event.isTrusted) return;
+      if (key !== null && gestures.at(-1)?.at === key) gestures.pop();
       key = null;
       const field = event.composedPath()[0];
       if (!typed(field)) return;

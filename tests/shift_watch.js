@@ -1,7 +1,7 @@
 // Watches every page for layout shifts the "Stability" rule forbids
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it after write_watch.js
 // on every page a test opens (render_harness.watched), so every test checks it, except
-// a nightly-marked one for now (known_shifts.py, `watches_shifts`).
+// a nightly-marked one for now (known_faults.py, `watches_shifts`).
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,
@@ -20,7 +20,7 @@
 //   Chrome reports without recent input moved something the user did not ask to move.
 //   It is reported for every element the frame moved, once per element, named by
 //   write_watch.js's `lfPlace`. The tests whose pages still do are
-//   `known_shifts.py`.
+//   `known_faults.py`.
 // - Typing never carries its field. A keystroke may grow its field, at whichever edge
 //   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
 //   never moves the field whole, as a "Draft" mark appearing in the header above a reply
@@ -194,7 +194,7 @@
     return others.length ? `; the same frame moved ${others.join(", ")}` : "";
   };
   // One known defect is every page's, so it is known here by when it happens rather than
-  // in `known_shifts.py` by test: widgets upgrade after the authored document has painted,
+  // in `known_faults.py` by test: widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
   // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the

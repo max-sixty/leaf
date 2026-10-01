@@ -85,6 +85,7 @@ import {
   spokenSubject,
 } from "./margin-entry-model.js";
 import {
+  THREAD_CARD,
   mountMarginLayer,
   registerMarginRow,
   scheduleMarginEntryLabels,
@@ -352,7 +353,7 @@ export function createMarginProjection({
   // tiered the keyboard over it, so standing on the passage it discusses took it down.
   // It shows while the user stands at its target (`followStanding`).
   const preview = el("aside", "lf-ui lf-margin-preview");
-  preview.id = "lf-margin-preview";
+  preview.id = THREAD_CARD;
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
@@ -3177,7 +3178,7 @@ export function createMarginProjection({
     if (!previewRegionMounted) {
       previewRegionMounted = true;
       registerReadingRegion({
-        id: "lf-margin-preview",
+        id: THREAD_CARD,
         host: preview,
         body: previewList,
       });

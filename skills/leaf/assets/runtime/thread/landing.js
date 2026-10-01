@@ -53,15 +53,18 @@ const threadInputOf = (held) => {
 };
 
 // Start a long direct arrival on the earliest complete content block that still leaves
-// its reply target in the list's landable band. Native nearest-edge scrolling guarantees
-// the target is visible, but it can put the sticky heading through the middle of a text
-// line. The thread header and message bodies expose complete block boundaries; use
-// those rather than attempting to infer line boxes from prose.
+// its reply target in the list's landable band: the reply area, or the thread's end
+// where the target is the thread itself, since a reply row pinned at the list's foot
+// stands over that end. Native nearest-edge scrolling guarantees the target is visible,
+// but it can put the sticky heading through the middle of a text line. The thread
+// header and message bodies expose complete block boundaries; use those rather than
+// attempting to infer line boxes from prose.
 const threadLandingStart = (held, target, threadsBox) => {
   const band = landingBand(threadsBox);
-  if (!band) return target;
+  if (!band) return null;
   const room = band.bottom - band.top;
   const targetBox = shownBox(target);
+  const last = target === held ? targetBox.bottom : targetBox.top;
   const candidates = [
     ...held.querySelectorAll(
       ":scope > *, :scope > .lf-msg .lf-msg-body > *, " +
@@ -69,17 +72,18 @@ const threadLandingStart = (held, target, threadsBox) => {
     ),
     target,
   ]
+    .filter((node) => node !== held)
     .map((node) => ({ node, box: shownBox(node) }))
     .filter(
       ({ node, box }) =>
         node === target ||
         (getComputedStyle(node).display !== "contents" &&
           box.height > 0 &&
-          box.top <= targetBox.top &&
+          box.top <= last &&
           targetBox.bottom - box.top <= room),
     )
     .sort((a, b) => a.box.top - b.box.top);
-  return candidates[0]?.node ?? target;
+  return candidates[0]?.node ?? null;
 };
 
 export function threadInput(node) {
@@ -392,20 +396,32 @@ async function showThreadNow(id, focus, revealThread, threadsBox) {
     else destination.focus({ preventScroll: true });
   }
   const directThread = node === thread && thread.contains(focused());
-  const target = directThread ? landingTarget(thread, focused()).node : node;
-  const scrollTarget =
-    directThread && target !== thread
-      ? threadLandingStart(thread, target, threadsBox)
-      : target;
-  scrollTarget.scrollIntoView({
+  // A direct arrival aims at the reply area wherever the user stands in the thread; a
+  // long thread whose reply row is pinned aims at the thread's end, which the row
+  // stands over.
+  const aim = directThread
+    ? landingTarget(thread, threadInputOf(thread) ?? focused())
+    : { node };
+  const target = aim.node ?? thread;
+  const long = directThread && (target !== thread || aim.block === "end");
+  const start = long ? threadLandingStart(thread, target, threadsBox) : null;
+  (start ?? target).scrollIntoView({
     behavior: scrollBehavior(),
     // A long thread begins at the clean content boundary chosen above. A short card
     // is context in full; a requested message keeps the least-moving direct route.
-    block: target === thread ? "center" : directThread ? "start" : "nearest",
+    block: start
+      ? "start"
+      : long
+        ? (aim.block ?? "start")
+        : target === thread
+          ? "center"
+          : "nearest",
   });
-  target.classList.toggle("grow", false);
-  target.classList.toggle("flash", true);
-  setTimeout(() => target.classList.toggle("flash", false), 1300);
+  const revealed =
+    (aim.block === "end" && thread.querySelector(":scope > .lf-compose")) || target;
+  revealed.classList.toggle("grow", false);
+  revealed.classList.toggle("flash", true);
+  setTimeout(() => revealed.classList.toggle("flash", false), 1300);
   return true;
 }
 

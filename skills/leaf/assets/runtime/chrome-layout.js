@@ -131,12 +131,12 @@ export function createChromeLayout({
     // The panel list is its own scroll region. The inert guide no longer reaches it, but
     // a live walk status remains above the covering panel and can stand over its list.
     // Reserve only the rendered bottom surface that crosses the list, for both wheel and
-    // scroll-into-view landings, and restore the stylesheet's inset when none does.
-    const listClear = panelIsOpen()
-      ? (roomBelow(threadsBox.getBoundingClientRect()) ?? "")
-      : "";
-    threadsBox.style.paddingBottom = listClear;
-    threadsBox.style.scrollPaddingBottom = listClear;
+    // scroll-into-view landings, and restore the stylesheet's inset when none does. The
+    // stylesheet reads the one reservation for the list's foot padding and its landing
+    // inset, and a reply box pinned there keeps its place under it (chrome.css).
+    const listClear = panelIsOpen() && roomBelow(threadsBox.getBoundingClientRect());
+    if (listClear) threadsBox.style.setProperty("--lf-threads-foot", listClear);
+    else threadsBox.style.removeProperty("--lf-threads-foot");
     syncFloats();
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable

@@ -103,6 +103,17 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Find a better shape for news in a short Threads list.** In a list too short to
+  scroll, any news moves something on screen, so the open card fills the list with
+  its reply box at the foot (#1480). A reply lands in the room above the box, and a
+  thread returning above the open card makes the list scrollable, so the place hold
+  scrolls the newcomer out of view rather than pushing down the card being read. It
+  is the best tradeoff found, not a perfect one: a short list's open card is as tall
+  as the panel, later cards wait below the fold, and a thread that returns above lands
+  scrolled past, so the user sees it only in the count. The rejected alternatives
+  were holding replies behind an "N new replies" chip, which hides the answer the user
+  is waiting for, and letting a list that can't scroll push its contents down, which
+  needs the shift watch to stop checking such lists.
 - **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
   a comment's target in a single wheel step draws the box about 60px off for a frame
   before it lands, on `main` too and for selected words as well as items; a script's
@@ -336,6 +347,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Consider dragging thread cards and comment boxes.** Once both share placement,
+  try temporary, passage-relative movement from a handle. Keep it only if scrolling,
+  typing, and resizing stay predictable and the implementation stays simple.
 - **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
   invalid control with a bounded explorer and cold user. The
   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy

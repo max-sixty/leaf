@@ -1,5 +1,17 @@
 import { shownBox, shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
+import { coveredWords } from "./words.js";
+
+// One read-only view of controls and words a reader cannot reach. The render gate
+// takes this after its table experiment has restored wrapping; no field advances or
+// changes the page. Individual readers remain available for their own controls.
+export function reachabilityReading() {
+  return {
+    clipped: clippedControls(),
+    unreachable: unreachableWords(),
+    covered: coveredWords(),
+  };
+}
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
 // which of them a widget is held to is the widget's to declare (x-inline), because

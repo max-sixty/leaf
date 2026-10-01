@@ -199,8 +199,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // it stood, so nothing after it moves, and the newest words end above the reply box,
   // however tall the turn has grown. The box stands at the list's foot (chrome.css), pinned
   // there while the card's end lies below it, so the words may reach past where it stood
-  // by more than the card grew. The scroll lands in the render's own frame; where the
-  // list is too short to scroll that far, the end grows into the room below.
+  // by more than the card grew. The scroll lands in the render's own frame. In a list too
+  // short to scroll, the open card fills the list and the reply takes the free room above
+  // its box, so neither the card's end nor the box moves and there is nothing to follow.
   function followThreadEnd(newest, incoming) {
     const card = newest.closest(".lf-thread");
     const by = Math.max(

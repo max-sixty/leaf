@@ -1205,10 +1205,10 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     browser, serve
 ):
     """One widget owns distinct render and preparation regions across its lifetime."""
+    # The owner is removed and reattached by script below. Keep it after the page's
+    # content so that neither operation moves text the reader did not ask to move.
     source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
+        "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>',
     )
     page = open_page(
         browser,

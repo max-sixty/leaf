@@ -7405,9 +7405,44 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
     ).to_have_attribute("aria-label", re.compile(r"^Sent\b"))
+    for _ in range(2):
+        rendered(page)
+        assert preview.evaluate(where) == card
+        assert thread.evaluate(where) == row
+        # A later pass, which any repaint of the margin brings, moves nothing either.
+        margins_laid_out(page)
+
+
+def test_a_row_arriving_takes_the_room_below_the_markers_already_standing(
+    browser, serve
+):
+    """A pick's receipt is news to the thread marker beside the options: it lands in the
+    room below that marker rather than seating itself first, from the top, and pushing
+    the marker out from beside the option the user may press next."""
+    root = {**LONG_THREAD_ROOT, "anchor": {"section": "row"}}
+    page = open_page(browser, serve(PICK_UNDER_A_CARD, events=[root]))
+    resized(page, 1400, 900)
     rendered(page)
-    assert preview.evaluate(where) == card
+    thread = page.locator('[data-lf-margin-for="row"]')
+    where = "node => node.getBoundingClientRect().toJSON()"
+    row = thread.evaluate(where)
+    with sending(page, "the pick"):
+        page.locator("#two").click(position={"x": 20, "y": 10})
+    receipt = page.locator('[data-lf-margin-for="choice"]')
+    expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
+        "aria-label", re.compile(r"^Sent\b")
+    )
+    rendered(page)
     assert thread.evaluate(where) == row
+    assert receipt.evaluate(where)["top"] >= row["bottom"]
+    stands = receipt.evaluate(where)
+    # A later pass, which any repaint of the margin brings, moves neither, and nor does
+    # the receipt being held where it stands.
+    receipt.locator(".lf-margin-marker").hover()
+    margins_laid_out(page)
+    rendered(page)
+    assert thread.evaluate(where) == row
+    assert receipt.evaluate(where) == stands
 
 
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])

@@ -1,6 +1,8 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
+import inspect
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -230,7 +232,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--nightly-changed-since",
         metavar="REF",
-        help="Also run the nightly-marked tests in the test files changed since REF",
+        help="Also run the nightly-marked tests whose own lines changed since REF",
     )
 
 
@@ -249,8 +251,9 @@ def pytest_collection_modifyitems(config, items):
     """Broad discovery stays cheap; explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the nightly tests in the test files the change touches
-    (`--nightly-changed-since`): those run before it lands rather than on main after."""
+    landing gates add the nightly tests whose own lines the change touches
+    (`--nightly-changed-since`): those run before it lands, and CI's `nightly` job runs
+    the rest on main after."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -259,26 +262,47 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
-    changed = set()
+    changed = {}
     if since := config.getoption("--nightly-changed-since"):
-        diff = subprocess.run(
-            ["git", "diff", "--name-only", f"{since}...HEAD", "--", "tests"],
-            cwd=config.rootpath,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if diff.returncode:
-            raise pytest.UsageError(
-                f"--nightly-changed-since {since}: {diff.stderr.strip()}"
-            )
-        changed = {config.rootpath / path for path in diff.stdout.split()}
+        changed = _changed_test_lines(config.rootpath, since)
     kept, nightly = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and item.path not in changed
+        skipped = "nightly" in item.keywords and not _touches(item, changed)
         (nightly if skipped else kept).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=nightly)
+
+
+def _changed_test_lines(root, since):
+    """The lines under `tests/` that `since...HEAD` adds or edits, by file. A deletion
+    counts as the line it leaves behind."""
+    diff = subprocess.run(
+        ["git", "diff", "--unified=0", f"{since}...HEAD", "--", "tests"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if diff.returncode:
+        raise pytest.UsageError(
+            f"--nightly-changed-since {since}: {diff.stderr.strip()}"
+        )
+    changed, lines = {}, None
+    for line in diff.stdout.splitlines():
+        if line.startswith("+++ "):
+            lines = changed.setdefault(root / line.removeprefix("+++ b/"), set())
+        elif hunk := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line):
+            start, count = int(hunk[1]), int(hunk[2] or 1)
+            lines.update(range(start, start + max(count, 1)))
+    return changed
+
+
+def _touches(item, changed):
+    """Whether a change edits the test's own function, decorators included."""
+    if item.path not in changed:
+        return False
+    source, first = inspect.getsourcelines(item.function)
+    return not changed[item.path].isdisjoint(range(first, first + len(source)))
 
 
 # A host session states its identity in the environment, under names of its own

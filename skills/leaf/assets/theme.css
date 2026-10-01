@@ -616,8 +616,9 @@ html { background: var(--paper); }
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets the body's percentage minimum fill a short
  * viewport while a longer body still overflows it. A standing scrollbar prevents a
- * later height change from recentering the page. The server's prepaint bootstrap marks
- * a live page before its graph has loaded, and paper has no fixed chrome. */
+ * later height change from recentering the page. A served page's bootstrap marks it
+ * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
+ * and paper has no fixed chrome. */
 @media screen {
   html[data-lf-live] {
     height: 100%;
@@ -715,19 +716,19 @@ body {
  * version gate refuses it for the display and visibility properties this boundary owns. */
 @layer {
   @media screen {
-    html[data-lf-live] body:not([data-lf-presented]),
-    html[data-lf-live] body:not([data-lf-presented]) > main,
-    html[data-lf-live] body:not([data-lf-presented]) > main *,
-    html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) > main,
+    html[data-lf-interactive] body:not([data-lf-presented]) > main *,
+    html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
   }
 }
-/* The keys the prepaint bootstrap holds until presentation (runtime/bootstrap.js). It
- * stands where the chrome's bottom status will, and is styled here because it can
+/* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
+ * It stands where the chrome's bottom status will, and is styled here because it can
  * appear before the runtime has adopted chrome.css. */
 .lf-held-keys {
   position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
@@ -978,7 +979,7 @@ main {
    * drawing's: one drawn at the stated height keeps it, and one whose content has a
    * height of its own takes that. A failure is shown whole, since the user has to read
    * it. */
-  html[data-lf-live] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+  html[data-lf-interactive] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
     box-sizing: border-box;
     block-size: attr(data-lf-height px);
     overflow: clip;

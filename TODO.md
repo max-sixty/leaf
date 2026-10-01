@@ -56,6 +56,16 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
+- **Measure the fresh-reader review.** "Pre-handover review" has a subagent with only
+  the user's request and the check's screens work the page as the user would, since
+  the author resolves every name from notes the user never saw. On the triage page
+  that reader caught the scrolled-off context, a heading answering the author's own
+  research question, and header counts that didn't add up; a reader also given the
+  research reports caught those but missed the shorthand the reports explain.
+  **Unconfirmed:** one page, one run each. Measure across pages whether authors run
+  it, what it costs (about 110k tokens and two minutes there), and what it catches
+  beyond the author's own reading. The single-turn eval harness cannot run a review
+  step, so this needs `notes/usability-eval/harness.py` or session replays.
 
 ## Next
 
@@ -172,6 +182,38 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
+
+### Queues
+
+A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+workspace"). The first real one, a 21-item triage page, showed these.
+
+- **Show that a side list scrolls, and give it the view's height.** The list sticks
+  beside the open item and scrolls on its own, but when that item is shorter than the
+  window the list is only as tall as the item. On a 1200×900 desktop the queue stopped
+  at row 10 with nothing showing more below, and two agents reading the page both took
+  it for the whole queue. After an `a` press the list's first row also sat under the
+  banner. Branch `layout-widget-shape-conflicts` is re-examining how the list's bounds
+  are measured (`#fitList` in `lf-tabs.js`); fix it there rather than with another patch.
+- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
+  open Ask, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
+  the walks (`standing-target.js`), while `c` on a row still names the row.
+- **Keep the open item at the reading measure.** In a 1342px panel the prose stopped
+  at 720px while the option cards spanned 1294px, putting each option's digit 1200px
+  from its title. An open item is a reading view, so its blocks could take the
+  column's measure unless they declare more room (`x-space`), as a board does.
+- **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
+  warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
+  row whose Asks are answered could show the picked option's title where the count
+  stood.
+- **Let a queue group its items.** The author sorted the items into merge, close,
+  design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
+  undifferentiated rows. A side list could take group headings between its items,
+  skipped by the arrow walk.
+- **Put the open item first on a phone.** At 390px the stacked list comes before any
+  item, so 20 rows fill two screens before the first one.
 
 ### The agent's text interface
 

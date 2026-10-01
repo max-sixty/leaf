@@ -21,7 +21,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "6b8abf76f5b9e1fbc28eddeceb17671ef741655bd85605fa6236b0769c244010",
+  "lockfileSha256": "5544cd381239dc8dee775996840de14b1858b7fca869a39899a70d3f1f50d8d8",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",

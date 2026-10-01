@@ -1652,17 +1652,13 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     consume_browser_errors(page, "lf-tabs.js", "net::ERR_FAILED")
 
 
-def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
-    """The room is for the drawing, and until the module has made one what stands in the
-    box is the authored source: evidence, which reads at the column's width from the
-    column's own edge. The mark is written before any module imports, so this is every
-    page's first loading interval and not a corner — the renderer is fetched lazily — and
-    for a page whose module never arrives it is the whole of what the user sees. Held
-    to the room, three sources came out centred at three indents, none of them the
-    column's.
-
-    The module is blocked outright here because that is the state the failure holds
-    still: what the timed version of it measures is the machine."""
+def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
+    """The room is for the drawing. While the renderer loads, a live page gives the box
+    that room from first paint so the drawing lands without moving anything; once the
+    renderer cannot arrive, the page did not start, and the source is the whole of what
+    the user sees. It is evidence, which reads at the column's width from the column's
+    own edge. Held to the room, three sources came out centred at three indents, none of
+    them the column's."""
     url = serve(DIAGRAM_AND_RAIL_PAGE)
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())

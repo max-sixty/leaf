@@ -9569,6 +9569,68 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     assert not queued
 
 
+def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
+    page_dir, codex_loop, capsys, monkeypatch
+):
+    """Capture before the first page-bound tool hook still delivers in this turn."""
+    hooks_model.cmd_hook(
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        }
+    )
+    hooks_model.cmd_hook(
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        }
+    )
+    codex_loop(page_dir)
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Change this before finishing"},
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        reading = session_model.PageTick(
+            page_dir, page.status, [comment], True, "watching", False, None, page
+        )
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
+    queued = []
+    monkeypatch.setattr(
+        codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+    )
+    assert not codex_adapter_model._offer_queued_delivery(
+        "codex", "codex-thread", None, None
+    )
+    assert not queued
+    hooks_model.cmd_hook(
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        }
+    )
+    [(path, record)] = codex_records("codex-thread")
+    assert json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ] == codex_model.delivery_pointer_prompt(path.stem)
+    assert record["transport"] == {"phase": "hook", "turn": "user-turn"}
+    delivery_model.cmd_delivery_read(path.stem)
+    capsys.readouterr()
+    [pickup] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
+        "opened",
+        "user-turn",
+        [comment["id"]],
+    )
+
+
 @pytest.mark.parametrize("ending", ["Stop", "Interrupt"])
 def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     page_dir, codex_loop, capsys, ending

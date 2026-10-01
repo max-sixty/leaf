@@ -72,6 +72,7 @@ from render_harness import (
     told,
     until_draft_settled,
     wait_for_revision,
+    watch_message_arrival,
     write,
 )
 
@@ -1028,25 +1029,6 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     assert [event["text"] for event in roots] == [old]
 
 
-def watch_message_arrival(page, selector):
-    """Record delivery paint on insertion, before a later read can miss a flash."""
-    page.evaluate(
-        """selector => {
-          window.__messageArrival = null;
-          const observer = new MutationObserver(() => {
-            const message = document.querySelector(
-              `${selector}[data-attempt][aria-busy="true"]`
-            );
-            if (!message) return;
-            window.__messageArrival = Number(getComputedStyle(message).opacity);
-            observer.disconnect();
-          });
-          observer.observe(document.body, {childList: true, subtree: true});
-        }""",
-        selector,
-    )
-
-
 def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serve):
     """The words move from the box into the thread in the gesture that sends them.
 
@@ -1066,7 +1048,7 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     before = page.locator(".lf-threads > .lf-thread").count()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    watch_message_arrival(page, ".lf-threads .lf-msg")
+    watch_message_arrival(page.locator("body"), ".lf-threads .lf-msg")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the general send")
 
@@ -1214,7 +1196,7 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(
     before = messages.count()
 
     watch_message_arrival(
-        page,
+        page.locator("body"),
         ".lf-threads .lf-msg"
         if surface == "panel"
         else ".lf-margin-preview .lf-page-thread-msg",

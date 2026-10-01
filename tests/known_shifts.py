@@ -54,6 +54,11 @@ KNOWN_UNASKED = {
         "test_a_settled_delivery_activates_one_fresh_document_with_continuity": (
             r"lf-margin-cluster"
         ),
+        # The second package filter's field and list, 74px up, as the answer to the
+        # user's new thread lands; with the answer held back, they move when it lands.
+        "test_package_thread_widgets_keep_local_filters_and_independent_subscriptions": (
+            r"lf-thread-filter#second"
+        ),
         # The user's message in the open panel's card, 28px up, as the answer to a
         # package's thread action lands.
         "test_package_thread_actions_share_core_admission_and_current_availability": (

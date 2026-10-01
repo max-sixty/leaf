@@ -11,9 +11,8 @@ the plugin is installed in, and most of those sessions hold no page, so this
 module imports none of that reading, nor the servers: a session holding no page
 is answered here, and one holding a page reaches `hook_carrier`, the prompt and
 Stop hooks as its carrier, or `session`, the watch a second Stop hook runs
-between turns (`cmd_watch`), through the imports below. The host runs this module
-directly under uv; `main` also supplies the CLI hook entry, so dispatch has one
-owner."""
+between turns (`cmd_watch`), through the imports below. The application entry
+routes `leaf hook` here before loading the CLI; dispatch has one owner."""
 
 from .leases import mark_hooks
 from .service import owned_pages
@@ -62,7 +61,7 @@ def cmd_watch(payload: dict) -> str | None:
 def main(*, watch: bool = False) -> None:
     """Read one host payload and dispatch it, without importing the CLI.
 
-    Both the registered hook (`python -m leaf.hooks`) and `leaf hook` enter here.
+    Both the application entry and the Click command enter here.
     A watch owns leases, so it releases them when the host terminates it.
     """
     import json
@@ -80,9 +79,3 @@ def main(*, watch: bool = False) -> None:
             print(woke, flush=True)
         return
     cmd_hook(payload)
-
-
-if __name__ == "__main__":
-    import sys
-
-    main(watch="--watch" in sys.argv[1:])

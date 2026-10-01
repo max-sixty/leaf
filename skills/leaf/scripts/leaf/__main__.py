@@ -1,16 +1,28 @@
-"""`python -m leaf`, the form every leaf process runs in.
+"""The one application entry, for `python -m leaf` and the console script.
 
-`bin/leaf` comes through here too — its comment carries why it avoids the
-`leaf` console script — so the console script's users are the hook guard and a
-developer's `uv run leaf`. A subprocess leaf starts for itself — the page
-server in `hosting.py`, the carrier in `codex_adapter.py` — has `sys.executable`
-in hand and no reason to find a launcher or a script path again.
+`bin/leaf` selects the runtime through uv before reaching here. A subprocess Leaf
+starts has `sys.executable` in hand and needs no launcher or environment manager.
 
-`prog_name` is fixed rather than left to argv, because `leaf` is the name the
-skill hands an agent and so the name every usage line has to say back.
+Hosts call `leaf hook` on every turn, including sessions holding no page. Its two
+protocol invocations enter the dependency-light hook owner before importing Click
+or registering other commands. Help and every other invocation use the CLI, whose
+`prog_name` stays `leaf` for both entry forms.
 """
 
-from leaf.cli import cli
+import sys
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if args in (["hook"], ["hook", "--watch"]):
+        from leaf.hooks import main as hook
+
+        hook(watch=args == ["hook", "--watch"])
+        return
+    from leaf.cli import cli
+
+    cli(prog_name="leaf")
+
 
 if __name__ == "__main__":
-    cli(prog_name="leaf")
+    main()

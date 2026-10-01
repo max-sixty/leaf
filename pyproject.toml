@@ -58,7 +58,7 @@ dependencies = [
 ]
 
 [project.scripts]
-leaf = "leaf.cli:cli"
+leaf = "leaf.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.9"]

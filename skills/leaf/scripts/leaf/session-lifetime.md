@@ -192,15 +192,17 @@ pointer, while the transition gives the browser and the next Stop their shared
 handling fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were. Absent the harness the environment implies, nothing is
-claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
-run, starts `python -m leaf.hooks` under `uv`, which supplies the supported
-interpreter and dependencies. The hook module dispatches the CLI's `leaf hook`
-as well, and imports neither the CLI nor page reading before checking ownership.
-It marks the session and reads active ownership through `service.owned_pages`;
-a session holding no page returns there. SessionEnd releases records still naming
-that session under each page's transaction lock. The script stays silent when it
-cannot get an answer, so a leaf bug costs a turn nothing. It imports no Leaf code
-into the host's `python3`.
+claimed and the hooks stand down. Synchronous registrations call `bin/leaf hook`
+directly; that shell launcher runs the application through `uv`, which supplies
+the supported interpreter and dependencies. The application entry routes the hook
+to its dependency-light owner before importing the CLI or page reading. It marks
+the session and reads active ownership through `service.owned_pages`; a session
+holding no page returns there. SessionEnd releases records still naming that
+session under each page's transaction lock. A registration suppresses errors and
+returns success when the application cannot answer, so a leaf bug costs a turn
+nothing. The host owns the hook deadline. `hooks/scripts/loop-guard.py` only
+supervises the background watch, calling the same launcher and converting its
+successful result into Claude Code's exit-2 wake.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`

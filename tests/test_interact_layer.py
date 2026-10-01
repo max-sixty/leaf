@@ -539,6 +539,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
+        ["hook"],
+        ["hook", "--watch"],
         ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],

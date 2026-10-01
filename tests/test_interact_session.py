@@ -12465,6 +12465,20 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert service_model.owned_pages("guarded") == [other.resolve()]
 
 
+def _registered_hook_command(event):
+    """The synchronous command the installed host runs for this event."""
+    registrations = json.loads((PLUGIN_ROOT / "hooks/hooks.json").read_text())["hooks"][
+        event
+    ]
+    [hook] = [
+        hook
+        for registration in registrations
+        for hook in registration["hooks"]
+        if not hook.get("asyncRewake")
+    ]
+    return hook["command"]
+
+
 def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_path):
     """The background Stop registration runs the watch only under Claude Code,
     and its exit 2 with stderr is the whole wake.
@@ -12516,32 +12530,25 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
         PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py",
         broken / "hooks" / "scripts",
     )
+    (broken / "bin").mkdir()
+    shutil.copy(PLUGIN_ROOT / "bin/leaf", broken / "bin/leaf")
     base["CLAUDE_PLUGIN_ROOT"] = str(broken)
     failed = run(claude_code=True)
     assert (failed.returncode, failed.stdout, failed.stderr) == (0, "", "")
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
-    """The script a host actually runs starts the hook module under uv,
-    out of the payload project beside it.
+    """The host command calls Leaf's launcher, and Leaf answers under uv.
 
-    Driven the way a host drives it — a separate `python3`, the payload's own copy of
-    the guard, the hook payload on stdin — because the wiring is the subject, and no
-    part of it (uv, the project it syncs, the command name, the stdin protocol) is
-    visible from inside this process.
-
-    Failing open is the other half, and the case worth arranging is the one where
-    the CLI never starts: silence on both streams and a return code that leaves
-    the turn alone. It is also the case a hook cannot report, so nothing but this
-    test ever sees it.
+    Exercise the exact registration, stdin, environment selection and returned
+    context. Startup failure and malformed input must leave the turn alone.
     """
-    guard = PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py"
 
     def run(payload, env=None):
         return subprocess.run(
-            [sys.executable, str(guard)],
+            ["/bin/sh", "-c", _registered_hook_command("Stop")],
             input=payload,
-            env=env or os.environ,
+            env=(env or os.environ) | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
             capture_output=True,
             text=True,
             timeout=120,
@@ -12584,15 +12591,20 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     ],
 )
 def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_path):
-    """The host needs only stdlib to launch Leaf's supported interpreter.
+    """Synchronous hooks need no system Python; the shell launcher owns uv.
 
-    -S excludes installed dependencies, and this plugin copy has no library.
-    A recording uv witnesses the command and unchanged stdin for every hook.
+    This plugin copy has no library, and system python3 refuses to run. A recording
+    uv witnesses the selected project, application command and unchanged payload.
+    Only the async watch needs a stdlib supervisor to translate its wake result.
     """
     project = tmp_path / "plugin"
     guard = project / "hooks/scripts/loop-guard.py"
     guard.parent.mkdir(parents=True)
     guard.write_bytes((PLUGIN_ROOT / "hooks/scripts/loop-guard.py").read_bytes())
+    launcher = project / "bin/leaf"
+    launcher.parent.mkdir()
+    launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
+    launcher.chmod(0o755)
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
@@ -12600,14 +12612,24 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
         '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n/bin/cat > "$UV_INPUT"\n'
     )
     uv.chmod(0o755)
+    python = tools / "python3"
+    python.write_text('#!/bin/sh\nprintf called > "$PYTHON_CALLED"\nexit 99\n')
+    python.chmod(0o755)
+    python_called = tmp_path / "python-called"
     called, received = tmp_path / "uv-called", tmp_path / "uv-input"
     payload = json.dumps({"hook_event_name": event, "session_id": "hook-host"})
     done = subprocess.run(
-        [sys.executable, "-S", str(guard), *(["--watch"] if watch else [])],
+        (
+            [sys.executable, "-S", str(guard), "--watch"]
+            if watch
+            else ["/bin/sh", "-c", _registered_hook_command(event)]
+        ),
         input=payload,
         env=os.environ
         | {
-            "PATH": str(tools),
+            "PATH": f"{tools}:/usr/bin:/bin",
+            "CLAUDE_PLUGIN_ROOT": str(project),
+            "PYTHON_CALLED": str(python_called),
             "UV_CALLED": str(called),
             "UV_INPUT": str(received),
         },
@@ -12625,20 +12647,23 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
         str(project),
         "python",
         "-m",
-        "leaf.hooks",
+        "leaf",
+        "hook",
         *(["--watch"] if watch else []),
     ]
     assert received.read_text() == payload
+    assert not python_called.exists()
 
 
 def test_the_registered_session_end_releases_shared_claims(page_dir):
     """SessionEnd uses the same uv entry as Stop, and releases shared ownership."""
     record_claim(page_dir, id="ended-session")
     done = subprocess.run(
-        [sys.executable, str(PLUGIN_ROOT / "hooks/scripts/loop-guard.py")],
+        ["/bin/sh", "-c", _registered_hook_command("SessionEnd")],
         input=json.dumps(
             {"hook_event_name": "SessionEnd", "session_id": "ended-session"}
         ),
+        env=os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
         capture_output=True,
         text=True,
         timeout=60,
@@ -12658,12 +12683,12 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
     record_claim(page_dir, id="another-session")
     probe = """\
-import json, sys
-from leaf.hooks import cmd_hook, cmd_watch
+import io, json, runpy, sys
 imported = sorted(sys.modules)
-for event in ("UserPromptSubmit", "Stop"):
-    cmd_hook({"hook_event_name": event, "session_id": "holds-nothing"})
-cmd_watch({"hook_event_name": "Stop", "session_id": "holds-nothing"})
+for event, args in (("UserPromptSubmit", ["hook"]), ("Stop", ["hook"]), ("Stop", ["hook", "--watch"])):
+    sys.argv = ["leaf", *args]
+    sys.stdin = io.StringIO(json.dumps({"hook_event_name": event, "session_id": "holds-nothing"}))
+    runpy.run_module("leaf", run_name="__main__")
 print(json.dumps([imported, sorted(sys.modules)]))
 """
     done = subprocess.run(
@@ -12674,6 +12699,7 @@ print(json.dumps([imported, sorted(sys.modules)]))
         check=True,
     )
     heavy = (
+        "leaf.cli",
         "leaf.host",
         "psutil",
         "click",

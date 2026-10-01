@@ -42,8 +42,6 @@ subpackage's initializer is only a marker, never a second API.
   the detached carrier behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the host's model for when a user opens a
   thread, before the agent's reply could name it;
-- `mcp_page`, `mcp_server`, `mcp_app`: the capability-scoped MCP page server, its
-  transport, and the comments-only snapshot fallback;
 - `state_paths`, `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
   the state-home path and cold session cleanup, process readings,
   process-backed leases taken through `take_lease` and `release_lease`, page
@@ -72,13 +70,14 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for the news stream, and
-`service` owns the transaction HTTP and MCP share.
+`service` owns the page transaction every route reads through.
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
 the run of a page's own code, `preview` owns ephemeral servers, `browser` owns the
 browser launch, `screens` owns the screens a passing check saves for the author, and
-`command` owns the CLI boundary.
+`command` owns the CLI boundary, and `widget_quality` owns the report `package check
+--render` gives a widget's author, which refuses nothing.
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
@@ -95,9 +94,7 @@ The references that own each boundary:
 - `leaf/layer-registry.md` for composition, vendoring, and layer generations;
 - `leaf/session-lifetime.md` for claims, watchers, and service lifetime;
 - `leaf/validation.md` for where each input is validated, static and browser checks,
-  parsed source, and file-side passages;
-- `leaf/mcp-app.md` for MCP tools, resource metadata, the page server, snapshot
-  fallback, and the Codex return carrier.
+  parsed source, and file-side passages.
 
 `../references/packages.md` owns the public package contract, and
 `../assets/AGENTS.md` owns the browser's parallel projection, passage, registry, and

@@ -8,5 +8,6 @@ socket user frame:
     role: user
     content: >-
       leaf: <page> has new input, which arrives with this message, and no `leaf
-      wait` is running for this session. Start an unnamed `leaf wait` as a background
-      task so later input wakes you.
+      wait` is running for this session. So that later input wakes you, start an
+      unnamed `leaf wait` as a background task with `timeout` 7200000 (milliseconds),
+      the longest Claude Code allows.

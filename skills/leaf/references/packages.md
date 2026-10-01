@@ -173,9 +173,9 @@ out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim
 it rather than taking one item's margin and leaving the others'.
 
 Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
-`[data-lf-space]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read those attributes
-instead of naming widget tags. The registry's `$keys` entries for `x-space` and
-`x-bound` say what each declaration requests; none of them
+`[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`, and `[data-lf-exhibit]`; shared
+selectors read those attributes instead of naming widget tags. The registry's `$keys`
+entries for `x-space`, `x-bound`, and `x-height` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
@@ -243,15 +243,21 @@ widget's role on the page:
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
+| `x-height`           | `lf-chart`                                                     |
 | `x-history`          | `lf-activity`                                                  |
 | `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
+| `x-face`             | `lf-suggestion` (its slots), `lf-shot` in `default` (its rail) |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns
 the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
 absent part when someone follows its thread; `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
+An `x-visual.parts` declaration may set `complete: true` when listing some drawn
+parts while leaving their peers unaddressable would confuse a reader. The render
+check then requires a nonempty authored list to name the full registered inventory;
+omitting the attribute keeps the visual as one target.
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry
@@ -263,7 +269,7 @@ theme.
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
-generated images or links. It uses the page's public root across ordinary, MCP, and
+generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
 Registry-declared inline Markdown formats authored text, not strings a module assigns
@@ -410,12 +416,24 @@ the entry was left at (`runtime/history.js`), unless the element the entry's fra
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
 and lands on it, as a followed link to it does.
 
-A sticky header, a sticky box over the top of its scroller, declares the room it takes
-with `declareStickyHeaders(host, property, headers)`, which keeps `property` on `host` at
-the tallest header's height for a `scroll-padding` or `scroll-margin` to read, so every
-landing, native or the runtime's, arrives below it. The same declaration tells the
-runtime that what passes under the header is not on screen, for read acknowledgement,
-arrival checks, and chrome placement.
+A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
+at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
+holder passes the value it met on under a second name, since a custom property cannot
+read itself:
+
+```css
+.file { --lf-top-outer: var(--lf-top); }
+.file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
+.file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
+.file .row { scroll-margin-top: var(--head-h); }
+```
+
+The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
+below the header. The runtime reads what passes under it as off screen from `--lf-top`,
+for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
+The stacked value goes on a box that does not itself scroll, since the runtime reads a
+box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
+at `0px`, on the box that scrolls and only there.
 
 A composition allocates a Leaf element's outer box. The package owns how the element's
 contents use that allocation, based on its available inline size rather than the page
@@ -508,7 +526,10 @@ page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
-other contributions may reuse an ID. Leaf retains each projected control by the opaque
+other contributions may reuse an ID. `kind` names what the contribution is, as one of the
+margin's reading kinds (`change`, `comment`, `ask`, `action`, …; `action` where it
+declares none): where a pin with a primary and one more control finds no room for both,
+it stands folded to one control wearing that kind's face and name, which opens to them. Leaf retains each projected control by the opaque
 contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
 so crossing that semantic boundary replaces the host instead of emulating a button.
 `target` is an
@@ -893,9 +914,10 @@ rewrites that source. Source revisions and event sequences are independent: an o
 may contain new data, and a new event response may contain old data, so neither orders
 the other.
 
-`data set` is the one write. A value that has to be derived from a file — a text
-excerpt, a patch split into files — is the producer's to build, and a contract that
-needs more than `jq` says how in its producer `guidance`. A package may ship that tool
+Leaf derives no values: `data set` stores the value it is given. A value that has
+to be derived from a file — a text excerpt, a patch split into files — is the
+producer's to build, and a contract that needs more than `jq` says how in its
+producer `guidance`. A package may ship that tool
 as a Python file under `scripts/`, declaring its dependencies in inline script metadata
 (PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
 package by the name `--package` selects it by, bundled or installed, and runs the
@@ -1154,6 +1176,28 @@ outlet when the datum still resolves exactly. `origin` is the widget control to 
 Escape may return focus. Widgets do not receive draft, submission, or event APIs.
 
 ## Seeing it
+
+Before a page uses the package, `leaf package check PACKAGE --render` draws the worked
+examples of the widgets the package's own `registry.json` declares, in the browser
+`page check --render` uses, and prints one line per finding: the widget, the check,
+and what the check measured. A finding is advice for the widget's author: it refuses
+nothing, and the exit status ignores it. The command fails only where the package
+check does, no browser launches, or the examples cannot be drawn. Examples share a
+page where their ids allow, so one example may point at an element another declares,
+and a blank image stands in for any media an example names. The checks:
+
+- `example`: no worked example shows the tag, so no other check reads it.
+- `keeps-first-box`: the widget's box once the page presents differs from its box at
+  first paint. Upgrade should add behavior and move nothing, so size the widget in
+  the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
+  as its module will draw it. Where the markup cannot say how tall the drawing will
+  be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
+  draw at the stated height where the drawing can take any; `page check --render`
+  advises a page's author the height to state for one that cannot. A widget holding
+  others is named only for the change left once the changed widgets inside it are put
+  back to their first sizes. An inline widget's old lines are more than a size, so a
+  widget holding a changed inline one is named beside it. A widget the page hides once
+  presented, such as an inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

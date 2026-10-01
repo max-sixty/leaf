@@ -43,9 +43,19 @@ import { pointBand } from "./pointed-place.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
 import { keeps, layoutPx } from "./keeps.js";
+import { declarationFor } from "./registry.js";
 
 const rows = new Map();
 const GAP = 4;
+// The id of the thread card a margin row opens (margin-projection.js).
+export const THREAD_CARD = "lf-margin-preview";
+// A row the user holds, which packing seats before every other (`packRows`): one under
+// the pointer, with focus in it, or whose entry has the thread card open, as that entry's
+// disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
+// relative to its row (thread-card-geometry.js), so a row arriving beside it, such as the
+// receipt of a pick made with the card open, would otherwise push the row down and the
+// card the user is reading with it.
+const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 // The anchor name the rail hangs from: `main`'s own box.
 const PAGE_ANCHOR = "--lf-page";
 let pending = 0;
@@ -399,20 +409,26 @@ function blockOf(target) {
   return el;
 }
 
-// What a pin may not stand on across a band of the page (`cover`): every run of words,
-// each box that paints what no text node says (an image, a drawing, a widget's shadow
-// tree, the target's own if it is one), every control, and, whole, every other box that
-// paints its own extent (`paintsItsBox`). A box that draws a fill, a rule or a shadow
-// reads as one thing, so a pin anywhere on it, even over its empty end, reads as that
-// box's: a card, a callout, a framed table or code block. Every other block that paints
+// What a pin may not stand on across a band of the page (`cover`): every run of words, as
+// far as the boxes holding it show it (a word clipped to nothing for a screen reader
+// alone, as `.lf-quiet` is, covers nothing), each box that paints what no text node says
+// (an image, a drawing, a widget's shadow tree, the target's own if it is one), every
+// control, and, whole, every other box that paints its own extent (`paintsItsBox`). A
+// box that draws a fill, a rule or a shadow reads as one thing, so a pin anywhere on it,
+// even over its empty end, reads as that box's: a card, a callout, a framed table or
+// code block. Every other block that paints
 // nothing is a `neighbour`: it covers only by its words, so the empty end of a short
 // heading or line beside the target is room, but a pin there can read as that block's,
-// and `pinSpot` takes it only where the target has no room of its own. Inside the
-// target's own block a box that paints nothing is the pin's own room, but one that paints
-// still counts whole, since a pin on it reads as that box's however it nests: a choice's
-// pin on the first option's card would read as that option's. The target, and a box that
-// holds it, are not ones to avoid, since the pin stands on them. The walk leaves any
-// subtree whose box misses the band, so a long page costs what lies near the target.
+// and `pinSpot` takes it only where the target has no room of its own. Everything that
+// counts whole and is no control is also a `wall`, which a pin reaching past a line of
+// words may not pass on its way to its target. Inside the target's own block a box that
+// paints nothing is the pin's own room, but one that paints still counts whole, since a
+// pin on it reads as that box's however it nests: a choice's pin on the first option's
+// card would read as that option's. The boxes the target's declaration names as its own
+// face (`x-face`: a suggestion's tinted slots, a screenshot's caption rail) are room as
+// the target is, their words still counting. The target, and a box that holds it, are
+// not ones to avoid, since the pin stands on them. The walk leaves any subtree whose box misses the band, so a long page
+// costs what lies near the target.
 //
 // The controls come back apart as well, since packing keeps the pin off them, a pin left
 // at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
@@ -445,8 +461,12 @@ function paintsItsBox(style) {
 
 function coverIn(root, band, target, block, bands, stop) {
   const cover = [];
+  const walls = [];
   const neighbours = [];
   const controls = [];
+  // The painted boxes that draw the target's own face, as its declaration names them.
+  const declared = declarationFor(target, "x-face");
+  const face = new Set(declared ? target.querySelectorAll(declared.join(", ")) : []);
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
   const visit = (el) => {
@@ -455,8 +475,12 @@ function coverIn(root, band, target, block, bands, stop) {
         if (!node.data.trim()) continue;
         const words = document.createRange();
         words.selectNodeContents(node);
-        for (const box of words.getClientRects())
-          if (box.width > 1 && box.height > 1 && meets(box)) cover.push(edges(box));
+        for (const box of words.getClientRects()) {
+          if (!meets(box)) continue;
+          const shown = clippedBand(node, box, bands, stop);
+          if (shown && shown.right - shown.left > 1 && shown.bottom - shown.top > 1)
+            cover.push(shown);
+        }
         continue;
       }
       if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
@@ -473,14 +497,15 @@ function coverIn(root, band, target, block, bands, stop) {
       ) {
         const shown = clippedBand(node, box, bands, stop);
         if (shown) cover.push(shown);
-        if (shown && control) controls.push(shown);
+        if (shown) (control ? controls : walls).push(shown);
         continue;
       }
       if (node instanceof SVGElement) continue;
       if (!boxless && !holds && node !== target) {
         const style = getComputedStyle(node);
-        if (paintsItsBox(style)) {
+        if (paintsItsBox(style) && !face.has(node)) {
           cover.push(edges(box));
+          walls.push(edges(box));
           continue;
         }
         if (
@@ -501,7 +526,7 @@ function coverIn(root, band, target, block, bands, stop) {
     }
   };
   visit(root);
-  return { cover, neighbours, controls };
+  return { cover, walls, neighbours, controls };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -518,43 +543,83 @@ function contentBox(scroller) {
   };
 }
 
-// How far from its target's nearest part a pin may stand when its corner covers words.
+// How far from its target's nearest part a pin stands and still touches it; one line of
+// the target's words further out is the furthest it may reach (`pinSpot`).
 const REACH = 12;
+
+// The height of one line of a block's words: its `line-height`, which `normal` leaves to
+// the font, near 1.2 of its size.
+function lineOf(block) {
+  const { lineHeight, fontSize } = getComputedStyle(block);
+  return lineHeight === "normal" ? 1.2 * parseFloat(fontSize) : parseFloat(lineHeight);
+}
 
 // Each pin's seat, measured from the box it anchors to, as the last pass took it: a pin
 // under the pointer or holding focus keeps it (`seatRows`), and a scroll inside a pane
 // reads it to say whether the pin still stands inside what the pane shows.
 const seats = new WeakMap();
 
+// The rows the last pass stood folded (`seatRows`). This is the one reading of it: the
+// projection presents a row folded by asking `standsFolded`, and a row's `fold.changed`
+// tells it to ask again.
+const folded = new WeakSet();
+export const standsFolded = (row) => folded.has(row);
+
+function standFolded(row, fold, on) {
+  if (folded.has(row) === on) return;
+  if (on) folded.add(row);
+  else folded.delete(row);
+  fold?.changed();
+}
+
 // Seats every pin (`seatRows`): reads what each may not stand on around its target and
 // the room it may take, then writes each seat into its entry's rect for packing, with the
 // controls packing keeps it off. A pin inside a shadow tree stays at its corner: the words
 // around it are the tree's, which this walk does not read.
+//
+// A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
+// which are worked out rather than read, since only the one it stands at is drawn:
+// unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
+// square the row's height, beside the gaps and the focus ring's room the row keeps.
 function seatPins(standing, { bands, shell, pinInset }) {
   const main = marginColumn();
   const pins = [];
   for (const entry of standing) {
     const { read } = entry;
-    if (read.place !== "pin") continue;
+    if (read.place !== "pin") {
+      standFolded(read.row, read.options.fold, false);
+      continue;
+    }
     const { target, point, row, box } = read;
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
-    const held = seats.get(row);
-    entry.held =
-      held && row.matches(":hover, :focus-within")
+    const fold = read.options.fold?.able() ? read.options.fold : null;
+    if (!fold) standFolded(row, read.options.fold, false);
+    entry.fold = fold;
+    const style = fold && getComputedStyle(row);
+    const across = (count) =>
+      count * height +
+      (count - 1) * parseFloat(style.columnGap) +
+      parseFloat(style.paddingRight);
+    const wide = fold ? across(2) : width;
+    const seat = seats.get(row);
+    const holding =
+      seat && entry.held
         ? {
-            left: box.right - held.right - width,
-            right: box.right - held.right,
-            top: box.top + held.top,
-            bottom: box.top + held.top + height,
+            left: box.right - seat.right - width,
+            right: box.right - seat.right,
+            top: box.top + seat.top,
+            bottom: box.top + seat.top + height,
           }
         : null;
     // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
     const parts = target.getRootNode() === document ? partsOf(point ?? target) : [];
-    const around = height + REACH + GAP;
+    // A pin reaching past a line of words reads the page a line further out (`pinSpot`).
+    const line = lineOf(blockOf(target));
+    const around = height + REACH + line + GAP;
     const band = {
       top: Math.min(home.top, ...parts.map((part) => part.top)) - around,
       bottom: Math.max(home.bottom, ...parts.map((part) => part.bottom)) + around,
@@ -563,7 +628,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
-    const { cover, neighbours, controls } = coverIn(
+    const { cover, walls, neighbours, controls } = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
@@ -580,6 +645,16 @@ function seatPins(standing, { bands, shell, pinInset }) {
       !point &&
       target instanceof HTMLElement &&
       getComputedStyle(target).display.startsWith("inline");
+    const homeAt = (size) => ({ ...home, left: home.right - size });
+    const seatAt = (size) =>
+      inline
+        ? {
+            left: end.right + GAP,
+            right: end.right + GAP + size,
+            top: (end.top + end.bottom - height) / 2,
+            bottom: (end.top + end.bottom + height) / 2,
+          }
+        : homeAt(size);
     const within = stop === pageScroller ? null : contentBox(stop);
     // A board or table can clip the target across without owning its reading region.
     // Search only the room it shows; otherwise the nearest clear spot can leave the
@@ -587,20 +662,21 @@ function seatPins(standing, { bands, shell, pinInset }) {
     const clipped = clippedBand(target, EVERYWHERE, bands, stop);
     pins.push({
       key: entry,
-      rect: home,
+      rect: homeAt(wide),
       priority: entry.priority,
-      held: entry.held,
+      held: holding,
       parts,
       cover,
+      walls,
       neighbours,
-      seat: inline
-        ? {
-            left: end.right + GAP,
-            right: end.right + GAP + width,
-            top: (end.top + end.bottom - height) / 2,
-            bottom: (end.top + end.bottom + height) / 2,
-          }
-        : home,
+      line,
+      seat: seatAt(wide),
+      folds: fold && {
+        rect: homeAt(across(1)),
+        seat: seatAt(across(1)),
+        open: across(fold.controls()),
+      },
+      folded: folded.has(row),
       bounds: {
         left: Math.max(within?.left ?? 0, clipped?.left ?? 0) + pinInset,
         right: Math.min(within?.right ?? shell, clipped?.right ?? shell) - pinInset,
@@ -609,8 +685,12 @@ function seatPins(standing, { bands, shell, pinInset }) {
       },
     });
   }
-  for (const [entry, rect] of seatRows(pins, { reach: REACH, gap: GAP })) {
+  for (const [entry, { rect, folded: on }] of seatRows(pins, {
+    reach: REACH,
+    gap: GAP,
+  })) {
     entry.rect = rect;
+    if (entry.fold) standFolded(entry.read.row, entry.fold, on);
     seats.set(entry.read.row, {
       top: rect.top - entry.read.box.top,
       right: entry.read.box.right - rect.right,
@@ -662,6 +742,7 @@ export function unregisterMarginRow(row) {
     pushes.delete(row);
     steps.delete(row);
     parked.delete(row);
+    folded.delete(row);
   }
   if (!rows.size) {
     observer?.disconnect();
@@ -951,6 +1032,7 @@ export function layoutMarginRows() {
           bottom: read.top + box.height,
         },
         priority: read.options.priority ?? 0,
+        held: read.row.matches(HELD),
         read,
       };
     });

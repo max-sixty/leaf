@@ -65,6 +65,9 @@ class Harness:
     # and hand over the whole delivery, and `leaf wait` only wakes the session.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
+    # How long a `leaf wait` under this harness watches before it ends itself with
+    # `wait_lapsed`, or None where nothing but input and the page's end stops it.
+    wait_lifetime: ClassVar[float | None] = None
 
     @classmethod
     def from_claim(cls, claim: dict) -> "Harness":
@@ -104,6 +107,10 @@ class Harness:
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about a live page this session owes a watcher."""
+        raise NotImplementedError
+
+    def wait_lapsed(self) -> str:
+        """The line a wait prints as it ends at `wait_lifetime` with no input."""
         raise NotImplementedError
 
     @classmethod
@@ -167,6 +174,20 @@ class EnvironmentHarness(Harness):
     identity_variables: ClassVar[tuple[str, ...]]
 
 
+# Claude Code stops a background command once its Bash `timeout` runs out, and this
+# is the longest it takes; left out, the timeout is 1,800,000. The stop reaches the
+# model as "stopped after reaching its background time limit", beside Claude Code's
+# advice not to restart a command that already had the longest timeout.
+BACKGROUND_LIMIT_MS = 7_200_000
+
+# How a Claude Code session starts the wait that wakes it. The timeout is the
+# longest, since every end of a wait wakes the session, input or not.
+START_WAIT = (
+    "start an unnamed `leaf wait` as a background task with `timeout` "
+    f"{BACKGROUND_LIMIT_MS} (milliseconds), the longest Claude Code allows"
+)
+
+
 class ClaudeCodeHarness(EnvironmentHarness):
     """Claude Code: a wait the model keeps running to wake it, hooks that carry
     input into the turn, and a socket to reach it with."""
@@ -178,6 +199,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
+    # A wait ends itself two minutes short of the longest background timeout, room
+    # for the launcher's start and the pass under way. Its end is then an ordinary
+    # completion, and the prompt hook's "no watcher" asks for the next, where Claude
+    # Code's stop would come with its advice not to restart. A wait started with a
+    # shorter timeout is still stopped, and that notice says to give it a longer one.
+    wait_lifetime = BACKGROUND_LIMIT_MS / 1000 - 120
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -224,13 +251,27 @@ class ClaudeCodeHarness(EnvironmentHarness):
             }
         }
 
+    @classmethod
+    def run_ack(cls, delivery_id: str) -> str:
+        return (
+            f"start `leaf wait --ack {delivery_id}` as the next background task, "
+            f"with `timeout` {BACKGROUND_LIMIT_MS} (milliseconds)"
+        )
+
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         return (
-            "no watcher. Start `leaf wait` in the background for all this session's "
-            "pages, or run `leaf status <page> idle` if this page is done."
+            f"no watcher. To watch all this session's pages, {START_WAIT}; or run "
+            "`leaf status <page> idle` if this page is done."
+        )
+
+    def wait_lapsed(self) -> str:
+        return (
+            f"no input in {self.wait_lifetime / 60:.0f} minutes, so this wait ended "
+            "before Claude Code's background time limit could stop it. To go on "
+            f"watching, {START_WAIT}."
         )
 
     def live_turn(self) -> dict | None:
@@ -274,8 +315,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return message_claude_code_session(
             self.session,
             f"leaf: {page_dir} has new input, which arrives with this message, "
-            "and no `leaf wait` is running for this session. Start an unnamed "
-            "`leaf wait` as a background task so later input wakes you.",
+            "and no `leaf wait` is running for this session. So that later input "
+            f"wakes you, {START_WAIT}.",
         )
 
 

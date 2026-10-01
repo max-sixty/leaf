@@ -11,7 +11,7 @@
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
    that box rather than the page: a pane's body, the Threads list, a compound widget's
    parts, and a block bounded with x-bound or data-bound, which `bounds.js` registers. A
-   box page CSS makes scroll is none of these. It stays unsupported: `version check`
+   box page CSS makes scroll is none of these. It stays unsupported: `page check`
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
 
    A region's scroller can change without any gesture: a window crossing the workspace

@@ -286,10 +286,10 @@
         "unit": "widget"
       }
     },
-    "x-example": "<lf-ask id=\"run-status-decision\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\" choose>\n    <lf-option id=\"rs-column\">\n      <lf-chip>effort: low</lf-chip><lf-chip tone=\"warn\">risk: med</lf-chip><lf-chip tone=\"ok\">recommended</lf-chip>\n      <strong>Status on the run list</strong> One join; failures are visible without a click.\n    </lf-option>\n    <lf-option id=\"rs-leave\">\n      <lf-chip>effort: none</lf-chip><lf-chip tone=\"ok\">risk: low</lf-chip>\n      <strong>Leave the list alone</strong> No work; failures stay one click away.\n    </lf-option>\n  </lf-options>\n</lf-ask>"
+    "x-example": "<lf-ask id=\"run-status-decision\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\" choose>\n    <lf-option id=\"rs-column\">\n      <lf-chip>effort: low</lf-chip><lf-chip tone=\"warn\">risk: med</lf-chip><lf-chip tone=\"ok\">recommended</lf-chip>\n      <strong>Status on the run list</strong> One join; failures are visible without a click.\n      <figure id=\"rs-column-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-column-t\">\n          <title id=\"rs-column-t\">Each run row ends in its status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ok\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"danger\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n    <lf-option id=\"rs-leave\">\n      <lf-chip>effort: none</lf-chip><lf-chip tone=\"ok\">risk: low</lf-chip>\n      <strong>Leave the list alone</strong> No work; failures stay one click away.\n      <figure id=\"rs-leave-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-leave-t\">\n          <title id=\"rs-leave-t\">Run rows carry no status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n  </lf-options>\n</lf-ask>"
   },
   "lf-option": {
-    "description": "One alternative in a decision. Direct prose text uses inline Markdown, so block syntax such as lists, headings, and fenced code does not render; element children remain HTML. Default to a <strong> title and one sentence naming the consequence. When comparison facts help, show the same two or three chips across its siblings. Keep decision-relevant evidence or a preview inside the option, but add a fact rail, paragraphs, or a nested visual only when the choice cannot be made from that compact face. A short label alone renders as a compact row for an alternative that needs no case beyond the label. `for` may point that row at an existing section or work item only when the target remains useful independently of this decision; it never supplies the row's words. `chosen` records the user's pick in authored state; a final `recommended` chip is only advice (see lf-chip). Rewriting a picked option needs `restated`, and `$restated` in `registry.json` says when to rewrite one rather than correct it beside the Ask; the other options may change freely.",
+    "description": "One alternative in a decision. Direct prose text uses inline Markdown, so block syntax such as lists, headings, and fenced code does not render; element children remain HTML. Its face is what the user picks by: a <strong> title and one sentence naming the consequence, and, where the alternatives differ in arrangement, structure, or mechanism, an `svg.drawing` thumbnail of this alternative, drawn in the same frame as its siblings' and alike except where they differ. When comparison facts help, show the same two or three chips across its siblings. Add paragraphs or a fact rail only when the choice cannot be made from that face. A short label alone renders as a compact row for an alternative that needs no case beyond the label. `for` may point that row at an existing section or work item only when the target remains useful independently of this decision; it never supplies the row's words. `chosen` records the user's pick in authored state; a final `recommended` chip is only advice (see lf-chip). Rewriting a picked option needs `restated`, and `$restated` in `registry.json` says when to rewrite one rather than correct it beside the Ask; the other options may change freely.",
     "type": "object",
     "properties": {
       "id": {
@@ -590,38 +590,23 @@
     "x-upgrade": false
   },
   "lf-chart": {
-    "description": "A chart drawn from a comma-separated body: the header row names the x column and then one column per series, and every row after it is one x value and its numbers (blank where a series has none). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). `kind` says which picture — bars (a group of bars per x value), rows (horizontal bars, for long names or a ranking), stack (bars stacked into a total, so no negatives), line (a run over time or an ordered x), dots (two numbers against each other, x column numeric). `y` names what the numbers are. A bar's x is one slot per row whatever it says; a line or a scatter reads its column, so ISO dates (2026-06-01, or 2026-06 for a month) and moments that state their zone (2026-06-01T14:00Z) get a time axis, labelled in UTC, and numbers a numeric one; a moment without a zone stays a category. Two rows may not share an x value, and a series column may not be empty. At most $series.steps series — fold the small ones together or split the chart. There is no pie, because the comparison it asks for is between angles and the comparison bars ask for is between lengths. Comments anchor to the required id, not to text inside the drawing.",
-
+    "description": "A chart drawn by Observable Plot (0.6), written in Plot's own API. The body, inside its <pre>, is a JavaScript expression for the options object Plot.plot takes, with `Plot` and the drawing's `width` in scope: marks are Plot's own calls, such as Plot.barY(rows, {x: \"hour\", y: \"pages\"}), and every scale, transform, format and legend is Plot's to set, functions included, so Plot's documentation is the reference. Give the options rather than calling Plot.plot, which lf-chart does itself at the width it has; `Plot` and `width` are the only names in scope. The body sits in markup, so HTML-escape it (& first, then the angle brackets), and keep its data inline in the expression. Dates are ISO strings, which Plot reads as times on a scale whose `type` says so. Put days and months on a \"utc\" scale, and write a moment with its zone (2026-06-01T14:00Z): the browser reads a moment without one in each reader's own zone, so its label would move with the reader. Plot's `ariaLabel` is required: say what the chart shows, for a user who cannot see it. The chart takes the width it has and is redrawn when that changes, so leave `width` out of the options and read the `width` variable where the room should change the chart. Its height is the element's, 400 pixels unless data-height gives another number, which the page holds before the chart draws: the drawing and any legend Plot sets beside it fill that box, so leave `height` out of the options as well. Plot does not fit its labels to the room: where `leaf page check --render` reports words drawn on words, give a category axis fewer `ticks`, choose them by `width`, or give an axis label its own line with more `marginBottom`. Colour categories with the theme's `var(--series-1)` to `var(--series-N)` ($series.steps of them), as a constant fill or stroke or as a categorical `range`, so the chart follows the page's scheme; a continuous colour scale takes a Plot `scheme` instead, since Plot cannot interpolate between CSS variables. Axes and text already wear the theme. Name the chart in the page's own heading or prose rather than Plot's `title`. Comments anchor to the required id, not to text inside the drawing.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "kind": {
-        "enum": [
-          "bars",
-          "rows",
-          "stack",
-          "line",
-          "dots"
-        ]
-      },
-      "y": {
-        "type": "string",
-        "minLength": 1
       }
     },
     "required": [
-      "id",
-      "kind",
-      "y"
+      "id"
     ],
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
     "x-visual": "whole",
-    "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
+    "x-height": 400,
+    "x-example": "<lf-chart id=\"review-latency\"><pre>\n{\n  ariaLabel: \"Hours to first review by week: backend fell from 31 to 12, frontend from 18 to 11\",\n  x: {type: \"utc\", ticks: \"monday\", label: null},\n  y: {grid: true, label: \"hours to first review\"},\n  color: {legend: true, range: [\"var(--series-1)\", \"var(--series-2)\"]},\n  marks: [\n    Plot.lineY(\n      [\n        {week: \"2026-05-04\", team: \"backend\", hours: 31},\n        {week: \"2026-05-11\", team: \"backend\", hours: 26},\n        {week: \"2026-05-18\", team: \"backend\", hours: 12},\n        {week: \"2026-05-04\", team: \"frontend\", hours: 18},\n        {week: \"2026-05-11\", team: \"frontend\", hours: 21},\n        {week: \"2026-05-18\", team: \"frontend\", hours: 11},\n      ],\n      {x: \"week\", y: \"hours\", stroke: \"team\", marker: true},\n    ),\n  ],\n}\n</pre></lf-chart>"
   },
   "lf-shot": {
     "description": "A before/after pair of screenshots under one draggable divider. Drag the divider or use its Arrow, Home, and End keys; click the image to switch endpoints, choose Before or After from the rail above it, or use the target’s round margin entry. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next endpoint. Once the page presents, the rail between the labels says when the pair has nothing to point at: \"identical\", \"only slight changes\" where no pixel moved far (a redrawn shadow, a small contrast shift, re-encoding), or \"changed throughout\" for a change over most of the image. With `outlines`, both frames also outline each region where the two images differ, and the rail counts them, so a reader of either side, or of a screenshot of the page, sees where the change is. `before` and `after` are served image paths that `leaf page media` prints; `authoring-evidence.md` (Source files and media) covers them and when to leave `outlines` off. `alt` says what the pair shows, for a user who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the user compares it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
@@ -654,6 +639,7 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
+    "x-face": [":scope > .lf-shotrail"],
     "x-upgrade": true,
     "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" outlines alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"

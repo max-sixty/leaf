@@ -147,7 +147,8 @@
       "author": "Place one empty `lf-pull-request` before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description itself, so the surrounding prose can stay the reviewer's analysis."
     },
     "x-upgrade": true,
-    "x-example": "<lf-pull-request id=\"reviewed-pr\" source=\"pr-1842\"></lf-pull-request>"
+    "x-height": true,
+    "x-example": "<lf-pull-request id=\"reviewed-pr\" data-height=\"640\" source=\"pr-1842\"></lf-pull-request>"
   },
   "lf-call-diff": {
     "description": "A commentable, unified call-tree diff supplied by an analysis host. Author an empty element with an id, bind its required `document` input through `source`, and point `diff` at the exact `lf-diff` evidence. The widget groups CallDiff's adjacent unchanged, removed, and added tree items under collapsible changed roots instead of redrawing two independently laid-out graphs. Each rendered row is a stable projected datum, so a user can comment on one item or select its exact text; source coordinates navigate to a matching line in the bound patch.",
@@ -186,6 +187,7 @@
       "diff": {}
     },
     "x-upgrade": true,
-    "x-example": "<lf-call-diff id=\"request-calls\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
+    "x-height": true,
+    "x-example": "<lf-call-diff id=\"request-calls\" data-height=\"480\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
   }
 }

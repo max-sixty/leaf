@@ -25,18 +25,25 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
   placement.supersede();
   const newer = position();
 
-  answers[1]({ x: 10, y: 20, plane: "window", middlewareData: {} });
+  const held = {
+    edges: { x: "left", y: "top" },
+    width: 50,
+    height: 30,
+    block: { width: 400, height: 300 },
+  };
+  const answer = { x: 10, y: 20, plane: "window", middlewareData: { held } };
+  answers[1](answer);
   assert.ok(await newer);
   answers[0]({
     x: 0,
     y: 0,
     plane: "page",
-    middlewareData: { anchorAt: { x: 0, y: 0 } },
+    middlewareData: { held, anchorAt: { x: 0, y: 0 } },
   });
   assert.equal(await older, null);
 
   assert.equal(floating.dataset.lfPlane, "window");
-  placement.stand(10, 20);
+  placement.stand(answer);
   assert.equal(floating.style.left, "10px");
   assert.equal(floating.style.top, "20px");
 });

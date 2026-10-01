@@ -63,20 +63,6 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Sources:** [page-authoring.md:78](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/references/page-authoring.md#L78), [packages.md:202](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/references/packages.md#L202).
 
-<a id="item-22"></a>
-
-- **#22** **Verify workspaces at the experimental MCP boundary** — Check the same workspace in a full iframe, a constrained host and the existing snapshot/browser handoff.
-
-  **Evidence / confidence:** Documented host limitation; missing workspace journey. The README calls inline MCP rendering experimental and describes a comments-only snapshot when the nested live frame is blocked. Existing MCP render tests do not include the new workspace case.
-
-  **Next task:** Exercise permitted full rendering and the declared fallback using the same authored workspace. Check the host’s available size, snapshot containment and the route to the full browser for real controls.
-
-  **Done when:** Each mode accurately signals what is interactive; all content and actions are reachable in the full browser. Use the host’s supported boundary rather than duplicating workspace rendering or bypassing its sandbox.
-
-  **Owner / dependencies:** Sol. Lower priority while full-browser Leaf remains canonical; no dependency on a new host API.
-
-  **Sources:** [README.md:64](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/README.md#L64), [page-app.js:113](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/scripts/mcp-app/page-app.js#L113), [test_render_mcp.py:1](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_mcp.py#L1).
-
 <a id="item-23"></a>
 
 - **#23** **Find out whether people return to a workspace** — Run repeated real tasks to decide how much persistence and workspace customization Leaf should own.
@@ -99,7 +85,7 @@ The IDs describe work to retain, not separate agents to launch. The contract and
 | --- | --- | --- |
 | User continuity | Astra scopes; Sol verifies and implements | #14 keyboard and accessibility journey |
 | Agent authoring | Astra designs; Sol agents execute | #19 baseline before #20 guidance changes |
-| Product boundary | Astra with Max’s real tasks | #23; run #22 when inline hosting is part of a selected task |
+| Product boundary | Astra with Max’s real tasks | #23 |
 
 ## Positioning research
 

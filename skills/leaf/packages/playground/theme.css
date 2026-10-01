@@ -81,6 +81,38 @@ lf-playground:has(> .lf-playground-split) {
   }
 }
 
+/* Before the module builds the regions, the page holds the playground's height
+ * (x-height) and the stage already stands where its region will: first in the stack,
+ * or on the wide split's two thirds beside the rail, the whole held height. The rail's
+ * controls, readings and actions are the module's to build, and its members stand in
+ * the rail's column until then. A quoted playground builds no regions. */
+html[data-lf-live]
+  lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
+  position: relative;
+  align-content: start;
+
+  & > lf-playground-preview {
+    order: -1;
+  }
+}
+
+@container (min-width: 43.5rem) {
+  html[data-lf-live]
+    lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
+    & > lf-playground-preview {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      box-sizing: border-box;
+      inline-size: calc((100% - var(--sp-4)) * 2 / 3);
+    }
+
+    & > :is(lf-playground-control, lf-playground-preset, lf-playground-output) {
+      margin-inline-start: calc((100% - var(--sp-4)) * 2 / 3 + var(--sp-4));
+    }
+  }
+}
+
 /* The stage draws nothing of its own: the preview's well is its surface. */
 .lf-playground-preview-region {
   border: 0;
@@ -196,9 +228,12 @@ lf-playground-control > wa-radio-group::part(form-control-label) {
   --wa-form-control-border-color: var(--muted);
 }
 
+/* The switch and the radio buttons below state their aim floor as padding: a flex or
+   grid track squeezes a min-height down to itself, and a label that wraps would be
+   drawn over the next control. */
 lf-playground-control > wa-switch::part(switch) {
   width: 100%;
-  min-height: var(--aim-floor);
+  padding-block: max(0px, (var(--aim-floor) - 1lh) / 2);
   flex-direction: row-reverse;
   justify-content: space-between;
   gap: var(--sp-2);
@@ -231,8 +266,12 @@ lf-playground-choice {
   display: contents;
 }
 
+/* 2rem, or the aim floor where a finger raises it past that, less the line and the 1px
+   border. Web Awesome's own minimum for a button radio, its form-control height, goes
+   with it, as the 2rem this states in its place always took it. */
 lf-playground-choice > wa-radio {
-  min-height: max(var(--aim-floor), 2rem);
+  min-height: auto;
+  padding-block: max(0px, (max(var(--aim-floor), 2rem) - 1lh) / 2 - 1px);
   justify-content: center;
   text-align: center;
 }

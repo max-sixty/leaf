@@ -163,13 +163,22 @@ inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): one Chrome reports without recent input, and
-typing that carries the field it types in, so every test in the broad selection
-checks both. The nightly-marked tests do not watch shifts yet: their pages make
-hundreds that `EXPECTED` does not list (`conftest.py`, `_watches_shifts`). Playwright's
+typing that carries the field it types in, so every test in the broad selection checks
+both; the nightly-marked tests watch again once the defect most of their shifts share is
+fixed (`known_shifts.watches_shifts`). Playwright's
 clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
 written by script, and the server's news are not. Fix what moved rather than consuming
-the report. `EXPECTED` there lists the shifts the page makes today, each a defect
-waiting on its fix, and fixing one deletes its lines.
+the report. `known_shifts.py` names the tests whose pages still shift without input,
+each with the region its known shift moves: a defect waiting on its fix, whose entry
+goes when it is fixed.
+
+Leaf's own widgets are held to the widget quality report `package check --render`
+gives a package's author (`leaf/render_gate/widget_quality.py`):
+`test_widget_quality.py` runs it over the base layer and every bundled package.
+`known_widget_findings.py` lists today's findings by package, tag and check, each a
+defect waiting on its fix. A finding it does not list fails the test, and so does an
+entry that no longer occurs, so fixing a widget deletes its entry and the list only
+shrinks.
 
 ## A page is ready when it says what has finished
 

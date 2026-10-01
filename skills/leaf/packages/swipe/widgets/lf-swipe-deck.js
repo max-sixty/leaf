@@ -60,10 +60,8 @@ customElements.define(
 
     connectedCallback() {
       if (once(this)) {
-        const exhibit = quoted(this);
-        this.classList.toggle("lf-swipe-quoted", exhibit);
         this.#structure();
-        if (!exhibit) this.#wire();
+        if (!quoted(this)) this.#wire();
       }
       this.#controller ??= widgetController(this);
       this.#stop ??= this.#controller.subscribe(this.#render);

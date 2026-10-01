@@ -353,7 +353,10 @@ EXTENSION_SCHEMA = {
                 {"const": "whole"},
                 {
                     "type": "object",
-                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "properties": {
+                        "parts": _ATTRIBUTE_NAME,
+                        "complete": {"const": True},
+                    },
                     "required": ["parts"],
                     "additionalProperties": False,
                 },
@@ -374,6 +377,22 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
+        # A default height in CSS pixels, or `true` for a widget that has none and
+        # reserves only what an occurrence's data-height states.
+        "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
+        # Child selectors, each matched inside the element, for the painted boxes that
+        # draw its own face: a margin pin whose target is the element may stand on them.
+        # Only a light-DOM child by tag and classes, so a malformed selector is refused
+        # here rather than throwing in the browser's layout pass.
+        "x-face": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
+            },
+            "minItems": 1,
+            "uniqueItems": True,
+        },
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
@@ -413,10 +432,11 @@ ATTRIBUTE_KEYS = (
 )
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
-# (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
-# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
-# selector can ask. `authored` is the attribute an occurrence writes to override its
-# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
+# (x-height), and the reading structure it supplies (x-reading-role). A stylesheet
+# cannot read the registry, so each is painted where a selector can ask. `authored` is
+# the attribute an occurrence writes to override its tag's declaration. `message` says
+# whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
 # document's to hand out; a message renders in the panel, whose width bounds it.
 #
@@ -430,6 +450,7 @@ DECLARED_MARKS = {
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
     "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
 }
 
@@ -438,9 +459,6 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# Outside the layer roots: an MCP host reads a resource here from the install over
-# the tool transport, so `page init` never copies one into a page directory.
-MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"

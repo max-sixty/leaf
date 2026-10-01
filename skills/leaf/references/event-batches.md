@@ -127,10 +127,13 @@ Whatever the host, treat a page-and-sequence pair already handled in this task a
 retry, even if a later delivery also includes newer events; your host contract owns
 the wait and acknowledgement route.
 
-`leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
-ending named on stderr. On exit 0 it prints one JSON envelope, or, where the
-host's hook carries input, one line naming the page with new input. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
-that restarted a dead server says so on stderr. The endings:
+`leaf wait` ends one of two ways: exit 0, or exit 2 with the ending named on
+stderr. Exit 0 carries the next input: one JSON envelope, or, where the host's hook
+carries input, one line naming the page with new input. Where the host stops a
+background command at a time limit, exit 0 can instead be one line saying the wait
+ended short of that limit with no input, and how to start the next. Exit 1 from
+`leaf wait --ack` means the acknowledgement was refused. A wait that restarted a
+dead server says so on stderr. The exit 2 endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.
@@ -150,10 +153,6 @@ Empty stdout alone is not evidence that the host stopped the process, and no rea
 to run a named wait again. Resume with an unnamed wait only when the host itself
 reports that it canceled or killed the command, or on a signal your host contract
 names.
-
-An embedded MCP App changes where the page is drawn, not this carrier. Its
-events enter the same log, and a successful `ui/message` response is not a
-delivery receipt.
 
 ## After the batch
 

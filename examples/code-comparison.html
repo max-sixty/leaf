@@ -73,23 +73,13 @@
         line-height: 1.65;
       }
 
-      /* A rendered line is as wide as its source so that the reader scrolls; a wrapped
-         candidate gives it the reader's width back so it has somewhere to break. */
-      .code-candidate[data-wrap="true"] lf-code pre,
-      .code-candidate[data-wrap="true"] .lf-code-line {
-        width: auto;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-
-      /* A wrapped line's continuation hangs past the number gutter rather than under it. */
-      .code-candidate[data-wrap="true"] .lf-code-line {
-        padding-inline-start: 46px;
-        text-indent: -46px;
-      }
-
-      .code-candidate[data-wrap="true"] .lf-code-line::before {
-        text-indent: 0;
+      /* The built reader wraps a line longer than its block. A scrolled candidate gives
+         each line its source's width back, so the block scrolls instead. */
+      .code-candidate[data-wrap="false"] .lf-code-line {
+        width: max-content;
+        min-width: 100%;
+        box-sizing: border-box;
+        white-space: pre;
       }
 
       .code-measurement {
@@ -335,7 +325,11 @@ export function releaseLabels(releases) {
           Targeting keeps element identity separate from the comparison's visual labels
           and settings.
         </p>
-        <lf-targeting id="code-comparison-targeting" submit-label="Propose exact edit">
+        <lf-targeting
+          id="code-comparison-targeting"
+          data-height="767"
+          submit-label="Propose exact edit"
+        >
           <lf-target-preview id="code-target-preview">
             <section id="target-reader-artifact" class="code-candidate">
               <h3 class="reader-treatment-title">Built reader treatment</h3>

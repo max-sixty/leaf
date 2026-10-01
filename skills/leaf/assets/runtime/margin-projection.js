@@ -19,8 +19,10 @@
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
-   opened. Page Map and Go-to arrivals activate the exact visible control;
-   they do not choose another action for the user.
+   opened. A pin the layout found no room for stands folded to its toggle
+   (`standsFolded`, margin-model.js's `canFold`), and the same state opens it. Page Map
+   and Go-to arrivals activate the exact visible control; they do not choose another
+   action for the user.
 
    The thread card stands by its owning cluster, or, where the rail has no room for that
    cluster, by the page target the cluster is about. `thread-card-geometry.js` states
@@ -76,12 +78,19 @@
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { cancelRender, nextRender } from "./rendering.js";
-import { excerptWords, labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
+  KINDS,
+  excerptWords,
+  labelWords,
+  spokenSubject,
+} from "./margin-entry-model.js";
+import {
+  THREAD_CARD,
   mountMarginLayer,
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
+  standsFolded,
   unregisterMarginRow,
 } from "./margin-layout.js";
 import {
@@ -99,7 +108,6 @@ import {
   watchMarginContributions,
 } from "./margin-entries.js";
 import {
-  KINDS,
   entryEngaged,
   choosePrimary,
   readingKey,
@@ -109,6 +117,7 @@ import {
   entryHasMarginHost,
   contributionItem,
   optionsOffered,
+  canFold,
   markerFace,
   readingFace,
   readingLabel,
@@ -344,7 +353,7 @@ export function createMarginProjection({
   // tiered the keyboard over it, so standing on the passage it discusses took it down.
   // It shows while the user stands at its target (`followStanding`).
   const preview = el("aside", "lf-ui lf-margin-preview");
-  preview.id = "lf-margin-preview";
+  preview.id = THREAD_CARD;
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
@@ -583,6 +592,10 @@ export function createMarginProjection({
   let forcedInlineKey = null;
   let forcedInlineOptionsKey = null;
   let expandedOptionsKey = null;
+  // Whether an entry's pin stands folded is the layout's answer (`standsFolded`); the
+  // gesture that opens any options opens a folded one.
+  const folded = (entry) => standsFolded(hosts.get(entry.key));
+  let refoldQueued = false;
   // An explicit mode can focus one contribution inside the target's existing cluster.
   // The rail then shows that owner's complete control set without spending margin entries on
   // standing readings or unrelated actions; Page Map still reads the whole entry.
@@ -932,7 +945,7 @@ export function createMarginProjection({
         previewHold = geometry.hold;
         previewAway = geometry.away;
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        previewPlacement.stand(position.x, position.y);
+        previewPlacement.stand(position);
         // Leaving with its cluster, the card passes under the chrome, which stacks over
         // it, and a reading region cuts it at the region's edge as it cuts the words.
         if (region) {
@@ -1342,6 +1355,32 @@ export function createMarginProjection({
       order,
       priority: 10,
       move: (into) => moveHost(row, into),
+      fold: {
+        able: () =>
+          canFold(row.lfEntry, {
+            expandedKey: expandedOptionsKey,
+            expandedOwner: expandedOptionsOwner,
+          }),
+        // How many controls the pin shows opened: its options and the toggle.
+        controls: () => {
+          const { options } = clusterProjection(row.lfEntry, {
+            expandedKey: row.lfEntry.key,
+            folded: true,
+          });
+          return options.visible.length + (options.spill ? 1 : 0) + 1;
+        },
+        // Told from inside the layout pass, which has already seated the row at its new
+        // size: the cluster is presented again once that pass has written, before the
+        // frame paints, however many rows it folded.
+        changed: () => {
+          if (refoldQueued) return;
+          refoldQueued = true;
+          queueMicrotask(() => {
+            refoldQueued = false;
+            renderMargin.refresh();
+          });
+        },
+      },
     };
   }
 
@@ -2064,16 +2103,8 @@ export function createMarginProjection({
           { writesRelation: false, writesSeat: false },
         );
         rows.set(entry.key, marker);
-        more = presentMarginEntry(
-          offer("button", "lf-margin-more"),
-          marginEntry({
-            key: "options",
-            icon: "more",
-            label: "More options",
-            behavior: "disclosure",
-            rank: "overflow",
-          }),
-        );
+        // Its face is the cluster's to paint (margin-cluster-view.js).
+        more = offer("button", "lf-margin-more");
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
         keys(host, "In the margin", marginKeys, () => marginKeysAvailable);
@@ -2097,11 +2128,29 @@ export function createMarginProjection({
             return;
           const current = host.lfEntry;
           const primary = current && choosePrimary(current);
-          if (!current || !optionsOffered(current, primary)) return;
+          const standsFoldedNow =
+            Boolean(current) &&
+            folded(current) &&
+            canFold(current, {
+              expandedKey: expandedOptionsKey,
+              expandedOwner: expandedOptionsOwner,
+            });
+          if (!current || !(standsFoldedNow || optionsOffered(current, primary)))
+            return;
           if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
           if (entryEngaged(current)) return;
+          // A folded cluster's toggle is its only control and stands after the actions it
+          // unfolds, so Tab arriving on it lands on the first of them, and Shift+Tab on
+          // the last.
+          const back =
+            event.relatedTarget instanceof Node &&
+            Boolean(
+              host.compareDocumentPosition(event.relatedTarget) &
+              Node.DOCUMENT_POSITION_FOLLOWING,
+            );
           setOptionsOpen(current, true, {
-            focusOption: control === more ? "last" : null,
+            focusOption:
+              control === more ? (standsFoldedNow && !back ? "first" : "last") : null,
           });
         });
         host.addEventListener("focusin", () => {
@@ -2177,6 +2226,7 @@ export function createMarginProjection({
         expandedKey: expandedOptionsKey,
         expandedOwner: expandedOptionsOwner,
         forcedInlineKey,
+        folded: folded(entry),
       });
       if (!projection.hasOptions && expandedOptionsKey === entry.key) {
         expandedOptionsKey = null;
@@ -2849,9 +2899,43 @@ export function createMarginProjection({
     }
     return standing;
   };
+  // A folded cluster opens while the keyboard stands at its target, as it does when
+  // the keyboard arrives on its toggle: what the user stands at offers its actions, and
+  // an Ask's digits name them. It folds again when they stand anywhere else but in the
+  // cluster itself, whose own focus then keeps it open (the host's `focusout`).
+  let standingUnfolded = null;
+  function unfoldStanding(active) {
+    const host = active && closestAcross(active, "[data-lf-margin-for]");
+    if (host?.lfEntry?.key === standingUnfolded) {
+      standingUnfolded = null;
+      return;
+    }
+    const state = {
+      expandedKey: expandedOptionsKey,
+      expandedOwner: expandedOptionsOwner,
+    };
+    const place =
+      active && !host && active.matches(":focus-visible") && placeOf(active);
+    const entry = place
+      ? pageInventory.find(
+          (candidate) =>
+            folded(candidate) &&
+            canFold(candidate, state) &&
+            under(place, targetFor(candidate)),
+        )
+      : null;
+    if (entry?.key === standingUnfolded) return;
+    if (standingUnfolded && expandedOptionsKey === standingUnfolded)
+      setOptionsOpen(null, false, { preservePreview: true });
+    standingUnfolded = null;
+    if (!entry || expandedOptionsKey === entry.key) return;
+    setOptionsOpen(entry, true, { preservePreview: true });
+    standingUnfolded = entry.key;
+  }
   function followStanding() {
     refreshHighlight();
     const active = focused();
+    unfoldStanding(active);
     if (
       !active ||
       active === document.body ||
@@ -3094,7 +3178,7 @@ export function createMarginProjection({
     if (!previewRegionMounted) {
       previewRegionMounted = true;
       registerReadingRegion({
-        id: "lf-margin-preview",
+        id: THREAD_CARD,
         host: preview,
         body: previewList,
       });

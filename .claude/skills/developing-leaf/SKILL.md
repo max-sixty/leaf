@@ -30,6 +30,18 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+## Leave taste to the authoring agent
+
+Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
+the user relies on, such as a gesture being recorded or nothing moving under the
+pointer. Taste, formatting and aesthetics go in the shipped guidance, as a goal and
+its reason, so the authoring agent weighs them against the page in front of it. How
+many tiles share a row, where a heading breaks, which column is wider: a rule in CSS,
+a validator or a Layout that fixes one of these for every page overrides the agent
+where its page needs something else, and breaks on the next case it wasn't written
+for. A check may report what it sees, as the render check names where a tile row
+wraps, and leave the call to the agent.
+
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
@@ -261,8 +273,9 @@ if Worktrunk asks to approve the project commands, ask the user to run
 ## Land a change
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
-pre-merge `tests` run the broad selection, which main passes; the nightly-marked
-tests run only once main moves, and `tend-ci-fix` answers them when they fail.
+pre-merge `tests` run the broad selection, which main passes, plus the nightly-marked
+tests in the test files the change touches. The rest of the nightly suite runs once
+main moves, and `tend-ci-fix` answers it when it fails.
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

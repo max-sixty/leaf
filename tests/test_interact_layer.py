@@ -779,42 +779,6 @@ def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
     assert collect(tmp_path / "outside").returncode == 0
 
 
-def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
-    """A developer tool's generated evidence is not something a host installs.
-
-    `notes/mcp-apps/probe/run-direct-probe.sh` wrote each run's screenshots and logs to
-    `notes/mcp-apps/experiments/<number>/results/`, inside the tracked tree, so every
-    probe grew what a host copies by up to a megabyte that no install reads — 47
-    result directories and 6.5M of the payload by the time it was measured. The rule
-    `dev/AGENTS.md` states is that a tool's output lands where git ignores it
-    unless an install reads that output from a committed path, and the runner's own
-    assignment is what holds it. Read the directory off the script rather than
-    naming it twice, then write where a run writes and ask the payload.
-    """
-    runner = PLUGIN_ROOT / "notes" / "mcp-apps" / "probe" / "run-direct-probe.sh"
-    assignment = re.search(
-        r'^results="\$repo/(.+)"$', runner.read_text(encoding="utf-8"), re.MULTILINE
-    )
-    assert assignment, "the runner no longer names its evidence directory"
-    results = PLUGIN_ROOT / assignment.group(1).replace("$1", "57")
-
-    results.mkdir(parents=True, exist_ok=True)
-    evidence = results / "payload-check.log"
-    try:
-        evidence.write_text("probe evidence", encoding="utf-8")
-
-        assert evidence not in shipped_payload(), (
-            f"a probe run would ship {evidence.relative_to(PLUGIN_ROOT)}"
-        )
-    finally:
-        evidence.unlink(missing_ok=True)
-        for parent in (results, *results.parents):
-            if parent in (PLUGIN_ROOT, PLUGIN_ROOT / ".tmp"):
-                break
-            with contextlib.suppress(OSError):
-                parent.rmdir()
-
-
 def test_the_payload_is_text():
     """Every tracked byte ships in every install and stays in history, so the tree
     holds no screenshot, recording or other binary (`AGENTS.md`, "The install runs
@@ -1087,25 +1051,6 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
-
-
-def test_init_does_not_vendor_the_mcp_app_resource(page_dir):
-    """The MCP App resource is delivery surface, not layer payload.
-
-    An MCP host reads it from the install over the tool transport, so a page
-    directory has no use for it. It sat in `assets/vendor/` once, and
-    `compose_layer` copied that whole directory into every page: 396KB, about
-    38% of what a page vendored. The check compares bytes, since the regression
-    is the file landing under a layer root under any name.
-    """
-    resources = [path for path in schema_model.MCP_APP.iterdir() if path.is_file()]
-    assert resources, "no MCP App resource to keep out of a page"
-    vendored = {
-        path.read_bytes(): path for path in page_dir.rglob("*") if path.is_file()
-    }
-    for resource in resources:
-        landed = vendored.get(resource.read_bytes())
-        assert landed is None, f"{resource.name} was vendored as {landed}"
 
 
 def _css_parse_errors(nodes):

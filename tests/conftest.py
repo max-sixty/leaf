@@ -14,7 +14,6 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
-from leaf.mcp_page import ProcessPageServer
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import sync_playwright
 
@@ -219,20 +218,6 @@ def initialized_page(_page_pool):
     yield lend
     for name, page in lent:
         _page_pool.give_back(name, page)
-
-
-@pytest.fixture
-def page_server():
-    """The one HTTP origin an MCP host reads a run's pages through.
-
-    `ProcessPageServer` holds a socket and the thread serving it until it is
-    closed, and nine tests each made one and closed it in a `finally` of their
-    own. `close` is idempotent, so a test whose subject is the server going away
-    still closes it where the assertion after it reads that.
-    """
-    pages = ProcessPageServer()
-    yield pages
-    pages.close()
 
 
 def pytest_addoption(parser):
@@ -448,17 +433,6 @@ def _browser(_playwright):
     b.close()
 
 
-def _watches_shifts(request):
-    """Whether a test's pages report layout shifts (`render_harness.clean_browser`).
-
-    `EXPECTED` in `shift_watch.js` lists the shifts without input the broad
-    selection's pages make today. The nightly-marked tests' pages make hundreds more,
-    such as an `lf-options` growing its write-in row as it upgrades under authored HTML
-    that already painted, and a few where typing carries its field. Until those are fixed or listed, the
-    nightly-marked tests do not watch for shifts."""
-    return request.node.get_closest_marker("nightly") is None
-
-
 @pytest.fixture
 def browser(_browser, request):
     """The shared browser process, with context ownership scoped to one test.
@@ -476,7 +450,7 @@ def browser(_browser, request):
     from render_harness import WatchedBrowser, clean_browser
 
     try:
-        with clean_browser(shifts=_watches_shifts(request)):
+        with clean_browser(request.node):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
@@ -493,7 +467,7 @@ def iphone(_playwright, request):
 
     webkit = _playwright.webkit.launch()
     try:
-        with clean_browser(shifts=_watches_shifts(request)):
+        with clean_browser(request.node):
             yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
@@ -511,7 +485,7 @@ def scrollbar_browser(_playwright, request):
 
     shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
     try:
-        with clean_browser(shifts=_watches_shifts(request)):
+        with clean_browser(request.node):
             yield WatchedBrowser(shown)
     finally:
         shown.close()

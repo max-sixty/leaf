@@ -1319,13 +1319,13 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         controls = item
         _unfold(item)
-        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
-        round_trip(page)
+        with sending(page, f"{outcome} {target}"):
+            item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
-        suggestion_control(page, target, visible=False).and_(
-            page.locator('[aria-label^="Undo "]')
-        ).click()
-        round_trip(page)
+        with sending(page, f"undo {target}"):
+            suggestion_control(page, target, visible=False).and_(
+                page.locator('[aria-label^="Undo "]')
+            ).click()
         _unfold(item)
         expect(
             item.get_by_role("button", name=re.compile("^Accept the "))
@@ -1343,8 +1343,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
     expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
     expect(draft_item.locator(".lf-margin-more")).to_be_hidden()
-    draft_item.get_by_role("button", name="Save", exact=True).click()
-    round_trip(page)
+    with sending(page, "save the gallery draft"):
+        draft_item.get_by_role("button", name="Save", exact=True).click()
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
     # Through the harness's navigation rather than a bare reload, for its ResizeObserver
     # adjudication: this gallery is twenty thousand pixels tall at 390 and its arrival
@@ -1427,12 +1427,12 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         _unfold(item)
-        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
-        round_trip(page)
-        suggestion_control(page, target, visible=False).and_(
-            page.locator('[aria-label^="Undo "]')
-        ).click()
-        round_trip(page)
+        with sending(page, f"{outcome} {target}"):
+            item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
+        with sending(page, f"undo {target}"):
+            suggestion_control(page, target, visible=False).and_(
+                page.locator('[aria-label^="Undo "]')
+            ).click()
         # The pin just pressed is held under the pointer; let it go so it folds back.
         page.mouse.move(0, 0)
         page.evaluate(RELEASE_FOCUS)
@@ -3033,8 +3033,8 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     options = item.locator(":scope > .lf-margin-options")
 
-    options.get_by_role("button", name=re.compile(r"Reject")).click()
-    round_trip(page)
+    with sending(page, "reject the secondary suggestion"):
+        options.get_by_role("button", name=re.compile(r"Reject")).click()
 
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()

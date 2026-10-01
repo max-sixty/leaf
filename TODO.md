@@ -357,8 +357,8 @@ Revisit these when their stated trigger becomes real; they are not an active que
   beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
   Known gaps: a pane that scrolled within itself reads as scattered changes and moves
   rather than one region, a border that changed length draws a thin outline, and a
-  1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which a worker
-  would take off it.
+  changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which
+  a worker would take off it.
 - **Consider dragging thread cards and comment boxes.** Once both share placement,
   try temporary, passage-relative movement from a handle. Keep it only if scrolling,
   typing, and resizing stay predictable and the implementation stays simple.

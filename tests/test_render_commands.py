@@ -798,9 +798,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     whose sides matched in every part its prose described. So the widget outlines what
     changed where each frame holds it, and nothing where a frame holds nothing, and
     says on the rail what they add up to, including a difference too slight to point
-    at. The outlines and their
-    count are the author's to ask for, with `outlines`; the rest of the reading shows
-    on every pair."""
+    at. The outlines and their count are the author's to ask for, with `outlines`; the
+    rest of the reading shows on every pair."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))

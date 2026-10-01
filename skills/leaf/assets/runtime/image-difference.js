@@ -31,29 +31,31 @@
  * blocks, the way a reader groups it. An edge is where a pixel is unlike its neighbour;
  * a straight run of one colour along an edge at least LINE long is a line (a border, a
  * rule, a bar's side), and the other edges are marks (text, icons). In CELL squares,
- * marks join the marks within REACH squares, and anything joins what it touches, so a
- * word, a paragraph, a control, or a chart on its axes reads as one block, while a
- * frame's padding keeps the frame apart from what it holds. A block of lines alone is a
- * frame: a card's border, a filled panel's edge, a rule.
+ * anything joins what it touches, and marks join the marks beside them, in a row or a
+ * column, across a gap no wider than SPACING times the shorter one's height. So a word,
+ * a paragraph, a control, or a chart on its axes reads as one block whatever the
+ * capture's pixel density, while a frame's padding keeps the frame apart from what it
+ * holds. A block of lines alone is a frame: a card's border, a filled panel's edge, a
+ * rule.
  *
  * Each image's blocks are then read against the other image. A block none of whose
  * squares holds a changed pixel is the same. A block that did change is looked for in
  * the other image, among its blocks of the same size that changed too, the nearest
- * first: found there, no pixel more than
- * SLIGHT apart, it moved; found nowhere, it changed. Each frame of the pair is outlined
- * on its own, around its own blocks: where content changed, in both frames at the place
- * it has in each, and where it moved, at its old place in before and its new place in
- * after. So a list that moved beside a chart is outlined at the foot of before and
- * beside the chart in after, and nothing marks the empty place it left.
+ * first: found there, no pixel more than SLIGHT apart, it moved; found nowhere, it
+ * changed. Each frame of the pair is outlined on its own, around its own blocks: where
+ * content changed, in both frames at the place it has in each, and where it moved, at
+ * its old place in before and its new place in after. So a list that moved beside a
+ * chart is outlined at the foot of before and beside the chart in after, and nothing
+ * marks the empty place it left.
  *
  * A block that holds another outline is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
- * outlined whole. Any other gives way to what it
- * holds: its contents are outlined, and its own changed squares that no outline
- * covers widen the outline within ABSORB of them, as a card's edge does below the text
- * that grew it, or stand alone. A frame alone that moved, and a move inside a change,
- * are not outlined. Outlines of one kind that would touch as drawn join, and moves that
- * share a displacement join within MOVED_REACH.
+ * outlined whole. Any other gives way to what it holds: its contents are outlined, and
+ * its own changed squares that no outline covers widen the outline within ABSORB of
+ * them, as a card's edge does below the text that grew it, or stand alone. A frame
+ * alone that moved, and a move inside a change, are not outlined. Outlines of one kind
+ * that would touch as drawn join, and moves that share a displacement join within
+ * MOVED_REACH.
  *
  * A strong change over most of the image, such as a photo turned black and white, has
  * no place to point to: where squares COARSE pixels on a side holding a pixel that moved
@@ -109,6 +111,9 @@ export function differingRegions(a, b) {
   }
   if (coarse.reduce((sum, square) => sum + square, 0) >= THROUGHOUT * coarse.length)
     return { width, height, changed, throughout: true, regions: [] };
+  // A block changed only where a square was struck, so with none, none did.
+  if (!struck.includes(1))
+    return { width, height, changed, throughout: false, regions: [] };
   const before = blocksOf(a, one, columns);
   const after = blocksOf(b, other, columns);
   const touched = (block) => block.cells.some((cell) => struck[cell]);
@@ -162,10 +167,7 @@ function outlines(blocks, states, struck, columns, side) {
     if (state === "moved" && block.frame) continue;
     marks.push({ ...box(block), side, kind: state, d, block });
   }
-  // A block that holds another outline is a container, a panel or a card or a lane. One
-  // that changed and holds only what changed too, as a card whose text rewrapped, is
-  // outlined whole in place of what it holds; any other gives way to what it holds. A
-  // move inside a change is not outlined, once the outlines are final.
+  // Containers are outlined whole or give way, as the module header states.
   const whole = marks.filter(
     (mark) =>
       mark.kind === "changed" &&
@@ -178,15 +180,13 @@ function outlines(blocks, states, struck, columns, side) {
   const holds = (mark) =>
     !whole.includes(mark) && marks.some((inner) => contains(mark, inner));
   const shown = marks.filter((mark) => !holds(mark) && !inWhole(mark));
-  // A container keeps its own changes: those beside an outline widen it, as a card's
-  // edge does below the text that grew it, and the rest stand alone.
   for (const mark of marks) {
     if (!holds(mark) || inWhole(mark) || mark.kind !== "changed") continue;
     const loose = mark.block.cells
       .filter((cell) => struck[cell])
       .map((cell) => mark.block.boxes.get(cell))
       .filter((cellBox) => !shown.some((other) => contains(other, cellBox)));
-    for (const group of gather(loose, 2 * CELL)) {
+    for (const group of merged(loose, (p, q) => near(p, q, 2 * CELL))) {
       const host = shown.find(
         (other) => other.kind === "changed" && near(other, group, ABSORB),
       );
@@ -434,38 +434,33 @@ const union = (p, q) => {
   };
 };
 
-// Boxes within `reach` of one another, as their unions.
-function gather(boxes, reach) {
-  const groups = [];
-  for (const next of boxes) {
-    let merged = { ...next };
-    for (let i = groups.length - 1; i >= 0; i -= 1)
-      if (near(groups[i], merged, reach))
-        merged = union(groups.splice(i, 1)[0], merged);
-    groups.push(merged);
-  }
-  return groups.length === boxes.length ? groups : gather(groups, reach);
-}
-
-// Outlines of one kind that would touch as drawn become one, and moves that share a
-// displacement join within MOVED_REACH, until none do.
-function join(marks) {
-  const list = marks.slice();
+// `items` with every two that `joins` accepts replaced by their union, until it accepts
+// no two. A union keeps the fields of the item it grows from.
+function merged(items, joins) {
+  const list = items.map((item) => ({ ...item }));
   for (let i = 0; i < list.length; i += 1)
-    for (let j = i + 1; j < list.length; j += 1) {
-      const [p, q] = [list[i], list[j]];
-      if (p.kind !== q.kind) continue;
-      const joins =
-        p.kind === "moved"
-          ? p.d.join() === q.d.join() && near(p, q, MOVED_REACH)
-          : near(p, q, 2 * PAD);
-      if (!joins) continue;
-      list[i] = { ...p, ...union(p, q) };
+    for (let j = 0; j < list.length; j += 1) {
+      if (j === i || !joins(list[i], list[j])) continue;
+      list[i] = { ...list[i], ...union(list[i], list[j]) };
       list.splice(j, 1);
-      j = i;
+      if (j < i) i -= 1;
+      // `list[i]` grew, so every other item is read against it again.
+      j = -1;
     }
   return list;
 }
+
+// Outlines of one kind that would touch as drawn become one, and moves that share a
+// displacement join within MOVED_REACH.
+const join = (marks) =>
+  merged(
+    marks,
+    (p, q) =>
+      p.kind === q.kind &&
+      (p.kind === "moved"
+        ? p.d.join() === q.d.join() && near(p, q, MOVED_REACH)
+        : near(p, q, 2 * PAD)),
+  );
 
 function words(image) {
   return new Uint32Array(
@@ -511,8 +506,9 @@ export function describeDifference(reading) {
 }
 
 /* How many areas `regions` mark: `changed` and `moved`. A change outlined in both frames,
- * where the two outlines overlap, is one change seen twice and counts once; a move
- * counts once, by its place in after. */
+ * where the two outlines overlap, is one change seen twice and counts once. Each frame
+ * leaves out its own moves inside a change, so a move can be drawn in one frame alone;
+ * the frame that draws more moves gives their count. */
 export function countAreas(regions) {
   const changes = regions.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
@@ -520,9 +516,13 @@ export function countAreas(regions) {
   const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
   return {
     changed: before.length + after.length - shared,
-    moved: regions.filter(
-      (region) => region.kind === "moved" && region.side === "after",
-    ).length,
+    moved: Math.max(
+      ...["before", "after"].map(
+        (side) =>
+          regions.filter((region) => region.kind === "moved" && region.side === side)
+            .length,
+      ),
+    ),
   };
 }
 

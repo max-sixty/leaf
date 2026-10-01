@@ -131,11 +131,12 @@ For a real visual change, use `lf-shot` with before and after captures from the
 same viewport, of the versions the page compares. Before writing the prose and
 `alt` around a pair, open both images and compare them where the change should be.
 Add `outlines`, and each frame outlines what changed and, dashed, what only moved,
-where it sits in that frame, and the rail counts them. Leave it off where most outlines would mark what the pair is not
-about, such as live data that moved between captures you cannot retake, and say in
-the prose where to look. Either way, the rail reads "identical", "only slight
-changes" where no pixel moved far, or "changed throughout" where most of the image
-changed. Where it reads "identical", or no outline stands where the prose puts the
-change, capture a case that shows the change, or say that nothing changed. Where it
-reads "only slight changes", the reader will hardly see the change, so name it in the
-prose, or say that nothing but redrawing changed.
+where it sits in that frame, and the rail counts them. Leave it off where most
+outlines would mark what the pair is not about, such as live data that moved between
+captures you cannot retake, and say in the prose where to look. Either way, the rail
+reads "identical", "only slight changes" where no pixel moved far, or "changed
+throughout" where most of the image changed. Where it reads "identical", or no
+outline stands where the prose puts the change, capture a case that shows the
+change, or say that nothing changed. Where it reads "only slight changes", the
+reader will hardly see the change, so name it in the prose, or say that nothing but
+redrawing changed.

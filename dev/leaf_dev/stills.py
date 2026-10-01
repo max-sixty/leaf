@@ -18,7 +18,8 @@ module that owns the rule (`runtime/image-difference.js`), loaded into the brows
 Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
-`diff.png` outlining each region the head still shows.
+`diff.png` outlining the head's own regions, a change in red and a move in blue. The
+crops cover both stills' regions.
 """
 
 import shutil
@@ -287,7 +288,7 @@ def crop(folder: Path, regions: list[dict]) -> None:
     for r in (r for r in regions if r["side"] == "after"):
         draw.rectangle(
             (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
-            outline=(220, 0, 0),
+            outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
             width=2,
         )
     faded.crop(box).save(folder / "diff.png")

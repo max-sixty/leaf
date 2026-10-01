@@ -326,6 +326,13 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Consider moving the before/after reading out of the core.** How
+  `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
+  experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
+  `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
+  only what every page needs. Try it on non-Leaf captures first (another site, a
+  terminal, a plot); where the capture is a browser's, recording each element's box
+  beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

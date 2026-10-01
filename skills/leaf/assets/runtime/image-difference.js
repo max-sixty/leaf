@@ -1,5 +1,16 @@
 /* Where two images differ: the one rule every reader of a before/after pair shares.
  *
+ * Experimental. The reading below is our own, tuned by eye on about 56 pairs of Leaf
+ * captures and not yet tried on other screenshots (another site, a terminal, a plot).
+ * We looked for a dependency first and found none that reads moves: pixelmatch, odiff,
+ * BlazeDiff and looks-same compare pixels in place; lcs-image-diff aligns rows, so it
+ * follows content pushed down but not a move across columns, and returns an image
+ * rather than regions; x-img-diff-js, the one built for moved regions, took 7 s on a
+ * 1440x900 pair, outlined page-wide bands and crashed on the next pair, and has not
+ * been released since 2017. Tools that do read moves, such as Percy's and SmartUI's
+ * layout modes, compare the DOM rather than the pixels, which an arbitrary pair of
+ * PNGs does not carry.
+ *
  * A pixel differs when any of its channels differs, alpha included, so two captures of
  * one runtime at one viewport compare equal and a redrawn pixel never does. Where the
  * sizes differ, a pixel only one image has differs.

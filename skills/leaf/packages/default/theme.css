@@ -2023,10 +2023,11 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
 lf-ask { display: block; }
 /* The options track. An Ask whose evidence includes a figure (its heading first, a
  * chart, image or table after it, and one option list last) outruns a window when
- * stacked: the options land below the figure they turn on. Where the Ask is 46rem
+ * stacked: the options land below the figure they turn on. Where the Ask is 50rem
  * wide or more, the list stands in a 16rem track beside the premise and evidence and
  * sticks while they scroll, so the question, its figure and every option share one
- * window. Narrower, the Ask stacks like any other. A reading column is narrower, so in
+ * window. 50rem leaves the evidence 32rem at the least, which a chart and a short
+ * table still read at; a narrower Ask stacks like any other. A reading column is narrower, so in
  * a column the track takes the room the page grants the Ask with `data-width`
  * (authoring-asks.md); room the page did not grant stays the render check's to refuse.
  * The content decides the form, so there is no attribute for it. An Ask of words alone
@@ -2066,7 +2067,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, tab
   lf-ask > * { --lf-room: var(--lf-ask-room); }
   lf-ask > lf-options { margin-block-end: 0; }
 }
-@container lf-ask (width >= 46rem) {
+@container lf-ask (width >= 50rem) {
   /* `:nth-child(n)` outranks what sets a block's own width and margins, such as a
    * declared width (`[data-lf-space]`) or `.facts`. The heading's end margin stands
    * above the first block and the list alike. */

@@ -4344,7 +4344,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         },
     )
     told(page)
-    expect(healthy).to_contain_text("The healthy thread still updates.")
+    # The reply lands in view, so the healthy thread holds it behind its notice.
+    expect(healthy.get_by_role("button", name="1 new reply")).to_be_visible()
     assert (
         broken_element.evaluate(
             "widget => widget.querySelectorAll('.lf-page-thread').length"
@@ -4415,7 +4416,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             },
         )
         told(page)
-        expect(healthy).to_contain_text("A later reading retries the repaired adapter.")
+        # The notice holding the first reply counts this one too.
+        expect(healthy.get_by_role("button", name="2 new replies")).to_be_visible()
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
         expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
             "value", "Keep this unsent reply."

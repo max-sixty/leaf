@@ -1208,7 +1208,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     # The owner is removed and reattached by script below. Keep it after the page's
     # content so that neither operation moves text the reader did not ask to move.
     source = LIVE_V1.replace(
-        "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>',
+        "</main>",
+        '<lf-local id="page-local" choice="idle"></lf-local></main>',
     )
     page = open_page(
         browser,

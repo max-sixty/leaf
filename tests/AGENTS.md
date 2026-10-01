@@ -34,7 +34,7 @@ names. Both landing gates pass `--nightly-changed-since`, which adds the nightly
 whose own lines the change edits.
 
 A change lands only on a green landing gate. Every other nightly test is CI's to
-report: the `nightly` job in `ci.yaml` runs the complete suite once main moves, and
+report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
 `tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
 run the everyday gate and the few browser tests that hold the behavior you changed,
 named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
@@ -167,8 +167,10 @@ inside `lfUnwatched`.
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
-both; the nightly-marked tests watch again once the defect most of their shifts share is
-fixed (`known_faults.watches_shifts`). Playwright's clicks and keys are input, as is a
+both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
+after the widget prepaint fixes (`known_faults.watches_shifts`). The watcher still
+exempts first presentation, whose remaining defects the widget quality check records
+in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
 news are not, even in the half second after a click, so a test delivers news whenever
 its story does. Fix what moved rather than consuming

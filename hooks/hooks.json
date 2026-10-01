@@ -1,5 +1,28 @@
 {
   "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

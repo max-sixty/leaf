@@ -51,7 +51,12 @@ import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
 import { handBack } from "./focus.js";
 import { repaint } from "./repaint.js";
 
-import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
+import {
+  allButCommandReference,
+  coveringAuxiliarySurface,
+  pageCommand,
+  pageScope,
+} from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
@@ -653,9 +658,14 @@ export function createReactionController({
           ", ",
         )} — for the selection, the item you are standing on, or the reply you are reading`,
     line: "react",
+    // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
+    // covering surface the page's own targets are out of reach.
+    covering: true,
     when: () =>
       reactionTokens().length > 0 &&
-      hasReactionTarget() &&
+      (coveringAuxiliarySurface()
+        ? reactionTarget()?.kind === "surface"
+        : hasReactionTarget()) &&
       (anchoringIsReady() || !pageSelection()),
     run: () => {
       // Selection capture normally follows the pointer gesture in its queued turn. A fast

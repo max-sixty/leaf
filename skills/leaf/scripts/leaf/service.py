@@ -304,9 +304,9 @@ class PageTransaction:
         behind those words stays the page's to judge from evidence.
 
         `turn_id` narrows the close to that turn, for a carrier whose account may
-        arrive after a later turn opened. The Stop hook passes none: whatever turn
-        of the session is open is the one ending, including one a claim taken
-        mid-turn minted before the host named it.
+        arrive after a later turn opened. A synchronous Stop closes the session's
+        current claims, including one taken mid-turn before the host named it.
+        A provider observation guards that close against a newer prompt.
         """
         claim = self.claim
         if (
@@ -340,7 +340,7 @@ class PageTransaction:
 
         A prompt or delivery into a turn that is already open renews its
         `turn_opened` instead: it is proof the turn runs now, and an interrupt,
-        which runs no hook and so leaves the turn open, would otherwise leave the
+        which some hosts leave open without a hook, would otherwise leave the
         next prompt's work judged by the interrupted turn's opening.
 
         The turn's identity is its host's, where the host names one: Codex names

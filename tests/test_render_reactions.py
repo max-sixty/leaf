@@ -1164,7 +1164,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # Retiring a background draft must not interrupt an unrelated typing surface.
     search = page.get_by_role("searchbox", name="Find in threads")
-    search.focus()
+    search.click()
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()

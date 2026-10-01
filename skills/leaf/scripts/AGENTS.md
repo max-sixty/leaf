@@ -38,6 +38,7 @@ subpackage's initializer is only a marker, never a second API.
 - `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
+- `codex_state`: Codex hook turn observation and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the host's model for when a user opens a
@@ -67,7 +68,8 @@ contracts, `validation` composes those gates, `page` composes page-owned
 declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
-Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
+Within `served_state/`, `context` owns the live or captured inputs every fold reads;
+`wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for the news stream, and
 `service` owns the page transaction every route reads through.

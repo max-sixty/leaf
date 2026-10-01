@@ -230,6 +230,18 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
   );
 });
 
+test("a line break assigned to a shadow slot separates its words", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-slotted-break" },
+  });
+  document.body.innerHTML = "<main><lf-staged>Alpha<br>Beta</lf-staged></main>";
+  const host = document.querySelector("lf-staged");
+  host.attachShadow({ mode: "open" }).innerHTML = "<p><slot></slot></p>";
+  assert.equal(says(host.shadowRoot), "Alpha Beta");
+  assert.equal(pageText().raw, "Alpha Beta");
+});
+
 test("a declared label inside chrome is read down to its last word", () => {
   document.body.innerHTML =
     '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said="tab"><b>Tab</b> label</span></div>';

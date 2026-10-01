@@ -1,6 +1,6 @@
 #!/bin/sh
-# The one entry point. Claude Code appends every enabled plugin's bin/ to PATH;
-# Codex resolves this launcher from the active skill directory.
+# The one launcher. Claude Code appends plugin bin/ directories to its Bash tool's
+# PATH; hooks and Codex resolve this launcher from the plugin or skill directory.
 #
 # The directory above it is a uv project — the repository and the installed
 # plugin are the same tree — and this runs that project: uv keeps one

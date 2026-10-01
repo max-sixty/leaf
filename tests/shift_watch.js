@@ -29,17 +29,19 @@
 // from the input until the first frame after the runtime's settled reading
 // (runtime/rendering.js) says nothing it queued is waiting and no motion begun since the
 // input still moves a box, the first such frame on a page without the runtime, a second
-// at most, or the next input.
+// at most, or the next input. The rendering says which frames motion the input began
+// moved.
 //
 // News is the page adopting a server reading (`data-lf-reading`,
 // runtime/presentation.js), the one a send of the user's returns included: what the
 // user does is drawn in the turn they do it, before the server answers. Once the page
-// has adopted news since the latest input began, and that input's rendering has ended,
-// every frame is without input whatever Chrome's flag says, until the next input.
-// Tests deliver a reply right after a press, and Chrome counts the reply's frames as the
-// press's for half a second. A frame of the rendering stays the input's, news or not,
-// so motion the input began, such as a panel sliding in, still counts as input when news
-// lands while it runs.
+// has adopted news since the latest input began, every frame is without input whatever
+// Chrome's flag says, until the next input: tests deliver a reply right after a press,
+// and Chrome counts the reply's frames as the press's for half a second. Two kinds of
+// frame stay the input's. Its first frame paints what the input drew, which news
+// adopted before that frame, such as the answer to the send the input made, paints
+// beside; no reading can tell the two apart. And a frame in which motion the input
+// began still runs, such as a panel sliding in, moves what the input asked to move.
 //
 // Chrome's rects are what a node paints, a focus ring or a shadow included, clipped to
 // the viewport, not the node's box. Nor are they always where it was on screen: Chrome
@@ -169,7 +171,8 @@
     }
   };
   const boxAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at)?.rect;
-  // Each input's rendering: when it began and ended, and a keystroke's typing, which
+  // Each input's rendering: when it began; the start of its second frame, and of the
+  // latest frame motion it began moved; and a keystroke's typing, which
   // holds its field; the box of the field and of each element holding it at the key; the
   // animations already moving any of them; and until when the typing rule reads it.
   const renderings = [];
@@ -179,14 +182,19 @@
     if (open?.typing?.until === Infinity) open.typing.until = performance.now();
   };
   const end = () => {
-    if (!open) return;
     unwatch();
-    open.end = performance.now();
     open = null;
   };
   const begin = (start, typing = null) => {
     end();
-    open = { start, end: Infinity, first: true, last: false, typing };
+    open = {
+      start,
+      second: Infinity,
+      moved: -Infinity,
+      motion: false,
+      last: false,
+      typing,
+    };
     renderings.push(open);
     prune(renderings, (rendering) => rendering.start);
   };
@@ -195,19 +203,23 @@
   const tick = (at) => {
     read(at);
     if (open) {
-      // Motion the key found under way carries the field for the gesture that began
-      // it, so a rendering whose first frame finds it still running is no one's to
-      // judge: its frames are that motion's.
-      if (
-        open.first &&
-        open.typing?.moving.some(({ playState }) => playState === "running")
-      )
-        open.typing.free = true;
-      open.first = false;
+      // Motion still running here moves this frame, as it moved the one before if it
+      // ran at that frame's start, finishing in it.
+      const motion = moving(open.start);
+      if (motion || open.motion) open.moved = at;
+      open.motion = motion;
+      if (open.first === undefined) {
+        open.first = at;
+        // Motion the key found under way carries the field for the gesture that began
+        // it, so a rendering whose first frame finds it still running is no one's to
+        // judge: its frames are that motion's.
+        if (open.typing?.moving.some(({ playState }) => playState === "running"))
+          open.typing.free = true;
+      } else if (open.second === Infinity) open.second = at;
       if (open.last || at - open.start > WINDOW) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
-      else open.last = settled() && !moving(open.start);
+      else open.last = settled() && !motion;
     }
     judge(waiting.splice(0));
     requestAnimationFrame(tick);
@@ -267,11 +279,12 @@
       held.addEventListener(type, heard(view), true);
     if (view === view.parent) break;
   }
-  const input = (entry, rendering) => {
+  // `frame` is the start of the shift's frame.
+  const input = (entry, rendering, frame) => {
     const at = entry.startTime;
     const since = rendering?.start ?? -Infinity;
-    if (at > (rendering?.end ?? -Infinity) && news.some((n) => n > since && n <= at))
-      return false;
+    const drawn = rendering && (frame < rendering.second || frame <= rendering.moved);
+    if (!drawn && news.some((n) => n > since && n <= at)) return false;
     return (
       entry.hadRecentInput ||
       presses.some((press) => press <= at && at - press < RECENT)
@@ -363,7 +376,7 @@
         // A frame the typing rule stopped reading before the next one is no one's.
         if (!typing.free && frame !== -1 && next <= typing.until)
           typed(entry, typing, next);
-      } else if (!input(entry, rendering))
+      } else if (!input(entry, rendering, frames[frame] ?? -Infinity))
         unasked(entry, frames[frame - 1], frame === -1 ? undefined : next);
     }
   };

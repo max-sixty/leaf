@@ -97,10 +97,12 @@ def test_a_shift_without_input_after_typing_fails(browser):
 
 
 # News three frames after a press, as a reply lands just after a click: the page adopts
-# a server reading. Without `data-motion` the press moves nothing and the news grows a
-# box above a line. With it, the press begins a bar's slide, which moves the line on
-# past the news, and the news moves nothing.
+# a server reading. A stand-in for the runtime never settles its rendering, so the
+# press's rendering is still open when the news lands. Without `data-motion` the press
+# moves nothing and the news grows a box above a line. With it, the press begins a bar's
+# slide, which moves the line on past the news, and the news moves nothing.
 NEWS = """<!doctype html><body style="margin:0">
+<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
 <button id="press">Press</button>
 <div id="bar"></div><div id="above"></div><div id="below">Below.</div>
 <script>
@@ -123,6 +125,8 @@ NEWS = """<!doctype html><body style="margin:0">
 def news_page(browser, motion):
     page = browser.new_page()
     page.goto("data:text/html," + quote(NEWS))
+    # The stand-in's page has presented, so its shifts are judged.
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
     if motion:
         page.evaluate("document.body.dataset.motion = '1'")
     page.locator("#press").click()

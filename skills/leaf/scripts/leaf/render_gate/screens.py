@@ -64,15 +64,23 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
+# The Ask the user stands in, as the runtime marks it: the outermost element wearing its
+# ring, outside the Asks drawer, which mirrors the same reading.
+STANDING_ASK = """() => [...document.querySelectorAll('[data-lf-ask]:not(.lf-asks-row)')]
+  .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id ?? null"""
+
+
 def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     """The window at each open Ask `a` reaches from the top, as far as MOST_SCREENS,
-    and whether the walk goes on past them. The walk stops at the last open Ask rather
-    than wrapping, so a press that stays on the same Ask has reached the end."""
+    and whether the walk goes on past them. Which Ask a press reached is the runtime's
+    own mark, so the walk covers whatever `a` does, a suggestion as much as an
+    `lf-ask`. The walk stops at the last open Ask rather than wrapping, so a press that
+    stays on the same Ask has reached the end."""
     shots, seen = [], None
     while True:
         page.keyboard.press("a")
         rendered(page)
-        here = page.evaluate("document.activeElement?.closest('lf-ask')?.id ?? null")
+        here = page.evaluate(STANDING_ASK)
         if here is None or here == seen:
             return shots, False
         if len(shots) == MOST_SCREENS:
@@ -99,15 +107,13 @@ def save_screens(
     into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
     saved = []
 
-    def whole(viewport, phone, label) -> bool:
-        """Save the screens down the page; return whether it holds an Ask."""
+    def whole(viewport, phone, label):
         context, page = _open(browser, url, viewport, phone)
         try:
             shots, total = _down_the_page(page, into, f"{viewport['width']}px")
             if total > len(shots):
                 label = f"{label}, the first {len(shots)} of the page's {total} screens"
             saved.extend((shot, label) for shot in shots)
-            return page.evaluate("document.querySelector('lf-ask') !== null")
         finally:
             context.close()
 
@@ -126,16 +132,16 @@ def save_screens(
         finally:
             context.close()
 
-    if whole(RENDER_VIEWPORT, False, "desktop"):
-        context, page = _open(browser, url, RENDER_VIEWPORT, False)
-        try:
-            shots, more = _asks_in_turn(page, into)
-            label = "desktop, each press of `a` from the top, at the next open Ask"
-            if more:
-                label = f"{label}, the first {len(shots)} of the page's open Asks"
-            saved.extend((shot, label) for shot in shots)
-        finally:
-            context.close()
+    whole(RENDER_VIEWPORT, False, "desktop")
+    context, page = _open(browser, url, RENDER_VIEWPORT, False)
+    try:
+        shots, more = _asks_in_turn(page, into)
+        label = "desktop, each press of `a` from the top, at the next open Ask"
+        if more:
+            label = f"{label}, the first {len(shots)} of the page's open Asks"
+        saved.extend((shot, label) for shot in shots)
+    finally:
+        context.close()
     widest = {"width": max(SWEEP_WIDTHS), "height": RENDER_VIEWPORT["height"]}
     whole(widest, False, "the widest window")
     for width, selector, said in reading.arrangement:

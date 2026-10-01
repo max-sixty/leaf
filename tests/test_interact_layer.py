@@ -1549,16 +1549,19 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
 
 
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
-    """The classic bootstrap cannot import modules, so the layer gate ties the root
-    state it writes to the stylesheet that reads it, and the surfaces' default widths
-    to the runtime owners that hold them."""
+    """The classic bootstrap and prepaint cannot import modules, so the layer gate ties
+    the root state they write to the stylesheet that reads it, and the surfaces' default
+    widths to the runtime owners that hold them."""
     assets = schema_model.ASSETS
     drawers = (assets / "runtime" / "drawers.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
+    prepaint = (assets / "runtime" / "prepaint.js").read_text()
     theme = (assets / "theme.css").read_text()
 
     assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
     assert "html[data-lf-live]" in theme
+    assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
+    assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
 
     def constant(pattern, source):

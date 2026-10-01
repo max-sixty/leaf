@@ -13,14 +13,9 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
   document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
-// The same page as a prefix for what the tab keeps. Two leaf pages on one origin is what
-// needs it — web storage is the origin's, so the reading position a user left on one
-// example was handed back on the next, at an offset that meant nothing there. Read off
-// the declared root, a draft typed on the live root is the draft on each of its version
-// addresses. "" where that root is the origin's own, so a server serving one page keeps
-// every key below unprefixed; an export's own address where it has none.
-const rootPath = PAGE_ROOT ? new URL(PAGE_ROOT).pathname : PAGE_PATH;
-export const PAGE_SCOPE = rootPath === "/" ? "" : rootPath;
+// The same page as a prefix for what the tab keeps, which the prepaint declares on the
+// root before the first paint, since it reads the tab's memory then too (prepaint.js).
+export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —
@@ -96,6 +91,13 @@ const stored = (open, name, scope = "") => ({
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for.
 export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
+// Which member a holder that shows one at a time (`x-views`) opens on as it upgrades, and
+// the record of each member it shows, which a reload reopens. The prepaint owns both
+// (prepaint.js), since it shows the same member at the first paint, before any module
+// has loaded; a holder's module asks it here, of the holder's own document.
+const views = (holder) => holder.ownerDocument.documentElement.lfViews;
+export const openingView = (holder, members) => views(holder).opening(holder, members);
+export const keepView = (holder, member) => views(holder).keep(holder, member);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

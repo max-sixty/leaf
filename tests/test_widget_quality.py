@@ -1,5 +1,7 @@
 """The widget quality report (`leaf/render_gate/widget_quality.py`): Leaf's own widgets
-held to it, and `package check --render` telling a package's author what it found."""
+held to it, and `package check --render` telling a package's author what it found. And
+the first box a widget keeps where the report's served examples do not reach: a tab set
+opening on a later panel, and an export."""
 
 import json
 import os
@@ -12,8 +14,13 @@ from conftest import LEAF_COMMAND
 from interact_support import SKILL_ROOT
 from known_widget_findings import KNOWN
 from leaf import cli as cli_model
+from leaf import exporting as exporting_model
 from leaf import schema as schema_model
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
+from model_folds import leaf_page
+from playwright.sync_api import expect
+from render_harness import displayed
 
 # The base layer's two halves and every bundled package, each reported on its own
 # widgets as a package author's `package check --render` would.
@@ -127,3 +134,141 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
     assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), lines
     assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, lines
+
+
+# Each authored widget the reader can see, by id: its box, its top measured from the
+# document's start so a scroll between two readings is not a move; and the panels the
+# tab sets show. An upgraded set's inactive panel is `hidden="until-found"`, which
+# leaves it a box of no height that `checkVisibility` still counts.
+SHOWN = """() => {
+  const scrolled = document.scrollingElement.scrollTop;
+  return {
+    boxes: Object.fromEntries(
+      [...document.querySelectorAll('body > main [id]')]
+        .filter((element) => element.localName.startsWith('lf-'))
+        .filter((element) => element.checkVisibility() && !element.closest('[hidden]'))
+        .map((element) => {
+          const box = element.getBoundingClientRect();
+          return [element.id, [box.width, box.height, box.top + scrolled].map(Math.round)];
+        }),
+    ),
+    panels: [...document.querySelectorAll('lf-tab')]
+      .filter((panel) => panel.querySelector('p').checkVisibility())
+      .map((panel) => panel.id),
+  };
+}"""
+
+# The page's own tab strip, and a framed set below it, each with a taller later panel.
+TAB_SETS = """
+<h1 id="title">Views</h1>
+<lf-tabs id="views">
+  <lf-tab id="one" label="One"><p id="first">The first view is one line.</p></lf-tab>
+  <lf-tab id="two" label="Two">
+    <p id="second">The second view runs longer.</p>
+    <p id="second-more">It holds a second paragraph, so it stands taller.</p>
+  </lf-tab>
+</lf-tabs>
+<lf-tabs id="more">
+  <lf-tab id="near" label="Near"><p id="near-words">Near.</p></lf-tab>
+  <lf-tab id="far" label="Far">
+    <p id="far-words">Far, and taller.</p>
+    <p id="far-more">Another line.</p>
+  </lf-tab>
+</lf-tabs>
+<p id="after">What follows the sets stays where it first painted.</p>
+"""
+
+
+def test_a_tab_set_first_paints_the_panel_it_opens_on(browser, serve):
+    """A set opens on the panel holding the element the address's fragment names, and
+    on reload on the panel this browser tab last showed, and shows that panel from the
+    first paint: the prepaint marks it before the module graph has loaded, from the
+    reading the module opens on, so nothing moves when the set upgrades. Without the
+    mark the theme can reserve only the first panel, which neither journey opens on."""
+    url = serve(leaf_page("Views", TAB_SETS))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    boot = []
+
+    def first_paint_then_presented(navigate):
+        page.route("**/leaf.js", lambda route: boot.append(route))
+        with page.expect_request("**/leaf.js"):
+            navigate()
+        displayed(page)
+        assert boot, "the positive control did not hold the boot module"
+        first = page.evaluate(SHOWN)
+        page.unroute("**/leaf.js")
+        boot.pop().continue_()
+        wait_until_ready(page)
+        return first, page.evaluate(SHOWN)
+
+    try:
+        first, presented = first_paint_then_presented(
+            lambda: page.goto(f"{url}#second-more", wait_until="commit")
+        )
+        assert first["panels"] == ["two", "near"], first
+        assert first == presented
+
+        page.get_by_role("tab", name="Far").click()
+        first, presented = first_paint_then_presented(
+            lambda: page.reload(wait_until="commit")
+        )
+        assert first["panels"] == ["two", "far"], first
+        assert first == presented
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
+def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
+    browser, serve, tmp_path
+):
+    """An export runs the runtime, so its widgets take the boxes their modules will
+    draw from the first paint, as a served page's do; it draws no live chrome, so it
+    reserves no banner. Its first paint is the export without its entry module, which
+    is the document the browser lays out before the module graph runs."""
+    serve(
+        leaf_page(
+            "Exported",
+            TAB_SETS
+            + """
+<lf-milestones>
+  <lf-milestone id="build" status="active" when="weeks 2-3" tags="wood,solar">
+    <strong>Build the feeders</strong> Two classic, two heated.
+  </lf-milestone>
+</lf-milestones>
+<lf-tree id="tree"><pre>
+feeders/
+  mount.py  +2 -2
+  sites/
+    north.toml
+</pre></lf-tree>
+""",
+        )
+    )
+    exported = tmp_path / "exported.html"
+    exporting_model.cmd_export(serve.page_dir, exported, None)
+    entry = re.compile(r'<script type="module" src="[^"]*" data-lf-runtime></script>')
+    held_source, entries = entry.subn("", exported.read_text(encoding="utf-8"))
+    assert entries == 1, "the export no longer names one entry module to leave out"
+    held = tmp_path / "held.html"
+    held.write_text(held_source, encoding="utf-8")
+
+    first_page = browser.new_page(viewport={"width": 1200, "height": 900})
+    first_page.goto(held.as_uri(), wait_until="load")
+    displayed(first_page)
+    first = first_page.evaluate(SHOWN)
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.goto(exported.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    presented = page.evaluate(SHOWN)
+
+    assert {"views", "more", "build", "tree"} <= first["boxes"].keys(), first
+    assert first == presented
+    assert (
+        page.evaluate(
+            "getComputedStyle(document.documentElement).getPropertyValue('--lf-banner-h')"
+        )
+        == "0px"
+    )

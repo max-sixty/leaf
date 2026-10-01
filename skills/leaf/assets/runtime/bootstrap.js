@@ -17,6 +17,9 @@
   }
   const script = document.currentScript;
   const root = document.documentElement;
+  // A served page draws the live chrome, the banner and the bottom bar, so the theme
+  // reserves their room from the first paint (`html[data-lf-live]`). An export runs the
+  // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   // A sample's child takes its form and its dress from its frame before it paints
   // (sample.js).

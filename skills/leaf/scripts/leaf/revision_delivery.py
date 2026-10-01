@@ -489,7 +489,7 @@ class Delivery:
     inline_stylesheet: Callable[[str], str] | None = None
     import_map: dict | None = None
     # The runtime's own inline script. A document with one runs the layer, so it also
-    # carries the layer's adopted sheets (`delivery_sheets`).
+    # carries the layer's adopted sheets (`delivery_sheets`) and the prepaint.
     runtime: str | None = None
     # The host's own head metadata, such as a published page's link card.
     head: str = ""
@@ -518,9 +518,13 @@ def compose_document(
     it names (`mark_declared`), re-addressed (`rebase_document`), and then receives
     delivery's head
     right after the head's start tag, ahead of any authored executable content: the
-    prelude, the import map, the runtime script, the theme, the adopted
-    sheets, the host's metadata, the runtime entry, and the canonical address, each
-    where the host has one. The root carries the host's attributes and the page's
+    prelude, the import map, the canonical address, the runtime script, the prepaint,
+    the theme, the adopted sheets, the host's metadata, and the runtime entry, each
+    where the host has one. A document with a runtime, served or exported, carries the
+    prepaint (`runtime/prepaint.js`), which says before the first paint what the
+    runtime will draw. It reads the canonical address, so that comes first, and it
+    stands before the theme, since a script after a stylesheet still loading waits for
+    it. The root carries the host's attributes and the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
     reserve the banner a sign-off page will draw before the runtime draws it. The
     import map precedes every script, since a browser reads no map once a module has
@@ -547,7 +551,18 @@ def compose_document(
             if delivery.import_map is not None
             else ""
         )
+        + (
+            f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
+            if delivery.page_root is not None
+            else ""
+        )
         + (delivery.runtime or "")
+        + (
+            "<script data-lf-runtime>"
+            f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
+            if delivery.runtime is not None
+            else ""
+        )
         + theme
         + (
             delivery_sheets(resources, delivery.address)
@@ -556,11 +571,6 @@ def compose_document(
         )
         + delivery.head
         + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
-        + (
-            f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
-            if delivery.page_root is not None
-            else ""
-        )
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]

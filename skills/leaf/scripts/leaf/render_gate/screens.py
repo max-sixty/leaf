@@ -5,9 +5,11 @@ which is the author's judgment of a picture. So the check saves the page as a re
 meets it: down the page three times, on a desktop, in the widest window the sweep
 reaches, where what scales with the window is at its largest, and on a phone, each as
 far as its first eight screens, where a reader decides whether to go on, with the
-label saying how many of the page's screens they are; and one screen at each width
+label saying how many of the page's screens they are; one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
-margin content changes, with that box in view. The screens go to one directory per page
+margin content changes, with that box in view; and, on a page with Asks, the desktop
+window at each of its first eight open ones as `a` arrives there from the top, which is
+how a user working the page reads each question, with the view that holds it opened. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
 directory beside it and then puts it in its place, so a reader never meets half of one
 check's screens and half of another's. The page directory is the page's record, and a
@@ -62,6 +64,33 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
+# The Ask the user stands in, as the runtime marks it: the outermost element wearing its
+# ring, outside the Asks drawer, which mirrors the same reading.
+STANDING_ASK = """() => [...document.querySelectorAll('[data-lf-ask]:not(.lf-asks-row)')]
+  .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id ?? null"""
+
+
+def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
+    """The window at each open Ask `a` reaches from the top, as far as MOST_SCREENS,
+    and whether the walk goes on past them. Which Ask a press reached is the runtime's
+    own mark, so the walk covers whatever `a` does, a suggestion as much as an
+    `lf-ask`. The walk stops at the last open Ask rather than wrapping, so a press that
+    stays on the same Ask has reached the end."""
+    shots, seen = [], None
+    while True:
+        page.keyboard.press("a")
+        rendered(page)
+        here = page.evaluate(STANDING_ASK)
+        if here is None or here == seen:
+            return shots, False
+        if len(shots) == MOST_SCREENS:
+            return shots, True
+        seen = here
+        shot = into / f"{page.viewport_size['width']}px-ask-{len(shots) + 1}.png"
+        page.screenshot(path=shot)
+        shots.append(shot)
+
+
 def screens_dir(page_dir: Path) -> Path:
     """The page's screens directory, the same for every check of that page."""
     key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:12]
@@ -104,6 +133,15 @@ def save_screens(
             context.close()
 
     whole(RENDER_VIEWPORT, False, "desktop")
+    context, page = _open(browser, url, RENDER_VIEWPORT, False)
+    try:
+        shots, more = _asks_in_turn(page, into)
+        label = "desktop, each press of `a` from the top, at the next open Ask"
+        if more:
+            label = f"{label}, the first {len(shots)} of the page's open Asks"
+        saved.extend((shot, label) for shot in shots)
+    finally:
+        context.close()
     widest = {"width": max(SWEEP_WIDTHS), "height": RENDER_VIEWPORT["height"]}
     whole(widest, False, "the widest window")
     for width, selector, said in reading.arrangement:

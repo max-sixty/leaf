@@ -67,6 +67,17 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
+- **Measure the fresh-reader review.** "Pre-handover review" has a subagent with only
+  the user's request and the check's screens work the page as the user would, since
+  the author resolves every name from notes the user never saw. On the triage page
+  that reader caught the scrolled-off context, a heading answering the author's own
+  research question, and header counts that didn't add up; a reader also given the
+  research reports caught those but missed the shorthand the reports explain.
+  **Unconfirmed:** one page, one run each. Measure across pages whether authors run
+  it, what it costs (about 110k tokens and two minutes there), and what it catches
+  beyond the author's own reading. `evals/record-read-without-the-notes` checks only
+  that an author says it will; doing it needs `notes/usability-eval/harness.py` or
+  session replays.
 
 ### Prose
 
@@ -251,8 +262,37 @@ and its chrome coordinate.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 
+### Queues
+
+A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+workspace"). The first real one, a 21-item triage page, showed these. Its list's
+height and where a switch lands wait on the workspace decision under Layout.
+
+- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
+  open Ask, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
+  the walks (`standing-target.js`), while `c` on a row still names the row.
+- **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
+  warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
+  row whose Asks are answered could show the picked option's title where the count
+  stood.
+- **Let a queue group its items.** The author sorted the items into merge, close,
+  design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
+  undifferentiated rows. A side list could take group headings between its items,
+  skipped by the arrow walk.
+- **Put the open item first on a phone.** At 390px the stacked list comes before any
+  item, so 20 rows fill two screens before the first one.
+
 ### The agent's text interface
 
+- **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
+  a stop, the agent writes one more message, and where the host shows only the last
+  message (Claude Code's focus mode) that message replaces the answer: a user who typed
+  `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
+  removed that trigger, since the hook now does the watching. **Unconfirmed:** check
+  whether any remaining block, such as input the turn still owes an answer to, reaches
+  a turn whose answer is already written.
 - **Reproduce the Codex delivery-start race.** Another client may start a turn
   between Leaf's idle check and its start request. **Unconfirmed:** test the installed
   App Server's behavior before changing delivery policy; the

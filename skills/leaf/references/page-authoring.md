@@ -606,21 +606,27 @@ one, a row that wraps to leave one tile alone, a pin over the end of a heading, 
 summary the phone puts after everything else. Fix what the page can fix, and check
 again.
 
-Then read the page as the user will. Take the headings on their own first, and
-check that none of them promises a finding it does not give. Confirm that
-referents are introduced, claims have evidence, decisions have controls, each
-drawing adds information, no passage describes a shape the page could draw, and
-everything standing open in the column is there because the user needs it.
+Once the check is clean, and before the page goes to the user, have someone read it
+as the user will meet it. You wrote it from research, notes and questions the user
+never saw, so its names and shorthand resolve for you and not for them. Give a
+subagent the user's request and the saved screens with their labels, and nothing
+else, and have it read the page as the user would, reporting each place it could not
+follow or had to guess. Fix what it reports. Your own reading still checks that each
+heading gives the finding it promises, each claim has its evidence and each decision
+its control, each drawing adds information, no passage describes a shape the page
+could draw, and everything standing open in the column is there because the user
+needs it.
 
 Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
-For a page with Asks, start at the top and press `a` through them. At each
-arrival, confirm that the question, shared premise, alternatives, and evidence
-that distinguishes them are visible together, the displayed numbers match the
-available actions, and the next press of `a` reaches the next open Ask while the
-complete page remains visible.
+For a page with Asks, the check also saves the window at each of the first eight
+as `a` reaches it from the top, which is how a user working the page meets each
+question. At each arrival, confirm that the question, shared premise, alternatives,
+and evidence that distinguishes them are visible together, the displayed numbers
+match the available actions, and the next press of `a` reaches the next open Ask
+while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and

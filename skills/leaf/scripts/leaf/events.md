@@ -1,290 +1,235 @@
 # Events and threads
 
-Every event carries `id`, `ts`, `author`, `kind`, and `seq` (its line number in
-`events.jsonl`). Document-bound events also carry `revision`; page-owned `read`
-does not. An `id` is
-an opaque string matched whole. The append door mints eight hex characters,
-re-rolling any candidate this log already holds, so an id is unique within its
-page and is not a global identifier. The kinds:
+`events.jsonl` records every transition a page makes after its authored markup. This
+file owns what each event kind means, how the append door admits an event, and how
+threads fold from the log. Each kind's record schema, including what a browser may
+send, is `$events.kinds` in `../../assets/registry.json`.
 
-| Kind | Author | Door | Fields | Meaning |
-| --- | --- | --- | --- | --- |
-| `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
-| `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
-| `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
-| `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
-| `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
-| `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
-| `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
-| `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
-| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
-| `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
-| `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
-| `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
+Every event carries `id`, `ts`, `author`, `kind`, and `seq`, its 1-based line number
+in the log. The door mints `id` as eight hex characters, unique within the page and
+nowhere else, so whatever keys on an event outside the page pairs the id with the
+page. The user's events arrive through `POST /api/event`; the agent's through the
+command named below.
 
-An event *stands* while the log has not withdrawn it. An action stands until an
-`undo` names it or a version note's `restated` names an element it rests on. A report
-stands until a version note `settles` it. The glossary's **Standing**, the user's
-keyboard position, is a different term, and so is the `standing` server lifetime
-(`session-lifetime.md`, "Lifetime").
+| Kind | Writer | Meaning |
+| --- | --- | --- |
+| `comment` | user; agent, `leaf thread open` | opens a thread on its `anchor`, or on the page; with `token` in place of `text`, a reaction |
+| `reply` | user; agent, `leaf thread reply` | answers the message `parent` names; with `token`, a reaction on it |
+| `edit` | agent, `leaf thread edit` | replaces a message's text; the original stays in the log |
+| `thread_title` | agent, `--title` on `leaf thread open`, `reply` or `edit` | names a thread; the latest wins |
+| `summary` | agent, `leaf thread summarize` | shows Markdown in place of a range of a thread's messages |
+| `read` | user | records the agent-content versions the user has read; bookkeeping |
+| `resolve` | user; agent, `leaf thread resolve` | closes a thread |
+| `unresolve` | user | reopens a thread |
+| `done` | user, from the banner of a page declaring `<meta name="lf-review" content="sign-off">` | approves the stamped `version` |
+| `action` | user, from a widget | changes the document through the widget |
+| `report` | agent or worker, `leaf page report` | provisional widget state, under an `x-state` verb declaring `writer: "agent"` |
+| `note` | agent, `leaf page stamp` | maps `version` to an immutable `revision`; `restated` names the decisions it takes back, `settles` the reports and work it answers |
+| `pickup` | page, from the delivery carrier or a host's failure receipt | the named user events reached the Codex queue (`queued`), entered an agent turn (`opened`), or will get no answer (`failed`); never a work claim |
+| `error` | page, from the browser runtime | a failure shown to the user; the agent hears it as a report |
+| `undo` | user | withdraws the gesture `undoes` names ("Undo") |
 
-An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
-where neighbouring text tells two identical passages apart; a selection on
-projected data names `datum` (the rendering key local to its section) and, when the
-projection names an external input, `source` and `source_revision`. `identity` names a
-subject the emitter knows persists across source replacements, independently of the
-`datum` key used to reconcile its rendering. `source_revision` records the value seen.
-`visual` names a declared part of a picture and `part` the control a design comment
-landed on.
-
-A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
-an ordinary comment, and may be that comment's only content. Its first stroke decides
-whether it anchors on an element or on the page, and with it the browser records `box`
-and `says`; the drawing's clause in `$events.handling.comment` tells the agent how
-to read the three. The
-browser reads them off the rendered page, which holds words and geometry no file
-reading can produce, so the door bounds their shape, the stroke count and 500
-characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
-owns ink, weight, SVG construction, and replay. A drawing is immutable once sent, and
-follows the thread's resolution state.
-
-## Undo
-
-The user may withdraw a resolve, unresolve, action, or approval. A reaction
-may also be withdrawn while unanswered and on an unresolved thread. Spoken
-messages cannot be withdrawn. An undo cannot itself be undone.
-
-The page's undo key takes back the user's newest gesture or nothing: a newer
-gesture it cannot take back, such as a sent reply, ends the walk, while bookkeeping
-and gestures already withdrawn do not. An exact control, such as a widget's Undo,
-may still withdraw an older gesture it names.
-
-`undo` names the gesture and nothing else; every other field is the target's to
-state. It withdraws rather than deletes: nothing leaves the log, and the folds and
-the thread reading drop the event, so the page shows what the revision says plus the
-events still standing, the same reading a reload makes and the one `restated` writes
-from the author's side. `renderState` paints withdrawals and
-forward changes alike, retaining the widget and its independent children. The
-door refuses an `undoes` naming anything but an unwithdrawn gesture of the
-user's own. An exact control may withdraw a forward action before that action's
-POST finishes: the browser derives the withdrawal immediately, keeps both gestures
-in its ordered ledger, and replaces the local dependency with the accepted action id
-before sending the undo. Refusal of the action discards its dependent undo; refusal
-of the undo re-derives the still-standing action.
-
-## Authorship and voice
-
-The server stamps every browser-posted event `author=user`. `leaf thread open`,
-`leaf thread reply`, `leaf thread edit`, `leaf page report`, and
-`page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
-name, and `session`, its host session id. Several agent sessions can write to one
-page, so the voice is read from the poster's environment rather than from the
-watcher's claim record, and identity is the session id, because a display name is
-anyone's to choose. A command run outside a host session has no voice, so its
-event carries neither field. Every reading that shows an agent's event names it
-through `schema.agent_name`, which gives such an event the name `Agent`. Every
-agent-authored thread message, closing event, margin update, and activity row the
-browser receives carries that name as `agent`, and the browser shows it as served.
-
-`service.requires_agent_attention` decides what needs the agent, from `author` and
-the kind's `$events` declaration: a user event of a kind not declared bookkeeping, or
-any `report` or `error`. `leaf wait` prints those, and the banner counts only the
-user events among them, so a `read`, declared bookkeeping, neither wakes the watcher
-nor reads as unanswered. An agent's own comment does neither. Either
-side can open a thread and either side can close one.
-Only the user knows when a note has been read, so the user ordinarily closes a
-thread; `leaf thread resolve` is the agent's
-door onto closing, and a thread the agent closed is named as such in the panel
-and the transcript.
-
-## Admission
-
-`event_contracts.append_admitted` admits every writer's event under the page
-transaction's lease. It returns an accepted retry without repeating the gesture;
-otherwise it reads the named revision's vocabulary, checks that the kind is
-declared, runs its gates against the page and standing log, derives server-owned
-meaning, and validates the finished record against its stored-record contract.
-Using the event's revision keeps re-vendoring from reinterpreting an open document.
-A refusal returns a command error or a final HTTP 400. A fault raises instead, since
-it may land either side of the append; the HTTP transport's one fault boundary
-(`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
-the browser retries the same attempt.
-
-Transports own only their input boundary: which kinds and fields they accept and
-how they answer retries.
-
-Browser POSTs are commands. The append transaction stamps the accepted event with
-server-owned `meaning`; callers cannot send it, and retry identity
-compares the original command fields rather than this enrichment. Meaning holds
-only what a reader without the sending registry cannot recover from the event
-itself. Every widget event records `scope`, `page` or `thread`, and its document
-identity is read from that scope and the event's revision (`events.event_document`):
-a page event's document is the revision the event names, and a thread event's is
-the frozen markup that sent its widget. Every widget event also records `unit`, the
-fold unit, so an action or report is keyed by the `[widget, unit, action]`
-coordinate.
-Actions and reports add `depends`, the direct element identities named by the
-owner, the unit, and declared state fields. An action whose admission
-makes its widget's `x-awaits.answered` condition hold is that Ask's answer and
-additionally records `answer`: the widget's authored `resolves`, read from the
-sending document, names the thread the answer closes, and null answers without
-closing one; a decision whose outcome is the widget's `x-withdrawn-as` declines and
-closes none. Historical thread folds use this coordinate even after its
-widget retires. Every action at the coordinate competes: a later action of the
-same verb on the same unit supersedes its prior answer, while another verb leaves
-that answer in place.
-
-Dependency identities come from the fold unit and the attribute-set and position
-record fields. Literal detail strings do not become dependencies by matching HTML ids.
-The log does not freeze ancestry: retraction tests use the current document's
-containment of those identities. A child a `creates` verb adds is that action's fold
-unit, on the action's own coordinate, so it lasts as long as the action stands.
-Admission stamps the child tag in `meaning.creates`, and the action rests on its unit
-whether or not a document holds it yet.
-
-### Position moves
-
-Coordinates are independent, so a position record places its unit by a rank key
-rather than an index: the key means the same place whichever other units' moves
-stand, and undoing or superseding one unit's move never moves another. The key lies
-among the container's authored units on the revision the move was made on, which
-admission records in order as `meaning.among`.
-
-The key places the unit while a revision authors that container the same way. A
-revision that authors it differently absorbs the move (`projection.move_absorbed`).
-`page check` then holds that revision's markup, and every later revision's, to the
-move: the unit stays in the move's container, after the nearest unit both revisions
-list before it. A revision places the unit otherwise only by marking it `restated`.
-The absorbed move still stands, as a written-back pick does, and it can no longer be
-undone: the markup decides the order an undo would have restored. The door refuses a
-move made on an older revision whose container the newest one authors differently.
-
-## Following the log
-
-`leaf page events PAGE --follow [--after SEQ]` is the log's change feed. It prints each
-stored record after `SEQ` (default 0) as one JSON line, server-stamped `meaning`
-included, then keeps printing each event the append door admits, flushed as it
-lands. A reader drops a field or kind it does not recognise rather than refusing the
-record. `seq` is the resume cursor: a reader that restarts with `--after` the last
-seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
-stdout end it with exit 0. A log that is removed, replaced by another file, or
-shorter than what the feed has read ends it with exit 1 and `<log> is gone` on
-stderr, since its positions no longer name that log's lines. The feed wakes on the
-log's file stamp at the browser news stream's `LOOK_S` cadence, so an event any
-process appends reaches it the same way.
-
-The feed carries the log only. External data under `data/` is replaced in place
-with no sequence to resume from, so a reader that needs it reads `leaf page state`
-or the value files directly.
-
-## Threads
-
-Read state is separate from thread attention. On a first visit, each agent-authored
-message body, including a failure receipt or authored widget, is unread; an agent
-reaction is not. The original message id names its first content version, and each
-`edit` id names a new one. A version is read once a `read` event names it — the
-browser posts one after presenting and exposing the visible body, including an
-interactive reply — or once the user moves in its thread after it, the thread the
-move names (`thread_context.event_threads`): a reply or reaction, a resolve or reopen,
-an action on a widget one of the thread's messages carries, or an action
-whose admitted answer closes the thread. A move that changes a thread without naming
-it, such as a later decision on the suggestion that had answered it or an `undo`,
-does not count, and neither does a move the user took back. A later edit is unread
-even when the prior version was read. A
-summary does not mark read the messages it covers. `read_state.unread_content` is the
-one reading; it is published as each browser Thread's `unread` and each
-thread's `unread` in `page state`. Read records belong to the page log and apply
-across tabs and document revisions; they never answer a question, settle a workflow,
-or enter agent delivery. Read state assumes a page has one user for its whole
-lifetime, so a `read` names no account.
-
-An agent comment opens a question. A substantive reply opens or resumes the thread;
-when its prose leaves another question for the user, `leaf thread reply --awaits`
-records `awaits: true`. The browser cannot write that field. A user reply
-always hands the thread back to the agent, so it needs no parallel declaration.
-An agent reply records the delivery event it answers as `responds`, including a
-completed delivery answer whose move was settled during the turn. A proactive
-message (`leaf thread reply <page> <message-id>`, without `--for`) carries no `responds`. Settlement
-consumes this exact identity rather than log order, so answering older work cannot
-erase newer user input. A substantive reply reopens a resolved thread;
-reactions and host failure receipts leave its closure standing. A later resolution
-closes the thread again. Reopening restores its still-unanswered widget Asks,
-as an explicit reopen does.
-A host that gives up on a move writes the failure the move's answer takes
-(`thread.fail_answer`): a reply for a message, including one in a thread
-that asked for a version, and a failed `pickup` for an answer to a page Ask. Each
-carries `failure`, a nonempty host-owned code, which is what tells a host's failure
-reply from an agent's. Only the host writer supplies `failure`, and the panel draws
-such a reply as a receipt whose head says the message answers nothing, since
-otherwise it is indistinguishable from the answer it replaces.
-When a reply carries a widget with a local `x-awaits` Ask, the widget's standing
-projection declares the Ask instead; the CLI refuses a parallel `--awaits` flag on
-that markup. A frozen widget keeps the user's Ask open until its
-`x-awaits.answered` condition holds. Moves on the widget before then have not been handed over: they carry no receipt and
-require no agent reply, and the move that answers carries the receipt and hands the
-turn to the agent. Undoing it returns the Ask to the user and removes the reply
-obligation. A frozen widget move that answers no Ask, such as a card moved
-on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
-rule `workflows.py` states for page moves.
-
-An open structural Ask anywhere in an unresolved thread keeps it awaiting the
-user after later prose or a settling reaction. Without one, the latest spoken
-turn determines the prose obligation described above. A user reaction on that
-latest request whose token declares `settles` clears the prose obligation without
-resolving the thread. `served_state/thread.py` owns this precedence.
-
-What each thread command does for its user, and when an agent uses it, is
-`../../references/threads.md`. Admission and the fold enforce these rules:
-
-- `edit` revises only a comment or reply whose recorded session matches the posting
-  session, and only its `text`: markup is frozen because a user action may already
-  rest on a widget in it. The original stays in the log with its id, timestamp,
-  author, thread position, and anchor; the panel, wait digests, and the transcript
-  fold the latest text onto it and label it edited.
-- `thread_title` names an existing thread with a nonblank, single-line
-  plain-text title of at most 80 characters. The latest title is projected separately
-  from messages into browser state and agent context; an unnamed thread has
-  a null title and the panel shows three animated dots until the agent names it.
-- `summary` names an inclusive `from`–`through` range of at least two spoken turns in
-  one thread; a reaction may lie inside the range but not at an endpoint. A
-  later overlapping summary replaces the earlier one whole, disjoint summaries
-  coexist, editing a covered message invalidates its summary, and a message appended
-  after the range stays outside it. A summary answers, resolves, and settles nothing.
-- An agent `reply` may carry an `anchor` captured against its `revision`, or a null
-  anchor when its subject has left that revision. The fold takes the latest such value
-  as the thread's current location and exposes the prior one as `detached_from` while
-  detached; the root event's anchor is immutable. The transition and its explanatory
-  message are one append, so the page never observes a move without the message that
-  accounts for it. A thread whose root `holds` a command goal cannot move or detach.
-- A message body is Markdown, stored as typed and rendered by the page's own vendored
-  runtime, so the renderer and the panel's styles version together; raw HTML renders as
-  its own characters. A widget in a message rides the `markup` field, whose one door is
-  `leaf thread open`/`leaf thread reply`, where it is validated against the vendored registry; the
-  browser door refuses the field. The door reads a body's Markdown link and image
-  destinations, in text and markup alike, and refuses a `/media/…` the page directory
-  cannot answer, since the directory holds `/media/<digest>.<ext>` and nothing else.
-
-A raster image pasted into a browser text box is stored first as content-addressed page
-media. Its durable draft carries an ordinary Markdown image at
-`/media/<digest>.<ext>`, while the composer projects that generated block as a removable
-thumbnail. The draft and message schemas gain no attachment field: retries and delivery
-preserve the exact Markdown, while each HTTP presentation scopes the canonical media
-path when it renders. An abandoned draft may leave unreferenced media behind; Leaf
-retains it because reachability has to include every immutable revision and event before
-deletion could be safe.
+An event *stands* until the log withdraws it: an action until an `undo` names it or a
+version note's `restated` names an element it rests on, a report until a note
+`settles` it, any other gesture until an `undo` names it. The glossary's
+**Standing** and the `standing` server lifetime are unrelated terms.
 
 ## Anchors
 
-The user selects a passage and the browser writes the anchor from the selection;
-`leaf thread open`, and `leaf thread reply` when it moves a thread, write the file-confirmable
-form from a quote by reading authored HTML through `leaf.passages`. The browser's
-anchor pass applies the matching rules to the DOM. Projected data has no file-side
-value to quote: its browser
-anchor adds the projection's section and datum key, and when `projectData` names
-an `x-data` input, the source id and `source_revision`, that source's revision. The
-append door checks that the section binds that source; a revision other than the
-current one is admitted as a comment on a value that has since been replaced. A CLI comment can still name the authored
-projection seat as an element.
+An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix` where
+the quote alone repeats. The browser writes it from the user's selection. The CLI
+writes it from a quote read out of the authored HTML through `leaf.passages`, so it
+writes only anchors the file confirms (`validation.md` owns file-side passages).
+
+Projected data has no authored text to quote, so a selection on it names `datum`,
+the rendering key within its section, and, where the section's `x-data` input is an
+external source, `source` and `source_revision`, the value's revision when selected.
+The door checks that the section binds that source and admits an older revision as a
+comment on a replaced value. `identity` names a subject the emitter knows persists
+across source replacements. `visual` names a declared part of a picture, and `part`
+the control a design comment landed on.
+
+A `drawing` is freehand strokes on a comment, and may be its only content. The
+browser records with it `box` and `says`, read off the rendered page where no file
+reading can reproduce them, so the door bounds their shape and does not re-read them.
+`$events.handling.comment` tells the agent how to read them.
+
+## Undo
+
+The user may withdraw a resolve, unresolve, action, or approval
+(`schema.UNDOABLE_KINDS`), and a reaction while nothing has answered it and its
+thread is unresolved. A message with words, an undo, and a move the newest revision
+has absorbed ("Position moves") cannot be withdrawn. The door refuses an `undoes`
+naming anything but an unwithdrawn gesture of the user's own (`events.UndoReading`).
+
+`undo` names its gesture and nothing else. It withdraws rather than deletes: the event
+stays in the log and every fold skips it, so the page shows what a reload would.
+`renderState` paints a withdrawal like any other change, keeping the widget and its
+independent children.
+
+`served_state.document.browser_undo_candidates` is the one undo list. The undo key
+takes back the user's newest gesture or nothing: a newer gesture it cannot take back,
+such as a sent reply, ends the walk, while bookkeeping and withdrawn gestures are
+skipped. A control naming one gesture, such as a widget's Undo, may withdraw an older
+one. It may also withdraw an action whose POST has not returned: the browser keeps
+both gestures in its ordered ledger and sends the undo once the action's id is
+accepted. Refusing the action drops the undo; refusing the undo shows the action
+standing again.
+
+## Authorship and voice
+
+The server stamps a browser-posted event `author: "user"`, or `"page"` for `error`.
+The agent commands stamp `author: "agent"` and the posting session's voice, `agent`
+(its display name) and `session` (its host session id), read from the poster's
+environment (`host.message_identity`), since several sessions can write to one page.
+The session id is the identity; a display name is anyone's to choose. Outside a host
+session neither field is written. `schema.agent_name` names an agent's event
+wherever it is shown, `Agent` where it has no voice, and the browser shows the served
+name with no fallback of its own.
+
+`service.requires_agent_attention` decides what the agent hears: a user event of a
+kind not declared bookkeeping, and every `report` and `error`. The banner counts only
+the user's.
+
+Either side can open or close a thread. The user ordinarily closes one, since only
+they know they have read it; the panel and transcript say when the agent did.
+
+## Admission
+
+`event_contracts.append_admitted` is the one door for every writer's event, under the
+page transaction's lease. A retry whose `attempt` was accepted gets that event back.
+Otherwise admission reads the vocabulary captured with the event's revision, so a
+re-vendor cannot reinterpret a document the user acted on; checks that the kind is
+declared; runs the kind's gates against the page and the standing log; derives
+`meaning`; and validates the finished record against the kind's `record` schema.
+
+A refusal is a command error, or a final HTTP 400. A fault raises instead, since the
+append may or may not have happened; `http.PageEndpoint._answer` answers it with a
+500 without `final`, and the browser retries the same attempt. Transports own only
+their input boundary: which kinds and fields they accept, and how they answer a
+retry.
+
+`meaning` holds what a reader without the sending registry could not recover from
+the event. Callers cannot send it, and retry identity ignores it. Every `action` and
+`report` records:
+
+- `scope`, `page` or `thread`, which with the revision names the document the widget
+  was in (`events.event_document`): the revision for a page event, the frozen markup
+  that sent it for a thread event.
+- `unit`, the fold unit. Widget events are keyed by `[widget, unit, action]`: the
+  widget, the part of its state the event changes, and the verb. The latest standing
+  event at a key decides that state, and only a later action at the same key
+  supersedes an answer. Thread folds keep reading a key after its widget retires.
+- `depends`, the identities the event rests on: the owner, the unit, and the values
+  of an attribute-set or position record field. A detail string never becomes a
+  dependency by matching an HTML id. The log stores no ancestry; retraction reads the
+  current document's containment of these identities.
+- `answer`, on an action whose admission makes its widget's `x-awaits.answered` hold:
+  the thread the answer closes, from the widget's authored `resolves` in the sending
+  document, or null. An outcome equal to the widget's `x-withdrawn-as` declines and
+  closes nothing.
+- `creates`, the tag of the child a `creates` verb adds. The child is the action's
+  unit, so it lasts as long as the action stands, whether or not a document holds it.
+- `among`, on a position move.
+
+### Position moves
+
+A position record places its unit by a rank rather than an index, so undoing or
+superseding one move never moves another unit. The rank lies among the container's
+authored units on the move's revision, which admission records, in order, as
+`meaning.among`.
+
+A revision that authors the container differently absorbs the move
+(`projection.move_absorbed`). `page check` holds that revision and every later one to
+the move: the unit stays in the move's container, after the nearest unit both
+revisions list before it, unless the revision marks it `restated`. An absorbed move
+still stands, but the markup now decides its order, so it cannot be undone. The door
+refuses a move made on an older revision whose container the newest one authors
+differently.
+
+## Following the log
+
+`leaf page events PAGE --follow [--after SEQ]` prints each stored record after `SEQ`
+(default 0) as one JSON line, then each event the door admits as it lands. A reader
+skips a field or kind it does not recognise. `seq` is the resume cursor: restarting
+with `--after` the last seq printed misses and repeats nothing. SIGINT, SIGTERM, and a
+closed stdout end the feed with exit 0. A log that is removed, replaced, or shorter
+than what was read ends it with exit 1 and `<log> is gone`, since its seqs no longer
+name that log's lines.
+
+The feed carries the log only. Values under `data/` are replaced in place with no
+sequence, so a reader that needs them reads `leaf page state` or the value files.
+
+## Threads
+
+A thread is keyed by the id of the message that opened it (`events.build_threads`).
+What each thread command does for the user, and when an agent uses it, is
+`../../references/threads.md`.
+
+### Read state
+
+Reading is separate from whose turn it is: it answers nothing. `read_state.py` owns
+the rule. Each agent content version, a message's own id and then each `edit` id, is
+unread until a `read` event names it or the user moves in its thread after it; the
+browser posts `read` once the body has been shown. The result is each thread's
+`unread`, in browser state and `page state`. Read records hold across tabs and
+revisions and never enter agent delivery. A page has one user for its lifetime, so a
+`read` names no account.
+
+### Turns
+
+An agent comment asks the user. An agent reply asks only when it records
+`awaits: true` (`leaf thread reply --awaits`), which the browser cannot write. A user
+reply always hands the thread to the agent.
+
+An agent reply records the delivery event it answers as `responds`, including one
+whose move was settled during the turn; a reply sent without `--for` carries none.
+Settlement consumes this exact id rather than log order, so answering older work
+cannot erase newer user input.
+
+A spoken reply reopens a resolved thread and restores its unanswered widget Asks, as
+an `unresolve` does; reactions and failure receipts leave it closed.
+
+A host that gives up on a move writes the failure its answer takes
+(`thread.fail_answer`): a reply carrying `failure`, a host-owned code, for a message;
+a failed `pickup` for an answer to a page Ask. Only the host writes `failure`, and the
+panel draws such a reply as a receipt that answers nothing.
+
+A widget with a local `x-awaits` Ask declares its Ask itself, so the CLI refuses
+`--awaits` on a reply carrying one. Frozen in the reply, it keeps the user's Ask open
+until `x-awaits.answered` holds. Moves before then are not handed over: they carry no
+receipt and need no reply. The move that answers carries the receipt and hands the
+turn to the agent, and undoing it returns the Ask to the user. A move on a frozen
+widget that answers no Ask, such as a card moved on a board, gets a delivery receipt
+and owes no reply, as a page move does (`workflows.py`).
+
+An open structural Ask anywhere in an unresolved thread keeps it awaiting the user,
+whatever follows. Without one, the latest spoken turn decides, and a user reaction on
+the agent's latest request whose token declares `settles` clears it without resolving
+the thread. `served_state/thread.py` owns this precedence.
+
+### Messages
+
+- `edit` revises only the `text` of a message the posting session wrote. Markup is
+  frozen, because a user action may rest on a widget in it. Readings show the latest
+  text on the original message, labelled edited.
+- A thread with no `thread_title` has a null `title`, and the panel falls back to a
+  label of its own (`runtime/thread/thread-card.js`).
+- `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
+  one thread; a reaction may lie inside it but not at an endpoint. A later overlapping
+  summary replaces an earlier one, disjoint ones coexist, and editing a covered
+  message invalidates its summary. A summary answers, resolves, settles, and marks
+  read nothing.
+- An agent `reply` may move its thread with an `anchor` captured against the reply's
+  revision, or detach it with a null anchor, in the same append as the message
+  explaining it. The latest value is the thread's location, `detached_from` keeps
+  the prior one while detached, and the opening message's anchor never changes. A
+  thread whose opening comment `holds` a command goal cannot move or detach.
+- A body is Markdown, stored as typed and rendered by the page's vendored runtime,
+  so the renderer and the panel's styles version together; raw HTML shows as text.
+  A widget rides the `markup` field, which only `leaf thread open` and
+  `leaf thread reply` accept, validated against the vendored registry. Both refuse a
+  Markdown link or image to a `/media/…` path the page directory cannot answer.
+- An image in a message or draft is a Markdown image at `/media/<digest>.<ext>`; no
+  event or draft has an attachment field. The composer stores a pasted image as page
+  media and shows its Markdown as a removable thumbnail.

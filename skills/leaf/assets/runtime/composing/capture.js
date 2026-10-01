@@ -127,9 +127,13 @@ export const leftThePage = (sel = getSelection()) =>
 // Asked of two points of the page reading (`pointAt`), by the block and the generated
 // element (`gen`) their segments carry.
 const sameRun = (left, right) => {
-  if (!left || !right ||
-      segmentBlock(left.segment) !== segmentBlock(right.segment) ||
-      left.segment.gen !== right.segment.gen) return false;
+  if (
+    !left ||
+    !right ||
+    segmentBlock(left.segment) !== segmentBlock(right.segment) ||
+    left.segment.gen !== right.segment.gen
+  )
+    return false;
   if (left.node === right.node) return true;
   // An explicit line break has no text segment. The passage index gives its two
   // neighbouring text nodes the same block, but a word must not grow across it.

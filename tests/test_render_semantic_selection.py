@@ -37,8 +37,8 @@ def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):
         serve(
             leaf_page(
                 "Table line selection",
-                '<table><tr><td><strong>Short label here</strong><br>'
-                '<span>Then a second line of text.</span></td></tr></table>',
+                "<table><tr><td><strong>Short label here</strong><br>"
+                "<span>Then a second line of text.</span></td></tr></table>",
             )
         ),
     )

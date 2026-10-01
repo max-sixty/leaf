@@ -1191,11 +1191,13 @@ and a blank image stands in for any media an example names. The checks:
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
   as its module will draw it. Where the markup cannot say how tall the drawing will
-  be, declare `x-height` and draw at the height it states. A widget holding others is named only for the change
-  left once the changed widgets inside it are put back to their first sizes. An
-  inline widget's old lines are more than a size, so a widget holding a changed
-  inline one is named beside it. A widget the page hides once presented, such as an
-  inactive tab, is left to the widget that hid it.
+  be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
+  draw at the stated height where the drawing can take any; `page check --render`
+  advises a page's author the height to state for one that cannot. A widget holding
+  others is named only for the change left once the changed widgets inside it are put
+  back to their first sizes. An inline widget's old lines are more than a size, so a
+  widget holding a changed inline one is named beside it. A widget the page hides once
+  presented, such as an inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

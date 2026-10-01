@@ -3,6 +3,7 @@
 
 from urllib.parse import quote
 
+import pytest
 from render_harness import consume_browser_errors, judge_shifts
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
@@ -93,6 +94,85 @@ def test_a_shift_without_input_after_typing_fails(browser):
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_shifts()
     consume_browser_errors(page, "textarea#field moved without input")
+
+
+# News three frames after a press, as a reply lands just after a click: the page adopts
+# a server reading. Without `data-motion` the press moves nothing and the news grows a
+# box above a line. With it, the press begins a bar's slide, which moves the line on
+# past the news, and the news moves nothing.
+NEWS = """<!doctype html><body style="margin:0">
+<button id="press">Press</button>
+<div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<script>
+  const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
+  const motion = () => document.body.dataset.motion;
+  document.getElementById("press").addEventListener("pointerdown", (event) => {
+    if (motion())
+      document.getElementById("bar").animate(
+        [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
+    const pressed = event.timeStamp;
+    frames(3, () => {
+      document.body.setAttribute("data-lf-reading", "news");
+      if (!motion()) document.getElementById("above").style.height = "40px";
+      document.body.dataset.newsAfter = performance.now() - pressed;
+    });
+  });
+</script>"""
+
+
+def news_page(browser, motion):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(NEWS))
+    if motion:
+        page.evaluate("document.body.dataset.motion = '1'")
+    page.locator("#press").click()
+    page.wait_for_function("document.body.dataset.newsAfter !== undefined")
+    # Chrome counts the press as recent input for half a second, so news after it is
+    # what this page tests.
+    assert float(page.evaluate("document.body.dataset.newsAfter")) < 500
+    return page
+
+
+def test_news_just_after_a_press_moves_nothing(browser):
+    page = news_page(browser, motion=False)
+    judge_shifts()
+    consume_browser_errors(page, "div#below moved without input by (0, 40)px")
+
+
+def test_motion_a_press_began_is_the_press_s_through_news(browser):
+    news_page(browser, motion=True)
+    judge_shifts()
+
+
+# Rows in a box that clips without scrolling, as a diff's file does, and a box among
+# them that grows by script. Above the window, the root's scroll anchoring holds the rows
+# where they stand, though Chrome measures them against the clipping box and reports
+# them moved by the anchoring's amount. In view, the rows below it move.
+CLIPPED = """<!doctype html><body style="margin:0">
+<div style="overflow: clip">
+  <div id="grows" style="height: 100px"></div>
+  {rows}
+</div>
+<div style="height: 3000px"></div>"""
+
+
+@pytest.mark.parametrize("where", ["above the window", "in view"])
+def test_a_row_moved_only_where_its_box_moves_on_screen(browser, where):
+    rows = "".join(
+        f'<div id="r{n}" style="height: 15px">Row {n}</div>' for n in range(60)
+    )
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CLIPPED.format(rows=rows)))
+    if where == "above the window":
+        page.evaluate("scrollTo(0, document.getElementById('r8').offsetTop)")
+    page.evaluate(
+        """() => new Promise((done) => requestAnimationFrame(() =>
+          requestAnimationFrame(done)))"""
+    )
+    page.evaluate("document.getElementById('grows').style.height = '300px'")
+    judge_shifts()
+    if where == "in view":
+        consume_browser_errors(page, "moved without input by (0, 200)px")
 
 
 # A frame nested in the page, whose button grows a box above a paragraph in that frame.

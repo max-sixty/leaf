@@ -23,6 +23,17 @@ KNOWN_UNASKED = {
         "test_current_readiness_releases_a_connected_page_widget": (
             r"lf-ask#package-ask|p#live-(lead|tail)-|lf-margin-cluster"
         ),
+        # As the answer to the user's pick lands: the shortcut line's More, as the hints
+        # change, and the Ask's margin cluster, drawn for a frame at the page's origin
+        # before it is placed.
+        "test_admission_holds_approval_until_the_answer_is_in_the_log": (
+            r"lf-shortcut-more|lf-margin-cluster"
+        ),
+        # A margin cluster drawn for a frame at the page's origin before it is placed,
+        # as news lands.
+        "test_a_settled_delivery_activates_one_fresh_document_with_continuity": (
+            r"lf-margin-cluster"
+        ),
     },
 }
 

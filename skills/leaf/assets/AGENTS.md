@@ -77,9 +77,9 @@ row's notice (`thread/held-news.js`). A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page makes a
-layout shift Chrome reports without recent input, or whose typing carries its field
-(`tests/shift_watch.js`).
+suite's browser fixture fails any test outside the nightly selection whose page moves
+a box on screen without input, news landing just after a press included, or whose
+typing carries its field (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-live]`, the size its module will draw it at, so first paint already has

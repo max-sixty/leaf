@@ -9,55 +9,81 @@
 // more). It also says whether the user gave the page input in the half second before
 // the frame (`hadRecentInput`; a key, a press or a resize is input, a script's click or
 // a server's news is not). It credits none to a frame nested in another page, where a
-// trusted key or press in the frame's own document counts the same way. Text inserted without a key, as Playwright's `fill` and
-// `insert_text` and a committed composition do, is not input to Chrome, but its trusted
-// `beforeinput` is typing here: a frame of that keystroke's rendering (below) is the
-// second rule's alone, and a frame after it is judged like any other. Two rules read the
-// API:
+// trusted key or press in the frame's own document, or in a same-origin document
+// holding it, counts the same way. Text inserted without a key, as Playwright's `fill`
+// and `insert_text` and a committed composition do, is not input to Chrome, but its
+// trusted `beforeinput` is typing here. Two rules read the API:
 //
 // - Nothing moves without input. News, a page loading, and whatever a timer or a
-//   server's answer changes may repaint a box or grow it into free room, but a shift
-//   Chrome reports without recent input moved something the user did not ask to move.
-//   It is reported for every element the frame moved, once per element, named by
-//   write_watch.js's `lfPlace`. The tests whose pages still do are
+//   server's answer changes may repaint a box or grow it into free room, but a box
+//   Chrome reports moved in a frame without input moved something the user did not ask
+//   to move. It is reported for every element the frame moved, once per element, named
+//   by write_watch.js's `lfPlace`. The tests whose pages still do are
 //   `known_shifts.py`.
 // - Typing never carries its field. A keystroke may grow its field, at whichever edge
 //   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
 //   never moves the field whole, as a "Draft" mark appearing in the header above a reply
 //   box once did.
 //
-// What the API cannot say is why a frame moved. A move the step before the keystroke
-// laid out but had not yet painted, such as a widget a test removed by script, paints in
-// the keystroke's first frame and reads as the typing's. And its rects are what a node
-// paints, a focus ring or a shadow included, clipped to the viewport, not the node's
-// box. So at each keystroke, a trusted `beforeinput` whose composed path names the field
-// (a textarea, an input, or the host of a `leaf-text`'s closed editor), the box of the
-// field and of every element holding it is read with a forced layout: every earlier
-// change, and none of the keystroke's own. The same boxes are read again at the start of
-// each frame of the keystroke's rendering, which is what the frame before it painted. A
-// shift Chrome reports during the rendering is the typing's where it names one of those
-// elements at a box, in the next frame's reading, whose opposite edges both differ from
-// the key's.
+// Every input, a key, a press, a keystroke or a resize, has a rendering: the frames
+// from the input until the first frame after the runtime's settled reading
+// (runtime/rendering.js) says nothing it queued is waiting and no motion begun since the
+// input still moves a box, the first such frame on a page without the runtime, a second
+// at most, or the next input.
 //
-// The keystroke's rendering runs until the first frame after the runtime's settled
-// reading (runtime/rendering.js) says nothing it queued is waiting, the first frame on a
-// page without the runtime, or a second at most. It ends sooner where something else
-// may move the field: another key or press (a key the page answers without editing,
-// such as Enter sending a reply, fires no `beforeinput`); news, the page adopting a
-// server reading (`data-lf-reading`, runtime/presentation.js), after which a reply
-// arriving above the box moves it for its own reason; a resize of the window; and a
-// scroll of the document or an element holding the field, which moves every box after
-// the reading at the key. A
-// frame that finds still running an animation that moves a box, one already running on
-// the field or an element holding it at the key, as a panel's slide is when the user
-// types into it before it stops, leaves the rest of the rendering to neither rule: that
-// motion is the gesture's that began it.
+// News is the page adopting a server reading (`data-lf-reading`,
+// runtime/presentation.js), the one a send of the user's returns included: what the
+// user does is drawn in the turn they do it, before the server answers. Once the page
+// has adopted news since the latest input began, and that input's rendering has ended,
+// every frame is without input whatever Chrome's flag says, until the next input.
+// Tests deliver a reply right after a press, and Chrome counts the reply's frames as the
+// press's for half a second. A frame of the rendering stays the input's, news or not,
+// so motion the input began, such as a panel sliding in, still counts as input when news
+// lands while it runs.
+//
+// Chrome's rects are what a node paints, a focus ring or a shadow included, clipped to
+// the viewport, not the node's box. Nor are they always where it was on screen: Chrome
+// measures a node against its nearest box that clips, at that box's place after the
+// frame, and nets the scroll anchoring above that box only where every box between
+// scrolls. A box that clips without scrolling (`overflow: hidden` or `clip`, or `auto`
+// with nothing to scroll), as a diff's file does, drops it: where a reply grows a
+// thread seated in the diff above the window and the root's anchoring holds what the
+// user sees, Chrome reports the diff's rows below the thread as moved by the
+// anchoring's amount. So at the start of every frame the box of every element, in the
+// document and in every shadow tree, is read: what the frame before it painted. A node
+// Chrome reports moved without input is reported here only where its box differs
+// between the readings either side of its frame, and on Chrome's word where it has no
+// reading, as a text node, a pseudo-element or a node new to the page has none.
+//
+// What the API cannot say is why a frame moved. A move the step before a keystroke laid
+// out but had not yet painted, such as a widget a test removed by script, paints in the
+// keystroke's first frame and would read as the typing's. So at each keystroke, a
+// trusted `beforeinput` whose composed path names the field (a textarea, an input, or
+// the host of a `leaf-text`'s closed editor), the box of the field and of every element
+// holding it is read with a forced layout: every earlier change, and none of the
+// keystroke's own. A shift Chrome reports during the keystroke's rendering is the
+// typing's where it names one of those elements at a box, in the next frame's reading,
+// whose opposite edges both differ from the key's. The typing rule stops reading the
+// rendering early where something else may move the field: news, after which a reply
+// arriving above the box moves it for its own reason; and a scroll of the document or
+// an element holding the field, which moves every box after the reading at the key. A
+// rendering whose first frame finds still running an animation that moves a box, one
+// already running on the field or an element holding it at the key, as a panel's slide
+// is when the user types into it before it stops, is left to neither rule: that motion
+// is the gesture's that began it.
 //
 // Each finding is reported on the console as a browser problem, which fails the test
 // like any other.
 (() => {
   const WINDOW = 1000;
   const RECENT = 500;
+  // How long what the observer may yet judge is kept: it hears of a frame's shifts a
+  // task or more after the frame, which a loaded machine stretches.
+  const KEPT = 10000;
+  const prune = (list, time = (item) => item) => {
+    const old = performance.now() - KEPT;
+    while (list.length > 1 && time(list[0]) < old) list.shift();
+  };
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
   // An element's parent in the composed tree, crossing from a shadow root to its host.
@@ -78,6 +104,10 @@
       Math.abs(near) >= 1 && Math.abs(far) >= 1 && Math.sign(near) === Math.sign(far)
     );
   };
+  const moved = (from, to) =>
+    ["left", "top", "right", "bottom"].some(
+      (edge) => Math.abs(to[edge] - from[edge]) >= 1,
+    );
   const settled = () =>
     document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
@@ -86,82 +116,145 @@
       ?.getKeyframes()
       .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
     GEOMETRY.test(animation.transitionProperty ?? "");
+  // Motion begun since `start` that moves a box; one still pending begins now.
+  const moving = (start) =>
+    document
+      .getAnimations()
+      .some(
+        (animation) =>
+          animation.playState === "running" &&
+          (animation.startTime ?? Infinity) >= start &&
+          moves(animation),
+      );
   const boxes = (nodes) =>
     new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
-  // Each keystroke's rendering: its field; the box of the field and of each element
-  // holding it, at the key and at the start of every frame after, which is what the
-  // frame before it painted; the animations already moving any of them; and when it ran.
+  // Every shadow root, a closed one included, so a reading reaches every element.
+  const roots = new Set();
+  const attachShadow = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function (init) {
+    const root = attachShadow.call(this, init);
+    roots.add(root);
+    return root;
+  };
+  const everything = () => {
+    const nodes = [...document.querySelectorAll("*")];
+    for (const root of roots)
+      if (root.host.isConnected) nodes.push(...root.querySelectorAll("*"));
+    return nodes;
+  };
+  // When each recent frame started, and each element's box at the start of every frame
+  // that changed it: what the frame before painted. The element's box at the start of a
+  // frame is its latest at or before it.
+  const frames = [];
+  const placed = new WeakMap();
+  const read = (time) => {
+    // The judging fixture's own reading may postdate the start of the frame after it.
+    const at = Math.max(time, frames.at(-1) ?? time);
+    frames.push(at);
+    prune(frames);
+    for (const node of everything()) {
+      const rect = node.getBoundingClientRect();
+      const seen = placed.get(node) ?? [];
+      const last = seen.at(-1)?.rect;
+      if (
+        last?.left === rect.left &&
+        last.top === rect.top &&
+        last.right === rect.right &&
+        last.bottom === rect.bottom
+      )
+        continue;
+      seen.push({ at, rect });
+      prune(seen, (item) => item.at);
+      placed.set(node, seen);
+    }
+  };
+  const boxAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at)?.rect;
+  // Each input's rendering: when it began and ended, and a keystroke's typing, which
+  // holds its field; the box of the field and of each element holding it at the key; the
+  // animations already moving any of them; and until when the typing rule reads it.
   const renderings = [];
   let open = null;
-  let frame = 0;
-  const close = () => {
-    if (open) open.end = performance.now();
+  // The typing rule stops reading the open rendering, which runs on.
+  const unwatch = () => {
+    if (open?.typing?.until === Infinity) open.typing.until = performance.now();
+  };
+  const end = () => {
+    if (!open) return;
+    unwatch();
+    open.end = performance.now();
     open = null;
-    cancelAnimationFrame(frame);
   };
-  const watch = (at) => {
-    // Motion the key found under way carries the field for the gesture that began it,
-    // so from the first frame that finds it still running no reading is the typing's:
-    // the rendering's frames are its own, and none of them is judged.
-    if (open.moving?.some(({ playState }) => playState === "running"))
-      open.moving = null;
-    if (open.moving) open.frames.push({ at, boxes: boxes(open.found.keys()) });
-    judge(open.waiting.splice(0));
-    if (open.last || at - open.start > WINDOW) return close();
-    // A settled reading here counts updates before this one; this frame's own
-    // callbacks may still move the field, so the rendering runs through the next.
-    open.last = settled();
-    frame = requestAnimationFrame(watch);
+  const begin = (start, typing = null) => {
+    end();
+    open = { start, end: Infinity, first: true, last: false, typing };
+    renderings.push(open);
+    prune(renderings, (rendering) => rendering.start);
   };
+  // Shifts whose frame has no reading after it yet.
+  const waiting = [];
+  const tick = (at) => {
+    read(at);
+    if (open) {
+      // Motion the key found under way carries the field for the gesture that began
+      // it, so a rendering whose first frame finds it still running is no one's to
+      // judge: its frames are that motion's.
+      if (
+        open.first &&
+        open.typing?.moving.some(({ playState }) => playState === "running")
+      )
+        open.typing.free = true;
+      open.first = false;
+      if (open.last || at - open.start > WINDOW) end();
+      // A settled reading here counts updates before this one; this frame's own
+      // callbacks may still move a box, so the rendering runs through the next.
+      else open.last = settled() && !moving(open.start);
+    }
+    judge(waiting.splice(0));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
   document.addEventListener(
     "beforeinput",
     (event) => {
       if (!event.isTrusted) return;
-      close();
       const field = event.composedPath()[0];
       const holding = [];
       for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
-      open = {
+      begin(event.timeStamp, {
         field,
         found: boxes(holding),
         moving: holding.flatMap((node) => node.getAnimations()).filter(moves),
-        frames: [],
-        waiting: [],
-        start: event.timeStamp,
-        end: Infinity,
-        last: false,
-      };
-      renderings.push(open);
-      if (renderings.length > 50) renderings.shift();
-      frame = requestAnimationFrame(watch);
+        free: false,
+        until: Infinity,
+      });
     },
     true,
   );
-  // A resize lays the page out anew, the field with it.
-  window.addEventListener("resize", () => close());
+  // A resize is input to Chrome, and lays the page out anew, the field with it.
+  window.addEventListener("resize", (event) => begin(event.timeStamp));
   document.addEventListener(
     "scroll",
     (event) => {
-      if (open && holds(event.target, open.field)) close();
+      if (open?.typing && holds(event.target, open.typing.field)) unwatch();
     },
     true,
   );
-  new MutationObserver(close).observe(document, {
-    subtree: true,
-    attributeFilter: ["data-lf-reading"],
-  });
-  // Chrome credits no input to a frame nested in another page, so a trusted key or
-  // press in this document, or in a same-origin document holding it, counts for as long
-  // as Chrome counts one (`hadRecentInput`). Every recent one is kept: the observer may
-  // judge a frame after a later key.
+  // When the page adopted each server reading.
+  const news = [];
+  new MutationObserver(() => {
+    unwatch();
+    news.push(performance.now());
+    prune(news);
+  }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
+  // Every recent key or press is kept: the observer may judge a frame after a later
+  // key.
   const presses = [];
   const heard = (view) => (event) => {
     if (!event.isTrusted) return;
-    presses.push(
-      event.timeStamp + view.performance.timeOrigin - performance.timeOrigin,
-    );
-    if (presses.length > 50) presses.shift();
-    if (view === window) close();
+    const at = event.timeStamp + view.performance.timeOrigin - performance.timeOrigin;
+    presses.push(at);
+    prune(presses);
+    begin(at);
   };
   for (let view = window; ; view = view.parent) {
     let held;
@@ -174,9 +267,16 @@
       held.addEventListener(type, heard(view), true);
     if (view === view.parent) break;
   }
-  const input = (entry) =>
-    entry.hadRecentInput ||
-    presses.some((at) => at <= entry.startTime && entry.startTime - at < RECENT);
+  const input = (entry, rendering) => {
+    const at = entry.startTime;
+    const since = rendering?.start ?? -Infinity;
+    if (at > (rendering?.end ?? -Infinity) && news.some((n) => n > since && n <= at))
+      return false;
+    return (
+      entry.hadRecentInput ||
+      presses.some((press) => press <= at && at - press < RECENT)
+    );
+  };
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;
@@ -212,9 +312,13 @@
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
     (presented === null || startTime < presented);
-  const unasked = (entry) => {
+  // `before` and `after` are the starts of the frames either side of the shift's.
+  const unasked = (entry, before, after) => {
     if (presenting(entry)) return;
     for (const { node, previousRect, currentRect } of entry.sources) {
+      const from = node && before !== undefined && boxAt(node, before);
+      const to = node && after !== undefined && boxAt(node, after);
+      if (from && to && !moved(from, to)) continue;
       report(
         `${name(node)} moved without input`,
         by(previousRect, currentRect) + beside(entry.sources, node),
@@ -223,18 +327,19 @@
   };
   // Chrome's rects are what a node paints, clipped to the viewport, so they are held
   // against the frame's own reading, never against the key's.
-  const typed = (entry, rendering, painted) => {
+  const typed = (entry, typing, painted) => {
     for (const { node } of entry.sources) {
-      const before = rendering.found.get(node);
-      const after = painted.get(node);
+      const before = typing.found.get(node);
+      const after = before && boxAt(node, painted);
       if (
         !before ||
+        !after ||
         (!carried(before, after, "top", "bottom") &&
           !carried(before, after, "left", "right"))
       )
         continue;
       report(
-        `typing in ${window.lfPlace(rendering.field)} moved ${window.lfPlace(node)}`,
+        `typing in ${window.lfPlace(typing.field)} moved ${window.lfPlace(node)}`,
         by(before, after) +
           `; the key found ${box(before)}, the frame painted ${box(after)}` +
           beside(entry.sources, node),
@@ -243,14 +348,23 @@
   };
   const judge = (entries) => {
     for (const entry of entries) {
-      const rendering = renderings.find(
-        ({ start, end }) => start <= entry.startTime && entry.startTime <= end,
-      );
-      const painted = rendering?.frames.find(({ at }) => at > entry.startTime);
-      if (painted) typed(entry, rendering, painted.boxes);
-      else if (rendering === open && open) open.waiting.push(entry);
-      // A frame the keystroke's rendering ended before reading is no one's to judge.
-      else if (!rendering && !input(entry)) unasked(entry);
+      const at = entry.startTime;
+      // The frame that painted the shift, and the next, whose start reads what it
+      // painted. Readings older than are kept are gone (-1).
+      const frame = frames.findLastIndex((time) => time <= at);
+      const next = frames[frame + 1];
+      if (frame !== -1 && next === undefined) {
+        waiting.push(entry);
+        continue;
+      }
+      const rendering = renderings.findLast(({ start }) => start <= at);
+      const typing = rendering?.typing;
+      if (typing && at <= typing.until) {
+        // A frame the typing rule stopped reading before the next one is no one's.
+        if (!typing.free && frame !== -1 && next <= typing.until)
+          typed(entry, typing, next);
+      } else if (!input(entry, rendering))
+        unasked(entry, frames[frame - 1], frame === -1 ? undefined : next);
     }
   };
   const observer = new PerformanceObserver((list) => judge(list.getEntries()));
@@ -259,14 +373,16 @@
   // so a test whose last act moves the page would end before the report. The browser
   // fixture awaits this as the test body returns: the frames the last act changed paint,
   // then every shift so far is judged. Chrome paints no frame for a page it is not
-  // drawing, so that wait is capped.
+  // drawing, so that wait is capped, and a shift still waiting for the next frame's
+  // reading is judged against one taken then.
   window.lfShiftsJudged = () =>
     new Promise((resolve) => {
       let judged = false;
       const drain = () => {
         if (judged) return;
         judged = true;
-        judge(observer.takeRecords());
+        read(performance.now());
+        judge([...waiting.splice(0), ...observer.takeRecords()]);
         resolve();
       };
       requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(drain)));

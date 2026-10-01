@@ -761,14 +761,6 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     _read_by_the_sample(page, child)
 
 
-def _past_recent_input(page):
-    """Wait until Chrome no longer counts the last key or press as recent input, so the
-    browser fixture's shift watch reports whatever the next news moves: the input window
-    is half a second (`shift_watch.js`), and this waits over twice that."""
-    since = page.evaluate("performance.now()")
-    page.wait_for_function("at => performance.now() - at > 1200", arg=since)
-
-
 def _box_height(locator):
     return locator.evaluate("node => node.getBoundingClientRect().height")
 
@@ -782,7 +774,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     thread's height, and stays unread while none of it has shown. The keyboard reaches
     the notice from the thread and opens it, and the reply's body, drawn inside the
     widget's shadow tree, is read once shown. The browser fixture's shift watch holds
-    the rest: the reply lands well past the last key."""
+    the rest: the reply is news."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
@@ -800,7 +792,6 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
     height = _box_height(thread)
-    _past_recent_input(page)
     reply = thread_model.cmd_reply(
         serve.page_dir,
         root,

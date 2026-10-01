@@ -10,9 +10,12 @@ line:
 
 - `expected`: the side the case is built to give both.
 - `side`: where each stands relative to what it is about: `right`, `left`, `below` or
-  `above`.
+  `above`. Where the case allows more than one side and the surface took one of them,
+  it records the case's `expected`: which of under and over has more room turns on the
+  fonts a platform draws the page in, and the snapshot is read on more than one.
+  `moves` still says whether the card took the box's side.
 - `stands`: whether it stands where that side puts it: beside the block `level with
-  the words`, or clear of the block under or over it, else how far off.
+  the words`, or `clear of the block` under or over it, else how far off.
 - `moves`: how far the card stands from where the box stood, at the edge each holds
   (the left edge across; the top down, or the foot where the card stands above),
   bucketed `still` (the same place), `near` (a line or two) or `away`.
@@ -229,11 +232,8 @@ def stands(side, rect, words, block):
         if side == "below"
         else block["top"] - rect["bottom"]
     )
-    where = "under" if side == "below" else "over"
     return (
-        f"clear {where} the block"
-        if 0 <= off <= NEAR
-        else f"{distance(off)} off the block"
+        "clear of the block" if 0 <= off <= NEAR else f"{distance(off)} off the block"
     )
 
 
@@ -344,14 +344,18 @@ def sent(browser, serve, name):
             for edge, value in box.items()
         },
     )
+
+    def allowed(side):
+        return expected if side in expected.split(" or ") else side
+
     reading = {
         "expected": expected,
         "comment box": {
-            "side": box_side,
+            "side": allowed(box_side),
             "stands": stands(box_side, box, words, block),
         },
         "thread card": {
-            "side": card_side,
+            "side": allowed(card_side),
             "stands": stands(card_side, placed, words, block),
         },
         "moves": movement(box, placed, card_side),

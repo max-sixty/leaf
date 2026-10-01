@@ -51,11 +51,11 @@ wide-passage-deep-line:
 laptop-passage:
   expected: below or above
   comment box:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -63,11 +63,11 @@ laptop-passage:
 laptop-element:
   expected: below or above
   comment box:
-    side: above
-    stands: clear over the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: above
-    stands: clear over the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -75,11 +75,11 @@ laptop-element:
 narrow-rail-passage:
   expected: below or above
   comment box:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -87,11 +87,11 @@ narrow-rail-passage:
 beside-passage:
   expected: below or above
   comment box:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -99,11 +99,11 @@ beside-passage:
 beside-element:
   expected: below or above
   comment box:
-    side: above
-    stands: clear over the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: above
-    stands: clear over the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -111,11 +111,11 @@ beside-element:
 phone-passage:
   expected: below or above
   comment box:
-    side: above
-    stands: clear over the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: above
-    stands: clear over the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -124,10 +124,10 @@ phone-touch-passage:
   expected: below
   comment box:
     side: below
-    stands: clear under the block
+    stands: clear of the block
   thread card:
     side: below
-    stands: clear under the block
+    stands: clear of the block
   moves:
     across: still
     down: still
@@ -135,11 +135,11 @@ phone-touch-passage:
 beside-tall-element-clipped:
   expected: below or above
   comment box:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   thread card:
-    side: below
-    stands: clear under the block
+    side: below or above
+    stands: clear of the block
   moves:
     across: still
     down: still

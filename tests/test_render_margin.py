@@ -9555,6 +9555,50 @@ def test_a_comment_in_a_table_wider_than_the_column_keeps_the_rail(browser, serv
     ).to_have_attribute("data-lf-place", "rail")
 
 
+CELL_TARGET_PAGE = leaf_page(
+    "a comment in a table's last column",
+    """
+<h1 id="t">Phases</h1>
+<p id="before">A paragraph above the table.</p>
+<table id="phases">
+<thead><tr><th>Phase</th><th>Contents</th><th>Choice</th></tr></thead>
+<tbody>
+<tr id="phase-1"><td>1</td><td>Maintainer guidance rewritten.</td><td>Committed</td></tr>
+<tr id="phase-2"><td>2</td><td>Agent guidance rewritten.</td><td>Delivery depth</td></tr>
+</tbody>
+</table>
+""",
+)
+
+
+def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
+    """Resolving from the card hands the user to the thread's target, here a cell in
+    the table's last column. The table clips to its own edges, which that cell stands
+    flush with, so the ring it wears there has to be whole inside the table."""
+    page = open_page(
+        browser,
+        serve(
+            CELL_TARGET_PAGE,
+            events=[_comment_on("phase-2", quote="Delivery depth")],
+        ),
+    )
+    resized(page, 1440, 900)
+    page.keyboard.press("Tab")  # keyboard modality, so the landing's ring is drawn
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.focus()
+    page.keyboard.press("Enter")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+
+    page.keyboard.press("r")
+    expect(preview).to_be_hidden()
+    cell = page.locator("#phase-2 > td").last
+    expect(cell).to_be_focused()
+    ring = standing_ring(page)
+    assert ring, "the cell the user stands on wears no ring"
+    assert ring["cuts"] == [], ring["cuts"]
+
+
 def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     """Leaf inserts nothing into the page's content, so a suggestion's controls stand in
     the margin layer and come after the page's content in the tab order. Tab from the

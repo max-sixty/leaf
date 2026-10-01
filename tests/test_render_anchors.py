@@ -18,7 +18,7 @@ from leaf import files as files_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -138,15 +138,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
-    result = page.evaluate(
-        """async () => {
-        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
-        const tick = () => new Promise(r => setTimeout(r, 0));
-        const composer = document.querySelector('.lf-composer');
-        const fab = document.querySelector('.lf-fab-input');
-        // A user reaches everything eventually — opens the details, clicks through to
-        // the other tab — so everything is in scope, not just what the page opens on.
-        // The page's own content, not the chrome, whose runtime owns what it shows.
+    # A user reaches everything eventually — opens the details, clicks through to the
+    # other tab — so everything is in scope, not just what the page opens on. The page's
+    # own content, not the chrome, whose runtime owns what it shows.
+    page.evaluate("""() => {
         const own = el => !el.closest('.lf-ui');
         document.querySelectorAll('details').forEach(d => {
             if (own(d)) d.toggleAttribute('open', true);
@@ -154,6 +149,18 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         document.querySelectorAll('[hidden]').forEach(e => {
             if (own(e)) e.removeAttribute('hidden');
         });
+    }""")
+    # What the reveal brings into view finishes arriving before the sweep reads it, as it
+    # does before a user can select it: a chart in a shut tab draws only once it has a
+    # box, and its drawing replaces the source a sweep that started first had counted.
+    rendered(page)
+    wait_until_ready(page)
+    result = page.evaluate(
+        """async () => {
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const tick = () => new Promise(r => setTimeout(r, 0));
+        const composer = document.querySelector('.lf-composer');
+        const fab = document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -1617,7 +1624,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
-        nativeDisclosure: getComputedStyle(d.querySelector('summary')).display === 'list-item',
+        // The row draws its own triangle, since a flex row draws no native marker.
+        disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
+          .startsWith(d.open ? '"\u25bc"' : '"\u25b6"'),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -1653,8 +1662,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(file["summaryAligned"] for file in files), (
         "a file path and its change counts split across summary rows"
     )
-    assert all(file["nativeDisclosure"] for file in files), (
-        "a file summary lost its native disclosure indicator"
+    assert all(file["disclosure"] for file in files), (
+        "a file summary lost the triangle that says whether it is open"
     )
     assert all(file["statGenerated"] for file in files), (
         "derived change counts should be said but not read as authored words"

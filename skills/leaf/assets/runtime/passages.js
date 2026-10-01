@@ -472,6 +472,10 @@ function walk(root, onText, skip = null, onBreak = null) {
     return passed.get(over) ?? contextAt(over, frame, retired);
   };
   const visit = (node, ctx) => {
+    if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
+      onBreak?.(ctx);
+      return;
+    }
     for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
         // A shadow root's own text has no element over it, which elementOver refuses.
@@ -481,8 +485,7 @@ function walk(root, onText, skip = null, onBreak = null) {
       }
       if (child.nodeType !== Node.ELEMENT_NODE || skip?.(child)) continue;
       const inner = enter(ctx, child, retired);
-      if (child.localName === "br") onBreak?.(inner);
-      else if (child.localName === "slot") {
+      if (child.localName === "slot") {
         passed.set(child, inner);
         for (const assigned of child.assignedNodes({ flatten: true }))
           assigned.nodeType === Node.TEXT_NODE

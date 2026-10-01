@@ -30,6 +30,16 @@ export function geometryReading(open) {
   };
 }
 
+// The fixed viewport's column and margin findings, before the table experiment
+// temporarily changes wrapping. Keep singleton readers for callers asking one fact.
+export function columnGeometry() {
+  return {
+    overflow: rootOverflow(),
+    misplaced: misplacedBoxes(),
+    stranded: strandedMargins(),
+  };
+}
+
 // How the page's own arrangement stands: for each flex or grid box the page wrote (a
 // Layout, or the page's own grid), how many of its items stand in each row. The walk goes
 // through the widgets named in `open`, those whose content is the page's own markup or

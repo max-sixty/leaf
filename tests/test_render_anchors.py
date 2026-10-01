@@ -1365,6 +1365,109 @@ def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser,
     assert page.locator("#unknown code").text_content() == "y = 2"
 
 
+def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
+    browser, serve
+):
+    """Copy uses source, including whitespace, rather than rendered annotations.
+
+    A numbered widget and both ordinary block shapes share the same gesture. The
+    control stays reachable beside horizontally scrolling code, and a revision
+    updates its source or removes it with its block without duplicating controls.
+    """
+    colored = '\n  print("' + "long source " * 30 + '")\t\n'
+    plain = "  printf '" + "hello " * 30 + "\\n'\t\n"
+    widget = 'def greet():\n    return "hello"'
+
+    def document(colored_source=colored, plain_source=plain, *, keep_colored=True):
+        return leaf_page(
+            "copy source",
+            '<h1 id="title">Copy source</h1>'
+            + (
+                '<pre id="colored"><code class="language-python">'
+                + escape(colored_source)
+                + "</code></pre>"
+                if keep_colored
+                else ""
+            )
+            + '<pre id="plain"><code>'
+            + escape(plain_source)
+            + '</code></pre><lf-code id="numbered" language="python" hi="2"><pre>'
+            + escape(widget)
+            + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
+            + '<lf-draft id="draft"><pre>Non-code data has no copy control.</pre></lf-draft>',
+        )
+
+    page = open_page(browser, live_url(serve(document())))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    controls = page.locator(".lf-code-copy")
+    expect(controls).to_have_count(3)
+    expect(page.locator("#numbered lf-note")).to_contain_text("not source")
+    expect(page.locator("#numbered .lf-quiet")).to_have_count(1)
+
+    def copy(selector, expected, *, keyboard=False):
+        control = page.locator(selector)
+        button = control.get_by_role("button")
+        expect(button).to_have_attribute("aria-label", "Copy code")
+        if keyboard:
+            # The preceding overflowing block is a native scroll focus stop. Tab
+            # crosses from its words to its adjacent copy control in keyboard mode.
+            page.locator("#plain").focus()
+            page.keyboard.press("Tab")
+            expect(button).to_be_focused()
+            assert button.evaluate("el => el.matches(':focus-visible')")
+            page.keyboard.press("Enter")
+        else:
+            button.click()
+        expect(button).to_have_attribute("aria-label", "Code copied")
+        assert page.evaluate("navigator.clipboard.readText()") == expected
+
+    copy("#colored + .lf-code-copy", colored)
+    # Make this block itself scrollable, so Tab has a known native starting stop.
+    resized(page, 360, 900)
+    copy("#plain + .lf-code-copy", plain, keyboard=True)
+    copy("#numbered > .lf-code-copy", widget)
+
+    clearance = controls.evaluate_all(
+        """copies => copies.map(copy => {
+          const pre = copy.previousElementSibling;
+          const source = pre.querySelector('code') ?? pre.querySelector('.lf-code-line');
+          const range = new Range();
+          range.selectNodeContents(source);
+          const first = range.getClientRects()[0];
+          return {buttonBottom: copy.shadowRoot.querySelector('button').getBoundingClientRect().bottom,
+                  sourceTop: first.top};
+        })"""
+    )
+    assert all(box["buttonBottom"] <= box["sourceTop"] for box in clearance), clearance
+
+    pre = page.locator("#colored")
+    pre.scroll_into_view_if_needed()
+    assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
+    control = page.locator("#colored + .lf-code-copy")
+    before = control.bounding_box()
+    assert before
+    pre.focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("document.querySelector('#colored').scrollLeft > 0")
+    scroll_settled(page)
+    after = control.bounding_box()
+    block = pre.bounding_box()
+    assert after and block
+    assert after["x"] == pytest.approx(before["x"], abs=1)
+    assert block["x"] <= after["x"]
+    assert after["x"] + after["width"] <= block["x"] + block["width"]
+
+    revised = colored.replace("print", "display")
+    _publish(serve.page_dir, 2, document(revised), "Revise copied source")
+    wait_for_revision(page, 2)
+    expect(controls).to_have_count(3)
+    copy("#colored + .lf-code-copy", revised)
+    _publish(serve.page_dir, 3, document(keep_colored=False), "Remove copied block")
+    wait_for_revision(page, 3)
+    expect(controls).to_have_count(2)
+    copy("#plain + .lf-code-copy", plain)
+
+
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way
     leaves it to the pass in flight, so that pass colors the text the block holds when

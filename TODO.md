@@ -75,8 +75,9 @@ has tried; settle that before building it.
   research reports caught those but missed the shorthand the reports explain.
   **Unconfirmed:** one page, one run each. Measure across pages whether authors run
   it, what it costs (about 110k tokens and two minutes there), and what it catches
-  beyond the author's own reading. The single-turn eval harness cannot run a review
-  step, so this needs `notes/usability-eval/harness.py` or session replays.
+  beyond the author's own reading. `evals/record-read-without-the-notes` checks only
+  that an author says it will; doing it needs `notes/usability-eval/harness.py` or
+  session replays.
 
 ### Prose
 

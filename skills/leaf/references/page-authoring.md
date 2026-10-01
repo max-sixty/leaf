@@ -590,15 +590,16 @@ one, a row that wraps to leave one tile alone, a pin over the end of a heading, 
 summary the phone puts after everything else. Fix what the page can fix, and check
 again.
 
-Then have the page read as the user will meet it. You wrote it from research,
-notes and questions the user never saw, so its names and shorthand resolve for you
-and not for them. Give a subagent the user's request and the saved screens, and
-none of your notes, and have it work the page as the user would, reporting each
-place it could not follow, had to guess, or had to look elsewhere to act. Fix what
-it reports. Your own reading still checks that each heading gives the finding it
-promises, each claim has its evidence and each decision its control,
-each drawing adds information, no passage describes a shape the page could draw,
-and everything standing open in the column is there because the user needs it.
+Once the check is clean, and before the page goes to the user, have someone read it
+as the user will meet it. You wrote it from research, notes and questions the user
+never saw, so its names and shorthand resolve for you and not for them. Give a
+subagent the user's request and the saved screens with their labels, and nothing
+else, and have it read the page as the user would, reporting each place it could not
+follow or had to guess. Fix what it reports. Your own reading still checks that each
+heading gives the finding it promises, each claim has its evidence and each decision
+its control, each drawing adds information, no passage describes a shape the page
+could draw, and everything standing open in the column is there because the user
+needs it.
 
 Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user

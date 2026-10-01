@@ -122,9 +122,11 @@ def _screen_lines(screens) -> list[str]:
             for names, label in runs
         ]
         + [
-            "  then have a subagent with the user's request and these screens, and "
-            "none of your notes, work the page as the user would "
-            '(page-authoring.md, "Pre-handover review")'
+            (
+                "  before handover, have a subagent with only the user's request and "
+                "these screens read the page as the user would "
+                '(page-authoring.md, "Pre-handover review")'
+            )
         ]
     )
 

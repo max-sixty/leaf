@@ -67,6 +67,7 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
+    RELEASE_FOCUS,
     SAID_PAGE,
     _traffic,
     compare_with,
@@ -1400,7 +1401,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
 
-    page = open_page(browser, live_url(serve(document())))
+    url = live_url(serve(document()))
+    page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     controls = page.locator(".lf-code-copy")
     expect(controls).to_have_count(3)
@@ -1428,14 +1430,51 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     def copy(selector, expected, *, keyboard=False):
         control = page.locator(selector)
         button = control.get_by_role("button")
+        pre = control.locator("xpath=preceding-sibling::*[1]")
         expect(button).to_have_attribute("aria-label", "Copy code")
+        pre.scroll_into_view_if_needed()
+        page.mouse.move(0, 0)
+        page.evaluate(RELEASE_FOCUS)
+        expect(control).to_have_css("opacity", "0")
+
+        def geometry():
+            return control.evaluate(
+                """copy => {
+                  const pre = copy.previousElementSibling;
+                  const source = pre.querySelector('code') ?? pre.querySelector('.lf-code-line');
+                  const range = new Range();
+                  range.selectNodeContents(source);
+                  const rect = box => [box.x, box.y, box.width, box.height];
+                  return {
+                    padding: getComputedStyle(pre).paddingTop,
+                    frame: rect(pre.getBoundingClientRect()),
+                    source: rect(range.getClientRects()[0]),
+                    button: rect(copy.shadowRoot.querySelector('button').getBoundingClientRect()),
+                  };
+                }"""
+            )
+
+        before = geometry()
+        assert before["padding"] == "12px", before
+        frame, overlay = before["frame"], before["button"]
+        assert 0 <= overlay[1] - frame[1] <= 8, before
+        assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
             # The preceding overflowing block is a native scroll focus stop. Tab
             # crosses from its words to its adjacent copy control in keyboard mode.
-            page.locator("#plain").focus()
+            pre.focus()
             page.keyboard.press("Tab")
             expect(button).to_be_focused()
             assert button.evaluate("el => el.matches(':focus-visible')")
+        else:
+            pre.hover()
+            expect(control).to_have_css("opacity", "1")
+            button.hover()
+        expect(control).to_have_css("opacity", "1")
+        after = geometry()
+        for box in ("frame", "source", "button"):
+            assert after[box] == pytest.approx(before[box], abs=0.5), (before, after)
+        if keyboard:
             page.keyboard.press("Enter")
         else:
             button.click()
@@ -1447,19 +1486,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     resized(page, 360, 900)
     copy("#plain + .lf-code-copy", plain, keyboard=True)
     copy("#numbered > .lf-code-copy", widget)
-
-    clearance = controls.evaluate_all(
-        """copies => copies.map(copy => {
-          const pre = copy.previousElementSibling;
-          const source = pre.querySelector('code') ?? pre.querySelector('.lf-code-line');
-          const range = new Range();
-          range.selectNodeContents(source);
-          const first = range.getClientRects()[0];
-          return {buttonBottom: copy.shadowRoot.querySelector('button').getBoundingClientRect().bottom,
-                  sourceTop: first.top};
-        })"""
-    )
-    assert all(box["buttonBottom"] <= box["sourceTop"] for box in clearance), clearance
 
     pre = page.locator("#colored")
     pre.scroll_into_view_if_needed()
@@ -1507,6 +1533,24 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(page.locator("#plain + .lf-code-copy")).to_have_count(1)
     expect(controls).to_have_count(2)
     copy("#plain + .lf-code-copy", restored)
+
+    touch_context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        has_touch=True,
+        is_mobile=True,
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    touch = open_page(browser, url, context=touch_context)
+    touch_control = touch.locator("#plain + .lf-code-copy")
+    touch_button = touch_control.get_by_role("button")
+    expect(touch_control).to_have_css("opacity", "1")
+    expect(touch_button).to_have_accessible_name("Copy code")
+    expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
+    hit = touch_button.bounding_box()
+    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
+    touch_button.tap()
+    expect(touch_button).to_have_accessible_name("Code copied")
+    assert touch.evaluate("navigator.clipboard.readText()") == plain
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):

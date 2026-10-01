@@ -16,7 +16,7 @@ export function copyCodeBlock(pre, source) {
     copy.copyLabel = "Copy code";
     copy.successLabel = "Code copied";
     copy.errorLabel = "Unable to copy code";
-    copy.tooltip = "copy";
+    copy.tooltip = "none";
     copy.addEventListener("click", () => (copy.value = source()), { capture: true });
     controls.set(pre, copy);
   }

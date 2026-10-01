@@ -10869,6 +10869,10 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     """
     page = codex_claimed_page
     session_model.cmd_status(page, "waiting", "comment on the prototype")
+    status_path = page / "status.json"
+    # Arm the first status read before launch: a later replacement can catch
+    # the transactional read instead and block the claim on its event-log lock.
+    hold_status_read(status_path)
     first = under_codex(
         shlex.join([*LEAF_COMMAND, "wait", str(page)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
@@ -10877,17 +10881,10 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
         text=True,
     )
 
-    wait_for(
-        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
-        lambda reading: reading[0].get("id") == "leaf-watcher-1" and reading[1],
-        failure="the first watcher never claimed the page before the held poll",
-    )
-
-    status_path = page / "status.json"
-    hold_status_read(status_path)
     writer = fifo_writer(
         status_path, "the first watcher never reached its held status read"
     )
+    assert service_model.page_claim(page)["id"] == "leaf-watcher-1"
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))

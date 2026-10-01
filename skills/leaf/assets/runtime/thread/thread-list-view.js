@@ -19,6 +19,7 @@ import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { focusThread } from "./focus.js";
+import { passOn } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -96,7 +97,9 @@ class ThreadListView extends RetainedFace {
     this.addEventListener("focus", () => {
       this.#showExpanded();
       const open = this.#visibleRows().find((row) => row.key === this.#expandedKey);
-      if (open) focusThread(open.node, { preventScroll: true });
+      if (!open) return;
+      focusThread(open.node, { preventScroll: true });
+      passOn(this, focused());
     });
   }
   configure(commands, initialModel) {

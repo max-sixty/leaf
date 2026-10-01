@@ -11,8 +11,9 @@
    otherwise stays where it is while any of it is on screen: the nearest edge of a box
    taller than the window is a jump to its top.
 
-   A send lands the turn it adds, and a box growing under the user's keystrokes keeps its
-   controls in the band and the words just above it beside it. Every box a thread or a
+   A send lands the turn it adds, around the box it was sent from even once the user
+   stands outside it, and a box growing under the user's keystrokes keeps its controls in
+   the band and the words just above it beside it. Every box a thread or a
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
@@ -86,15 +87,19 @@ export function scrollThreadIntoView(
   target.node?.scrollIntoView({ behavior, block: target.block ?? block });
 }
 
-// Taken as the user sends, before the send's own render: once the page has drawn the new
-// turn above the box, land the thread around the box the user sent from — every press
-// of its submit controls leaves them in it (`wireInput`) — so the turn's end shows with
-// the box, unless a newer gesture has taken the user elsewhere. A box the send removed
-// has handed the user on already.
-export function sendLanding(input) {
+// Taken as the user sends: once the page has drawn the new turn above the box, land the
+// thread around the box the user sent from, so the turn's end shows with the box, unless
+// a newer gesture has taken the user away from `standing`. That is where the send left
+// them: the thread or seat holding the box by default, or the page element a reply in
+// the margin card hands them to (`landSent`). A box the send removed has handed the user
+// on already.
+export function sendLanding(input, standing = input.closest(SAYS_IN)) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {};
-  const mayLand = retainUserIntent({ source: held, available: () => held.isConnected });
+  const mayLand = retainUserIntent({
+    source: standing,
+    available: () => held.isConnected,
+  });
   return () =>
     void whenDocumentPresented()
       .then(() => {

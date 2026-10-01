@@ -1,0 +1,48 @@
+# Added with Codex async PostToolUse delivery. A comment between steps belongs to
+# the running turn; reading its pointer confirms pickup, and its plain reply is
+# still written explicitly to the page. Baseline and candidate each passed 2/2
+# on 2026-10-01; this guards behavior without separating the guidance versions.
+schema_version: '1.0'
+name: codex-comment-during-work
+description: "Codex delivery: read and answer a comment offered between tool steps in the current turn without starting another waiter or acknowledgement."
+tags:
+- wait-loop
+execution:
+  prompt: |
+    You are a Codex desktop task implementing a session cache. You own a live Leaf
+    page at ~/.local/state/leaf/pages/cache-plan, and `leaf codex start` is running.
+    A build just finished, and an asynchronous tool hook added this to your context:
+
+    ```xml
+    <leaf-delivery id="3fa1c2d9" operation="delivery read" />
+    ```
+
+    Reading it will show one user comment, id 7c41d0e2, in thread 9b52c1a3:
+    "Keep the existing layout; only change the cache behavior."
+    Its answering clause calls for a plain `leaf thread reply`.
+
+    Read whatever guidance you need. Only Skill and Read run here, so write the
+    exact commands you would run next, including the reply to the page, and say
+    when you would handle the comment relative to finishing the implementation.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-codex-host
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/host-codex\.md
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if the reply reads the pointer with `leaf delivery read 3fa1c2d9`
+    and writes an explicit `leaf thread reply` to the page's thread, addressing
+    event 7c41d0e2 and confirming the layout will be kept, before finishing the
+    current implementation turn. Omitting both `--for` and an explicit thread
+    address is valid when this is the only reply owed: Leaf infers the same
+    response address. Replying after the requested
+    implementation is finished is valid if it happens before the current turn's
+    final chat response. Fail if it waits for another turn, starts
+    `leaf wait`, runs any delivery acknowledgement command, queues or forwards
+    the comment, or treats its final Codex chat message as the page reply.

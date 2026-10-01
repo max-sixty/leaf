@@ -6,9 +6,14 @@ the agent to ask again. It owns the session watch: it captures each batch into t
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-One of two transports carries an offer. The `codex queue` command is the default,
-and the only one open to a task whose App Server Leaf cannot reach, such as the Codex
-desktop app's. It leaves a pointer for the task's next turn; the task reads that
+While a proven async tool hook has a running turn, it can offer the shared record
+between steps (`codex.offer_hook_delivery`). The adapter reserves its own route
+only when that turn is idle or no such hook has run, and an unread hook pointer
+then falls back to the same durable delivery.
+
+One of two transports carries the adapter's offer. The `codex queue` command is the
+default for a task whose App Server Leaf cannot reach, such as the Codex desktop
+app's. It leaves a pointer for the task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
 reply included. Over App Server, `start_delivery_turn` opens a turn on a connection of
 its own as soon as the task is idle and `DeliveryTurn` follows it there until it ends,
@@ -59,18 +64,19 @@ from .codex import (
     delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
+    finish_codex_batch,
+    hook_turn,
     offer_delivery,
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
+    step_delivery_turn,
     stop_app_server,
     stream_reply_target,
     write_record,
 )
-from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
-from .files import read_json
 from .host import CodexHarness, session_harness
 from .leases import (
     adapter_is_live,
@@ -82,7 +88,6 @@ from .leases import (
 from .machine import state_home
 from .schema import EVENTS_FILE
 from .service import (
-    PageTransaction,
     owned_pages,
     starting_claim,
 )
@@ -126,8 +131,6 @@ def queue_delivery(
     prompt: str,
 ) -> None:
     """Hand one pointer prompt to Codex's durable same-task queue."""
-    # TODO(2026-09-12): Route active-turn delivery through `turn/steer` once
-    # Codex exposes the desktop task's App Server endpoint or an equivalent CLI command.
     arguments = ["queue"]
     arguments.extend(["--thread", thread_id, "--message", prompt])
     _run_codex(codex_path, *arguments)
@@ -388,7 +391,7 @@ class TaskObserver:
         elif fold is None and ended and delivery_id is not None:
             fold = TurnFold(self.thread_id, turn_id)
         if fold is not None and delivery_id is not None and fold.delivery_id is None:
-            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
+            accept_codex_delivery(self.thread_id, delivery_id, turn_id)
             fold.bind(
                 delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
             )
@@ -435,12 +438,6 @@ class TaskObserver:
 def _turn_delivery_id(turn: dict) -> str | None:
     """The Leaf delivery a snapshot turn carries, read off its items."""
     return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
-
-
-def accept_offered_delivery(session_id: str, delivery_id: str, turn_id: str) -> None:
-    """Accept the offered delivery against the provider turn known to carry it."""
-    if delivery_record_state(session_id, delivery_id) == "offering":
-        accept_codex_delivery(session_id, turn_id)
 
 
 def _log_record(event: str, **fields) -> None:
@@ -546,7 +543,7 @@ class DeliveryTurn(CarriedTurn):
     def begin(self) -> None:
         """Record the delivery against this turn, and bind the answer it will give."""
         self.open()
-        accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
+        accept_codex_delivery(self.session_id, self.delivery_id, self.turn_id)
         self.open_reply()
         codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
@@ -603,27 +600,6 @@ def capture_batch(session_id: str, reading) -> bool:
     return captured is not None
 
 
-def _finish_batch(batch: dict, transport: dict | None = None) -> None:
-    """Take receipt for one persisted batch, preserving a successor's claim."""
-    page_dir = Path(batch["page"])
-    try:
-        with (
-            PageTransaction(page_dir) as page,
-            receive_batch(page, batch, session_id=batch["session"]) as delivered,
-        ):
-            record_pickup(
-                page,
-                delivered,
-                phase=(transport or {}).get("phase", "queued"),
-                session=batch["session"],
-                turn=(transport or {}).get("turn"),
-            )
-    except (FileNotFoundError, ReceiptRefused):
-        # The accepted transport record survives, but a removed or transferred
-        # page has no cursor this carrier may advance.
-        pass
-
-
 def _page_acknowledged(batch: dict) -> bool:
     page_dir = Path(batch["page"])
     if not (page_dir / EVENTS_FILE).is_file():
@@ -642,13 +618,6 @@ def _sync_receipts(path: Path, record: dict) -> None:
         write_record(path, record)
     else:
         archive_record(path, record)
-
-
-def _record_receipt(path: Path, batch_index: int) -> None:
-    record = read_json(path)
-    if record is not None and not record["batches"][batch_index]["receipted"]:
-        record["batches"][batch_index]["receipted"] = True
-        write_record(path, record)
 
 
 def _recover_receipt(session_id: str) -> bool:
@@ -675,9 +644,7 @@ def _recover_receipt(session_id: str) -> bool:
     if pending is None:
         return False
     path, batch_index, batch, transport = pending
-    _finish_batch(batch, transport)
-    with flocked(lock):
-        _record_receipt(path, batch_index)
+    finish_codex_batch(path, batch_index, batch, transport)
     return True
 
 
@@ -701,8 +668,17 @@ def _offer_queued_delivery(
         # opening a connection a second to ask the task instead is what this avoids.
         # Saying so is not work done: the loop goes on watching pages meanwhile.
         return False
+    observed_hook_turn = hook_turn(session_id)
+    if observer is None and step_delivery_turn(session_id) is not None:
+        # A trusted tool hook can offer this input before the running turn ends.
+        # Stop/Interrupt closes that turn; unread pointers then take this queue.
+        return False
     lock = delivery_lock_path(session_id)
     with flocked(lock):
+        if hook_turn(session_id) != observed_hook_turn:
+            # A prompt, ending, or tool step changed while activity was read.
+            # Retry before reserving a route against that newer observation.
+            return False
         records = delivery_records(session_id)
         unoffered = next(
             (
@@ -712,16 +688,19 @@ def _offer_queued_delivery(
             ),
             None,
         )
-        offered = None
+        prepared = None
         if unoffered is not None:
             path, record = unoffered
             prepared = offer_delivery(
                 path, record, "queue" if observer is None else "app-server"
             )
-            offered = prepared.record_path, record, prepared
-    if offered is None:
+            record["transport"] = {
+                "phase": "queue" if observer is None else "app-server",
+                "turn": None,
+            }
+            write_record(prepared.record_path, record)
+    if prepared is None:
         return False
-    path, _record, prepared = offered
     target = stream_reply_target(prepared.payload)
     if observer is not None:
         delivery_id = prepared.payload["id"]
@@ -745,12 +724,7 @@ def _offer_queued_delivery(
             "the observed App Server delivery is awaiting reconciliation"
         )
     queue_delivery(codex_path, session_id, prepared.prompt)
-    with flocked(lock):
-        record = read_json(path)
-        if record is not None and record["state"] == "offering":
-            record["state"] = "accepted"
-            record["transport"] = {"phase": "queued", "turn": None}
-            write_record(path, record)
+    accept_codex_delivery(session_id, prepared.payload["id"], None)
     return True
 
 

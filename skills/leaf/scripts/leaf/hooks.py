@@ -5,16 +5,19 @@ only wakes a session so marked (`Harness.hooks_carry`): a session launched
 without these hooks still gets the envelope printed, rather than waking to an
 empty turn. SessionEnd releases the session's claims.
 
-The prompt and Stop hooks read the session's pages, and reading one parses its
-markup and its registry. A host runs these hooks at every turn of every session
-the plugin is installed in, and most of those sessions hold no page, so this
-module imports none of that reading, nor the servers: a session holding no page
-is answered here, and one holding a page reaches `hook_carrier`, the prompt and
-Stop hooks as its carrier, or `session`, the watch a second Stop hook runs
-between turns (`cmd_watch`), through the imports below."""
+Codex's synchronous prompt hook records the provider turn even before the session
+claims a page. Its async tool hook can then bind a page acquired mid-turn, offer a
+pointer between steps, and leave receipt to the agent's actual delivery read.
+The payload names the session and turn: hook subprocesses need not have the tool
+process's environment. Stop or Interrupt closes that observed turn, including a
+page no tool hook has yet bound; a newer prompt protects its own claims.
+
+Hooks with no owned page avoid page reading. Page-owning prompt and Stop hooks
+reach `hook_carrier`; Codex's tool hook reaches the delivery records in `codex`;
+and a second Claude Code Stop hook watches between turns (`cmd_watch`)."""
 
 from .host import session_harness
-from .leases import mark_hooks
+from .leases import mark_hooks, mark_step_hook
 from .service import owned_pages
 from .state_paths import end_session
 
@@ -28,14 +31,58 @@ def cmd_hook(payload: dict) -> None:
     if event == "SessionEnd":
         end_session(sid)
         return
+    turn_id = payload.get("turn_id")
+    if event == "UserPromptSubmit" and turn_id:
+        from .codex import start_hook_turn
+
+        start_hook_turn(sid, turn_id)
+    if event == "Interrupt":
+        if turn_id:
+            from .codex import end_hook_turn
+
+            end_hook_turn(sid, turn_id)
+        return
+    if event == "PostToolUse":
+        # This registration is gated on Codex in hooks.json. Its output can
+        # enter an active turn, but it cannot wake an idle one.
+        if not turn_id:
+            return
+        mark_step_hook(sid)
+        if not owned_pages(sid):
+            return
+        from .codex import offer_hook_delivery
+
+        prompt = offer_hook_delivery(sid, turn_id)
+        if prompt:
+            import json
+
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "PostToolUse",
+                            "additionalContext": prompt,
+                        }
+                    }
+                )
+            )
+        return
     # A session holding no page has no turn to open or close on one, no input to
     # carry, and nothing owed, so its prompt and Stop hooks end here.
     if not owned_pages(sid):
+        if event == "Stop" and turn_id:
+            from .codex import end_hook_turn
+
+            end_hook_turn(sid, turn_id)
         return
-    # The one place a hook imports page reading (see the module docstring).
+    # Prompt and Stop debt and delivery reading belongs to their carrier.
     from .hook_carrier import carry_turn
 
-    carry_turn(event, sid, payload)
+    ended = carry_turn(event, sid, payload)
+    if ended and turn_id:
+        from .codex import end_hook_turn
+
+        end_hook_turn(sid, turn_id)
 
 
 def cmd_watch(payload: dict) -> str | None:

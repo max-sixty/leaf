@@ -26,7 +26,6 @@ import {
   keeps,
   keepsText,
   layoutChanged,
-  measure,
   notice,
   offer,
   once,
@@ -801,7 +800,7 @@ customElements.define(
       const copy = this.#copy;
       copy.updateComplete.then(() => {
         const trigger = copy.querySelector(".lf-playground-copy-trigger");
-        measure(trigger, () => reserve(trigger, COPY_WORDS));
+        reserve(trigger, COPY_WORDS);
         restoreFocus?.(trigger);
       });
     }

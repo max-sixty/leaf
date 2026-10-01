@@ -1,6 +1,6 @@
 # Added when restoring the contents default after its advice was removed (#1242).
 # Measures whether the main authoring route supplies navigation for a long report.
-# Base at 3ba1bb7f624bfaad95fe038c6dc09eca996c8ecf supplied it in 1 of 3 runs; the restored guidance in 3 of 3.
+# Before restoration, the outline appeared in 1 of 3 runs; afterward, in 3 of 3.
 schema_version: '1.0'
 name: long-document-has-contents
 description: "A long scrolling report includes an opening contents sidebar so the reader can move between sections and see their position."

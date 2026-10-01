@@ -1460,7 +1460,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const block = document.querySelector('#walk-code pre');
       const line = document.querySelector('#walk-code .lf-code-line');
-      const note = document.querySelector('#walk-code .lf-code-note');
+      const note = document.querySelector('#walk-code pre > lf-note');
       const noteStyle = getComputedStyle(note);
       const blockRect = block.getBoundingClientRect();
       const noteRect = note.getBoundingClientRect();

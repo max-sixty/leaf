@@ -18,6 +18,10 @@ lf-gloss { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over. */
 lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
+/* A live page's module puts the words in the card, so the phrase never shows them
+ * inline, before the upgrade either, unless the runtime could not start
+ * (`data-lf-startup-error`, bootstrap.js) and no card will come. */
+html[data-lf-live]:not([data-lf-startup-error]) lf-gloss[tip]::after,
 lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
   html:root lf-gloss {
@@ -615,19 +619,27 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
-    /* The authored options paint before their generated Add and Done cells. Keep
-     * their rows occupied until upgrade so the next block stays put. The form
-     * needs more room in a card because its action seat sits inside the card inset. */
+    /* On a live page the authored options paint before their generated Add and Done
+     * cells. Keep their rows occupied until upgrade so the next block stays put. The
+     * form needs more room in a card because its action seat sits inside the card
+     * inset. */
     --lf-add-cell-height: 32px;
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) { --lf-add-cell-height: 44px; }
-    &::after { content: ""; display: block; height: var(--lf-missing-cells, 0px); }
+    &:where([data-lf-live] *)::after { content: "";
+      display: block; height: var(--lf-missing-cells, 0px); }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
       --lf-missing-add: var(--lf-add-cell-height);
     }
     &[multiple]:not(:has(> lf-options-done)) {
       --lf-missing-cells: calc(var(--lf-done-cell-height) + var(--lf-missing-add, 0px));
+    }
+    /* The last cell present draws the hairline above the first reserved one. */
+    &:where([data-lf-live] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
+    &:where([data-lf-live] *)[multiple]:not(:has(> lf-options-done)) {
+      & > :is(lf-option, .lf-another, lf-options-done):last-child {
+        border-bottom: 1px solid var(--rule); }
     }
     & > .lf-another { min-height: var(--lf-add-cell-height); }
     & > lf-options-done { min-height: var(--lf-done-cell-height); }
@@ -1006,6 +1018,20 @@ lf-milestone[status="active"]::before { border-color: var(--accent);
                                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 lf-milestone[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
 lf-milestone > strong { display: block; margin: 0 0 2px; }
+/* On a live page the chip row the module builds from `when` and `tags` (the kernel's
+ * .lf-chips) has its room from the first paint: one row of chips under the title, or
+ * at the top of a milestone that has none. Chips that wrap onto a second row are not
+ * reserved. */
+html[data-lf-live]
+  lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(:has(> .lf-chips))
+  > strong:first-of-type::after { content: ""; display: block;
+    height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
+/* The row's top margin collapses through the milestone once it is the first child, so
+ * the milestone wears it until then. */
+html[data-lf-live]
+  lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(
+    :has(> .lf-chips, > strong)) { margin-top: 2px;
+    padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
 lf-milestone[status="done"] > strong { color: var(--muted); }
 /* The status word a user listening gets wears the runtime's .lf-ui .lf-quiet —
  * real text, clipped on screen where the dot already says it. Which attributes get
@@ -1335,7 +1361,10 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     :where(lf-tabs.lf-rendered) { margin: var(--sp-4) 0 32px;
       border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--card); --lf-block-frame: 1; }
+    /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
+     * the room the page keeps for it before upgrade (below) is one number. */
     .lf-tabstrip { display: flex; padding: 8px 8px 0;
+      box-sizing: border-box; min-block-size: var(--lf-tabstrip-h);
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
       background: var(--field); }
     lf-tabs.lf-rendered > lf-tab::before { content: none; } /* the strip carries the label */
@@ -1559,6 +1588,50 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       overflow: hidden;
       pointer-events: none;
     }
+
+    /* On a live page a set has the geometry above from the first paint: the frame its
+     * flow draws, one row of the strip kept empty for the names the module writes, and
+     * its first panel alone. The page's flow is the first set in `main` whose list is a
+     * row, as lf-tabs.js decides it (`#syncRootContext`). Not reserved: names that wrap
+     * the strip onto a second row, a side list taller than its panel, and a set that
+     * opens on another panel, because the address's fragment is inside it or this
+     * browser tab last left it open; the browser matches `:target` only once the
+     * document has loaded, and the stored tab is the module's to read. A page whose
+     * runtime could not start (`data-lf-startup-error`, bootstrap.js) keeps the
+     * stacked, labeled panels, since no strip will come to reach the hidden ones. */
+    &[data-lf-live]:not([data-lf-startup-error]) lf-tabs:not(.lf-rendered):has(> lf-tab) {
+      margin: var(--sp-4) 0 32px; border: 1px solid var(--border-2);
+      border-radius: var(--r); background: var(--card); --lf-block-frame: 1;
+      &::before { content: ""; display: block; box-sizing: border-box;
+        block-size: var(--lf-tabstrip-h); border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+        background: var(--field); }
+      & > lf-tab { padding: var(--sp-4); --lf-block-frame: 1; }
+      & > lf-tab::before { content: none; }
+      & > lf-tab:not(:first-of-type) { display: none; }
+    }
+    &[data-lf-live]:not([data-lf-startup-error]) body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
+        [list="side"]):has(> lf-tab) {
+      margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
+      --lf-block-frame: 0;
+      &::before { border-radius: 0; background: var(--paper); }
+      & > lf-tab { padding: var(--sp-4) 0 0; }
+    }
+    &[data-lf-live]:not([data-lf-startup-error])
+      lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
+      container-type: inline-size; display: grid;
+      grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); align-items: start;
+      &::before { grid-column: 1; grid-row: 1; align-self: stretch; border-bottom: 0;
+        border-inline-end: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px); }
+      & > lf-tab { grid-column: 2; grid-row: 1; }
+      @container (width < 36rem) {
+        &::before { grid-column: 1 / -1; grid-row: auto; border-inline-end: 0;
+          border-bottom: 1px solid var(--border-2);
+          border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0; }
+        & > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+      }
+    }
   }
 }
 /* Paper cannot edit the document, so inactive panels keep their hidden attribute and the
@@ -1576,6 +1649,19 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * Print stacks both frames. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot:has(.lf-shotframe) { display: grid; }
+/* On a live page the rail and the frame stand empty from the first paint, the frame in
+ * the pair's shape, which delivery reads from the images (`data-lf-media-width`,
+ * `data-lf-media-height`), so the images and the comparison arrive in a box that is
+ * already there. */
+html[data-lf-live] lf-shot:not(:has(> .lf-shotrail)) {
+  &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
+    border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
+  &::after { content: ""; display: block; box-sizing: border-box;
+    aspect-ratio: attr(data-lf-media-width type(<number>)) /
+      attr(data-lf-media-height type(<number>));
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
+    background: var(--card); }
+}
 lf-shot .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio);
     border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
     background: var(--card); --divider-width: 2px; --handle-size: 38px;
@@ -2147,13 +2233,20 @@ lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
 lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 lf-tree li { margin: 3px 0; }
+/* On a live page each line of the body stands at the pitch its rendered row will (a
+ * row, and the 3px between rows), so the tree takes its height from the first paint.
+ * The line's half of the gap above the first row and below the last stays inside the
+ * box, as the rendered rows' outer margins leave it. */
+html[data-lf-live] lf-tree:not(.lf-rendered) { display: flow-root; }
+html[data-lf-live] lf-tree:not(.lf-rendered) > pre {
+  line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
 lf-tree .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
  * one, it split a two-character badge down the middle and drew half the chip on each
  * line. The name is what breaks now, which is the one of the three that can. */
 lf-tree .lf-tree-badge { font-size: var(--t-6); padding: var(--chip-pad);
-                         margin-left: 6px;
+                         margin-left: 6px; vertical-align: top;
                          border-radius: var(--chip-r); white-space: nowrap; }
 lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
 lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
@@ -2218,13 +2311,27 @@ lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the gutter. Horizontal rules mark the insertion
    without inventing author metadata the note does not carry. */
-lf-code .lf-code-note {
+lf-code lf-note { display: block; }
+/* The note wears this box wherever it stands: docked at its line inside the frame, or
+   before the module docks it, after the source (below). */
+lf-code > lf-note, lf-code > pre > lf-note {
              margin: 5px 0 6px; padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
-             background: var(--pre-bg); border: 0;
-             border-block: 1px solid var(--code-border); border-radius: 0;
+             background: var(--pre-bg);
+             border-block: 1px solid var(--code-border);
              color: var(--code-ink); font-family: var(--sans);
              font-size: var(--t-5); line-height: 1.5; white-space: normal; --lf-block-frame: 1; }
-lf-code lf-note { display: block; }
+/* On a live page the source stands in the frame its numbered lines will, wrapping where
+   they will, and each note stands under it inside the frame's side rules, so the block
+   has its height from the first paint and the module only moves each note up to its
+   line. Not reserved: the elided rows an excerpt's `lines` leaves gaps for, and the
+   deeper hang a wrapped line takes from its indent. */
+html[data-lf-live] lf-code:not(.lf-rendered) {
+  & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
+            border-radius: var(--r);
+            padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+            white-space: pre-wrap; overflow-wrap: anywhere; }
+  & > lf-note { margin-inline: 1px; }
+}
 
 /* lf-text-document: captured text with the provenance needed to identify the immutable
    selection. The frame is one evidence object; its caption uses the apparatus face

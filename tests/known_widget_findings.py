@@ -7,26 +7,25 @@ deletes its entry, so the list only shrinks. A widget joins only as a defect to 
 never as behavior to keep."""
 
 KNOWN = {
+    # A command's readings hold a row for each stopped goal and each live worker, and a
+    # tile for quiet ones. The command model reads which goals are stopped and which
+    # workers live from the log (reports, open Asks, held threads) and which are quiet
+    # from the clock. First paint has neither, so it cannot hold the readings' room.
     "command-hub": {
-        ("lf-agent", "keeps-first-box"),
         ("lf-command", "keeps-first-box"),
         ("lf-command-readings", "keeps-first-box"),
-        ("lf-task", "keeps-first-box"),
-        ("lf-worktree", "keeps-first-box"),
     },
     "default": {
+        # What these draw is the page's state, which arrives with the first state
+        # answer after the first paint and which the served document does not carry:
+        # the activity feed's rows are the log's history, and a text document's lines
+        # are its bound source's value, wrapped at the column's width.
         ("lf-activity", "keeps-first-box"),
-        ("lf-code", "keeps-first-box"),
-        ("lf-gloss", "keeps-first-box"),
-        ("lf-milestone", "keeps-first-box"),
-        ("lf-note", "keeps-first-box"),
-        ("lf-option", "keeps-first-box"),
-        ("lf-shot", "keeps-first-box"),
-        ("lf-tab", "keeps-first-box"),
-        ("lf-tabs", "keeps-first-box"),
         ("lf-text-document", "keeps-first-box"),
+        # Which form the contents takes, the fixed map in the margin or the outline in
+        # the flow, is the margin pass's residency decision (`data-lf-margin`,
+        # margin-layout.js), made from the room it measures after the first paint.
         ("lf-toc", "keeps-first-box"),
-        ("lf-tree", "keeps-first-box"),
     },
     # The widgets below generate an interface of wrapped words, whose height follows the
     # viewer's fonts: each example drew 22px to 45px taller on CI's Linux than on

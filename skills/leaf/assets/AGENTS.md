@@ -83,8 +83,9 @@ layout shift Chrome reports without recent input, or whose typing carries its fi
 (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
-`html[data-lf-live]`, the size its module will draw it at, so first paint already has
-the page's geometry and upgrade adds behavior without moving what follows. The
+`html[data-lf-interactive]`, the size its module will draw it at, so first paint
+already has the page's geometry and upgrade adds behavior without moving what follows,
+in a served page and an export alike. The
 widget quality check `keeps-first-box` measures each widget's box at first paint and
 once the page presents (`leaf package check PACKAGE --render`,
 `scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
@@ -138,9 +139,16 @@ share; the theme's guard answers for CSS.
 
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
-boot sequence. `runtime/bootstrap.js` loads before everything else, can show a startup
-failure even if the module graph never loads, and holds page keys pressed
-before presentation. Content modules import only
+boot sequence. Two classic scripts run before the first paint, which no module
+reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
+else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
+it shows a startup failure and waits for a server that can start the page, even if
+the module graph never loads; and it holds page keys pressed before presentation.
+`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
+ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
+each widget its upgraded box, and `data-lf-startup-error` when the runtime could not
+start, so they give back the readable fallback; it declares the page's storage scope;
+and it decides which member an `x-views` holder opens on. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and

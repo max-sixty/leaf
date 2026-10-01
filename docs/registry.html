@@ -161,6 +161,7 @@
           <a href="#x-tone"><code>x-tone</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
           <a href="#x-verbatim"><code>x-verbatim</code></a>
+          <a href="#x-views"><code>x-views</code></a>
           <a href="#x-visual"><code>x-visual</code></a>
           <a href="#x-withdrawn-as"><code>x-withdrawn-as</code></a>
           <a href="#x-word"><code>x-word</code></a>
@@ -348,16 +349,16 @@
               <details class="reference-more">
                 <summary aria-label="Full x-height contract">Full contract</summary>
                 <p>
-                  Delivery paints it into the served document as data-lf-height, and on
-                  a live page the theme holds the box to it from the first paint until
-                  the module marks the element drawn (<code>lf-rendered</code>), when
-                  the box becomes the drawing's own. Declare it on a widget whose
-                  drawing cannot be sized from its markup before the module draws. A
-                  module that can draw to any height, as a chart's can, draws at the
-                  stated one, so nothing moves when the reservation ends; one whose
-                  content has a height of its own draws that, and the reservation is the
-                  author's estimate of it. A failure takes the height of the message it
-                  shows.
+                  Delivery paints it into the served document as data-lf-height, and
+                  wherever the runtime runs the theme holds the box to it from the first
+                  paint until the module marks the element drawn
+                  (<code>lf-rendered</code>), when the box becomes the drawing's own.
+                  Declare it on a widget whose drawing cannot be sized from its markup
+                  before the module draws. A module that can draw to any height, as a
+                  chart's can, draws at the stated one, so nothing moves when the
+                  reservation ends; one whose content has a height of its own draws
+                  that, and the reservation is the author's estimate of it. A failure
+                  takes the height of the message it shows.
                 </p>
               </details>
             </div>
@@ -854,6 +855,29 @@
                   promise the passage reader treats the widget as opaque, since its
                   module may insert or replace words. The render gate refuses changed
                   wrapper prose or removed and reordered nested ownership boundaries.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-views">
+            <h3><code>x-views</code></h3>
+            <div class="reference-copy">
+              <p>
+                <code>true</code>: the element shows one of its members at a time, as a
+                tab set shows one panel, and its module opens it on the member the
+                runtime names (<code>openingView</code>) and records each member it
+                shows (<code>keepView</code>).
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-views contract">Full contract</summary>
+                <p>
+                  The runtime opens it on the member holding the element the address's
+                  fragment names, else on the member this browser tab last showed, else
+                  on the first; a reload puts the member last shown before the
+                  fragment's. Delivery paints it into the served document as
+                  data-lf-views, and before the first paint Leaf marks the member it
+                  will open <code>data-lf-opening</code>, so the package theme can show
+                  that member alone until the module upgrades the element.
                 </p>
               </details>
             </div>

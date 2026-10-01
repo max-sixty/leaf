@@ -56,13 +56,15 @@ records three deliberately different identities under `$layer`:
   widgets passes it. A checkout whose runtime modules were edited refuses every page
   vendored before the edit until each is re-vendored.
 
-HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
-page's inline bootstrap supervises startup before the module graph
-or stylesheet can fail. After a startup failure it reloads when the server
-incarnation, layer generation, or website release changes. A published page also
-reloads when its release-addressed probe disappears. This includes a rejected
-re-vendor: its layer stays frozen, but the restarted server can finish a formerly
-interrupted load. Source files and standalone exports carry no startup supervisor.
+HTTP responses also identify the serving incarnation in `Leaf-Server`. Every
+document that runs the runtime, served or exported, carries an inline prepaint that
+marks a startup failure before the module graph or stylesheet can fail, so the theme
+gives back the readable fallback. A served page's inline bootstrap also supervises
+the failure. It reloads when the server incarnation, layer generation, or website
+release changes. A published page also reloads when its release-addressed probe
+disappears. This includes a rejected re-vendor: its layer stays frozen, but the
+restarted server can finish a formerly interrupted load. Source files carry neither
+script, and an export no supervisor.
 
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.

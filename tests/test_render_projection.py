@@ -1887,6 +1887,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
     expect(page.locator("html")).to_have_attribute("data-lf-live", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (

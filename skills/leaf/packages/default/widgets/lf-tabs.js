@@ -4,9 +4,11 @@
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
  * scrolls to a comment anchor. The open tab is view state for this user,
- * remembered per browser tab in the runtime's tabStore:
- * switching is reading, not editing, so it never sends an action and no
- * version carries it — this widget doesn't ride the action channel at all.
+ * remembered per browser tab (`keepView`): switching is reading, not editing, so it
+ * never sends an action and no version carries it — this widget doesn't ride the
+ * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
+ * which shows the same panel at the first paint, before this module has loaded
+ * (`x-views`).
  * The first tab set placed directly in main is the page's navigation over sections of
  * that page, whatever else main holds: its panel id is the URL fragment, and history
  * follows those panel entries. A link inside a panel is still fragment travel
@@ -41,6 +43,7 @@ import {
   capturePlace,
   claimTraversals,
   commands,
+  keepView,
   keeps,
   keepsText,
   openAsks,
@@ -48,6 +51,7 @@ import {
   listWalkPosition,
   offer,
   once,
+  openingView,
   pageScroller,
   preserveReadingRegions,
   pushEntry,
@@ -65,7 +69,6 @@ import {
 // a row (`#syncRootContext`).
 const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
 
-const TAB_KEY = "lf-tabs:";
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
@@ -148,7 +151,7 @@ customElements.define(
           chip.setAttribute("aria-hidden", "true");
           btn.append(chip);
         }
-        btn.onclick = () => this.#activate(panel, true, "ordinary");
+        btn.onclick = () => this.#activate(panel, "ordinary");
         strip.append(btn);
         this.#buttons.set(panel, btn);
         panel.setAttribute("role", "tabpanel");
@@ -156,11 +159,9 @@ customElements.define(
         panel.tabIndex = 0; // a tabpanel of prose has no focusable content; Tab must still reach it
         // The browser found something inside (find-in-page, an anchor jump), or
         // the runtime is about to scroll a comment anchor into view: open up.
-        panel.addEventListener("beforematch", () =>
-          this.#activate(panel, true, "reveal"),
-        );
+        panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
         panel.addEventListener("lf-reveal", (event) => {
-          const ready = this.#activate(panel, true, "reveal");
+          const ready = this.#activate(panel, "reveal");
           event.detail?.present?.(ready);
         });
       }
@@ -233,16 +234,11 @@ customElements.define(
       this.prepend(strip);
       this.#declareHeader();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-      // Restore this user's tab; a remembered id always resolves in later
-      // versions because check forbids dropping ids. Restoration happens here,
-      // during upgrade, so the runtime's view restore measures final geometry.
-      const saved = tabStore.get(TAB_KEY + this.id);
-      const arrived = this.#panelForLocation(panels);
-      this.#activate(
-        arrived || panels.find((panel) => panel.id === saved) || panels[0],
-        false,
-        "arrival",
-      );
+      // Open on the tab the first paint showed: the one the address names, or this
+      // user's last, whose id resolves in later versions because check forbids
+      // dropping ids. It opens here, during upgrade, so the runtime's view restore
+      // measures final geometry.
+      this.#activate(openingView(this, panels), "arrival");
       if (this.#root) {
         this.#listenForHistory();
         this.#replaceLocation(this.#active);
@@ -313,7 +309,7 @@ customElements.define(
       });
     }
 
-    #activate(active, remember, reason) {
+    #activate(active, reason) {
       if (!this.#buttons.has(active)) return;
       if (active === this.#active) return Promise.resolve();
       const previous = this.#active;
@@ -342,7 +338,7 @@ customElements.define(
         this.#showTab(this.#buttons.get(active));
         if (switched) this.#open(active, from);
         else if (reason === "history") this.#land();
-        if (remember) tabStore.set(TAB_KEY + this.id, active.id);
+        keepView(this, active);
         const presentation = [];
         for (const panel of [previous, active].filter(Boolean)) {
           const child = soleSubstantiveElement(panel);
@@ -474,7 +470,7 @@ customElements.define(
         (url) => {
           const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
           return view && view !== this.#active
-            ? () => this.#activate(view, true, "history")
+            ? () => this.#activate(view, "history")
             : null;
         },
         { signal },

@@ -174,7 +174,6 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
         f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )

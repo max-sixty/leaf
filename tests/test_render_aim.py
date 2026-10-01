@@ -1,6 +1,7 @@
 """Modifier aiming and design-mode browser tests."""
 
 import io
+import json
 import math
 import re
 from datetime import datetime, timedelta
@@ -70,7 +71,9 @@ from render_harness import (
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
+    draft_key,
     expect_comment_notes,
+    judge_watches,
     leaf_page,
     open_page,
     panel_settled,
@@ -80,6 +83,7 @@ from render_harness import (
     select,
     sending,
     stamp_page,
+    stored_draft_text,
     told,
     write,
 )
@@ -556,14 +560,12 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     expect(bar).to_have_attribute("data-lf-placement", "top-start")
 
 
-def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, serve):
-    """The block a comment names decides where the field stands, on screen or off it.
-
-    Placement reads that block through the viewport, so a paragraph scrolled clear of
-    the viewport has no shown rect left to read. Falling back to the passage there let a
-    short selection lend the words after it after all: the field left the free margin,
-    crossed into the column, and came to rest on the sentences the user had scrolled
-    down to. The column does not move when the page scrolls, so neither may the field.
+def test_a_comment_on_a_scrolled_away_paragraph_stays_open_in_the_window(
+    browser, serve
+):
+    """Scrolling its attachment away keeps the writer's field in the usable window,
+    with the same words and focus. The page owns its scroll; the draft remains attached
+    semantically to the original passage until the writer sends or dismisses it.
     """
     body = "".join(
         f'<p id="p{n}">Paragraph {n} carries enough ordinary reading text to be '
@@ -603,7 +605,6 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     expect(field).to_be_visible()
     field.click()
     write(field, "A short note.\nSecond line.\nThird line.")
-    beside = page.locator(".lf-fab-bar").bounding_box()["x"]
 
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 900)
@@ -613,22 +614,8 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     )
     scroll_settled(page)
 
-    covered = page.evaluate(
-        """() => {
-          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          return [...document.querySelectorAll('p')]
-            .filter(p => {
-              const r = p.getBoundingClientRect();
-              return r.width && r.height && r.left < bar.right && bar.left < r.right
-                && r.top < bar.bottom && bar.top < r.bottom;
-            })
-            .map(p => p.id);
-        }"""
-    )
-    assert covered == [], f"the field stands on the user's paragraphs: {covered}"
-    assert page.locator(".lf-fab-bar").bounding_box()["x"] == beside, (
-        "the field left the column it was seated beside when the passage scrolled away"
-    )
+    assert _draft_in_view(page, "A short note.\nSecond line.\nThird line.")
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
 
 
 def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
@@ -3800,3 +3787,187 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
         box,
         viewport,
     )
+
+
+COMPOSER_ATTACHMENT_PAGE = leaf_page(
+    "An open comment keeps its writer",
+    """<h1 id="title">Resize an active comment</h1>
+<aside class="sidebar" id="bg-sidebar"><lf-toc id="bg-contents" max-level="2"></lf-toc></aside>
+<h2 id="first">First section</h2><p id="ordinary" tabindex="0">An ordinary paragraph remains visible at both widths.</p>
+<h2 id="second">Second section</h2><p>Another section gives the contents outline destinations.</p>
+<details id="disclosure" open><summary>Disclosure</summary><p id="detail-word" tabindex="0">A comment target inside a disclosure.</p></details>
+<section id="tabbed-section"><h2 id="views-title">A tabbed section</h2>
+<lf-tabs id="views"><lf-tab id="active-view" label="First view"><p id="tab-word" tabindex="0">A comment target in the first view.</p></lf-tab>
+<lf-tab id="other-view" label="Other view"><p>The other view can appear without closing a draft.</p></lf-tab></lf-tabs></section>
+<p id="offscreen-word" tabindex="0">A comment target whose paragraph can scroll away.</p>
+<p id="quote-holder" style="height:72px;overflow:auto">Quoted words stay attached to this paragraph.<br>
+ More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
+ More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
+ More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.</p>
+<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section>
+""",
+    head="""<style>
+main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {display:none}
+</style>""",
+)
+
+
+def _draft_in_view(page, words):
+    field = page.locator(".lf-fab-input")
+    box = field.bounding_box()
+    viewport = page.viewport_size
+    return (
+        field.is_visible()
+        and field.evaluate("el => el.value") == words
+        and field.evaluate("el => el.matches(':focus-within')")
+        and (box is not None)
+        and (
+            box["x"] >= 0
+            and box["y"] >= 0
+            and (box["x"] + box["width"] <= viewport["width"])
+            and (box["y"] + box["height"] <= viewport["height"])
+        )
+    )
+
+
+def _open_attachment_draft(browser, url, target):
+    page = open_page(browser, url)
+    rendered(page)
+    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    destination = page.locator(target).first
+    for _ in range(50):
+        if destination.evaluate("el => el.matches(':focus-within')"):
+            break
+        page.keyboard.press("Tab")
+    assert destination.evaluate("el => el.matches(':focus-within')"), target
+    page.keyboard.press("c")
+    rendered(page)
+    words = "A draft about " + target
+    page.keyboard.type(words)
+    rendered(page)
+    judge_watches()
+    return (page, words)
+
+
+def test_open_draft_remains_at_responsive_widths(browser, serve):
+    url = serve(COMPOSER_ATTACHMENT_PAGE)
+    facts = []
+    for target in ("#ordinary", "#bg-contents a"):
+        page, words = _open_attachment_draft(browser, url, target)
+        assert _draft_in_view(page, words)
+        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+        for width in (480, 1200):
+            resized(page, width, 900)
+            rendered(page)
+            expected = (
+                "window" if target == "#bg-contents a" and width == 480 else "page"
+            )
+            assert (
+                page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == expected
+            )
+            facts.append(
+                (
+                    target,
+                    width,
+                    _draft_in_view(page, words),
+                    page.locator(".lf-fab-input").evaluate("el => el.value"),
+                )
+            )
+    assert all(
+        (
+            visible and focus == "A draft about " + target
+            for target, width, visible, focus in facts
+        )
+    ), facts
+
+
+def test_open_draft_stays_visible_when_existing_subject_hides(browser, serve):
+    url = serve(COMPOSER_ATTACHMENT_PAGE)
+    cases = (
+        (
+            "disclosure",
+            "#detail-word",
+            "document.getElementById('disclosure').open=false",
+            "document.getElementById('disclosure').open=true",
+        ),
+        (
+            "inactive-tab",
+            "#tab-word",
+            "document.getElementById('other-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
+            "document.getElementById('active-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
+        ),
+        (
+            "offscreen",
+            "#offscreen-word",
+            "scrollTo(0,document.documentElement.scrollHeight)",
+            "document.getElementById('offscreen-word').scrollIntoView({block:'center'})",
+        ),
+    )
+    results = []
+    for name, target, hide, show in cases:
+        page, words = _open_attachment_draft(browser, url, target)
+        page.evaluate(hide)
+        rendered(page)
+        results.append((name, "hidden", _draft_in_view(page, words)))
+        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
+        page.evaluate(show)
+        rendered(page)
+        results.append((name, "returned", _draft_in_view(page, words)))
+        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+    assert all((result for name, phase, result in results)), results
+
+
+def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
+    page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
+    rendered(page)
+    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    page.locator("#quote-holder").scroll_into_view_if_needed()
+    points = page.locator("#quote-holder").evaluate(
+        """el => {
+        const first=document.createRange(), last=document.createRange();
+        first.setStart(el.firstChild,0);first.setEnd(el.firstChild,1);
+        last.setStart(el.firstChild,11);last.setEnd(el.firstChild,12);
+        const a=first.getBoundingClientRect(),b=last.getBoundingClientRect();
+        return [[a.left,a.top+a.height/2],[b.right,b.top+b.height/2]];
+    }"""
+    )
+    select(page, *points)
+    rendered(page)
+    page.keyboard.press("c")
+    rendered(page)
+    words = "A draft about quoted words"
+    page.keyboard.type(words)
+    rendered(page)
+    judge_watches()
+    page.evaluate("document.getElementById('quote-holder').scrollTop=200")
+    rendered(page)
+    assert _draft_in_view(page, words)
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
+    page.evaluate("document.getElementById('quote-holder').scrollTop=0")
+    rendered(page)
+    assert _draft_in_view(page, words)
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+
+
+def test_unanchored_draft_keeps_editing_and_deliberate_dismissal(browser, serve):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+    )
+    context = 'composer:[["section","bg-contents"]]'
+    saved = draft_key(page, context)
+    resized(page, 480, 900)
+    rendered(page)
+    assert _draft_in_view(page, words)
+    page.keyboard.type(" and more words")
+    words += " and more words"
+    rendered(page)
+    judge_watches()
+    assert _draft_in_view(page, words)
+    assert draft_key(page, context) == saved
+    draft = json.loads(stored_draft_text(page, context))
+    assert draft["anchor"] == {"section": "bg-contents"}
+    assert draft["text"] == words
+    page.keyboard.press("Escape")
+    rendered(page)
+    assert not page.locator(".lf-fab-input").is_visible()
+    assert json.loads(stored_draft_text(page, context))["text"] == words

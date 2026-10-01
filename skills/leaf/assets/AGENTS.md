@@ -116,8 +116,10 @@ words closes only in answer to a key or a press that means to close it (Send,
 Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
 document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
 news never closes it. Geometry decides where a box stands, never whether: a box
-with nowhere to stand waits out of view with its words, anchor, and caret, and
-stands again, focus returned, when its target comes back (`standFab`,
+whose existing subject loses its visible attachment stays in the usable window,
+keeping its words, anchor, and focus, and reattaches when that target returns.
+Only where no usable window remains does it wait out of view with its words,
+anchor, and caret, standing again, focus returned, when room returns (`standFab`,
 `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and

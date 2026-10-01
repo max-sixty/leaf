@@ -241,13 +241,17 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     unmarkable = evaluate_probe(page, "unmarkableElements")
-    overflow = evaluate_probe(page, "rootOverflow")
-    misplaced = evaluate_probe(page, "misplacedBoxes")
-    stranded = evaluate_probe(page, "strandedMargins")
+    column = evaluate_probe(page, "columnGeometry")
+    overflow = column["overflow"]
+    misplaced = column["misplaced"]
+    stranded = column["stranded"]
+    # This experiment writes and removes a temporary wrapping rule. Preserve its
+    # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
-    clipped = evaluate_probe(page, "clippedControls")
-    unreachable = evaluate_probe(page, "unreachableWords")
-    covered = evaluate_probe(page, "coveredWords")
+    reachability = evaluate_probe(page, "reachabilityReading")
+    clipped = reachability["clipped"]
+    unreachable = reachability["unreachable"]
+    covered = reachability["covered"]
     unread = evaluate_probe(page, "unreadSyntax")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
@@ -440,14 +444,6 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 # above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
-# What of the page's own stands in its margin: the tokens the margin pass writes on
-# `main` (margin-layout.js, `settleResidency`), less the rail, which holds only Leaf's
-# markers and never moves the column.
-MARGIN_READING = (
-    "(document.querySelector('main')?.getAttribute('data-lf-margin') ?? '')"
-    ".split(' ').filter(t => t && t !== 'rail').join(' ')"
-)
-
 
 def _settle_at(page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
@@ -481,18 +477,7 @@ def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
         _settle_at(page, width, height)
-        readings.append(
-            (
-                width,
-                {
-                    "overflow": evaluate_probe(page, "rootOverflow"),
-                    "misplaced": evaluate_probe(page, "misplacedBoxes"),
-                    "margin": page.evaluate(MARGIN_READING),
-                    "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
-                    "panes": evaluate_probe(page, "heldPanes"),
-                },
-            )
-        )
+        readings.append((width, evaluate_probe(page, "geometryReading", open_tags)))
     return readings
 
 
@@ -569,7 +554,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
         while high - low > 1:
             middle = (low + high) // 2
             _settle_at(page, middle, height)
-            if page.evaluate(MARGIN_READING) == above:
+            if evaluate_probe(page, "marginResidents") == above:
                 high = middle
             else:
                 low = middle

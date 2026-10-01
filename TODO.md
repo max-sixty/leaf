@@ -103,6 +103,17 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Find a better shape for news in a short Threads list.** In a list too short to
+  scroll, any news moves something on screen, so the open card fills the list with
+  its reply box at the foot (#1480). A reply lands in the room above the box, and a
+  thread returning above the open card makes the list scrollable, so the place hold
+  scrolls the newcomer out of view rather than pushing down the card being read. It
+  is the best tradeoff found, not a perfect one: a short list's open card is as tall
+  as the panel, later cards wait below the fold, and a thread that returns above lands
+  scrolled past, so the user sees it only in the count. The rejected alternatives
+  were holding replies behind an "N new replies" chip, which hides the answer the user
+  is waiting for, and letting a list that can't scroll push its contents down, which
+  needs the shift watch to stop checking such lists.
 - **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
   a comment's target in a single wheel step draws the box about 60px off for a frame
   before it lands, on `main` too and for selected words as well as items; a script's
@@ -168,8 +179,9 @@ and its chrome coordinate.
   - One page showing every still in a grid, a row per window width with the content
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
-  - For thread placement alone, an SVG atlas of `thread-card-geometry.js` over a grid
-    of inputs, which `npm run test:runtime` can draw without a browser.
+  - For comment placement alone, an SVG atlas of the side `comment-placement.js`
+    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
   building. Adding a few dozen hand-written entries to `STATES` grows a list that

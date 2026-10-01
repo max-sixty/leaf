@@ -1,5 +1,5 @@
-/* The marks the runtime paints on the user's words, and the one element paint from
-   the same pass. Stated once and adopted twice: by the document (leaf.js) and by every
+/* Shared annotation paint: passage marks, element indications, and message delivery.
+   Stated once and adopted twice: by the document (leaf.js) and by every
    shadow root a widget renders into (shadow.js, shadowStage). A rule in the document
    styles no glyph inside a shadow tree, so a widget that renders the page's words into
    one (x-shadow) would otherwise show words the user can select and no mark could
@@ -50,6 +50,14 @@
    reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
    It now shares the comment's solid line because the line locates feedback; the reaction
    glyph in the margin says what kind. */
+/* A newly inserted message starts unconfirmed, so delivery paint is immediate.
+   This sheet reaches every annotation surface, including inline threads inside
+   declared shadow roots. Existing controls keep chrome.css's delayed busy feedback. */
+:is(.lf-msg, .lf-page-thread-msg)[aria-busy="true"] {
+  animation: none;
+  opacity: .5;
+  cursor: progress;
+}
 /* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
    higher one supplies only the properties it states. Hover and the current thread share
    an accent line; their washes remain distinct on text, and pointing at one comment

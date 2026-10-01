@@ -6,8 +6,8 @@
    into the box's own positioning space: a containing block, a frame, or WebKit's
    visual-viewport offset for a fixed box under pinch zoom. `autoUpdate`
    follows every scroll container, resize, visual-viewport change, and layout shift that
-   can move it. Which side a surface takes and how far it stands is that surface's own
-   rule, stated as its middleware.
+   can move it. Which side a surface takes and how far it stands is stated as its
+   middleware, by comment-placement.js for both.
 
    `floatingPlacement` is one box's lifecycle around those two calls: it watches the
    element the box stands against, re-arming when that element changes, and numbers each

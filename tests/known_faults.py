@@ -67,6 +67,11 @@ KNOWN_UNASKED = {
             r"lf-margin-cluster"
         ),
     },
+    "test_render_send_placement.py": {
+        # The shortcut line's More as its hints change when the answer to the send lands,
+        # where load puts that answer past the press's own frames.
+        "test_where_a_comment_stands_before_and_after_send": r"lf-shortcut",
+    },
     "test_website_server.py": {
         # The panel's later cards rising, and what they hold coming into view, as a card
         # whose thread news resolved folds away under the Open filter: the user's next
@@ -115,7 +120,10 @@ def known(test, problem):
     """Whether a browser `problem` from a pytest node `test` is its known shift or loss."""
     region = KNOWN_UNASKED.get(test.path.name, {}).get(test.originalname)
     moved, unasked, _ = problem.partition(" moved without input")
-    if region and unasked and re.search(region, moved):
+    # Chrome can report a card and its children as separate sources of one layout
+    # shift. The child report still names the card among that frame's sources.
+    frame = problem.partition("; the same frame moved ")[2]
+    if region and unasked and re.search(region, f"{moved}, {frame}"):
         return True
     words = KNOWN_LOSSES.get(test.path.name, {}).get(test.originalname)
     _, lost, what = problem.partition("typed words left the screen")

@@ -3,9 +3,11 @@
 
    A thread that fits lands whole. A longer one lands its reply area, Send and Resolve
    with it, or the focused control alone where the editor is too tall for both. A reply
-   row pinned to its scroller's foot (the margin card's and the panel card's) reads as
+   row pinned to its scroller's foot (the panel card's) reads as
    shown wherever the transcript stands, so a landing on it lands the thread's end
-   instead. The row is not declared a cover of the transcript: the caret lives in it, and the browser's own
+   instead. The margin card's reply stands outside its transcript scroll and a reply
+   landing reveals that transcript's end directly. The row is not declared a cover of
+   the transcript: the caret lives in it, and the browser's own
    caret reveal would scroll the transcript on every keystroke to clear it. A thread too
    tall to show, landed as a whole, lands its reply row where one fits, and
    otherwise stays where it is while any of it is on screen: the nearest edge of a box
@@ -37,10 +39,12 @@ const replyRowOf = (held, control) => {
       : control.closest(REPLY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
-// A reply row pinned to its scroller's foot (a margin or panel card's) stands in the band
+// A reply row pinned to its scroller's foot (a panel card's) stands in the band
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end.
 const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
+const separateTranscript = (held) =>
+  held.querySelector(":scope > .lf-thread-transcript");
 
 const ancestors = function* (node) {
   for (let parent = renderedParent(node); parent; parent = renderedParent(parent))
@@ -83,6 +87,15 @@ export function scrollThreadIntoView(
   block = "nearest",
 ) {
   bringBackSurfaceOf(held, behavior);
+  const transcript = separateTranscript(held);
+  if (transcript && control !== held && replyRowOf(held, control)) {
+    transcript.scrollTo({ top: transcript.scrollHeight, behavior });
+    return;
+  }
+  if (transcript?.contains(control)) {
+    control.scrollIntoView({ behavior, block });
+    return;
+  }
   const target = landingTarget(held, control);
   target.node?.scrollIntoView({ behavior, block: target.block ?? block });
 }
@@ -119,6 +132,7 @@ export function sendLanding(input, standing = input.closest(SAYS_IN)) {
 // height: a scroll or a reply arriving between keystrokes moves the cover and must not be
 // paid for.
 const rowHeights = new WeakMap();
+const transcriptPlaces = new WeakMap();
 const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
   reply.getBoundingClientRect().top;
@@ -126,6 +140,22 @@ export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
   const reply = replyRowOf(held, input);
+  // A separate transcript gives up height rather than being covered by the editor.
+  // A reader at its tail keeps the turn beside the growing box; someone reading back
+  // keeps their own offset. The beforeinput reading precedes the editor's layout.
+  const transcript = separateTranscript(held);
+  if (transcript) {
+    const place = transcriptPlaces.get(input);
+    if (
+      place?.transcript === transcript &&
+      place.atTail &&
+      transcript.clientHeight < place.height
+    )
+      transcript.scrollTo({ top: transcript.scrollHeight, behavior: "instant" });
+    transcriptPlaces.delete(input);
+    if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
+    return;
+  }
   if (!pinned(reply)) return scrollThreadIntoView(held, input, "instant");
   const height = reply.getBoundingClientRect().height;
   const grew = height - (rowHeights.get(input) ?? height);
@@ -135,12 +165,20 @@ export function followBoxGrowth(input) {
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
 }
-// How tall a pinned row stood when the user came into its box, so the first keystroke's
-// growth is measured from there.
+// The editor's place before its own edit, and on arrival for a first edit delivered
+// without beforeinput: a pinned row's height, or a separate transcript's tail and room.
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
   if (pinned(reply)) rowHeights.set(input, reply.getBoundingClientRect().height);
+  const transcript = held && separateTranscript(held);
+  if (transcript)
+    transcriptPlaces.set(input, {
+      transcript,
+      height: transcript.clientHeight,
+      atTail:
+        transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 2,
+    });
 }
 
 // A render that inserts above the control the user stands on, such as an edit growing a

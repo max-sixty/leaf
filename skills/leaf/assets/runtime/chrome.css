@@ -46,7 +46,7 @@
    its foot, the thread list for both of its own, where the outward rings are the controls
    inside a card. Scroll padding governs only where scrolling puts a box, never where a
    sticky offset pins one, so a sticky row whose controls ring outward keeps the room on
-   its pinned side as its own padding; the margin card's reply is that case. A box whose
+   its pinned side as its own padding. A box whose
    own edge touches something that paints draws its ring inset instead, because nothing
    outside it is free.
    A large composite region spends no ring room: it paints a quiet ground inside its own
@@ -1491,13 +1491,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-toggle { display: none; }
   /* margin-projection.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized
-     yet, so only they are held to the viewport. The card itself never scrolls: its
-     thread list does, in every posture and before the first open, so the list is the
-     preview's one reading scroller (reading-regions.js reads posture off that list's
-     overflow). Anchored to what it is about, it moves with the words (floating.js), and
-     passes under the banner and the bottom bar the way they do. Its insets are its
-     placement's alone: floating.js writes the edges that hold it and clears the others,
-     so an edge the stylesheet set would stretch a card held by its foot. */
+     yet, so only they are held to the viewport. The selected thread's transcript is
+     the card's reading scroller; metadata and reply stand outside it. Anchored to what
+     it is about, it moves with the words (floating.js), and passes under the banner
+     and the bottom bar the way they do. Its insets are its placement's alone:
+     floating.js writes the edges that hold it and clears the others, so an edge the
+     stylesheet set would stretch a card held by its foot. */
   .lf-margin-preview { position: fixed;
     z-index: var(--lf-z-margin-preview);
     /* As wide as its thread, between the bounds its placement gives it
@@ -1508,7 +1507,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px));
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
-    margin: 0; padding: 12px calc(12px - var(--focus-ring-room));
+    margin: 0; padding: 12px;
     border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
@@ -1542,54 +1541,37 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-step:last-child > .lf-action-icon { inset-inline-end: 4px; }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
-  /* The selected thread scrolls inside the card. Its first message and
-     controls share one sticky metadata row. */
-  .lf-margin-preview-list { display: grid; gap: 4px;
-    min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    scroll-padding-block: var(--focus-ring-room);
-    /* The list clips to its padding box, so the controls ringing outward at the
-       thread's sides keep their room here; the card's inline padding gives it back. */
-    padding-inline: var(--focus-ring-room); }
-  .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
-  .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
+  /* Only the turns scroll: the metadata and reply keep their own rows, so the
+     scrollbar describes the content it moves. The card grows to its content until
+     placement exhausts the room; every intervening holder can then shrink. */
+  .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body,
+  .lf-margin-thread .lf-page-thread { display: flex; flex-direction: column;
+    min-height: 0; min-width: 0; }
+  .lf-margin-thread .lf-thread-transcript { min-height: 0; overflow-y: auto;
+    overscroll-behavior: contain; padding-inline: var(--sp-2);
+    scroll-padding-block: var(--focus-ring-room); }
   /* The thread's first message opens directly at the card edge. */
   .lf-margin-thread .lf-page-thread-msg:first-of-type { margin-top: 0; }
-  /* Following messages keep their top margin; the sticky reply owns the final gap
-     so its opaque background covers text scrolling beneath it. */
+  /* Following messages keep their top margin; the reply owns the final gap. */
   .lf-margin-thread .lf-page-thread-msg { margin-bottom: 0; }
-  /* The thread fills the card. The reply field's box stands at the card's padding and
-     the thread's words at the field's own words, one inset in; the thread's foot
-     padding moves into the pinned reply below. */
-  .lf-margin-thread .lf-page-thread { padding-inline: var(--sp-2); padding-bottom: 0; }
-  /* The thread's surface is the card's paper whatever its focus, so pinning the reply
-     cannot introduce a separate background band, and the tint and inset ring the thread
-     wears elsewhere (shadow.css) give way to the card's ring above. */
-  .lf-margin-thread .lf-page-thread { background: var(--paper); }
+  /* The field stands at the card's inset; words stand one inset inside it. */
+  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
   .lf-margin-thread .lf-page-thread::after { content: none; }
   @media (forced-colors: active) {
     .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
   }
-  /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
-     padding (the compact ring's room, in this file's header), and with it the thread's
-     own foot padding, so nothing lies under the row in flow: it stands on the
-     transcript's foot whether or not the transcript scrolls, and a transcript starting
-     to scroll does not drop it by that padding. The row contains its inline size, so
-     the reply being written wraps inside the width the thread gives the card rather
-     than widening it under the user. */
+  /* The row's ring has room in the card's common inset. Its inline containment keeps
+     a draft from widening the card. */
   .lf-margin-thread .lf-say { contain: inline-size;
-    align-items: stretch; position: sticky; bottom: 0;
-    margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
-    padding-block: var(--sp-3) calc(var(--focus-ring-room) + var(--sp-1));
+    flex: none; align-items: stretch; margin: 0;
+    padding-block: var(--sp-3) 0;
     background: inherit; }
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: var(--lf-thread-editor-room, 50vh); }
-  /* Pinned to the transcript's head, it wears the thread's surface as the pinned reply
-     does at the foot, so the focus tint runs under it rather than a paper band. */
-  .lf-margin-preview .lf-thread-root-meta { position: sticky; z-index: 2;
-    top: 0; background: inherit;
+  .lf-margin-preview .lf-thread-root-meta { flex: none;
     align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
-    padding-inline-end: 0; }
+    padding-inline: var(--sp-2) 0; }
   .lf-margin-preview .lf-thread-root-meta > .lf-page-thread-head {
     display: flex; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
   .lf-margin-preview .lf-page-thread-head .lf-msg-meta {

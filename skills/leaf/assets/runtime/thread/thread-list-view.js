@@ -11,7 +11,7 @@
    selected card when visible and otherwise selects the first visible card.
 
    Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
-   Escape from the panel's general box, a Tab, a fold that took the focused card — so
+   Escape from the panel's general box, a fold that took the focused card — so
    every key answers for the thread the screen shows selected. The list keeps focus
    itself only while it shows no card, and its ring never outlines one. */
 import { html, repeat } from "../../vendor/browser-runtime.js";

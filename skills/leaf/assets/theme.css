@@ -240,11 +240,9 @@
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. It takes the room right of the words it is
-     about down to the minimum, covering its margin cluster where it must; with less
-     than that it stands under or over the cluster at the minimum, its right edge on the
-     visible edge, so it crosses the column by only what that room lacks. Its height is
-     never cut to spare the cluster (thread-card-geometry.js). */
+     their width, down to the minimum. The minimum is what the room beside the words,
+     or past the margin cluster, must hold for the card, and the comment box before it,
+     to stand there (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,

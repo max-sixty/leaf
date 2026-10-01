@@ -1324,12 +1324,15 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
                 "button", name=re.compile(f"^{outcome.title()} the ")
             ).click()
         told(page)
+        render_checks_model.wait_until_ready(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
+        _unfold(item)
         with sending(page, f"undo {target}"):
             suggestion_control(page, target, visible=False).and_(
                 page.locator('[aria-label^="Undo "]')
             ).click()
         told(page)
+        render_checks_model.wait_until_ready(page)
         _unfold(item)
         expect(
             item.get_by_role("button", name=re.compile("^Accept the "))
@@ -1436,11 +1439,14 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
                 "button", name=re.compile(f"^{outcome.title()} the ")
             ).click()
         told(page)
+        render_checks_model.wait_until_ready(page)
+        _unfold(item)
         with sending(page, f"undo {target}"):
             suggestion_control(page, target, visible=False).and_(
                 page.locator('[aria-label^="Undo "]')
             ).click()
         told(page)
+        render_checks_model.wait_until_ready(page)
         # The pin just pressed is held under the pointer; let it go so it folds back.
         page.mouse.move(0, 0)
         page.evaluate(RELEASE_FOCUS)

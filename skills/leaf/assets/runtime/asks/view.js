@@ -32,10 +32,6 @@
    function and wears the same class while having no box to reach, and a collapsed one
    answers the same honest way.
 
-   `landed` stores where the ask walk last arrived. This is distinct from focus:
-   clicking elsewhere removes the focus-derived ring without erasing either the walk's
-   useful continuation point or the answer progress in the banner.
-
    `shownParts` supplies ring targets when a page styles an ask with `display:
    contents`. A normal boxed ask wears one outline on its own box. Hoisted controls
    use the same ring token through the shared chip rule.
@@ -47,7 +43,7 @@
    `addressableLabel` supplies each row's own label and the owned command scope's
    `options.answer` supplies its current answer. Selecting a drawer row travels through
    the same ask-arrival function as `a` and `A`, so the panel and directional walk
-   agree about focus, reveal, arrival placement, and `landed`; only the drawer's list is
+   agree about focus, reveal, and arrival placement; only the drawer's list is
    wider, preserving answered routes for review and revision.
 
    An arrival stands the user on the ask, which is the element the scroll has just
@@ -64,8 +60,10 @@
 
    1. current focus;
    2. selection or caret;
-   3. the walk's last `landed` item;
-   4. the current reading block and scroll position.
+   3. the current visible reading block.
+
+   `walkOrigin` reads that place from the browser on each press, for both Ask and thread
+   page walks. There is no remembered destination underneath those readings.
 
    The chrome is a binding badge, not a page position, so its controls do not become the walk's
    origin. `askStep` compares document positions rather than incrementing an index
@@ -136,7 +134,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./drawer-list.js";
-import { askHolding, declareSide, placeOf, standingPlace } from "../standing-target.js";
+import { askHolding, declareSide, placeOf, walkOrigin } from "../standing-target.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
 import { coveringAuxiliarySurface, pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
@@ -162,7 +160,6 @@ export function createAskView({
   refreshThread,
   focusForNavigation,
   presentedControl,
-  readingBlock,
   announce,
   repaint,
 }) {
@@ -401,13 +398,6 @@ export function createAskView({
     askLent = ask;
     if (ask) ask.tabIndex = -1;
   }
-  // Where the walk last left off. Not the same question as where the user is standing,
-  // though one answer used to serve both: the ring said where they were and the walk read
-  // its own last landing off it. A user who has pressed the banner's Asks button is
-  // standing in the banner, and the ring is rightly gone from the page — leaving the walk
-  // with nothing to step from but whatever happens to be on screen, which would send the
-  // next press back up the page.
-  let landed = null;
   // An answered Ask normally keeps semantic focus on its own element after a drawer-row
   // arrival. A boxless answered widget cannot: its visible revision control is the only
   // focus target. Remember that exact target for this arrival, and only while it still
@@ -799,27 +789,12 @@ export function createAskView({
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
     paintActionProjections();
   }
-  // Where the walk measures from: where the user is standing, rather than where the walk
-  // last put them. It carried an id of its own, so every walk the user had not made with
-  // this key started at the top of the page — select a paragraph and press `d` and you were
-  // taken back past everything you had read, and so was anyone scrolled halfway down
-  // pressing it for the first time. Space page travel measures from the scroll position and
-  // t/T from where the user stands too; this measured from its own memory, which is the one
-  // place the user isn't.
-  //
-  // Read in the order of how directly each says where they are: where they stand, by focus
-  // or by caret (standing-target.js), where this walk last left off (`landed`), and what
-  // they are reading. Every one of them can be absent, and then the first ask is the only
-  // answer there is. A landing whose element a later version dropped is no place at all,
-  // and compareDocumentPosition against a detached node answers about no document.
-  const askPosition = () =>
-    standingPlace() ?? (landed?.isConnected ? landed : null) ?? readingBlock();
   // The ask `dir` steps to from there, clamped at the first and last open asks.
   // Document position rather than an index into the list, because the user's place is a
   // place and not a row: an ask holding it is the one they are standing on, so it is
   // what they step off rather than what they step to.
   function askStep(asks, dir) {
-    const here = askPosition();
+    const here = walkOrigin();
     const standing = here && askAt(asks, here);
     if (!here || standing) return clampedRow(asks, standing, dir);
     const side =
@@ -1082,7 +1057,6 @@ export function createAskView({
         intent: mayArrive,
         there: (readable) => framed(next, region, target, box, readable),
       });
-    landed = target;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the user is standing, rather than both saying the second.
     arriveAt(next, !unansweredIds().has(next.id));
@@ -1204,7 +1178,5 @@ export function createAskView({
     markHere,
     goToAsk,
     stepAsk,
-    landedAt: () => landed,
-    setLanded: (value) => (landed = value),
   };
 }

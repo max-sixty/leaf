@@ -1636,6 +1636,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
+/* Keep a new row measurable, but unpainted until layout gives it a posture. */
+.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {

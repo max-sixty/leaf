@@ -2131,6 +2131,40 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
 
 
+@pytest.mark.watch_shifts
+def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
+    """A new row keeps its measurable box without painting at the viewport origin."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    rendered(page)
+    unplaced = page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return new Promise(resolve => requestAnimationFrame(() => {
+            const registration = registerMarginContribution({
+              key: 'first-placement', target: document.querySelector('#how-cap'),
+              read: () => ({entries: [marginEntry({
+                key: 'act', icon: 'dot', label: 'New margin action'
+              })]}), activate: () => {}
+            });
+            const row = registration.control('act', 'margin')
+              .closest('.lf-margin-cluster');
+            const rect = row.getBoundingClientRect();
+            resolve({place: row.dataset.lfPlace ?? null,
+              visibility: getComputedStyle(row).visibility,
+              width: rect.width, height: rect.height});
+          }));
+        }"""
+    )
+    assert unplaced["place"] is None
+    assert unplaced["width"] > 0 and unplaced["height"] > 0
+    assert unplaced["visibility"] == "hidden"
+    margins_laid_out(page)
+    host = page.locator('[data-lf-margin-for="how-cap"]')
+    expect(host).to_have_attribute("data-lf-place", re.compile("rail|pin"))
+    expect(host.get_by_role("button", name="New margin action")).to_be_visible()
+
+
 def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
     browser, serve
 ):

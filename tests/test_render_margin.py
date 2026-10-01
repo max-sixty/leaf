@@ -7356,6 +7356,48 @@ def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, ser
     )
 
 
+PICK_UNDER_A_CARD = leaf_page(
+    "Pick under a card",
+    """
+<h1 id="title">Pick under a card</h1>
+<lf-ask id="ask">
+  <h3>What should a phone's one-row banner hold?</h3>
+  <lf-options id="choice" choose>
+    <lf-option id="row"><strong>Status in words</strong> The status keeps its words
+    on the row, cut short with an ellipsis where the sentence runs long.</lf-option>
+    <lf-option id="two"><strong>Keep two rows</strong> The status keeps its
+    sentence.</lf-option>
+  </lf-options>
+</lf-ask>
+""",
+)
+
+
+def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serve):
+    """The pick's receipt stands on the option group, whose top is level with the first
+    option's, and it was seated above the option's thread row, pushing that row and the
+    card standing on it down under the reader."""
+    root = {**LONG_THREAD_ROOT, "anchor": {"section": "row"}}
+    page = open_page(browser, serve(PICK_UNDER_A_CARD, events=[root]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1400, 900)
+    thread = page.locator('[data-lf-margin-for="row"]')
+    thread.locator(".lf-margin-marker").click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    rendered(page)
+    where = "node => node.getBoundingClientRect().toJSON()"
+    card, row = preview.evaluate(where), thread.evaluate(where)
+    with sending(page, "the pick"):
+        page.locator("#row").click(position={"x": 20, "y": 10})
+    expect(
+        page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
+    ).to_have_attribute("aria-label", re.compile(r"^Sent\b"))
+    rendered(page)
+    assert preview.evaluate(where) == card
+    assert thread.evaluate(where) == row
+
+
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
     browser, serve, size

@@ -214,12 +214,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    them outside it at whatever size it happened to be.
 
    A floor and not a size: every one of these is free to be bigger, and most are. It
-   is written as a minimum on both axes because a target is a box and a control that
-   is tall and two pixels wide is as hard to hit as a short one. Margin entries centre
-   their own label, so nothing here has to say where the words go. A plain list rather
-   than one :is(), so each member keeps its own weight; a rule that states a minimum
-   of its own for one of these folds the floor into it with max(), so which of the two
-   stands later decides nothing.
+   is written on both axes because a target is a box and a control that is tall and two
+   pixels wide is as hard to hit as a short one. Margin entries centre their own label,
+   so nothing here has to say where the words go. A plain list rather than one :is(), so
+   each member keeps its own weight; a rule that states a minimum of its own for one of
+   these folds the floor into it with max(), so which of the two stands later decides
+   nothing.
+
+   The block floor never takes away a control's content minimum. A min-height on a flex
+   or grid item stands in for the automatic one, the item's own content, so a menu
+   capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
+   than scrolling. A control that stands in such a container states its block floor as
+   padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
+   rule that gives it its padding: .lf-btn below, the version menu's rows and Compare
+   (chrome.css). A one-line control rests at the same height either way, and one whose
+   words run longer keeps them. The members left on min-height stand in rows or in
+   flow, or state their own height.
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
@@ -227,7 +237,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
-  min-height: var(--aim-floor); min-width: var(--aim-floor); }
+  min-width: var(--aim-floor); }
+.lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
+  min-height: var(--aim-floor); }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
    the page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
@@ -562,8 +575,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* Ordinary action buttons share their face across document and shadow trees.
  * Packages may adjust placement and density; margin entries and reaction chips
- * retain their separate forms. */
-.lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+ * retain their separate forms. The block padding carries the aim floor (above), less
+ * the 1px border, so a rule restating it restates the floor with it. */
+.lf-btn { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 .lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
 .lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a

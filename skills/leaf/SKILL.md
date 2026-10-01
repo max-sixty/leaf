@@ -90,7 +90,10 @@ Using Leaf should feel like playing a game: the user sees what the page wants
 of them without reading it first, every state they reach offers a move, and a
 move the page can draw shows its result at once. Sometimes the game is Snap,
 where the match is there and they pick it; sometimes it is Factorio, where the
-system is laid out and they move its pieces. It is never a chore.
+system is laid out and they move its pieces. It is never a chore. Test a draft
+as a player takes in a board, reading only its headings, pictures, and controls:
+where that leaves a view's point or its move unclear, the view has put in words
+what it should draw or let the user do.
 
 Unless the user specifies the page's shape or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
@@ -98,8 +101,7 @@ state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
 Where a view's point has a shape, it shows the point in a picture and uses words
 for what the picture cannot say; `references/page-authoring.md`, "Draw the
-subject", says which points have one. A page that is mostly paragraphs and tables
-has usually described what it should have drawn.
+subject", says which points have one.
 The visible page follows the subject's shape: prose read in order, regions read side
 by side on a wide page, or a workspace holding regions in view together. A Layout class
 on `main` or a block arranges each of these, and the page's own CSS adjusts it;

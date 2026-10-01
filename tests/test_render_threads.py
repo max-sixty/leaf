@@ -1797,6 +1797,9 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     ]
     source, target = roots[12:14]
     page.locator(f'.lf-thread[data-id="{target}"] .lf-thread-summary').click()
+    # Opening closes the card above, and the list's hold on the pressed title corrects
+    # for that on the next render; the scroll below comes after it.
+    rendered(page)
     page.locator(f'.lf-thread[data-id="{target}"]').evaluate(
         "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
     )
@@ -4942,7 +4945,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # 44px reaches the document, the chrome and every declared widget tree from one
         # rule. Each name below is a press the chrome also dresses inside its scope, so
         # the floor is a second, document-level rule on a scoped name. It states a
-        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # minimum and nothing else. The chip and the margin entry are on
         # that list too and are not here: nothing inside the scope names them any more,
         # so they are no longer a scoped vocabulary this exception has to cover.
         "lf-command-reference-command",
@@ -5412,9 +5415,11 @@ def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
     # Where the user is standing when they press: the thread on screen, which is
     # also what the driver's own scroll-into-view would arrange. Read after it, so the
     # baseline is the page as the press finds it rather than as the test left it.
-    focus_panel_thread(page.locator('.lf-thread[data-id="fx-on-design"]'))
-    thread = page.locator('.lf-thread[data-id="fx-on-design"] .lf-quote')
-    thread.scroll_into_view_if_needed()
+    card = page.locator('.lf-thread[data-id="fx-on-design"]')
+    focus_panel_thread(card)
+    rendered(page)
+    thread = card.locator(".lf-quote")
+    card.evaluate("el => el.scrollIntoView({block: 'nearest', behavior: 'instant'})")
     before = page.evaluate(BOTH_BOXES)
     seen = """() => {
       const t = document.querySelector('.lf-thread[data-id="fx-on-design"]');
@@ -6399,9 +6404,13 @@ def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serv
     page.locator(".lf-thread-summary").first.click()
     rendered(page)
 
-    # Nudge until a closed title is cut a few pixels, the user's own case.
+    # Nudge until a closed title is cut a few pixels, the user's own case. The open
+    # card fills the list's height, so the closed titles start a list's height down.
     buried = None
-    for top in range(0, 400, 3):
+    reach = page.locator(".lf-threads").evaluate(
+        "el => el.scrollHeight - el.clientHeight"
+    )
+    for top in range(0, reach, 3):
         page.evaluate(
             "t => { document.querySelector('.lf-threads').scrollTop = t; }", top
         )

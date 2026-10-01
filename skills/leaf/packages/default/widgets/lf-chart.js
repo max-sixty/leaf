@@ -13,8 +13,11 @@
  * What the host adds is what a drawing needs from the page it sits in. It is drawn for the
  * room it has and drawn again when that room changes, since a drawing scaled into a new
  * box takes its labels below legibility with it: the width is the host's, and the body
- * reads it to fit its ticks to the room. Its type and ink are the theme's, and so are its
- * series colours, because Plot takes `var(--series-N)` wherever it takes a colour. A user
+ * reads it to fit its ticks to the room. The height is stated (x-height, or the
+ * occurrence's data-height, painted as data-lf-height), and the page lays that box out
+ * before the drawing arrives, so the drawing and any legend Plot sets beside it are
+ * drawn to fill it and move nothing below it. Its type and ink are the theme's, and so
+ * are its series colours, because Plot takes `var(--series-N)` wherever it takes a colour. A user
  * who cannot see it hears Plot's `ariaLabel` in its place. It is one comment target,
  * through `x-visual: whole`. And a chart that cannot draw says why over its own source.
  *
@@ -50,7 +53,7 @@ function compile(source) {
 
 /* The options one drawing is made from, made afresh for each so that no mark Plot has
  * already rendered is handed to it a second time. */
-function drawOptions(body, Plot, width) {
+function drawOptions(body, Plot, width, height) {
   const spec = body(Plot, width);
   // Plot's own examples end in Plot.plot(...), which returns the drawing rather than
   // its options, at a width the body chose.
@@ -64,7 +67,11 @@ function drawOptions(body, Plot, width) {
     throw new Error(
       "give Plot an ariaLabel: it is what a user who cannot see the chart hears",
     );
-  return { ...spec, width };
+  if ("height" in spec)
+    throw new Error(
+      "state the chart's height as data-height on the element rather than in the options: the page holds that box before the chart draws",
+    );
+  return { ...spec, width, height };
 }
 
 customElements.define(
@@ -102,10 +109,10 @@ customElements.define(
         this.replaceChildren(this.drawing);
         this.paint(Plot, body);
         this.classList.add("lf-rendered");
-        // Only the width is watched, and only when it lands on a new whole pixel. The
-        // redraw is scheduled after ResizeObserver delivery: painting changes the height,
-        // and feeding that back through the same delivery cycle produces the browser's
-        // "undelivered notifications" warning even though this observer ignores height.
+        // Only the width is watched, and only when it lands on a new whole pixel; the
+        // height is stated and stays. The redraw is scheduled after ResizeObserver
+        // delivery, so the layout a paint reads never lands inside the delivery cycle
+        // that asked for it, which the browser reports as undelivered notifications.
         let pending = this.drawn;
         this.watching = sizeObserver(() => {
           const width = Math.round(this.clientWidth);
@@ -131,7 +138,18 @@ customElements.define(
 
     paint(Plot, body) {
       const width = Math.round(this.clientWidth);
-      let built = Plot.plot(drawOptions(body, Plot, width));
+      const box = Number(this.getAttribute("data-lf-height"));
+      this.drawing.replaceChildren(this.plot(Plot, body, width, box));
+      // A legend Plot sets beside the drawing takes its own height, which only laying it
+      // out says, so a chart with one is drawn again into the room the legend leaves.
+      const legend = this.drawing.offsetHeight - box;
+      if (legend > 0)
+        this.drawing.replaceChildren(this.plot(Plot, body, width, box - legend));
+      this.drawn = width;
+    }
+
+    plot(Plot, body, width, height) {
+      let built = Plot.plot(drawOptions(body, Plot, width, Math.max(1, height)));
       // With a legend, Plot returns a <figure> holding it and the drawing. The page gives
       // its own figures margins and reads them as blocks a comment can stand on, and this
       // one is neither: the chart is the comment target and its box is the widget's. So
@@ -175,8 +193,7 @@ customElements.define(
         legend.style.fontFamily ||= "inherit";
       if (!drawing.style.getPropertyValue("--plot-background"))
         drawing.style.setProperty("--plot-background", "var(--paper)");
-      this.drawing.replaceChildren(built);
-      this.drawn = width;
+      return built;
     }
   },
 );

@@ -20,7 +20,6 @@ import {
   paintKeys,
   projectData,
   consumeThreads,
-  declareStickyHeaders,
   relabel,
   retainUserIntent,
   scrollBehavior,
@@ -187,16 +186,32 @@ function renderedLines(file, rendered) {
   });
 }
 
-// A path breaks after its slashes before anywhere else: with no break in it but the one
-// the stylesheet forces, a narrow header cut names mid-word ("skills/wor|ktrunk",
-// "preview.|rs"). The text is unchanged; a <wbr> adds only the opportunity.
+// A path is its folders and then the file's own name, each a span, so a row too narrow
+// for the whole path gives way from the folders and keeps the name (shadow.css). Where
+// a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
+// with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
+// ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
+// opportunity, and the title holds the whole path wherever the row cuts it.
 function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), { className });
-  const parts = path.split("/");
-  parts.forEach((part, index) => {
-    node.append(index < parts.length - 1 ? `${part}/` : part);
-    if (index < parts.length - 1) node.append(document.createElement("wbr"));
+  const node = Object.assign(document.createElement("span"), {
+    className,
+    title: path,
   });
+  const parts = path.split("/");
+  const base = parts.pop();
+  if (parts.length) {
+    const dir = Object.assign(document.createElement("span"), {
+      className: "lf-diff-dir",
+    });
+    for (const part of parts) dir.append(`${part}/`, document.createElement("wbr"));
+    node.append(dir);
+  }
+  node.append(
+    Object.assign(document.createElement("span"), {
+      className: "lf-diff-base",
+      textContent: base,
+    }),
+  );
   return node;
 }
 
@@ -720,7 +735,6 @@ customElements.define(
               ({ node }) => node,
               { nested: true, labelOf: datumLabel, snapshot },
             );
-          this.declareHeadRoom();
           this.classList.toggle("lf-rendered", true);
         } finally {
           resume();
@@ -822,7 +836,6 @@ customElements.define(
         this.replaceChildren();
         this.stageManifest();
         this.projectManifest();
-        this.declareHeadRoom();
         this.classList.toggle("lf-rendered", true);
       } finally {
         resume();
@@ -1245,24 +1258,6 @@ customElements.define(
 
     hasHunks() {
       return this.shownEntries().some((entry) => entry.details);
-    }
-
-    // How much of the top a pinned file header covers, which is the one number the theme
-    // cannot work out: a long path wraps, so the header's height is whatever it rendered
-    // at, and on this corpus that is anything from one line to three. The runtime keeps
-    // that room declared (`declareStickyHeaders`); here it is read as `scroll-margin-top`
-    // on the rows, so a landing arrives
-    // below the header rather than behind it. Per file, because each header pins over its
-    // own rows and one number for all of them would spend the widest path's wrap on
-    // every landing. Declared only where the header pins: unpinned, it covers nothing.
-    declareHeadRoom() {
-      const pinned = this.dataset.lfDiffPinned !== undefined;
-      for (const file of this.shadowRoot?.querySelectorAll("details") ?? [])
-        declareStickyHeaders(
-          file,
-          "--lf-head-room",
-          pinned ? file.querySelectorAll(":scope > summary") : [],
-        );
     }
 
     // Where the user stands inside this diff. A row, a header, or a control in the

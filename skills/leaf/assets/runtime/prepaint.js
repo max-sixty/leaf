@@ -124,10 +124,19 @@
     { once: true },
   );
 
+  // The marks under `node` taken off. No revision's markup carries them, so a copy of
+  // the page taken to stand for what its author wrote is read without them.
+  const unmarked = (node) => {
+    for (const member of node.querySelectorAll(`[${OPENING}]`))
+      member.removeAttribute(OPENING);
+    return node;
+  };
+
   // The holder's module asks once, as it upgrades, which member opens, and from then on
   // shows that member itself, so the mark comes off. It records each member it shows,
   // which a reload reopens (storage.js).
   root.lfViews = {
+    unmarked,
     opening(holder, members) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);

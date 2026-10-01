@@ -98,6 +98,9 @@ export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
 const views = (holder) => holder.ownerDocument.documentElement.lfViews;
 export const openingView = (holder, members) => views(holder).opening(holder, members);
 export const keepView = (holder, member) => views(holder).keep(holder, member);
+// A copy of the page with the prepaint's marks taken off, which is what its author
+// wrote (version.js).
+export const unmarkedCopy = (node) => views(node).unmarked(node.cloneNode(true));
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

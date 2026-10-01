@@ -20,19 +20,21 @@
    Until that press the native handles and menu have the passage to themselves. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
-   80ch and then wraps. Without a horizontal rail, a quoted passage chooses the
-   vertical side with more reachable room; on a touch screen it prefers below whenever
-   the page can make room there. The field keeps that side and moves the reading
-   region only enough to keep the passage
-   and field visible together; it finally scrolls internally. Beside a target, the
-   field's top stays at the target's line while the field grows downward, as an
-   editor's page does, so the lines already written stay where the user wrote them and
-   Send moves down a line per wrap. Only at the visible boundary's foot does the field
-   rise to stay in view, and past the whole boundary it scrolls. A target the gesture
-   pointed into stands the field level with the row it pointed at rather than at the
-   target's top (pointed-place.js).
-   The target chooses a placement from the field's minimum footprint once. Later
-   content and margin controls cannot re-seat it. A region too small for
+   80ch and then wraps.
+
+   Where the bar stands is the rule the thread card a sent comment becomes stands by
+   too (comment-placement.js), so Send changes the surface without moving it: the side
+   is chosen once for the card's footprint, beside the words where that room holds the
+   card, else under or over them by the room the page can make, and the bar keeps it.
+   Under or over a quoted passage, the field moves the reading region only enough to
+   keep the passage and field visible together (`makeRoom`); it finally scrolls
+   internally. Beside a target, the field's top stays at the target's line while the
+   field grows downward, as an editor's page does, so the lines already written stay
+   where the user wrote them and Send moves down a line per wrap. Only at the visible
+   boundary's foot does the field rise to stay in view, and past the whole boundary it
+   scrolls. A target the gesture pointed into stands the field level with the row it
+   pointed at rather than at the target's top (pointed-place.js). Later content and
+   margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
    When the target fills the viewport, the viewport still caps the field. Geometry
    decides where the bar stands, never whether it stands: when a thread panel, a
@@ -53,13 +55,14 @@
    durable draft without moving focus. Submitted words still in flight remain owned by
    their original anchor, while a later target starts clean and keeps focus.
 
-   A quoted passage keeps its resolved block clear when choosing the initial side, while
-   the exact words supply its vertical attachment. The reading region and fixed Leaf
-   chrome are the only collision boundary: page and margin content may be overlaid.
-   Leaf chooses the stable side from the block and its reachable reading room. Floating
-   UI owns coordinate conversion, overflow, and reflow updates; CSS owns content sizing
-   within the width and height its middleware supplies. The viewport holds the bar in
-   only while its target is on screen, so a target scrolled away takes the bar with it.
+   A quoted passage keeps its resolved block clear when choosing the side, while the
+   exact words supply its vertical attachment. The reading region and fixed Leaf chrome
+   are the only collision boundary: page content may be overlaid, and the margin row the
+   comment's thread will stand by is kept clear where the room past it holds a card.
+   Floating UI owns coordinate conversion, overflow, and reflow updates; CSS owns
+   content sizing within the width and height its middleware supplies. The viewport
+   holds the bar in only while its target is on screen, so a target scrolled away takes
+   the bar with it.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
@@ -82,14 +85,13 @@ import {
 import {
   pagePlaneRect,
   seenRect,
-  shellRight,
   shownBox,
   shownExtent,
   shownParts,
   shownRect,
-  shownWindow,
 } from "../geometry.js";
 import {
+  passageBox,
   targetElement,
   targetParts,
   targetPlace,
@@ -137,8 +139,15 @@ import {
   effectiveScroller,
   shownRegionBounds,
 } from "../reading-regions.js";
-import { moveScrollerBy } from "../scrolling.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
+import {
+  cardMinimum,
+  commentBoundary,
+  commentPlacement,
+  makeRoom,
+  reachableRoom,
+} from "../comment-placement.js";
+import { marginSpot } from "../margin-layout.js";
 import { pointBand, standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
 
@@ -185,19 +194,12 @@ export function createResponseSurface({
   // ---------- selection → comment ----------
   // The response surface is fixed chrome, anchored to its passage's block while the
   // passage holds it (floating.js), and Floating UI follows the passage through every
-  // scroll ancestor, so it floats in the part of the window the page shows
-  // (`shownWindow`), whose visible viewport autoUpdate also follows: within a reading
-  // region's shown box when it has one, else within the document page shell, whose right
-  // edge stops short of the root scrollport's gutter. The panel stands over the page, so
-  // an open panel's own left edge bounds the shell too: where it stands, which offsetLeft
-  // reads through its slide.
-  const floatBoundary = (bounds = null) =>
-    shownWindow({
-      within: bounds ?? {
-        right: Math.min(shellRight(), panel.open ? panel.offsetLeft : Infinity),
-      },
-      gap: 8,
-    });
+  // scroll ancestor, so it floats in the boundary the thread card stands in too
+  // (comment-placement.js, `commentBoundary`), whose visible viewport autoUpdate also
+  // follows. The panel stands over the page, so an open panel's own left edge bounds the
+  // shell too: where it stands, which offsetLeft reads through its slide.
+  const floatBoundary = (region = null) =>
+    commentBoundary({ region, right: panel.open ? panel.offsetLeft : Infinity });
   let fabAnchor = null;
   let fabOrigin = null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
@@ -205,9 +207,9 @@ export function createResponseSurface({
   let fabPoint = null;
   let fabFloating = true;
   let fabInlineOutlet = null;
-  let fabPlacement = null;
-  let fabInlineConnection = null;
-  let fabPlacementInput = null;
+  // The side the bar holds and its inline start, by the rule the thread card it becomes
+  // stands by too (comment-placement.js).
+  const fabPlacement = commentPlacement();
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
   let fabPositionFrame = 0;
@@ -269,9 +271,7 @@ export function createResponseSurface({
     fabContentHeight = null;
     if (!reset) return;
     if (!repositioning) answerFabPosition(false);
-    fabPlacement = null;
-    fabInlineConnection = null;
-    fabPlacementInput = null;
+    fabPlacement.forget();
     fabMinimumWidth = null;
     fabMinimumComposer = null;
     fabBar.removeAttribute("data-lf-placement");
@@ -389,13 +389,8 @@ export function createResponseSurface({
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
     if (!anchor || !standsIn(anchor, found)) return null;
-    const segments = anchor.quote ? targetSegments(found) : [];
-    if (segments.length) {
-      const range = document.createRange();
-      range.setStart(segments[0].node, segments[0].start);
-      range.setEnd(segments.at(-1).node, segments.at(-1).end);
-      return range.getBoundingClientRect();
-    }
+    const words = anchor.quote ? passageBox(found) : null;
+    if (words) return words;
     // In the page's plane, as the quoted words above are: the page's own boxes cut it (a
     // pane or a board scrolled past it), and the window does not, so an item the user
     // scrolls off screen keeps its box and takes the bar with it rather than having none.
@@ -405,8 +400,11 @@ export function createResponseSurface({
         .map((part) => pagePlaneRect(shownBox(part), part, clips))
         .filter(Boolean),
     );
+    // A pointed row is small enough to stand by whole, so the bar leaves with it.
     const point = box && fabPointIn(targetElement(found));
-    return point ? pointBand(box, point) : box;
+    return point
+      ? pointBand(union(targetParts(found).map((part) => shownBox(part))), point)
+      : box;
   }
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
@@ -418,95 +416,26 @@ export function createResponseSurface({
     const owner = fabTargetAt();
     const block = fabAnchor.quote && owner;
     const readingRegion = owner && containingReadingRegionFor(owner);
-    let regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    let boundary = floatBoundary(regionBounds);
-    // Keep the response within its pane while that pane can hold the compact control.
-    // A resize can narrow the pane; scrolling can leave only a short visible strip.
-    // The response is already a viewport-plane overlay, so let the viewport carry it
-    // instead of withdrawing the draft and dropping focus while the user types.
-    if (
-      regionBounds &&
-      (!fabFits(regionBounds) || boundary.height < minimumFabHeight())
-    ) {
-      regionBounds = null;
-      boundary = floatBoundary();
-    }
+    const boundary = floatBoundary(readingRegion && shownRegionBounds(readingRegion));
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
-    const parts = block ? shownParts(block) : [];
-    // Room is a reading of the whole block; clipping changes as the user scrolls.
-    // Attachment uses the visible part so the field still meets what is on screen.
-    const roomRect = (block && shownExtent(block)) || target;
+    const point = !fabAnchor.quote && owner && fabPointIn(owner);
+    const holder = block || (!point && owner);
+    const parts = holder ? shownParts(holder) : [];
+    // Room is a reading of the whole block or element, as the card reads it; clipping
+    // changes as the user scrolls. Attachment uses the visible part so the field still
+    // meets what is on screen. A pointed row is read whole already.
+    const roomRect = (holder && shownExtent(holder)) || target;
     const keepClear =
-      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) || roomRect;
+      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
+      (block ? roomRect : target);
     const scroller = effectiveScroller(readingRegion ?? owner);
-    const visibleVerticalRoom = (side) =>
-      side === "top"
-        ? roomRect.top - boundary.top - 6
-        : boundary.bottom - roomRect.bottom - 6;
-    const verticalRoom = (side) => {
-      const travel =
-        side === "top"
-          ? scroller.scrollTop
-          : Math.max(
-              0,
-              scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
-            );
-      return Math.max(
-        0,
-        Math.min(
-          boundary.height - roomRect.height - 6,
-          visibleVerticalRoom(side) + travel,
-        ),
-      );
-    };
-    const sideRoom = (side) =>
-      side === "right"
-        ? boundary.right - keepClear.right - 6
-        : keepClear.left - boundary.left - 6;
-    const initialPlacement = () => {
-      if (!block) return "right-start";
-      const minimum = minimumFabWidth();
-      if (Math.ceil(sideRoom("right")) >= Math.ceil(minimum)) return "right-start";
-      if (Math.ceil(sideRoom("left")) >= Math.ceil(minimum)) return "left-start";
-      const below = verticalRoom("bottom");
-      const above = verticalRoom("top");
-      // Prefer below on touch screens. This keeps Leaf away from a native selection menu
-      // above the passage, but the browser does not expose that menu's actual bounds.
-      if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-start";
-      return below > above ||
-        (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))
-        ? "bottom-start"
-        : "top-start";
-    };
-    // Choose once for the target's horizontal geometry within a reading boundary. Its
-    // vertical position moves whenever the user scrolls, but its reachable room does
-    // not: visible room and remaining travel trade one-for-one. Keeping that movement
-    // out of the cache key prevents scrolling and content growth from re-seating the
-    // response while still reconsidering a resized pane or a changed margin rail.
-    const placementInput = [
-      boundary.left,
-      boundary.top,
-      boundary.right,
-      boundary.bottom,
-      keepClear.left,
-      keepClear.right,
-    ];
-    if (
-      fabPlacementInput &&
-      placementInput.some(
-        (value, index) => Math.abs(value - fabPlacementInput[index]) > 0.5,
-      )
-    ) {
-      fabPlacement = null;
-      fabInlineConnection = null;
-      fabContentHeight = null;
-    }
-
-    // Width before coordinates: Floating UI chooses a side from the compact surface,
-    // then its size pass gives CSS that attachment's actual inline room. If a later
-    // resize makes the chosen side narrower than the minimum control, use the whole
-    // boundary and let shift overlap the target instead of silently moving the draft.
+    const verticalRoom = (side) =>
+      reachableRoom(side, roomRect, boundary, scroller).reachable;
+    // Width before coordinates: the side is chosen from the card's minimum, then the size
+    // pass gives CSS that side's actual inline room. If a later resize makes the chosen
+    // side narrower than the bar's minimum, use the whole boundary and let shift overlap
+    // the target instead of silently moving the draft.
     const setWidth = (available) => {
       const minimum = minimumFabWidth();
       const width =
@@ -526,33 +455,41 @@ export function createResponseSurface({
       const extra = Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight);
       fabBar.style.setProperty("--lf-float-h", `${Math.max(0, available - extra)}px`);
     };
-    const requestedPlacement = fabPlacement ?? initialPlacement();
-    const requestedSide = requestedPlacement.split("-", 1)[0];
-    const quotedVertical = block && /^(top|bottom)$/.test(requestedSide);
-    const fallbackPlacements = {
-      "right-start": ["left-start", "top-start", "bottom-start"],
-      "left-start": ["right-start", "top-start", "bottom-start"],
-      "top-start": ["bottom-start", "right-start", "left-start"],
-      "bottom-start": ["top-start", "right-start", "left-start"],
-    }[requestedPlacement];
-    if (fabPlacement === null) setWidth(boundary.width);
-    const room = quotedVertical ? verticalRoom(requestedSide) : boundary.height;
-    // A passage's vertical side is chosen from the room the page can make there, and the
-    // travel below makes it, so only a side that cannot hold the bar is left to Floating
-    // UI's flip. Flipping a settled side on pixels re-decided it over the pixel between
-    // the bar as measured here and the bar as laid out.
-    const settledSide = quotedVertical && room >= minimumFabHeight();
-    setHeight(settledSide ? room : boundary.height);
+    // A side under or over is chosen from the room the page can make there, and the
+    // travel below makes it, so the bar is given that room to grow into; beside, or where
+    // that side cannot hold the bar, the whole boundary.
+    const vertical = (side) => /^(top|bottom)$/.test(side);
+    const heightFor = (side) => {
+      const room = vertical(side) ? verticalRoom(side) : 0;
+      return room >= minimumFabHeight() ? room : boundary.height;
+    };
+    const { side, fresh } = fabPlacement.choose({
+      clear: keepClear,
+      extent: roomRect,
+      boundary,
+      minimum: { width: cardMinimum() },
+      scroller,
+      coarse: coarsePointer.matches,
+    });
+    if (fresh) {
+      fabContentHeight = null;
+      setWidth(boundary.width);
+    }
+    setHeight(heightFor(side));
     // The choices deliberately wrap inside the response surface, so their intrinsic
     // scroll width is not a fit requirement. Only the compact control's minimum is: a
     // covering panel may genuinely leave less than that, while an ordinary narrow page
     // still has a usable surface once the choices reflow below the field.
-    if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
+    if (
+      boundary.height < minimumFabHeight() ||
+      Math.ceil(boundary.width) < Math.ceil(minimumFabWidth())
+    )
+      return false;
 
-    // A vertical passage comment belongs beyond the passage, not shifted back across it.
+    // Under or over, the bar belongs beyond what it is about, not shifted back across it.
     // When its intrinsic content height changes, use the reading region's remaining
     // travel before asking the field to scroll. The placed height also changes when the
-    // passage clips at a boundary; keying this to the content keeps that wheel gesture as
+    // target clips at a boundary; keying this to the content keeps that wheel gesture as
     // navigation rather than undoing it on the next frame.
     const height = fabBar.offsetHeight;
     const contentHeight = composerOpen
@@ -561,149 +498,53 @@ export function createResponseSurface({
     const contentChanged =
       fabContentHeight === null || Math.abs(contentHeight - fabContentHeight) > 0.5;
     fabContentHeight = contentHeight;
-    if (quotedVertical && contentChanged) {
-      const overflow =
-        requestedSide === "top"
-          ? boundary.top - (keepClear.top - 6 - height)
-          : keepClear.bottom + 6 + height - boundary.bottom;
-      const available =
-        requestedSide === "top"
-          ? scroller.scrollTop
-          : Math.max(
-              0,
-              scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
-            );
-      const movement = Math.max(0, Math.min(overflow, available));
-      if (movement > 0.5) {
-        const before = scroller.scrollTop;
-        moveScrollerBy(scroller, requestedSide === "top" ? -movement : movement);
-        if (Math.abs(scroller.scrollTop - before) > 0.5) {
-          fabPlacementInput = null;
-          return placeFab();
-        }
-      }
+    if (
+      vertical(side) &&
+      contentChanged &&
+      makeRoom(side, keepClear, roomRect, height, boundary, scroller)
+    ) {
+      fabPlacement.scrolled();
+      return placeFab();
     }
 
-    const reference = {
-      contextElement: owner ?? document.documentElement,
-      getBoundingClientRect: () => keepClear,
-    };
-    const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
     const epoch = fabPosition.begin();
-    const initial = fabPlacement === null;
     const stillCurrent = () => fabPosition.current(epoch) && fabAnchor && fabFloating;
-    // Above or below, the field starts where the compact control would, ended on the
-    // passage's right edge, and grows rightward from there. The start is the minimum's,
-    // not the bar's first measured width, which a restored draft's words widen: one draft
-    // then gets the same lane wherever it is opened.
-    const inlineConnection = () => fabInlineConnection ?? -minimumFabWidth();
     void floatingUi()
-      .then(
-        ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
-          if (!stillCurrent()) return null;
-          watchFabPosition(owner ?? document.documentElement, autoUpdate);
-          // Whether the boundary, rather than the passage, holds the bar's block
-          // position: shifted there and not limited back to the passage, the bar stands
-          // in the window's plane (floating.js).
-          let heldIn = false;
-          const attachment = limitShift(({ placement }) => {
-            const vertical = /^(top|bottom)/.test(placement);
-            return { mainAxis: !vertical, crossAxis: vertical };
-          });
-          // Held at a reading region's edge, the bar goes where the page takes the region.
-          const plane = ({ y, middlewareData }) =>
-            heldIn &&
-            Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 &&
-            heldByWindow(y, y + fabBar.offsetHeight, 8)
-              ? "window"
-              : "page";
-          return fabPosition.position(
-            computePosition,
-            reference,
-            {
-              placement: requestedPlacement,
-              middleware: [
-                offset(({ placement, rects }) => {
-                  const beside = /^(left|right)/.test(placement);
-                  return {
-                    mainAxis: 6,
-                    // The paragraph chooses the horizontal lane and the selected line
-                    // where in it the field's top stands, which it keeps as the field
-                    // grows downward; above or below, preserve the initial inline start.
-                    crossAxis: beside
-                      ? target.top - 6 - keepClear.top
-                      : rects.reference.width + inlineConnection(),
-                  };
-                }),
-                // Size precedes the one initial flip so the decision sees the width into
-                // which the compact control can actually shrink. This is Floating UI's
-                // documented initial-placement composition; putting size last makes a
-                // fractional CSS pixel look like a missing margin rail.
-                size({
-                  ...overflow,
-                  apply({ availableWidth, placement }) {
-                    if (!stillCurrent()) return;
-                    const side = placement.split("-", 1)[0];
-                    const laneWidth =
-                      side === "right"
-                        ? boundary.right - keepClear.right - 6
-                        : side === "left"
-                          ? keepClear.left - boundary.left - 6
-                          : boundary.right - (keepClear.right + inlineConnection());
-                    // A side placement consumes its current rail. Above or below, the
-                    // relative connection preserves the field's inline start as its content
-                    // grows while allowing target reflow to carry that start with it.
-                    setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                    const vertical = block && /^(top|bottom)$/.test(side);
-                    const available = vertical ? verticalRoom(side) : boundary.height;
-                    setHeight(
-                      vertical && available >= minimumFabHeight()
-                        ? available
-                        : boundary.height,
-                    );
-                  },
-                }),
-                initial &&
-                  !settledSide &&
-                  flip({
-                    ...overflow,
-                    crossAxis: false,
-                    fallbackPlacements,
-                    fallbackStrategy: "bestFit",
-                  }),
-                // The viewport holds the bar in only while its target is still there: past
-                // that the bar leaves with it, rather than staying pinned to the viewport's
-                // edge over whatever the user scrolled to. Only the block axis is limited;
-                // the reading boundary still holds the bar in across it.
-                shift({
-                  ...overflow,
-                  mainAxis: true,
-                  crossAxis: true,
-                  limiter: {
-                    ...attachment,
-                    fn(state) {
-                      const limited = attachment.fn(state);
-                      heldIn = Math.abs(limited.y - state.y) < 0.5;
-                      return limited;
-                    },
-                  },
-                }),
-              ],
-            },
-            plane,
-            owner ?? document.documentElement,
-          );
-        },
-      )
+      .then((ui) => {
+        if (!stillCurrent()) return null;
+        watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
+        const { reference, placement, middleware, heldIn } = fabPlacement.options(ui, {
+          clear: keepClear,
+          row: target.top,
+          margin: owner && marginSpot(owner, fabPointIn(owner)),
+          boundary,
+          minimum: { width: cardMinimum() },
+          fit({ side: placed, width, scale }) {
+            if (!stillCurrent()) return;
+            setWidth(width);
+            setHeight(heightFor(placed) / scale.y);
+          },
+        });
+        // Held at a reading region's edge, the bar goes where the page takes the region.
+        const plane = (answer) =>
+          heldIn(answer) && heldByWindow(answer.y, answer.y + fabBar.offsetHeight, 8)
+            ? "window"
+            : "page";
+        return fabPosition.position(
+          ui.computePosition,
+          {
+            contextElement: owner ?? document.documentElement,
+            getBoundingClientRect: () => reference,
+          },
+          { placement, middleware },
+          plane,
+          owner ?? document.documentElement,
+        );
+      })
       .then((position) => {
-        if (!position) return;
-        const { x, placement } = position;
-        if (!stillCurrent()) return;
-        fabPlacement ??= placement;
-        if (!/^(left|right)/.test(placement))
-          fabInlineConnection ??= x - keepClear.right;
-        fabPlacementInput = placementInput;
-        keeps(fabBar, "data-lf-placement", fabPlacement);
+        if (!position || !stillCurrent()) return;
+        fabPlacement.landed(position);
+        keeps(fabBar, "data-lf-placement", position.placement);
         fabPosition.stand(position);
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);

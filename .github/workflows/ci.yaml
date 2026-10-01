@@ -1,10 +1,9 @@
 name: ci
 
-# Pull requests and main run the small landing gate, which on a pull request also runs
-# the nightly-marked tests it edits. Pull requests also run the website gate; relevant
-# pushes to main run that gate in publish-site before deploy.
-# A green push to main, the daily schedule, and a manual dispatch each run the
-# complete browser surface.
+# Pull requests run the small landing gate plus the nightly-marked tests they edit,
+# and the website gate. Main, the daily schedule, and a manual dispatch run the
+# complete selection once, with the same runtime, browser-framework and bundle gates.
+# Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
     branches: [main]
@@ -15,9 +14,9 @@ on:
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, a cancellation reaches tend-ci-fix as
-# something to fix, and with `nightly` in the run the next merge would end a complete
-# suite partway through. Nothing outside a pull request shares a group, so the only
-# queue here is the `nightly` job's.
+# something to fix, and the next merge must not end a complete suite partway through.
+# Nothing outside a pull request shares a workflow group; the complete test job owns
+# the automatic suite's queue.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -36,8 +35,28 @@ jobs:
         uses: pre-commit/action@v3.0.1
 
   test:
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    # Scheduled and manual runs skip lint. A red or cancelled lint never starts tests.
+    if: >-
+      !cancelled()
+      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
     needs: lint
+    concurrency:
+      # One automatic suite at a time: it holds a runner for over an hour, and
+      # GitHub's concurrency pool is per-account, shared with the other repos here. A
+      # running suite is never cancelled, because that hour would be lost; a newer
+      # commit replaces the pending entry instead, under GitHub's default
+      # `queue: single`, so a busy main gets the suite on its tip rather than working
+      # through commits already superseded. Superseded pending entries are recorded as
+      # cancelled runs, and #296 accepted that cost for the same reason.
+      #
+      # A dispatch keeps a slot per ref, as it had before this job took a group of its
+      # own. It is the control a session runs against a base SHA, and two sessions
+      # judging two branches need both answers; behind main's queue either one would
+      # be replaced by the next merge before it ever started.
+      # PRs keep their own slot; the automatic and dispatch groups keep the complete
+      # suite's existing queue identity.
+      group: ${{ github.event_name == 'pull_request' && format('{0}-test-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-nightly-{1}', github.workflow, github.event_name == 'workflow_dispatch' && github.ref || 'automatic') }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
@@ -69,11 +88,6 @@ jobs:
       - name: Install browser-build dependencies
         run: npm ci
 
-      - name: 🧪 Core and browser-smoke tests
-        run: >-
-          uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
-          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '' }}
-
       - name: Check committed browser framework
         run: npm run check:browser && npm run test:browser
 
@@ -87,6 +101,12 @@ jobs:
 
       - name: 🧪 Runtime folds
         run: npm run test:runtime
+
+      # Cheap gates fail before the complete Python suite spends its runner time.
+      - name: 🧪 Python tests
+        run: >-
+          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
+          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 
       - name: Install website dependencies
         if: github.event_name == 'pull_request'
@@ -114,71 +134,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/everyday.xml
-          if-no-files-found: ignore
-          retention-days: 30
-
-  # The complete suite, including the nightly-marked tests that broad discovery
-  # skips and the everyday `test` job therefore never reaches. A push to main runs it,
-  # so a regression in one of them surfaces in the hour or two after it lands rather
-  # than at the next morning's cron, and the failed run reaches tend-ci-fix.
-  nightly:
-    needs: [lint, test]
-    # The schedule and a dispatch skip `lint` and `test`, and the default `success()`
-    # gate would skip this job along with them, so read their results directly. The
-    # guard names the two results that may proceed rather than excluding `failure`,
-    # because an everyday gate that is cancelled rather than run concludes neither, and
-    # a wedged one would otherwise send an hour of complete suite after it.
-    # A red everyday gate skips this job too: it already names what to fix.
-    if: >-
-      !cancelled()
-      && github.event_name != 'pull_request'
-      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
-      && (needs.test.result == 'success' || needs.test.result == 'skipped')
-    concurrency:
-      # One automatic suite at a time: it holds a runner for over an hour, and
-      # GitHub's concurrency pool is per-account, shared with the other repos here. A
-      # running suite is never cancelled, because that hour would be lost; a newer
-      # commit replaces the pending entry instead, under GitHub's default
-      # `queue: single`, so a busy main gets the suite on its tip rather than working
-      # through commits already superseded. Superseded pending entries are recorded as
-      # cancelled runs, and #296 accepted that cost for the same reason.
-      #
-      # A dispatch keeps a slot per ref, as it had before this job took a group of its
-      # own. It is the control a session runs against a base SHA, and two sessions
-      # judging two branches need both answers; behind main's queue either one would
-      # be replaced by the next merge before it ever started.
-      group: ${{ github.workflow }}-nightly-${{ github.event_name == 'workflow_dispatch' && github.ref || 'automatic' }}
-      cancel-in-progress: false
-    runs-on: ubuntu-24.04
-    env:
-      PYTEST_ADDOPTS: --durations=25 --durations-min=1
-
-    steps:
-      - name: 📂 Checkout code
-        uses: actions/checkout@v7
-
-      - uses: astral-sh/setup-uv@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install browser-build dependencies
-        run: npm ci
-
-      - name: Install Chromium headless shell and WebKit
-        run: uv run playwright install --with-deps chromium webkit --only-shell
-
-      - name: 🧪 Complete test suite
-        run: uv run pytest tests --run-nightly -v --junitxml=.tmp/test-results/nightly.xml
-
-      - name: Upload pytest results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/nightly.xml
+          path: .tmp/test-results/results.xml
           if-no-files-found: ignore
           retention-days: 30

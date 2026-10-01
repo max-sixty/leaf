@@ -267,6 +267,7 @@
     "x-thread-surface": true,
     "x-upgrade": true,
     "x-space": "available",
-    "x-example": "<lf-visual-review id=\"docs-review\" source=\"docs-visual-run\"></lf-visual-review>"
+    "x-height": true,
+    "x-example": "<lf-visual-review id=\"docs-review\" data-height=\"720\" source=\"docs-visual-run\"></lf-visual-review>"
   }
 }

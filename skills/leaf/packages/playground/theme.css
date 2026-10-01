@@ -81,6 +81,38 @@ lf-playground:has(> .lf-playground-split) {
   }
 }
 
+/* Before the module builds the regions, the page holds the playground's height
+ * (x-height) and the stage already stands where its region will: first in the stack,
+ * or on the wide split's two thirds beside the rail, the whole held height. The rail's
+ * controls, readings and actions are the module's to build, and its members stand in
+ * the rail's column until then. A quoted playground builds no regions. */
+html[data-lf-interactive]
+  lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
+  position: relative;
+  align-content: start;
+
+  & > lf-playground-preview {
+    order: -1;
+  }
+}
+
+@container (min-width: 43.5rem) {
+  html[data-lf-interactive]
+    lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
+    & > lf-playground-preview {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      box-sizing: border-box;
+      inline-size: calc((100% - var(--sp-4)) * 2 / 3);
+    }
+
+    & > :is(lf-playground-control, lf-playground-preset, lf-playground-output) {
+      margin-inline-start: calc((100% - var(--sp-4)) * 2 / 3 + var(--sp-4));
+    }
+  }
+}
+
 /* The stage draws nothing of its own: the preview's well is its surface. */
 .lf-playground-preview-region {
   border: 0;

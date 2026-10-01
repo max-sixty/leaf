@@ -618,8 +618,9 @@ html { background: var(--paper); }
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets the body's percentage minimum fill a short
  * viewport while a longer body still overflows it. A standing scrollbar prevents a
- * later height change from recentering the page. The server's prepaint bootstrap marks
- * a live page before its graph has loaded, and paper has no fixed chrome. */
+ * later height change from recentering the page. A served page's bootstrap marks it
+ * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
+ * and paper has no fixed chrome. */
 @media screen {
   html[data-lf-live] {
     height: 100%;
@@ -717,19 +718,19 @@ body {
  * version gate refuses it for the display and visibility properties this boundary owns. */
 @layer {
   @media screen {
-    html[data-lf-live] body:not([data-lf-presented]),
-    html[data-lf-live] body:not([data-lf-presented]) > main,
-    html[data-lf-live] body:not([data-lf-presented]) > main *,
-    html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) > main,
+    html[data-lf-interactive] body:not([data-lf-presented]) > main *,
+    html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
   }
 }
-/* The keys the prepaint bootstrap holds until presentation (runtime/bootstrap.js). It
- * stands where the chrome's bottom status will, and is styled here because it can
+/* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
+ * It stands where the chrome's bottom status will, and is styled here because it can
  * appear before the runtime has adopted chrome.css. */
 .lf-held-keys {
   position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
@@ -980,7 +981,7 @@ main {
    * drawing's: one drawn at the stated height keeps it, and one whose content has a
    * height of its own takes that. A failure is shown whole, since the user has to read
    * it. */
-  html[data-lf-live] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+  html[data-lf-interactive] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
     box-sizing: border-box;
     block-size: attr(data-lf-height px);
     overflow: clip;
@@ -1168,6 +1169,15 @@ th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rul
    the prose above it, and stopped the last column short of the same edge. */
 tr > :first-child { padding-left: 0; }
 tr > :last-child { padding-right: 0; }
+/* A cell the user stands on, as a thread's target once its card closes, wears the ring
+ * inside its own box. The table scrolls its columns, so it clips to its own edges, and
+ * the outer columns, the header row and the last row stand flush with them: the layer's
+ * outward ring there lost the side on the table's edge. Room outside the table would
+ * have to come from a negative margin, which overflows any scroller holding the table
+ * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
+ * outlined the cell, and like the trace it meets the words of an outer column, which
+ * keeps no padding on its outer side. */
+:where(th, td):focus-visible { outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Which kind of header a th is, asked of the author's own word for it rather
    than of where it sits: a header row written without a <thead> is still column
    headings, and `scope="row"` is what a row's name needs said anyway. Each rule
@@ -1656,6 +1666,12 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * sheet's (chrome.css), which states it above the page paint the item summons; a second
  * one here would tie it and win or lose by where each sheet stands. */
 .lf-margin-cluster.lf-withheld { display: none; }
+/* A row the layout has not placed yet has no anchor and no posture, and stands at its
+ * fallback until the next frame's pass (`registerMarginRow`, margin-layout.js). Unseen
+ * there rather than out of layout, so the pass can measure it, it first appears where it
+ * stands: shown, its move from the fallback into the rail read as a layout shift, an
+ * arriving marker's (1006, 265)px in a seat test on Linux. */
+.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
 .lf-margin-inline { display: block; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }

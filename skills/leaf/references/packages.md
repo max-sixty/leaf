@@ -173,10 +173,16 @@ out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim
 it rather than taking one item's margin and leaving the others'.
 
 Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
-`[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`, and `[data-lf-exhibit]`; shared
-selectors read those attributes instead of naming widget tags. The registry's `$keys`
-entries for `x-space`, `x-bound`, and `x-height` say what each declaration requests; none of them
-chooses the widget's internal layout, which the package arranges inside the allocation.
+`[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`, `[data-lf-exhibit]`, and
+`[data-lf-views]`; shared selectors read those attributes instead of naming widget
+tags. The registry's `$keys` entries for `x-space`, `x-bound`, and `x-height` say what
+each declaration requests; none of them chooses the widget's internal layout, which the
+package arranges inside the allocation.
+An element whose attributes name page media also arrives with the largest width and the
+largest height among those images, read from their bytes, as `data-lf-media-width` and
+`data-lf-media-height`, so a theme can give a frame the images' shape before they decode
+(`aspect-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height
+type(<number>))`, as `lf-shot` does).
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may
@@ -246,6 +252,7 @@ widget's role on the page:
 | `x-height`           | `lf-chart`                                                     |
 | `x-history`          | `lf-activity`                                                  |
 | `x-patch`            | `lf-tabs`                                                      |
+| `x-views`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 | `x-face`             | `lf-suggestion` (its slots), `lf-shot` in `default` (its rail) |
 
@@ -1189,13 +1196,19 @@ and a blank image stands in for any media an example names. The checks:
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at
   first paint. Upgrade should add behavior and move nothing, so size the widget in
-  the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
-  as its module will draw it. Where the markup cannot say how tall the drawing will
-  be, declare `x-height` and draw at the height it states. A widget holding others is named only for the change
-  left once the changed widgets inside it are put back to their first sizes. An
-  inline widget's old lines are more than a size, so a widget holding a changed
-  inline one is named beside it. A widget the page hides once presented, such as an
-  inactive tab, is left to the widget that hid it.
+  the package theme, under `html[data-lf-interactive]`, which Leaf sets before first
+  paint wherever its runtime will run, in a served page or an export, as its module
+  will draw it. Where the markup cannot say how tall the drawing will
+  be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
+  draw at the stated height where the drawing can take any; `page check --render`
+  advises a page's author the height to state for one that cannot. Where the widget
+  shows one of its members at a time, declare `x-views`, open on `openingView`'s
+  member, and show only the member marked `data-lf-opening` until the module upgrades
+  the element, as `lf-tabs` does. A widget holding
+  others is named only for the change left once the changed widgets inside it are put
+  back to their first sizes. An inline widget's old lines are more than a size, so a
+  widget holding a changed inline one is named beside it. A widget the page hides once
+  presented, such as an inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

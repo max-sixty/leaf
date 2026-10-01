@@ -623,3 +623,22 @@ def shrunk_label_advice(page) -> list[str]:
         "(authoring-evidence.md, Interactive and visual evidence)"
         for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
     ]
+
+
+def unreserved_height_advice(page, declarations: dict) -> list[str]:
+    """Advice naming each widget whose module drew it at a height its first paint did
+    not reserve (x-height), with the data-height that would have.
+
+    Read at the desktop viewport, where the other advice is. Advice rather than a
+    failure: the page reads the same once the drawing lands, and only the moment it
+    lands moves what follows it."""
+    return [
+        f"<{w['tag']} id={w['id']!r}> draws {w['drawn']}px tall where its first paint "
+        + (
+            "reserves no height"
+            if w["reserved"] is None
+            else f"reserves {w['reserved']}px"
+        )
+        + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
+        for w in evaluate_probe(page, "unreservedHeights", declarations)
+    ]

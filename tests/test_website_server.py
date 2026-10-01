@@ -232,6 +232,7 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
         for path, mime in (
             ("/runtime/bootstrap.js", "application/javascript"),
+            ("/runtime/prepaint.js", "application/javascript"),
             ("/runtime/chrome.css", "text/css"),
             ("/runtime/marks.css", "text/css"),
         )

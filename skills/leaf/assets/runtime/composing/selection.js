@@ -151,6 +151,7 @@ export function createSelectionComposer({
   createComment,
   focusSurface,
   showThread,
+  landSent,
   refreshThread,
   wireInput,
 }) {
@@ -664,14 +665,13 @@ export function createSelectionComposer({
           loadDraft(ctx) === null &&
           currentIntent() &&
           !pageSelection();
-        // Land on the sent thread without moving into its reply box. A later gesture
-        // may already have moved the user elsewhere while presentation was settling.
+        // Land where any send leaves the user (`landSent`): on the thread, or on the
+        // element the margin card's thread is about, never in its reply box. A later
+        // gesture may already have moved the user elsewhere while presentation was
+        // settling.
         const inlineThread =
           shouldReveal && !panelIsOpen()
-            ? openInlineThread(sent.id, {
-                transition,
-                onPositioned: (thread) => thread.focus({ preventScroll: true }),
-              })
+            ? openInlineThread(sent.id, { transition, onPositioned: landSent })
             : null;
         if (!inlineThread && (shouldReveal || panelIsOpen()))
           await showThread(sent.id, { focus: shouldReveal ? "thread" : false });

@@ -231,8 +231,7 @@ def test_page_round_trip(browser, serve):
     # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
-    page.keyboard.press("Escape")  # out of the reply box the send landed in
-    page.keyboard.press("Escape")  # and off the card holding it
+    page.keyboard.press("Escape")  # off the target the send landed on, and its card
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
@@ -1465,7 +1464,8 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
 
 
 def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
-    """A wheel can move the reading place while leaving the old reply focused."""
+    """A wheel can move the reading place while the user stands on the thread the
+    reply was sent in; its delivery moves neither."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.emulate_media(reduced_motion="reduce")
@@ -1487,7 +1487,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     expect(later).not_to_be_in_viewport()
     page.mouse.wheel(0, 3500)
     expect(later).to_be_in_viewport()
-    expect(reply).to_be_focused()
+    expect(first.locator(".lf-thread-summary")).to_be_focused()
     before = later.evaluate("node => node.getBoundingClientRect().top")
 
     held.pop(0).continue_()
@@ -1501,7 +1501,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     assert later.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         before, abs=1
     )
-    expect(reply).to_be_focused()
+    expect(first.locator(".lf-thread-summary")).to_be_focused()
 
 
 def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
@@ -1609,7 +1609,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
         f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
     )
     reply = thread.locator("leaf-text")
-    expect(thread).to_be_focused()
+    expect(page.locator("#p1")).to_be_focused()
     thread.get_by_role("textbox", name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 

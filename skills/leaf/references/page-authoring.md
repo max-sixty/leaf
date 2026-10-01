@@ -121,10 +121,10 @@ margin", below).
 
 ### Contents navigation
 
-Long scrolling documents include a contents outline by default, unless the reader can
-see the document's structure at a glance. It gives them a persistent route between
-sections and shows where they are in the document. Put an empty `lf-toc` with a stable
-id in an `aside.sidebar`, directly inside `main` near the opening:
+Long scrolling documents include a contents outline. It gives the reader a
+persistent route between sections and shows where they are in the document. A short
+document that can be read at a glance needs no outline. Put an empty `lf-toc` with a
+stable id in an `aside.sidebar`, directly inside `main` near the opening:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">

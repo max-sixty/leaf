@@ -115,46 +115,38 @@ when the current change leaves it as easy to make as it was before.
 
 ## Repository map
 
-The repository is the plugin: `.claude-plugin/marketplace.json` and
-`.agents/plugins/marketplace.json` both name `./` as the payload, so Claude Code
-and Codex install the tracked tree whole.
+`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` both name
+`./` as the plugin payload, so Claude Code and Codex install the tracked tree whole.
+Before changing an area, read the `AGENTS.md` its entry names.
 
-- `pyproject.toml`, `uv.lock`, and `bin/leaf`: the uv project and the launcher
-  that runs it;
+- `bin/leaf`, `pyproject.toml`, and `uv.lock`: the launcher and the uv project it
+  runs;
 - `skills/leaf/scripts/leaf/`: the CLI, server, event model, validation,
-  projection, vendoring, and export, with their internal contracts beside them;
-- `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
-- `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
+  projection, vendoring, and export (`skills/leaf/scripts/AGENTS.md`);
+- `skills/leaf/assets/`: the browser runtime, registry, theme, and icon
+  (`skills/leaf/assets/AGENTS.md`, and `skills/leaf/assets/runtime/keyboard/AGENTS.md`
+  for commands, bindings, and scopes);
+- `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`);
 - `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/hooks.json`: the shared host hooks;
+- `hooks/hooks.json`: the host hooks;
 - `evals/`: cases a headless agent answers, scoring the shipped guidance;
-- `examples/`: the authored pages the site publishes and the render corpus;
-- `tests/`: the file, CLI, browser, and published-site boundaries, and in
-  `tests/runtime/` the runtime's folds, which Node runs without a browser;
+- `examples/`: the pages the site publishes, which are also the render corpus
+  (`examples/AGENTS.md`);
+- `tests/`: the suite, with the runtime's folds under `tests/runtime/`, which Node
+  runs without a browser (`tests/AGENTS.md`);
 - `build/`: the browser framework's TypeScript and the builds of every committed
-  browser bundle;
-- `dev/`: the `leaf_dev` package, whose `leaf-dev` commands preview, build, verify,
-  and generate what the repository needs, and probe, screenshot, and compare
-  versions of Leaf;
+  browser bundle (`build/AGENTS.md`);
+- `dev/`: the `leaf_dev` package and its `leaf-dev` commands (`dev/AGENTS.md`);
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
-  example to the Python server (the `leaf_website` package) in a per-user container;
-  `worker/README.md` names its tokens and how an unattended agent loads one;
-- `docs/`: the site's own pages, each a Leaf source, so changing what the site
-  says is a page edit;
+  example to the Python server (`leaf_website`) in a per-user container
+  (`worker/README.md`, which also names its tokens and how an unattended agent
+  loads one);
+- `docs/`: the site's own pages, each a Leaf source;
 - `TODO.md`: the ordered priority list;
-- `notes/`: research and plans for unresolved work. Once a design lands, its
+- `notes/`: research and plans for unresolved work. When a design lands, its
   contract moves beside the code or into the reference whose reader acts on it,
   and the note is deleted.
-
-Read the scoped instructions for the area being changed:
-`skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
-`skills/leaf/assets/runtime/keyboard/AGENTS.md` (commands, bindings, scopes),
-`skills/leaf/packages/AGENTS.md` (bundled packages),
-`skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
-`examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
-`build/AGENTS.md` (committed bundles), and `dev/AGENTS.md` (the `leaf-dev` package
-and generated outputs).
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -171,158 +163,153 @@ kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
 
-An install is the tracked tree copied into a host's plugin cache, and nothing is
-built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
-install must be writable, and Leaf writes nothing else there. Point Codex
-at the git source, since a local-directory marketplace copies a checkout's
-`.venv` too. A plugin update may replace the directory wholesale, so what has to
-survive one belongs in the page directory or the state home. Runtime
-dependencies, and those a package script declares, state a floor and no cap. The
-host supplies Chrome and `jq`; leaf never downloads a browser.
+A host copies the tracked tree into its plugin cache and builds nothing. `bin/leaf`
+runs `uv run --no-dev` on the tree, so the install must be writable, and Leaf writes
+nothing else there. Point Codex at the git source, since a local-directory
+marketplace also copies a checkout's `.venv`. A plugin update may replace the
+directory wholesale, so state that must survive one belongs in the page directory or
+the state home. Runtime dependencies, and those a package script declares, state a
+floor and no cap. The host supplies Chrome and `jq`; Leaf never downloads a browser.
 
-Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
-generated and committed where their consumer reads them; `build/AGENTS.md` says
-how to regenerate them.
+Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are generated
+and committed where their consumer reads them (`build/AGENTS.md`).
 
-Every tracked byte ships in every install and stays in history, so the tree
-holds no binary files and no large ones. An image a tool in this repository
-reads, such as the demo recording, a catalog preview, an example page's image,
-or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
-its reader looks for it and pinned by `leaf-assets.json`
-(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
-captures, recordings and raw run output, stays in `.tmp/` and reaches the user
-on a Leaf page; a note keeps the finding and the command that reproduces it,
-not the capture. The suite refuses a binary file, and pre-commit refuses a new
-file over 500 KB.
+Every tracked byte ships in every install and stays in history, so the tree holds no
+binary or large files: the suite refuses a binary file, and pre-commit refuses a new
+file over 500 KB. An image a tool here reads, such as the demo recording, a catalog
+preview, an example page's image, or an eval case's capture, lives in
+`max-sixty/leaf-assets` at the path its reader looks for it, pinned by
+`leaf-assets.json` (`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots,
+probe captures, recordings, and raw run output, stays in `.tmp/` and reaches the
+user on a Leaf page; a note keeps the finding and the command that reproduces it.
 
 ## Cross-runtime invariants
 
 ### The document starts state; the log changes it
 
-Authored markup is the initial condition. The append-only event log records
-transitions. Every current-state projection starts with markup and applies the
-standing log; do not add a database, derived current-state file, widget-specific
-replay list, or DOM-backed authority beside them.
+Authored markup is a page's initial state, and the append-only event log records
+every change to it. Every current-state projection starts from the markup and
+applies the standing events, those not withdrawn. Add no database, derived
+current-state file, widget-specific replay list, or DOM-backed authority beside them.
 
-A later version preserves a user decision unless it explicitly retracts what
-the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
-event names the gesture withdrawn; it never deletes or invents a counter-event.
+A later version keeps a user decision unless it explicitly retracts what the
+decision rests on; use `restated` when a rewrite invalidates one. An `undo` event
+names the gesture it withdraws; it never deletes an event or invents a
+counter-event.
 
-Actions and reports share the registry-declared coordinate of owner widget,
-fold unit, and verb. Admission records the command's declared meaning in the
-event, so historical readers do not need a surviving widget to recover it.
-Python derives winners, retractions, settlement, asks, threads, and updates in
-one transaction-consistent browser view. JavaScript combines that view with
-authored initial values and unresolved local gestures to derive complete widget
-and thread state. Every forward gesture whose semantic result the page can draw is on
-screen in the turn that sends it, before the log answers; a disabled control, spinner,
-or other delivery status is not that result. A result the page can draw is one its own
-document settles: a widget's state, a thread's turn. Which Asks the document still
-holds, and which of them the user owes, depend on the whole log. So that reading
-changes when the browser adopts the state a gesture's own POST returns, and the
-browser never derives it itself. Refusal restores the authoritative state.
-Widgets render that state, including unset and undecided values; undo
-does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
-state is bounded by document version; widgets frozen into thread markup use the
-thread window.
+Actions and reports share one registry-declared key: owner widget, fold unit, and
+verb. Admission records the command's declared meaning in the event, so a later
+reader recovers it without the widget. Python derives winners, retractions,
+settlement, Asks, threads, and updates in one transaction-consistent browser view.
+JavaScript combines that view with authored initial values and unresolved local
+gestures into complete widget and thread state, and widgets render it, unset and
+undecided values included. Undo never reconstructs widgets or replays baseline
+actions into the DOM. Page-widget state is bounded by document version; widgets
+frozen into thread markup use the thread window.
 
-The active document has one immutable application publication. Its publisher alone
+A forward gesture whose result the page can draw shows that result in the turn that
+sends it, before the log answers; a disabled control, spinner, or other delivery
+status is not that result. The page can draw what its own document settles, such as
+a widget's state or a thread's turn. Which Asks the document still holds, and which
+of them the user owes, depend on the whole log, so that reading changes only when
+the browser adopts the state the gesture's own POST returns; the browser never
+derives it. A refusal restores the authoritative state.
+
+The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered
-unresolved ledger into current state; browser components consume read-only selections
-from it. Presentation proof is separate: it records whether required renderers have
-committed the active document's current semantic epoch. Renderer nodes, promises, and
-DOM attributes never enter the semantic snapshot.
+ledger of unresolved local work into current state; browser components read
+selections from it. Presentation proof is separate: it records whether the required
+renderers have committed the document's current semantic epoch. Renderer nodes,
+promises, and DOM attributes never enter the semantic snapshot.
 
-A publication is also what starts a renderer. Each one claims its region inside that
-synchronous publication and paints the current root on the pass that follows, so a
-caller that changes what the page shows publishes and waits for proof rather than
-naming renderers or sequencing them. Where one renderer reads DOM another materializes,
-that order is declared once, beside the coordinator, not repeated at each publisher.
+A publication also starts each renderer, which claims its region during the
+synchronous publication and paints on the following pass. A caller that changes what
+the page shows publishes and waits for proof; it neither names nor sequences
+renderers. Where one renderer reads DOM another builds, that order is declared once,
+beside the coordinator.
 
-Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
-mechanical browser owners until a gesture becomes a declared application fact. Their
-renderings are not semantic authority, and repainting them does not create a semantic
-epoch. That state also lives exactly as long as the node holding it: the log does not
-record it and no projection returns it, so whatever replaces a node hands it across
-itself, under the identity that replacement already keys on, or the user loses it.
+Focus, scroll, selection, disclosure, draft text, drag, and layout stay with their
+browser owners until a gesture becomes a declared application fact, and repainting
+them creates no semantic epoch. Neither the log nor any projection carries this
+state, so it lives only as long as the node holding it: whatever replaces a node
+carries the state across, under the identity the replacement already keys on, or
+the user loses it.
 
-Python derives page-wide `activity` and exact-input `workflows` from the agent's
-status declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner and neighboring-page rows describe page activity. Messages,
-thread attention, and margin entries consume the canonical workflows; thread
-attention also retains outstanding user Asks. Page activity does not imply work
-on every message. JavaScript adds unresolved local sends through the application
-publisher and may schedule a read at `next_transition_at`; it does not age or
-independently reclassify accepted workflow evidence. The stop guard consumes the
-same underlying response obligations.
+Python derives page-wide `activity` and per-input `workflows` from the agent's status
+declaration, claim and turn identity, watcher lease, delivery, and response
+evidence. The banner and neighboring-page rows show `activity`. Messages, thread
+attention, and margin entries read `workflows`, and thread attention also reflects
+outstanding user Asks. Page activity does not mean every message is being worked on.
+JavaScript adds its unresolved local sends through the publisher and may schedule a
+read at `next_transition_at`; it never ages or reclassifies workflow evidence. The
+stop guard reads the same response obligations.
 
-The page directory is the durable record and deployment unit: mutable `index.html`,
-immutable revisions, an append-only event log, and one replaceable JSON file per
-external-data source under `data/`, whose source ids keep the contract `data.json`
-records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
-defines the complete layout.
+The page directory is the durable record and the unit of deployment: mutable
+`index.html`, immutable revisions, the append-only event log, and one replaceable
+JSON file per external-data source under `data/`, whose source ids keep the contract
+`data.json` records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
+defines the layout.
 
 ### Validate once and share readings
 
-Validate each input at its boundary: every event at the one append door, whether a
-browser posted it or a command wrote it; authored markup at `page check`; and
-message markup at `check_markup`. Admission derives server-owned event meaning
-after validation; downstream code reads those fields directly. Event dependencies name declared identities;
-ordinary detail text is never interpreted as a reference.
+Validate each input once, at its boundary: every event at the one append door,
+whether the browser posted it or a command wrote it; authored markup at
+`page check`; message markup at `check_markup`. Admission then derives the event's
+server-owned meaning, and downstream code reads those fields directly. Event
+dependencies name declared identities; ordinary detail text is never read as a
+reference.
 
-A passage is one sequence of `{node, start, end}` segments. The file and browser
-readings share collapse and resolution rules. `says` is visible, pointable text;
-`wrote` is authored text. File capture must never accept an anchor the rendered
-page cannot resolve. Repeated text without unique context detaches instead of
-falling back to order or offsets.
+A passage is one sequence of `{node, start, end}` segments, and the file and browser
+readings share its collapse and resolution rules. `says` is visible, pointable text;
+`wrote` is authored text. File capture never accepts an anchor the rendered page
+cannot resolve. Repeated text without unique context detaches rather than falling
+back to order or offsets.
 
 ### Keep the layer open
 
-Content widgets stay anonymous outside their module. A new family should require
-only a complete registry entry, its module, and theme rules. Runtime, Python,
-CSS, tests, agent queries, and docs consume declarations rather than tag-name lists.
-Layer-wide facts live under `$` keys; each tag entry is one complete schema.
+Content widgets stay anonymous outside their module, so a new family needs only a
+complete registry entry, its module, and theme rules. Runtime, Python, CSS, tests,
+agent queries, and docs read declarations, never tag-name lists. Layer-wide facts
+live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
-When the user is to choose among designs, show them the candidates in a
-playground, which is one HTML file and one preview command (`/developing-leaf`,
-"Explore an open design").
+When the user is to choose among designs, show the candidates in a playground
+(`/developing-leaf`, "Explore an open design").
 
 Before finishing a feature:
 
 - Give every action a keyboard route, without spending a page-level binding on
-  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
-  routes").
-- Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
-  the derived corpus.
-- If the feature changes what an agent can do or how it should do it, update
-  `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
-  other references point at that section by name. Shipped guidance sets goals
-  for the user's experience and names the surface they read on; it leaves
-  format and phrasing to the agent. Score the change with `evals/` before and
-  after (`/developing-leaf`, "Score a guidance change").
+  each, and a route a finger can take (`skills/leaf/assets/runtime/keyboard/AGENTS.md`,
+  "Touch routes").
+- Add or update its pages as `examples/AGENTS.md` describes, and regenerate the
+  corpus.
+- If it changes what an agent can do or how, update `skills/leaf/SKILL.md` or the
+  one routed reference that owns the workflow; other references point at that
+  section by name. Shipped guidance sets goals for the user's experience and names
+  the surface they read on, and leaves format and phrasing to the agent. Score the
+  change with `evals/` before and after (`/developing-leaf`, "Score a guidance
+  change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
-(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and
-the JavaScript lock every committed bundle is built from have gates the suite and
-pre-commit do not reach. Both landing paths run all of them: a pull request in its
-`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name
-each command. `wt hook pre-merge` runs that local gate without landing, on a committed
-tree, since the bundle check fails on any uncommitted change. The website's delivery
-checks — the site build, the Worker's dry-run deploy, and
-`leaf-dev verify-site wrangler` — run on a pull request and in `publish-site` before it
-deploys, not in `wt merge`.
+(`tests/AGENTS.md`). The TypeScript in `worker/src/` and `build/browser/`, and the
+JavaScript lock every committed bundle is built from, have gates neither the suite
+nor pre-commit reaches. Both landing paths run them all: a pull request in its
+`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`.
+`wt hook pre-merge` runs that local gate without landing, on a committed tree, since
+the bundle check fails on any uncommitted change. The site build, the Worker's
+dry-run deploy, and `leaf-dev verify-site wrangler` run on a pull request and in
+`publish-site` before it deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
-boundary it affects: served previews for a runtime change,
+boundary it affects: served previews for a runtime change, and
 `leaf-dev verify-site wrangler` for site delivery, Worker routing, or containers.
-Read the comparison as a phase profile: document receipt, widget upgrade,
-authoritative presentation, and the requests and bytes loaded by presentation.
-Compare requests and bytes directly; elapsed time is diagnostic. A change that
-adds work before presentation states the user-visible benefit and why it cannot
-wait. Bytes outside that profile, such as a lazily loaded module, a vendored file,
-or the install's size, are not a reason for a change on their own.
+Read the comparison by phase: document receipt, widget upgrade, and authoritative
+presentation. Compare the requests and bytes loaded before presentation directly;
+elapsed time is diagnostic. A change that adds work before presentation states the
+user-visible benefit and why it cannot wait. Bytes off that path, such as a lazily
+loaded module, a vendored file, or the install's size, are not on their own a reason
+for a change.
 
 Land through a pull request or with `wt merge`, which squash-merges to `main`.
 `/developing-leaf` covers landing with a red gate; Tend sessions follow

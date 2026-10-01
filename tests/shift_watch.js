@@ -36,9 +36,12 @@
 // user does is drawn in the turn they do it, before the server answers. Once the page
 // has adopted news since the latest input began, every frame is without input whatever
 // Chrome's flag says, until the next input: tests deliver a reply right after a press,
-// and Chrome counts the reply's frames as the press's for half a second. A frame in
-// which motion the input began still runs, such as a panel sliding in, stays the
-// input's: motion begun after the input and before the news, which may begin its own.
+// and Chrome counts the reply's frames as the press's for half a second. Two kinds of
+// frame stay the input's. Its first frame paints what the input drew, which news
+// adopted before that frame paints beside; no reading tells the two apart, and judging
+// it news failed a thread the user opened from its notice. And a frame in which motion
+// the input began still runs, such as a panel sliding in, moves what the input asked
+// to move: motion begun after the input and before the news, which may begin its own.
 //
 // Chrome's rects are what a node paints, a focus ring or a shadow included, clipped to
 // the viewport, not the node's box. Nor are they always where it was on screen: Chrome
@@ -49,10 +52,14 @@
 // thread seated in the diff above the window and the root's anchoring holds what the
 // user sees, Chrome reports the diff's rows below the thread as moved by the
 // anchoring's amount. So at the start of every frame the box of every element, in the
-// document and in every shadow tree, is read: what the frame before it painted. A node
-// Chrome reports moved without input is reported here only where its box differs
-// between the readings either side of its frame, and on Chrome's word where it has no
-// reading, as a text node, a pseudo-element or a node new to the page has none.
+// document and in every shadow tree, is read. A node Chrome reports moved without input
+// is reported here only where its box differs among the readings at the start of the
+// frame before the shift's, of the shift's own, and of the next. Neither of the first
+// two alone is the box before the shift: a task's change before the shift's frame is
+// already in the second, and what a frame callback after this one drew in the frame
+// before is missing from the first. A move such a callback drew and a task took back
+// before the next frame is in no reading. A node with no reading, as a text node, a
+// pseudo-element or a node new to the page has none, is reported on Chrome's word.
 //
 // What the API cannot say is why a frame moved. A move the step before a keystroke laid
 // out but had not yet painted, such as a widget a test removed by script, paints in the
@@ -168,11 +175,11 @@
     }
   };
   const boxAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at)?.rect;
-  // Each input's rendering: when it began; the motion it began, and the start of the
-  // latest frame that motion moved; whether news has landed since; and a keystroke's
-  // typing, which holds its field; the box of the field and of each element holding it
-  // at the key; the animations already moving any of them; and until when the typing
-  // rule reads it.
+  // Each input's rendering: when it began; the start of its second frame; the motion
+  // it began, and the start of the latest frame that motion moved; whether news has
+  // landed since; and a keystroke's typing, which holds its field; the box of the field
+  // and of each element holding it at the key; the animations already moving any of
+  // them; and until when the typing rule reads it.
   const renderings = [];
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
@@ -188,6 +195,7 @@
     open = {
       start,
       first: true,
+      second: Infinity,
       moved: -Infinity,
       own: new Set(),
       motion: false,
@@ -214,11 +222,10 @@
       // Motion the key found under way carries the field for the gesture that began
       // it, so a rendering whose first frame finds it still running is no one's to
       // judge: its frames are that motion's.
-      if (
-        open.first &&
-        open.typing?.moving.some(({ playState }) => playState === "running")
-      )
-        open.typing.free = true;
+      if (open.first) {
+        if (open.typing?.moving.some(({ playState }) => playState === "running"))
+          open.typing.free = true;
+      } else if (open.second === Infinity) open.second = at;
       open.first = false;
       if (open.last || at - open.start > WINDOW) end();
       // A settled reading here counts updates before this one; this frame's own
@@ -288,7 +295,7 @@
   const input = (entry, rendering, frame) => {
     const at = entry.startTime;
     const since = rendering?.start ?? -Infinity;
-    const drawn = rendering && frame <= rendering.moved;
+    const drawn = rendering && (frame < rendering.second || frame <= rendering.moved);
     if (!drawn && news.some((n) => n > since && n <= at)) return false;
     return (
       entry.hadRecentInput ||
@@ -331,12 +338,18 @@
     document.querySelector("script[data-lf-entry]") &&
     (presented === null || startTime < presented);
   // `before` and `after` are the starts of the frames either side of the shift's.
-  const unasked = (entry, before, after) => {
+  // `frame` indexes the start of the shift's frame in `frames`.
+  const unasked = (entry, frame) => {
     if (presenting(entry)) return;
+    const around = frame < 1 ? [] : frames.slice(frame - 1, frame + 2);
     for (const { node, previousRect, currentRect } of entry.sources) {
-      const from = node && before !== undefined && boxAt(node, before);
-      const to = node && after !== undefined && boxAt(node, after);
-      if (from && to && !moved(from, to)) continue;
+      const read = node ? around.map((at) => boxAt(node, at)) : [];
+      if (
+        read.length === 3 &&
+        read.every(Boolean) &&
+        !read.some((box) => moved(box, read[2]))
+      )
+        continue;
       report(
         `${name(node)} moved without input`,
         by(previousRect, currentRect) + beside(entry.sources, node),
@@ -382,7 +395,7 @@
         if (!typing.free && frame !== -1 && next <= typing.until)
           typed(entry, typing, next);
       } else if (!input(entry, rendering, frames[frame] ?? -Infinity))
-        unasked(entry, frames[frame - 1], frame === -1 ? undefined : next);
+        unasked(entry, frame);
     }
   };
   const observer = new PerformanceObserver((list) => judge(list.getEntries()));

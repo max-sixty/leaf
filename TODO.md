@@ -261,6 +261,16 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### The agent's text interface
 
+- **Keep the Stop hook from replacing the agent's answer.** While a page has no
+  watcher, Leaf's Stop hook blocks every stop with "Leaf needs attention", so the
+  agent writes one more message after its answer. Where the host shows only the last
+  message (Claude Code's focus mode), the user sees that reply instead: a user who
+  typed `/whereami` twice got two notes about the watcher and never the briefing.
+  Claude Code had stopped the watcher for low memory and told the agent not to
+  restart it, so the hook's two ways out were restarting it against that instruction
+  or closing a page the user hadn't finished with. A page with no watcher whose agent
+  has already said so once could stop blocking.
+
 - **Wake the agent only for input that changes what it owes.** `leaf wait` ends
   on every event `requires_agent_attention` admits, so input that asks nothing
   still costs the agent a turn. Comments, replies and a move that finishes an Ask

@@ -9,7 +9,7 @@
  * 1440x900 pair, outlined page-wide bands and crashed on the next pair, and has not
  * been released since 2017. Tools that do read moves, such as Percy's and SmartUI's
  * layout modes, compare the DOM rather than the pixels, which an arbitrary pair of
- * PNGs does not carry.
+ * images does not carry.
  *
  * A pixel differs when any of its channels differs, alpha included, so two captures of
  * one runtime at one viewport compare equal and a redrawn pixel never does. Where the

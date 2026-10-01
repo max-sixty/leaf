@@ -2021,6 +2021,96 @@ def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
     expect(page.locator("#arrival")).not_to_be_in_viewport()
 
 
+@pytest.mark.parametrize("surface", ["margin", "panel"])
+@pytest.mark.parametrize("activation", ["click", "Enter"])
+def test_a_reply_link_moves_the_thread_walk_to_its_destination(
+    browser, serve, surface, activation
+):
+    """Following a reference makes its destination the user's reading position.
+
+    The source message's caret must not remain the thread walk's starting point.
+    Pointer and native keyboard links share that arrival with Go-to hints, from either
+    thread surface.
+    """
+    url = serve(
+        leaf_page(
+            "a reply reference",
+            """
+<h1>Reference navigation</h1>
+<p id="source">The original passage has a discussion.</p>
+<p id="source-next">The next discussion before following the reference.</p>
+<div style="height: 1600px"></div>
+<h2 id="arrival">The linked conclusion</h2>
+<p id="destination-next">The next discussion after the conclusion.</p>
+<div style="height: 900px"></div>
+""",
+        ),
+        anchored=[
+            ("source", "original passage"),
+            ("source-next", "next discussion before"),
+            ("destination-next", "next discussion after"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": roots[0],
+            "revision": 1,
+            "text": "Consider this reference.\n\n[Read the conclusion](#arrival).",
+        },
+    )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1600, 900)
+    if surface == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page, True)
+        source = page.locator(f'.lf-threads > .lf-thread[data-id="{roots[0]}"]')
+    else:
+        page.keyboard.press("t")
+        source = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+        )
+        expect(source).to_be_focused()
+
+    message = source.locator(".lf-msg.agent, .lf-page-thread-msg.agent")
+    message.get_by_text("Consider this reference.", exact=True).click()
+    assert message.evaluate("el => el.contains(getSelection()?.focusNode)")
+    link = message.get_by_role("link", name="Read the conclusion")
+    if activation == "click":
+        link.click()
+    else:
+        for _ in range(20):
+            page.keyboard.press("Tab")
+            rendered(page)
+            if link.evaluate("el => el.matches(':focus')"):
+                break
+        expect(link).to_be_focused()
+        assert link.evaluate("el => el.matches(':focus-visible')")
+        page.keyboard.press("Enter")
+    page.wait_for_url(re.compile(r"#arrival$"))
+    expect(page.locator("#arrival")).to_be_focused()
+    expect(page.locator("#arrival")).to_be_in_viewport()
+    page.keyboard.press("t")
+    if surface == "panel":
+        next_thread = page.locator(
+            f'.lf-threads > .lf-thread[data-id="{roots[2]}"] > .lf-thread-summary'
+        )
+    else:
+        next_thread = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]'
+        )
+    expect(next_thread).to_be_focused()
+
+
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
     """A visible page route stays addressable when its widget generated the anchors.
 

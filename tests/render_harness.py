@@ -730,6 +730,26 @@ def sending(page, what):
     round_trip(page)
 
 
+def watch_message_arrival(root, selector):
+    """Record delivery paint on insertion within a document or declared shadow root."""
+    root.evaluate(
+        """(node, selector) => {
+          const root = node.shadowRoot ?? node;
+          window.__messageArrival = null;
+          const observer = new MutationObserver(() => {
+            const message = root.querySelector(
+              `${selector}[data-attempt][aria-busy="true"]`
+            );
+            if (!message) return;
+            window.__messageArrival = Number(getComputedStyle(message).opacity);
+            observer.disconnect();
+          });
+          observer.observe(root, {childList: true, subtree: true});
+        }""",
+        selector,
+    )
+
+
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
 # place the ledger is the wrong fact to state it over. The runtime counts a send as it
 # makes it, while the driver is handed the request over its own connection a beat later,

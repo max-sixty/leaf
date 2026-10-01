@@ -87,6 +87,7 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
+    watch_message_arrival,
     write,
 )
 
@@ -5716,8 +5717,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
     expect(thread.locator("leaf-text")).to_be_visible()
     write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
-    with sending(page, "the inline reply"):
-        thread.get_by_role("button", name="Send", exact=True).click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    watch_message_arrival(thread, ".lf-page-thread-msg")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the inline reply")
+    pending = thread.locator('.lf-page-thread-msg[aria-busy="true"]')
+    expect(pending).to_contain_text("Confirmed from the inline thread.")
+    assert page.evaluate("window.__messageArrival") == 0.5
+    expect(pending).to_have_css("opacity", "0.5")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["text"]) == (
         "reply",
@@ -5725,6 +5736,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "Confirmed from the inline thread.",
     )
     expect(thread).to_contain_text("Confirmed from the inline thread.")
+    accepted = thread.locator(f'.lf-page-thread-msg[data-event="{sent["id"]}"]')
+    expect(accepted).not_to_have_attribute("aria-busy", "true")
+    expect(accepted).to_have_css("opacity", "1")
 
 
 def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):

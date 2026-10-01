@@ -76,6 +76,23 @@ def test_words_a_scroll_clears_fail(browser):
     consume_browser_errors(page, "typed words left the screen without a key or press")
 
 
+def test_words_a_handler_clears_in_their_own_turn_fail(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<textarea id=field></textarea><script>"
+            "field.addEventListener('input', () => { field.value = ''; });"
+            "</script>"
+        )
+    )
+    page.locator("#field").press_sequentially("x")
+    judge_watches()
+    consume_browser_errors(
+        page, 'typed words left the screen without a key or press: "x"'
+    )
+
+
 def test_words_scrolled_out_of_view_stay(browser):
     page = box_page(browser, "")
     scrolled(page)

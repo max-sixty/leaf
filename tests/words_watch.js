@@ -3,7 +3,7 @@
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //
-// A field holds words once a trusted `beforeinput` edits it and text is left in it: a
+// A field holds words once a trusted `beforeinput` edits it and the edit leaves text: a
 // textarea, an input that takes text, an editable element, or the host of a
 // `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
 // holds words, each is asked whether its words are still on the page: the field itself,
@@ -123,7 +123,9 @@
   );
   // Fields a trusted `beforeinput` named, with when, read at the next frame once the edit
   // has applied. `beforeinput` rather than `input`: a `leaf-text` announces its edits
-  // with an `input` of its own making, which is not trusted.
+  // with an `input` of its own making, which is not trusted. The edit's own `input` is
+  // read too, ahead of the page's handlers, so words a handler takes away in the same
+  // turn are still the words the user typed.
   const edited = new Map();
   addEventListener(
     "beforeinput",
@@ -133,8 +135,16 @@
       key = null;
       const field = event.composedPath()[0];
       if (!typed(field)) return;
-      edited.set(field, event.timeStamp);
+      edited.set(field, { typedAt: event.timeStamp, words: "" });
       watching();
+    },
+    true,
+  );
+  addEventListener(
+    "input",
+    (event) => {
+      const edit = edited.get(event.composedPath()[0]);
+      if (edit) edit.words = text(event.composedPath()[0]);
     },
     true,
   );
@@ -163,8 +173,10 @@
   const pending = new Map();
   const look = () => {
     const at = performance.now();
-    for (const [field, typedAt] of edited) {
-      const words = text(field);
+    for (const [field, { typedAt, words: heard }] of edited) {
+      // What the field holds now, or, where something emptied it in the edit's own
+      // turn, what its `input` heard.
+      const words = text(field).trim() ? text(field) : heard;
       if (words.trim()) holding.set(field, { words, typedAt });
       else holding.delete(field);
     }

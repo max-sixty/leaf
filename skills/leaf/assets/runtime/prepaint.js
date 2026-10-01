@@ -11,15 +11,20 @@
   // fallback, and only a served page draws the live chrome (`data-lf-live`, bootstrap.js).
   root.toggleAttribute("data-lf-interactive", true);
 
-  // Whether the runtime could not start, which the same themes read to give back the
-  // readable fallback a widget that will not upgrade needs, such as a tab set's stacked
-  // panels (`data-lf-startup-error`). A fault is `incomplete` where something the page
-  // needs did not arrive: its entry module or one it imports, its theme, or what the
-  // page declares itself (`lf-startup-failed`). An uncaught error in code that did load,
-  // before the page presents, is a fault too. Each is said once more as
-  // `lf-startup-fault`, which a served page's bootstrap answers by waiting for a server
-  // that can start the page (bootstrap.js); an export has no server to wait for.
+  // Whether the runtime could not start, named on the root (`data-lf-startup-error`)
+  // for whatever reports it. A fault is `incomplete` where something the page needs
+  // did not arrive: its entry module or one it imports, its theme, or what the page
+  // declares itself (`lf-startup-failed`). Such a page upgrades nothing more, so the
+  // mark above comes off and every widget still waiting gets back the readable
+  // fallback the themes give a page without the runtime, such as a tab set's stacked
+  // panels or a diagram's source in the column. An uncaught error in code that did
+  // load, before the page presents, is a fault too, but the page may still present
+  // with everything it has, so its widgets keep their boxes. Each fault is said once
+  // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
+  // a server that can start the page (bootstrap.js); an export has no server to wait
+  // for.
   const fault = (reason, incomplete) => {
+    if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     root.dataset.lfStartupError = reason;
     window.dispatchEvent(
       new CustomEvent("lf-startup-fault", { detail: { reason, incomplete } }),

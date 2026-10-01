@@ -161,8 +161,10 @@ it shows a startup failure and waits for a server that can start the page, even 
 the module graph never loads; and it holds page keys pressed before presentation.
 `runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
 ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
-each widget its upgraded box, and `data-lf-startup-error` when the runtime could not
-start, so they give back the readable fallback; it declares the page's storage scope;
+each widget its upgraded box, and takes the mark off when the runtime could not start
+because something it needs did not arrive (naming why in `data-lf-startup-error`), so
+the themes give back the readable fallback for every widget at once; it declares the
+page's storage scope;
 and it decides which member an `x-views` holder opens on. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities

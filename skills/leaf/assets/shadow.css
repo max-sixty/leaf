@@ -747,7 +747,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   --lf-code-copy-space: 0px;
 }
 html[data-lf-interactive] { --lf-code-copy-space: var(--lf-code-copy-size); }
-pre:has(> code) { padding-block-start: calc(12px + var(--lf-code-copy-space)); }
+:root pre:has(> code) { padding-block-start: calc(12px + var(--lf-code-copy-space)); }
 .lf-code-copy {
   position: absolute;
   top: calc(anchor(top) + 4px);

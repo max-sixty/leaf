@@ -1,4 +1,4 @@
-/* Code blocks own a copy control beside their scrolling text. Plain blocks read
+/* Code blocks own a copy control beside their scrolling text. Document blocks read
    their current code on activation; widgets supply their source before rendering
    line numbers, annotations, or other words. CSS anchors keep the control at the
    block's right edge without wrapping authored nodes or moving them on arrival. */
@@ -26,8 +26,11 @@ export function copyCodeBlock(pre, source) {
 }
 
 export function watchCodeBlocks() {
+  // A widget's shadow stage is its renderer's notation, not an ordinary document
+  // block. Its module supplies the source explicitly through copyCodeBlock.
   watchArrivals("pre:has(> code)", ["style"], {
     arrive(pre) {
+      if (pre.getRootNode() !== document) return;
       const copy = copyCodeBlock(
         pre,
         () => pre.querySelector(":scope > code").textContent,

@@ -1312,9 +1312,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # The viewer returns to thread content; Escape then selects the whole panel.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # The viewer returns to thread content; Escape from a thread is the panel's own.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     # The panel's parent is the document, so the way out is the page rather than any
@@ -3185,7 +3183,8 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    found = page.locator(f'.lf-thread[data-id="{roots[1]}"] > .lf-thread-summary')
+    expect(found).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
         "neighbouring block"
@@ -3193,7 +3192,8 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
     # The panel keeps its narrowing; Escape clears it before leaving the panel.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_visible()
+    expect(found).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -3210,7 +3210,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     travel, nor the rail control the view hung from, which the pointer's close lands on
     because the pointer pressed it.
 
-    A panel thread returns through the whole panel before the page, the same depth.
+    A panel thread leaves through the panel's own way out, which closes it.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -3277,17 +3277,14 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # In the panel, leave the editor, then the thread, then the panel.
+    # In the panel, leave the editor, then the thread with the panel.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
-    threads_list = page.locator(".lf-threads")
-    expect(threads_list).to_be_focused()
-    page.keyboard.press("t")
     card = page.locator(".lf-threads > .lf-thread:not([hidden])").first
     summary = card.locator(":scope > .lf-thread-summary")
     expect(summary).to_be_focused()
-    expect(line).to_contain_text("back to panel")
+    expect(line).to_contain_text("close threads")
     page.keyboard.press("t")
     page.keyboard.press("Shift+t")
     expect(summary).to_be_focused()
@@ -3295,8 +3292,6 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(card.locator("leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
     expect(summary).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(threads_list).to_be_focused()
     expect(card).to_have_attribute("open", "")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -3311,10 +3306,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     header.click()
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-msg").first.click()
-    expect(line).to_contain_text("back to panel")
-    page.keyboard.press("Escape")
-    expect(threads_list).to_be_focused()
-    expect(card).to_have_attribute("open", "")
+    expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3420,11 +3412,84 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
     expect(reply).to_be_focused()
 
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
+    expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
     comment_note(page, "#p").focus()
     expect(listed[0]).to_have_attribute("open", "")
     page.keyboard.press("t")
     expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
+
+
+# Every way into the Threads list while it shows a thread, which hands focus on to that
+# thread's title.
+EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
+LIST_ROUTES = {
+    "go to Threads": ["g", "Shift+t"],
+    "back out of the page box": ["c", "Escape"],
+    "walk to a title": ["g", "Shift+t", "t"],
+}
+
+
+@pytest.mark.parametrize("width", [1600, 420])
+@pytest.mark.parametrize("route", LIST_ROUTES.values(), ids=LIST_ROUTES.keys())
+def test_the_threads_list_hands_focus_to_the_thread_it_shows_open(
+    browser, serve, route, width
+):
+    """Focus given to the list lands on its open thread, so every key answers for it.
+
+    The open card fills the list, and the list's own ring once drew round it while
+    `c` wrote in the page box and Escape, `r` and the shading treated the stop as the
+    whole panel. The list keeps focus itself only while it shows no thread
+    (`test_c_comments_and_g_t_navigates_to_threads`). From the thread, Escape is the
+    panel's own: it closes.
+
+    At 420px the panel covers the page, which drops the page's own `c` unless it
+    declares itself covering.
+    """
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    page.set_viewport_size({"width": width, "height": 900})
+    for step in route:
+        page.keyboard.press(step)
+        rendered(page)
+
+    card = page.locator(EXPANDED)
+    expect(card).to_have_count(1)
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    reply = card.locator("leaf-text")
+    if width > 420:  # the narrow line and boxes draw no key badges
+        expect(page.locator("leaf-text[placeholder$=' c']")).to_have_count(1)
+        expect(reply).to_have_attribute("placeholder", "Reply c")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, False)
+
+
+def test_a_title_taking_focus_opens_its_thread(browser, serve):
+    """Focus on a collapsed title opens its thread, so the focused thread is always the
+    open one and its reply box is the one carrying `c`. A title once held focus closed
+    while another card stood open, and `c` wrote into a box nothing on screen named."""
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    page.set_viewport_size({"width": 1600, "height": 900})
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    cards = page.locator(".lf-threads > .lf-thread")
+    expect(cards.nth(0)).to_have_attribute("open", "")
+    title = cards.nth(1).locator(":scope > .lf-thread-summary")
+    title.focus()
+    expect(cards.nth(1)).to_have_attribute("open", "")
+    expect(cards.nth(0)).not_to_have_attribute("open", "")
+    expect(page.locator(EXPANDED)).to_have_count(1)
+    reply = cards.nth(1).locator("leaf-text")
+    expect(reply).to_have_attribute("placeholder", "Reply c")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
 
 
 def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
@@ -3465,14 +3530,21 @@ def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser,
 
 
 @pytest.mark.parametrize("width", [1200, 600])
-def test_go_to_threads_selects_the_panel_from_a_page_thread(browser, serve, width):
-    """g T has one destination regardless of the selected page thread."""
+def test_go_to_threads_lands_on_the_open_thread_from_a_page_thread(
+    browser, serve, width
+):
+    """g T has one destination regardless of the selected page thread.
+
+    That destination is the title of the thread Threads shows open, the same thread
+    whether the user stood on the page or walked to another page thread first.
+    """
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
     )
     resized(page, width, 844)
     panel = page.locator(".lf-thread-panel")
+    landings = []
     for from_thread in (False, True):
         if from_thread:
             page.keyboard.press("t")
@@ -3481,15 +3553,17 @@ def test_go_to_threads_selects_the_panel_from_a_page_thread(browser, serve, widt
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         expect(panel).to_be_visible()
-        expect(page.locator(".lf-threads")).to_be_focused()
+        expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
+        landings.append(page.locator(EXPANDED).get_attribute("data-id"))
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
         page.keyboard.press("Escape")
         expect(panel).to_be_hidden()
         assert page.evaluate("document.activeElement === document.body")
+    assert landings[0] == landings[1], landings
 
 
-def test_a_panel_thread_releases_to_the_same_floor_as_go_to_threads(browser, serve):
-    """A thread with no page destination opens in Threads and Escape returns through the panel."""
+def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, serve):
+    """A thread with no page destination opens in Threads and Escape closes the panel."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "This thread has no page anchor.")
     second = panel_comment(serve.page_dir, "Another panel thread.")
@@ -3503,55 +3577,54 @@ def test_a_panel_thread_releases_to_the_same_floor_as_go_to_threads(browser, ser
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     expect(card).to_have_attribute("open", "")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(panel).to_be_visible()
-    expect(card).to_have_attribute("open", "")
-    page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
 
-    # Whole-panel selection has the same walk and native Tab entry after either route.
-    # Releasing thread 2 must not leave an invisible selection behind on that thread.
+    # Escape and g T both close the panel from a thread, and g T comes back to that
+    # thread, still open, so the walk and native Tab entry go on from it alike.
+    def summary(thread):
+        return page.locator(f'.lf-thread[data-id="{thread}"] > .lf-thread-summary')
+
     tab_landings = []
     for release in ("Escape", "go-to"):
         for next_key in ("t", "Shift+t", "Tab"):
             page.keyboard.press("g")
             page.keyboard.press("Shift+t")
-            page.keyboard.press("t")
-            page.keyboard.press("t")
-            expect(
-                page.locator(f'.lf-thread[data-id="{second}"] > .lf-thread-summary')
-            ).to_be_focused()
+            # The walk stops at its ends, so two steps back stand on the first thread
+            # whichever one was left open.
+            for key in ("Shift+t", "Shift+t", "t"):
+                page.keyboard.press(key)
+            expect(summary(second)).to_be_focused()
             if release == "Escape":
                 page.keyboard.press("Escape")
             else:
                 page.keyboard.press("g")
                 page.keyboard.press("Shift+t")
-                expect(panel).to_be_hidden()
-                page.keyboard.press("g")
-                page.keyboard.press("Shift+t")
-            expect(page.locator(".lf-threads")).to_be_focused()
+            expect(panel).to_be_hidden()
+            page.keyboard.press("g")
+            page.keyboard.press("Shift+t")
+            expect(summary(second)).to_be_focused()
+            expect(page.locator(f'.lf-thread[data-id="{second}"]')).to_have_attribute(
+                "open", ""
+            )
             page.keyboard.press(next_key)
             if next_key == "Tab":
                 tab_landings.append(page.evaluate_handle("document.activeElement"))
             else:
-                target = root if next_key == "t" else last
-                expect(
-                    page.locator(f'.lf-thread[data-id="{target}"] > .lf-thread-summary')
-                ).to_be_focused()
+                expect(summary(last if next_key == "t" else root)).to_be_focused()
             page.get_by_role("button", name="Close threads", exact=True).click()
             expect(panel).to_be_hidden()
     assert page.evaluate(
         "([released, entered]) => released === entered && released !== document.body",
         tab_landings,
-    ), "Tab must have the same destination after thread release and g T"
+    ), "Tab must have the same destination after Escape and g T"
 
 
 def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
@@ -3559,8 +3632,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     The panel and the margin's thread view each have one way out, and a click, a
     keyboard activation of the same control and a walk that arrived from somewhere else
-    all take it. Where that way out ends is what holds the thread — the whole
-    panel, or the element a card's thread is about — and then the page: the toggle, the
+    all take it. Where that way out ends is what holds the thread — the panel, which
+    closes, or the element a card's thread is about — and then the page: the toggle, the
     margin marker and the page mark are Leaf's own controls rather than places the user
     was reading, so none of them is a landing, and a user who reached one by Tab or by
     pointer is owed no return to it.
@@ -3586,7 +3659,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         for root in roots
     ]
 
-    # Threads by pointer, then a walk into a card: return through the whole panel.
+    # Threads by pointer, then a walk into a card: out with the panel.
     toggle.click()
     panel_settled(page, True)
     expect(toggle).to_be_focused()
@@ -3596,9 +3669,6 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
             ".lf-threads > .lf-thread:not([hidden]) > .lf-thread-summary"
         ).first
     ).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     assert page.evaluate(on_body)
@@ -3646,7 +3716,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     # A press that closes one layer to open another: Threads, pressed while the view a
     # marker opened holds the user, carries its thread into the panel and closes the
-    # view under it. Escape returns through the panel and then to the page.
+    # view under it. Escape closes the panel onto the page.
     marker.click()
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
@@ -3658,9 +3728,6 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
             f'.lf-threads .lf-thread[data-id="{roots[0]}"] > .lf-thread-summary'
         )
     ).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     page.wait_for_function(on_body)
@@ -3795,17 +3862,15 @@ def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
 def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
     """`a` from the page reaches an Ask seated in a thread through the panel, so the
     press opens the panel on the way. The walk is lateral — it moves the user from Ask
-    to Ask rather than down a level — and Escape returns through the panel. No
-    step depends on which press opened the panel."""
+    to Ask rather than down a level — and Escape closes the panel. No step depends
+    on which press opened the panel."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("a")
     ask = page.locator(".lf-thread lf-ask[data-lf-ask]")
     expect(ask).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to panel")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3814,7 +3879,8 @@ def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """Narrowing and page standing unwind before their surrounding surfaces.
 
-    A thread or Ask inside Threads returns to the whole panel first.
+    A thread or Ask inside Threads leaves through the panel's own steps: its
+    narrowing, then the panel.
     """
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
     panel_comment(
@@ -3827,8 +3893,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     line = page.locator(".lf-shortcut-bar")
 
-    # A collapsed thread is still a thread: Escape selects the whole panel before
-    # clearing its narrowing, without adding a title-selection level.
+    # From a thread, Escape clears the panel's narrowing before closing it, without
+    # adding a title-selection level.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
@@ -3839,10 +3905,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
         page.keyboard.press("Tab")
     expect(line).to_contain_text("clear waiting filter")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(line).to_contain_text("clear waiting filter")
-    page.keyboard.press("Escape")
     expect(line).to_contain_text("waiting on you")
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -3863,7 +3927,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(page.locator(".lf-asks-panel.open")).to_have_count(0)
 
     # `a` from a heading into a thread's Ask, with the panel already beside the page:
-    # Escape selects the panel before closing it, without returning to the heading.
+    # Escape closes the panel, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     line = page.locator(".lf-shortcut-bar")
     page.locator(".lf-threads-toggle").click()
@@ -3873,11 +3937,10 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
-    expect(line).to_contain_text("back to panel")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, serve):
@@ -5505,7 +5568,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             },
         )["id"]
 
-    c1 = comment({"quote": "passage under discussion"}, "Sharpen this.")
+    comment({"quote": "passage under discussion"}, "Sharpen this.")
     comment({"quote": "two separate remarks"}, "Second thought.")
     c3 = comment({"section": "p2"}, "The short one too.")
     page = open_page(browser, url)
@@ -5730,15 +5793,15 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("type a hint")
     expect(page.locator(".lf-live")).to_contain_text("Shift+t Threads panel")
 
-    # A panel mnemonic completes the sequence and leaves the user inside that panel, where
-    # its own scoped keys are immediately available.
+    # A panel mnemonic completes the sequence and leaves the user inside that panel, on
+    # the thread it shows open, where its own scoped keys are immediately available.
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
-    expect(page.locator(f'.lf-thread[data-id="{c1}"] leaf-text')).to_have_attribute(
-        "placeholder", "Reply"
+    expect(page.locator(f"{EXPANDED} leaf-text")).to_have_attribute(
+        "placeholder", "Reply c"
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
@@ -5980,16 +6043,18 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # A panel mnemonic completes the sequence directly wherever the user is on the page.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    open_card = page.locator(EXPANDED)
+    expect(open_card.locator(":scope > .lf-thread-summary")).to_be_focused()
 
     # Typing contexts are untouched: in a box, the whole sequence is text.
-    page.keyboard.press("t")
     page.keyboard.press("c")
-    ta1 = page.locator(f'.lf-thread[data-id="{c1}"] leaf-text')
-    expect(ta1).to_be_focused()
+    reply = page.locator(
+        f'.lf-thread[data-id="{open_card.get_attribute("data-id")}"] leaf-text'
+    )
+    expect(reply).to_be_focused()
     page.keyboard.type("gc1")
-    expect(ta1).to_have_js_property("value", "gc1")
-    expect(ta1).to_be_focused()
+    expect(reply).to_have_js_property("value", "gc1")
+    expect(reply).to_be_focused()
 
 
 def test_a_drawer_reached_from_another_drawer_leaves_both_of_them_shut(browser, serve):
@@ -6035,7 +6100,7 @@ def test_a_drawer_reached_from_another_drawer_leaves_both_of_them_shut(browser, 
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("Escape")
 
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
@@ -7740,10 +7805,12 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(origin).to_be_focused()
     assert page.locator("main").evaluate("main => main.inert")
     rendered(page)
-    # The selected thread returns to the panel before the panel returns to the page.
-    hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
-    assert {"thread.resolution.toggle", "navigation.release"} <= hints, hints
-    assert not any(command.startswith("version.") for command in hints), hints
+    # The selected thread's way out is the panel's own, which closes it.
+    hints = page.evaluate(KEY_LINE_HINTS)
+    commands = {hint["commands"] for hint in hints}
+    assert "thread.resolution.toggle" in commands, hints
+    assert {"commands": "navigation.back", "word": "close threads"} in hints, hints
+    assert not any(command.startswith("version.") for command in commands), hints
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
@@ -7761,8 +7828,6 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     panel_settled(page)
     expect(origin).to_be_focused()
     assert not page.locator("main").evaluate("main => main.inert")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -7896,7 +7961,8 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
 
     # c is comment everywhere. From the page it opens the panel and stands the user in
     # the page-comment box, which is two levels down, so two presses come back out: the
-    # box hands them to the list it belongs to, and the panel hands them to the page.
+    # box hands them to the thread its list shows open, and the panel hands them to the
+    # page.
     page.keyboard.press("c")
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     expect(line).to_contain_text("send")
@@ -7906,7 +7972,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-notice")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -7916,7 +7982,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # Escape restores the page instead of stranding focus on the panel toggle.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
@@ -7932,7 +7998,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(help_el.locator('tr[data-lf-command="navigation.release"]')).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -8001,8 +8067,6 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("t")
     expect(page.locator(".lf-thread-summary")).to_be_focused()
     page.keyboard.press("Tab")
     quote = page.locator(".lf-thread .lf-quote")
@@ -9577,28 +9641,32 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     # shortlist: the same scope order the dispatcher uses supplies them, so what the line
     # says is what the innermost live scope answers and not a list kept beside it.
     #
-    # Stand on the list directly: the banner button that opened the panel is chrome, and
-    # its `c` meaning is deliberately outside this key-line projection test.
+    # Stand in the list directly, which hands focus to the thread it shows open: the
+    # banner button that opened the panel is chrome, and its `c` meaning is deliberately
+    # outside this key-line projection test.
     page.locator(".lf-threads").focus()
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.keyboard.press("c")
+    page.locator(".lf-general leaf-text").focus()
     expect(visible_hints).to_have_count(2)
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to list")
 
     # The line shows only what works from where the user is. This text box owns `?`, so
     # More stands down with its key rather than standing bare; it returns, key and all,
-    # when the user steps back out to the list.
+    # when the user steps back out to the list's open thread.
     more_node = page.locator(".lf-shortcut-more")
     more_node.evaluate("button => window.__lfShortcutMore = button")
     expect(more_node).to_be_hidden()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     more = page.get_by_role("button", name="? more", exact=True)
     expect(more).to_have_attribute("aria-expanded", "false")
     expect(more).to_have_attribute("aria-keyshortcuts", "?")
-    more.click()
+    # By its key, so the user stays on the thread: a panel that covers the page takes
+    # focus into itself, and a press on More would leave the line a different scene to
+    # come back to.
+    page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
     expect(help_el).to_be_hidden()
@@ -11019,9 +11087,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     resolved = page.locator('.lf-thread[data-resolved="true"]:not([hidden])').first
     resolved.locator(":scope > .lf-thread-summary").focus()
     expect(resolved.locator(":scope > .lf-thread-summary")).to_be_focused()
-    # A resolved thread returns to the panel before clearing its filter.
+    # A resolved thread leaves through the panel, whose filter comes off first.
     # The walk stays offered over a resolved card.
-    expect(line).to_contain_text("back to panel")
+    expect(line).to_contain_text("show all")
     expect(line).to_contain_text("t / T")
 
     # The state is an ordinary panel filter, with no disclosure scope added beside it.
@@ -11484,7 +11552,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     test exists at all: it is built by the same `threadNode` and wears the same class,
     under the Resolved state, where it keeps a tab stop and a Reopen button. Reading
     the class alone put the user in a thread whose reply box is not there, and the press
-    died on the null with the panel's own `c` never reached. Whether there is a box is what
+    died on the null with the general box never reached. Whether there is a box is what
     tells them apart — `standingThread` asks for one rather than for the class — so
     the resolved thread falls through to the general box, which is the honest answer for a
     thread with no box of its own to offer."""
@@ -11501,11 +11569,8 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(line).to_contain_text("comment on the page")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
 
-    # Standing in the open thread, it means that thread's reply box. `t` walks on from
-    # where the press above left the user, no backing out of a box first.
-    page.keyboard.press("t")
+    # Standing in the open thread, where g T lands, it means that thread's reply box.
     expect(
         page.locator(f'.lf-thread[data-id="{live}"] > .lf-thread-summary')
     ).to_be_focused()
@@ -11524,13 +11589,12 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(
         page.locator(f'.lf-thread[data-id="{live}"] > .lf-thread-summary')
     ).to_be_focused()
-    expect(line).to_contain_text("back to panel")
+    expect(line).to_contain_text("close threads")
     page.evaluate("() => document.activeElement?.blur()")
 
     # A resolved thread has no box, so the press falls through to the general box rather
-    # than reaching for one that is not there. The panel's own row answers it, saying so in
-    # the panel's words; what matters is that the thread is not named, which is the phase
-    # above's answer and would be the wrong one here.
+    # than reaching for one that is not there. What matters is that the thread is not
+    # named, which is the phase above's answer and would be the wrong one here.
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     page.locator(
@@ -12106,11 +12170,11 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     page.keyboard.press("Escape")
 
     # With Threads open, the list's thread about the Ask plays the card's part, and a
-    # digit there answers the Ask.
+    # digit there answers the Ask. `g T` lands on the first thread, which the list shows
+    # open, and `t` steps on to the Ask's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
-    page.keyboard.press("t")
     page.keyboard.press("t")
     expect(
         page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')

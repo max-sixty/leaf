@@ -957,9 +957,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     --lf-list-foot: var(--lf-threads-foot, var(--focus-ring-room));
     padding: var(--focus-ring-room) 8px var(--lf-list-foot); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0 var(--lf-list-foot); }
-  /* An Escape rung lands on the list (general box → list). Whichever thread crosses
-     its viewport edge paints after the scrollport, so an
-     outline on the list itself disappears under them. Draw the identical inset ring on
+  /* The list holds focus itself only while it shows no thread (thread-list-view.js):
+     an empty list, or the last one folding away as it resolves. That folding card is
+     positioned, so it paints after the scrollport and an outline on the list itself
+     disappears under it. Draw the identical inset ring on
      a later pseudo-element: it shares the list's box, takes no pointer input, and stays
      above the scrolling contents. The list's zero layer is a stacking context, so a
      descendant cannot leapfrog the overlay by choosing a still-higher local z-index. */

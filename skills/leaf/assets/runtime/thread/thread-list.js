@@ -105,22 +105,23 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // did not change and lets the pressed title travel, measured at 186px on an ordinary
   // panel and off the top of the scrollport from the first visible row. So disclosure takes
   // the same hold the renders take. `toggle` arrives with the reflow already in the
-  // geometry, so the hold is taken on the way down, while the activation is still the click
-  // default action pending, and corrected on the frame that paints it. Both routes to that
-  // press land the right card: `takeScrollHold` leads with the card under the pointer, and
-  // with the card holding focus when the hand is elsewhere, which is where Enter or Space
-  // on a title is standing.
+  // geometry, so the hold is taken on the way down, while the closed title's focus or click
+  // has yet to reach the list that opens it (thread-list-view.js), and corrected on the
+  // frame that paints it. A title already open changes nothing, and a hold there would
+  // undo a landing's own scroll. Every route lands the right card: `takeScrollHold` leads
+  // with the card under the pointer, and with the card holding focus when the hand is
+  // elsewhere.
   function holdThroughDisclosure(panelIsOpen) {
-    threadsBox.addEventListener(
-      "click",
-      (event) => {
-        const summary = event.target?.closest?.(".lf-thread-summary");
-        if (!summary || !summary.parentElement?.matches?.(".lf-thread")) return;
-        const hold = takeScrollHold(panelIsOpen);
-        if (hold) nextRender(() => finishScrollHold(hold, panelIsOpen));
-      },
-      true,
-    );
+    const hold = (event) => {
+      const summary = event.target?.closest?.(".lf-thread-summary");
+      const card = summary?.parentElement;
+      if (!card?.matches?.(".lf-thread") || card.open) return;
+      if (event.type === "focusin" && summary.matches(":active")) return;
+      const taken = takeScrollHold(panelIsOpen);
+      if (taken) nextRender(() => finishScrollHold(taken, panelIsOpen));
+    };
+    for (const type of ["focusin", "click"])
+      threadsBox.addEventListener(type, hold, true);
   }
 
   // The list's place through every change to its content (user-place.js). A card is

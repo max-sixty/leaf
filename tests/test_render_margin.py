@@ -6481,11 +6481,12 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     # card hangs from — or, where no rail stands, the Page Map button — which the user
     # never stood on and which says its transient label as they arrive.
     page.keyboard.press("Escape")  # out of the reply box the user opened
+    if panel_open:
+        expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("Escape")  # out of the thread it belongs to
     if panel_open:
-        # A thread in Threads releases to whole-panel selection first.
-        expect(page.locator(".lf-threads")).to_be_focused()
-        page.keyboard.press("Escape")
+        # A thread in Threads has no release of its own: its Escape is the panel's,
+        # which closes it.
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
@@ -6547,9 +6548,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
 
     page.keyboard.press("Escape")
     if panel_open:
-        # In Threads the thread releases to the whole panel, which closes on the next.
-        expect(page.locator(".lf-threads")).to_be_focused()
-        page.keyboard.press("Escape")
+        # In Threads the thread's Escape is the panel's, which closes it.
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
         expect(preview).to_be_hidden()
@@ -6723,15 +6722,15 @@ def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, se
     expect(expanded).to_have_attribute("data-id", third["id"])
 
 
-def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
+def test_a_note_walked_on_inside_the_panel_is_left_by_the_panel_holding_it(
     browser, serve
 ):
-    """A thread reached through the panel is left by the list it sits in.
+    """A thread reached through the panel is left by the panel it sits in.
 
     The note opens its thread where the thread is indexed: the card with Threads shut,
     and the thread's place in the list with them open. `t` then walks the user on to a
-    second thread. Letting go of that one lands on the list holding it — the level it is
-    part of — and leaves the panel standing. The note is on the page they left when they
+    second thread. Letting go of that one is the panel's own Escape, which closes it —
+    the level the thread is part of. The note is on the page they left when they
     entered the panel, and a walk is not a descent to rewind.
     """
     page = open_page(browser, serve(ASK_PAGE))
@@ -6753,11 +6752,8 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
         threads.locator(f'.lf-thread[data-id="{second["id"]}"] > .lf-thread-summary')
     ).to_be_focused()
 
-    # The walk moved the user laterally to a second thread in Threads. Escape
-    # releases that thread to the whole panel and then closes the panel; the note
-    # that took them there is not a landing.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # The walk moved the user laterally to a second thread in Threads. Escape closes
+    # the panel holding it; the note that took them there is not a landing.
     page.keyboard.press("Escape")
     expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => document.activeElement === document.body")

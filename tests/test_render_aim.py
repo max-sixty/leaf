@@ -2265,10 +2265,8 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     )
     expect(panel.locator(".lf-thread > .lf-thread-summary")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # Escape leaves the thread for the whole panel, then the page. The mode they put
-    # on before either surface comes off last.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # Escape from the thread is the panel's, which closes onto the page. The mode they
+    # put on before the panel comes off last.
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_be_focused()

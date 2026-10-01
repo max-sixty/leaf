@@ -5464,11 +5464,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    # go-to-threads has one destination, the whole panel, whichever thread the user
-    # stood on to ask for it.
-    expect(page.locator(".lf-threads")).to_be_focused()
-    # The panel releases to the page. The seat on the page is not put back, the user
-    # having left it to come here.
+    # go-to-threads has one destination, the thread the panel's list shows open.
+    expect(panel_thread).to_have_attribute("open", "")
+    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
+    # The thread's Escape is the panel's, which releases to the page. The seat on the
+    # page is not put back, the user having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 

@@ -119,12 +119,11 @@
   color-scheme: light dark;
   /* The fixed banner's height also reserves the document's head. It lives in the
      render-blocking theme so the initial document and eventual chrome share one box.
-     The banner wraps by what it holds (chrome.css): its control run shares the status's
-     line while both fit, and takes a 36px-lower line of its own when they don't. Which
-     it drew is `data-lf-banner-rows` on the root (banner.js); before the runtime has
-     drawn a banner, the window's width and the page's sign-off stand in for it (below).
-     Between about 440 and 480px a page without sign-off can still fit one row where two
-     are guessed, and that miss moves the document once, when the banner arrives. */
+     It is stated rather than measured: the control run shares the status's line, or
+     takes a 36px-lower line of its own, as the window's pointer and width and the page's
+     sign-off decide (below), and the banner lays itself out by that decision
+     (chrome.css). Nothing the runtime draws later can change the rows, so the document
+     is placed once, before the banner arrives. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -140,10 +139,15 @@
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the banner. Ordinary content never sees either band; the document already keeps
-     clear of both (html[data-lf-live], below). */
+     the banner and any sticky header under it. Ordinary content never sees either band; the
+     document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
+  /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
+     floor where that is taller, and its 1px rule. The default package draws the strip
+     at it, and the root's `scroll-padding` adds it where a page tab strip stands over
+     the root (`--lf-root-headers`, lf-tabs.js). */
+  --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
@@ -446,18 +450,23 @@
    and a finger's row 44px aims wherever it stands. */
 @media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
 @media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
-/* Until the runtime says which rows it drew, guess them: a phone held upright has no room
-   for the status beside its controls, and a page asking for sign-off puts Approval on the
-   row too (banner.js), which wraps below about 660px. Delivery writes the declaration on
-   the root (`data-lf-review`), since a :has() reading the page's meta from the root would
-   restyle the whole page on every change below it. */
-@media screen and (width <= 480px) {
-  html:root:not([data-lf-banner-rows]) { --lf-banner-rows: 2; }
+/* The rows. More and Threads stand on the row, and Approval where the page asks for
+   sign-off (banner.js), each held at its widest words, so the run's width is known;
+   beside it the status wants a readable start of its sentence, about 24ch. Chrome on
+   macOS finds no room for both at 436px and narrower under a fine pointer and 456px
+   under a coarse one, or 636px and 644px with Approval. Each bound here sits a few
+   pixels under its measure, so no window takes a second row it could do without; the
+   status there starts a little short of 24ch, as it does beside a classic scrollbar. A
+   finger's steps, such as page search's, stand in the reading loop's place and fit the
+   same row (banner-toolbar.js). Delivery writes the declaration on the root
+   (`data-lf-review`), since a :has() reading the page's meta from the root would restyle
+   the whole page on every change below it. */
+@media screen and (width <= 430px), screen and (pointer: coarse) and (width <= 450px) {
+  :root { --lf-banner-rows: 2; }
 }
-@media screen and (width <= 660px) {
-  html:root[data-lf-review="sign-off"]:not([data-lf-banner-rows]) { --lf-banner-rows: 2; }
+@media screen and (width <= 630px), screen and (pointer: coarse) and (width <= 640px) {
+  html[data-lf-review="sign-off"] { --lf-banner-rows: 2; }
 }
-html[data-lf-banner-rows="2"] { --lf-banner-rows: 2; }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
 html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
@@ -616,9 +625,9 @@ html { background: var(--paper); }
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
-    /* A page tab strip sticks under the banner and declares the room it covers on the
-     * root (lf-tabs.js, `declareStickyHeaders`). */
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px);
+    /* A sticky header over the whole root, a page tab strip, adds its stated height as
+     * `--lf-root-headers` (lf-tabs.js). */
+    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px) + 12px);
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
@@ -634,7 +643,7 @@ html { background: var(--paper); }
    * one changes nothing about the containing page's layout. */
   html[data-lf-live][data-lf-sample-block] {
     --lf-banner-row: 48px;
-    --lf-banner-h: 48px;
+    --lf-banner-rows: 1;
     --lf-bottom-bar-h: 0px;
     overflow-y: hidden;
     body { min-height: 0; }
@@ -790,6 +799,20 @@ main {
  * grew out of it. Outside the page, where nothing states them, neither side holds a
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Where a box sticking here stops: the sticky headers standing over the top of its
+ * scroller, stacked. On the root it starts at the banner's height (above); a box the
+ * theme makes scroll that can hold a header starts it again from its own top (a bounded
+ * block, a table, a board; a workspace pane's body from minus its top padding,
+ * layouts.css). A sticky header (a page tab strip, a diff's file header) has a stated
+ * height and sticks at the `--lf-top` it inherits; what it stands over takes that value
+ * plus its height, which the header's holder passes on under a second name, since a
+ * custom property cannot read itself. The stacked value goes on a box that does not
+ * itself scroll, since a box that scrolls is read where it stands. A landing clears the
+ * headers over a whole scroller through its `scroll-padding` and one over part of it
+ * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
+ * screen takes the value at each element (geometry.js, `headerInset`). Registered so
+ * that reading is a length. */
+@property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever
@@ -942,11 +965,25 @@ main {
 
   /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
    * occurrence), so a long log or feed never grows the page. `end` follows the newest
-   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. */
+   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. What
+   * sticks inside it sticks at its own top, which no chrome covers (`--lf-top`). */
   [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     overscroll-behavior: contain;
+    --lf-top: 0px;
+  }
+  /* A widget with a stated height (x-height, or data-height on an occurrence) has that
+   * box from the first paint until its module has drawn (`lf-rendered`), so the drawing
+   * lands in room the page already laid out. What the element holds before then is its
+   * source, which the box clips rather than grows around. Once drawn, the box is the
+   * drawing's: one drawn at the stated height keeps it, and one whose content has a
+   * height of its own takes that. A failure is shown whole, since the user has to read
+   * it. */
+  html[data-lf-live] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+    box-sizing: border-box;
+    block-size: attr(data-lf-height px);
+    overflow: clip;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
@@ -1085,8 +1122,10 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it. */
-table { display: block; overflow-x: auto; container-type: inline-size;
+/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
+ * Scrolling sideways makes it the scroller for anything sticking inside it, which
+ * sticks at the table's own top (`--lf-top`). */
+table { display: block; overflow-x: auto; container-type: inline-size; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The

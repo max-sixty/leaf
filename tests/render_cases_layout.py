@@ -1935,12 +1935,21 @@ RINGS_DRAWN = f"""async () => {{
     // the control as the control itself. A ring carried by a positioned `::after` is in
     // that layer already, at its own z-index and after every descendant in tree order,
     // so only a descendant lifted to a higher z-index stands over it.
-    const carrier = pseudo && cs.position !== 'static' ? (parseFloat(cs.zIndex) || 0) : null;
+    //
+    // A z-index places a flex or grid item as it places a positioned box, and makes either
+    // a stacking context that holds everything inside it at its own level. The thread
+    // list's ring is the case: a `::after` at z-index 1 over the list, both grid items of
+    // one frame, the list at 0, so an open card filling the list reaches the ring's bottom
+    // run and stays beneath it.
+    const stacked = (s, holder) => s.zIndex !== 'auto'
+      && (s.position !== 'static' || /flex|grid/.test(getComputedStyle(holder).display));
+    const carrier = pseudo && stacked(cs, el) ? (parseFloat(cs.zIndex) || 0) : null;
     const lifted = (n) => {{
       let lift = null;
       for (let a = n; a && a !== el; a = above(a)) {{
         const s = getComputedStyle(a);
-        if (s.position !== 'static') lift = Math.max(lift ?? 0, parseFloat(s.zIndex) || 0);
+        if (stacked(s, above(a))) lift = parseFloat(s.zIndex) || 0;
+        else if (s.position !== 'static') lift = Math.max(lift ?? 0, 0);
       }}
       return lift !== null && (carrier === null || lift > carrier);
     }};

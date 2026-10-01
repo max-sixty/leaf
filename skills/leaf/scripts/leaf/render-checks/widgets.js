@@ -287,3 +287,81 @@ export function retiredSlots(holders) {
   }
   return found;
 }
+
+// A box change smaller than this is layout rounding rather than a widget changing size.
+const ROUNDING = 1;
+
+// Whether the page shows an element: a node it hides once presented, as a tab strip
+// hides its inactive panels, has no box of its own to keep.
+const shown = (element) =>
+  element.isConnected && !element.closest("[hidden]") && element.checkVisibility();
+
+// The holder's box with each widget inside it put back to the size it first painted
+// at, read and then taken back within one task. Only a page nothing reads again, such
+// as the report's page of worked examples, can be read this way.
+const withFirstSizes = (holder, inside) => {
+  const kept = inside.map(({ element }) => [element, element.getAttribute("style")]);
+  for (const { element, first } of inside)
+    for (const [property, value] of [
+      // No padding or border, which would hold the box open past the size given.
+      ["box-sizing", "border-box"],
+      ["padding", "0"],
+      ["border-width", "0"],
+      ["width", `${first.width}px`],
+      ["min-width", "0"],
+      ["max-width", "none"],
+      ["height", `${first.height}px`],
+      ["min-height", "0"],
+      ["max-height", "none"],
+    ])
+      element.style.setProperty(property, value, "important");
+  const { width, height } = holder.element.getBoundingClientRect();
+  for (const [element, style] of kept)
+    if (style === null) element.removeAttribute("style");
+    else element.setAttribute("style", style);
+  return { width, height };
+};
+
+// Each authored widget whose border box changed between the page's first paint and
+// now, with both sizes (`firstBoxes` in driver.js). A holder is left out only where
+// putting the changed widgets inside it back to their first sizes puts its own box
+// back, which proves the change was theirs: an Ask that grew by exactly what its
+// options grew is not named beside them, and one that also grew on its own, in its
+// flow or in a size it sets itself, is. An inline widget runs through its holder's
+// lines, which no size puts back, so nothing proves its holder's change was the
+// widget's, and the holder is named beside it. A widget hidden now is left to the
+// widget that hid it, whose own box carries the change.
+export function changedBoxes() {
+  const readings = globalThis.__leafRenderDriver
+    .firstBoxes()
+    .filter(({ element }) => shown(element))
+    .map((first) => {
+      const { width, height } = first.element.getBoundingClientRect();
+      return { element: first.element, first, now: { width, height } };
+    });
+  const differs = (box, first) =>
+    Math.abs(box.width - first.width) >= ROUNDING ||
+    Math.abs(box.height - first.height) >= ROUNDING;
+  const changed = readings.filter((reading) => differs(reading.now, reading.first));
+  const own = (holder) => {
+    const inside = changed.filter(
+      (reading) => reading !== holder && holder.element.contains(reading.element),
+    );
+    const outermost = inside.filter(
+      (reading) =>
+        !inside.some(
+          (other) => other !== reading && other.element.contains(reading.element),
+        ),
+    );
+    if (!outermost.length) return true;
+    if (outermost.some(({ element }) => getComputedStyle(element).display === "inline"))
+      return true;
+    return differs(withFirstSizes(holder, outermost), holder.first);
+  };
+  return changed.filter(own).map(({ element, first, now }) => ({
+    tag: element.localName,
+    id: element.id,
+    first: { width: first.width, height: first.height },
+    now,
+  }));
+}

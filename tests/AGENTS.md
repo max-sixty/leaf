@@ -179,6 +179,14 @@ resize, a script, and the server's news are none of them, so a test that closes 
 must do it the way a user does. `known_faults.py` names the tests whose pages still lose
 words, each a defect waiting on its fix.
 
+Leaf's own widgets are held to the widget quality report `package check --render`
+gives a package's author (`leaf/render_gate/widget_quality.py`):
+`test_widget_quality.py` runs it over the base layer and every bundled package.
+`known_widget_findings.py` lists today's findings by package, tag and check, each a
+defect waiting on its fix. A finding it does not list fails the test, and so does an
+entry that no longer occurs, so fixing a widget deletes its entry and the list only
+shrinks.
+
 ## A page is ready when it says what has finished
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)

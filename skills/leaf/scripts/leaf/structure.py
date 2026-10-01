@@ -67,16 +67,29 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
-# a block's width in the page's flow and whether it bounds its own height, and, on
+# a block's width in the page's flow, whether it bounds its own height, the height in
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and, on
 # `body` alone, whether the page claims the rail its margin rows stand in or keeps that
 # margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
+    "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),
 }
 # The allocations only the page's `body` states, being about the page as a whole.
 PAGE_ALLOCATIONS = frozenset({"data-rail"})
+
+
+def allocation_expects(attr: str, value: str) -> str | None:
+    """What an authored allocation's value should have been, or None where it is
+    one of the values `attr` takes."""
+    values = AUTHORED_ALLOCATIONS[attr]
+    if isinstance(values, re.Pattern):
+        return None if values.fullmatch(value) else "a whole number of CSS pixels"
+    return None if value in values else f"one of {', '.join(values)}"
+
+
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
 # would silently declare nothing in the browser, so `page check` owns this

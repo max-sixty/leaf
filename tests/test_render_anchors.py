@@ -1467,6 +1467,26 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(controls).to_have_count(2)
     copy("#plain + .lf-code-copy", plain)
 
+    # A renderer can keep the pre while changing what it holds. Leaving the code
+    # shape must retire its generated control just as removing the pre does.
+    page.locator("#plain").evaluate("pre => pre.replaceChildren('ordinary text')")
+    expect(page.locator("#plain > code")).to_have_count(0)
+    expect(page.locator("#plain + .lf-code-copy")).to_have_count(0)
+    expect(controls).to_have_count(1)
+
+    restored = "\n  restored_source()\t\n"
+    page.locator("#plain").evaluate(
+        """(pre, source) => {
+          const code = document.createElement('code');
+          code.textContent = source;
+          pre.replaceChildren(code);
+        }""",
+        restored,
+    )
+    expect(page.locator("#plain + .lf-code-copy")).to_have_count(1)
+    expect(controls).to_have_count(2)
+    copy("#plain + .lf-code-copy", restored)
+
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way

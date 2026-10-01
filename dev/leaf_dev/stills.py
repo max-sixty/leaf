@@ -76,6 +76,14 @@ def card_reply(page: Page) -> None:
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
+def card_reply_sent(page: Page) -> None:
+    """The margin card's message metadata after sending a reply."""
+    card_reply(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("button", name="Send", exact=True).click()
+    card.locator(".lf-page-thread-msg.user .lf-msg-sending").last.wait_for()
+
+
 def threads_panel(page: Page) -> None:
     """The Threads panel, opened from the banner."""
     page.locator(".lf-threads-toggle").click()
@@ -155,6 +163,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_by_pointer,
         card_by_keyboard,
         card_reply,
+        card_reply_sent,
         threads_panel,
         panel_reply_sent,
         composer,
@@ -207,6 +216,7 @@ STATES = (
     ),
     # Last on its page, since the reply it sends stays in the log.
     State("plan-panel-sent", "review-a-plan", panel_reply_sent),
+    State("plan-card-sent", "review-a-plan", card_reply_sent),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),

@@ -123,6 +123,19 @@ def code_note(page: Page) -> None:
     )
 
 
+def code_copy_by_pointer(page: Page) -> None:
+    """Code's corner control revealed by hovering its source."""
+    code_note(page)
+    page.locator("lf-code pre").first.hover()
+
+
+def code_copy_by_keyboard(page: Page) -> None:
+    """Code's corner control with the keyboard focus ring visible."""
+    code_note(page)
+    page.keyboard.press("Tab")
+    page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
+
+
 def pane_focused(page: Page) -> None:
     """A workspace pane's body focused by keyboard: a pane standing flush with the
     workspace's own scrollport, which clipped a ring drawn outside the body."""
@@ -160,6 +173,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_note,
+        code_copy_by_pointer,
+        code_copy_by_keyboard,
         pane_focused,
         element_thread,
         versions_menu,
@@ -212,6 +227,15 @@ STATES = (
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
+    State("walkthrough-copy-hover", "pr-walkthrough", code_copy_by_pointer),
+    State("walkthrough-copy-keyboard", "pr-walkthrough", code_copy_by_keyboard),
+    State(
+        "walkthrough-copy-touch",
+        "pr-walkthrough",
+        code_note,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("ship-thread", "ship-review", element_thread),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),

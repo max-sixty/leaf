@@ -139,14 +139,14 @@ test("content moved across the page marks nothing at the place it left", () => {
   assert.equal(describeDifference(reading), "1 area moved");
 });
 
-test("rows only the taller image has are a change", () => {
-  const image = painted(blank(64, 40), [10, 10, 20, 8]);
-  const taller = painted(blank(64, 60), [10, 10, 20, 8], [10, 46, 20, 8]);
-  const reading = differingRegions(image, taller);
+test("rows only the taller image has are a change, though they draw nothing", () => {
+  const reading = differingRegions(blank(64, 40), blank(64, 60));
   assert.equal(reading.changed, 64 * 20);
+  assert.deepEqual(outlines(reading, "before"), []);
   assert.deepEqual(outlines(reading, "after"), [
-    { x: 9, y: 45, width: 22, height: 10, kind: "changed" },
+    { x: 0, y: 40, width: 64, height: 20, kind: "changed" },
   ]);
+  assert.equal(describeDifference(reading), "1 changed area");
 });
 
 test("a strong change over most of the image points nowhere", () => {

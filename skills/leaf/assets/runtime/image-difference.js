@@ -46,7 +46,9 @@
  * content changed, in both frames at the place it has in each, and where it moved, at
  * its old place in before and its new place in after. So a list that moved beside a
  * chart is outlined at the foot of before and beside the chart in after, and nothing
- * marks the empty place it left.
+ * marks the empty place it left. A change where neither image draws an edge, such as
+ * rows of ground only the taller image has, lies inside no block; its struck squares
+ * are outlined as a change in each image that reaches them.
  *
  * A block that holds another outline is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
@@ -141,9 +143,54 @@ export function differingRegions(a, b) {
     });
   const readBefore = reading(before, a, one, after, b, other);
   const readAfter = reading(after, b, other, before, a, one);
+  // A change where neither image draws an edge, such as rows of ground only the taller
+  // image has, lies inside no block's box, so its squares are outlined on their own, in
+  // each image that reaches them.
+  const owned = new Uint8Array(struck.length);
+  for (const block of [...before, ...after])
+    for (let r = Math.floor(block.y / CELL); r * CELL < block.y + block.height; r += 1)
+      owned.fill(
+        1,
+        r * columns + Math.floor(block.x / CELL),
+        r * columns + Math.ceil((block.x + block.width) / CELL),
+      );
+  const bare = [];
+  for (let cell = 0; cell < struck.length; cell += 1)
+    if (struck[cell] && !owned[cell]) {
+      const x = (cell % columns) * CELL;
+      const y = Math.floor(cell / columns) * CELL;
+      bare.push({
+        x,
+        y,
+        width: Math.min(CELL, width - x),
+        height: Math.min(CELL, height - y),
+      });
+    }
+  const unowned = merged(bare, (p, q) => near(p, q, 2 * CELL)).flatMap((box) =>
+    [
+      ["before", a],
+      ["after", b],
+    ].flatMap(([side, image]) => {
+      const right = Math.min(box.x + box.width, image.width);
+      const bottom = Math.min(box.y + box.height, image.height);
+      return right > box.x && bottom > box.y
+        ? [
+            {
+              x: box.x,
+              y: box.y,
+              width: right - box.x,
+              height: bottom - box.y,
+              side,
+              kind: "changed",
+            },
+          ]
+        : [];
+    }),
+  );
   const regions = [
     ...outlines(before, readBefore, struck, columns, "before"),
     ...outlines(after, readAfter, struck, columns, "after"),
+    ...unowned,
   ]
     .sort((p, q) => p.y - q.y || p.x - q.x)
     .map(({ x, y, width, height, side, kind }) => ({

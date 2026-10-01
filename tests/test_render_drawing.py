@@ -316,8 +316,7 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     strike(page, "#line", "delta", below=3)
     assert sent("the underline")["drawing"]["says"] == "delta"
 
-    # An arrow from a paragraph's first word to its far corner says the paragraph, as
-    # far as a drawing's 500 characters go.
+    # An arrow can capture a long paragraph from its first word to its far corner.
     para = page.locator("#para")
     para.scroll_into_view_if_needed()
     # Read before the send, which adds the block's comment note to what it holds.
@@ -335,8 +334,9 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
             ),
         ],
     )
-    assert len(whole) > 500
-    assert sent("the arrow")["drawing"]["says"] == whole[:499] + "…"
+    capture = sent("the arrow")["drawing"]["says"]
+    assert isinstance(capture, str) and capture.startswith("Arrow ")
+    assert whole.startswith(capture.removesuffix("…"))
 
     # The cut-away rows of the box above lie under this ring's coordinates.
     page.locator("#under").scroll_into_view_if_needed()

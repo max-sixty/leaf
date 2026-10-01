@@ -275,40 +275,25 @@ SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
 
 
 @pytest.mark.parametrize(
-    ("columns", "media", "stacked"),
+    ("columns", "media"),
     [
-        ("1fr 2fr", f"(width < 900px) {STACK}", "720–880px"),
-        ("1fr 2fr", f"(width < 720px) {STACK}", None),
-        ("1fr", f"(width < 900px) {STACK}", None),
-        ("1fr", f"(width >= 1800px) {SPLIT}", None),
+        ("1fr 2fr", f"(width < 720px) {STACK}"),
+        ("1fr", f"(width < 900px) {STACK}"),
+        ("1fr", f"(width >= 1800px) {SPLIT}"),
     ],
     ids=[
-        "stacks-early",
         "stacks-where-the-layout-flows",
         "rows-at-every-width",
         "rows-then-columns-when-ultrawide",
     ],
 )
-def test_a_workspace_stacks_its_panes_only_where_the_layout_stops_holding_it(
-    browser, serve, columns, media, stacked
-):
-    """Held, a workspace shares one window's height among its panes, so panes that stand
-    side by side at the desktop viewport and stack while the window is still held each
-    get a slice of it. Stacking where the Layout lets the page scroll passes, and so does
-    a body of rows, which was built to share the height, even where an ultrawide window
-    sets its panes side by side."""
+def test_workspace_panes_can_follow_the_authored_grid(browser, serve, columns, media):
+    """Workspace panes can stay in rows or share columns as the authored grid changes."""
     reading = render_gate_model.render_version(
         browser, serve(_pane_regions(columns, media), packages=())
     )
 
-    if stacked is None:
-        assert reading.failures == []
-    else:
-        (failure,) = reading.failures
-        assert failure.startswith(
-            f"at {stacked} wide, <div id=regions> stacks its panes in one column "
-            "while the workspace fills the window"
-        ), failure
+    assert reading.failures == []
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit

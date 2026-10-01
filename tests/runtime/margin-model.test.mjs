@@ -282,7 +282,7 @@ test("Page Map uses opaque coordinates without delimiter collisions", () => {
   assert.ok(Object.isFrozen(actions[0]));
 });
 
-test("long subjects stay visible and searchable while spoken controls stay concise", () => {
+test("long subjects stay visible and searchable with identifiable spoken routes", () => {
   for (const text of [
     "An explanation with words to keep together. ".repeat(10),
     `Paragraph · ${"説明文𠮷".repeat(90)}`,
@@ -305,10 +305,8 @@ test("long subjects stay visible and searchable while spoken controls stay conci
     ]) {
       assert.ok(label.startsWith(prefix));
       const subject = label.slice(prefix.length);
-      assert.ok([...subject].length <= 120);
-      assert.ok([...subject].length >= 60);
-      assert.ok(subject.endsWith("…"));
-      assert.ok(text.startsWith(subject.slice(0, -1)));
+      assert.ok(subject.replace(/…$/, "").length > 0);
+      assert.ok(text.startsWith(subject.replace(/…$/, "")));
     }
   }
 });

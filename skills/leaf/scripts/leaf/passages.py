@@ -348,6 +348,8 @@ class _PassageParser:
     def handle_starttag(self, tag, attrs):
         attrs_d = dict(attrs)
         parent = self.stack[-1] if self.stack else None
+        if tag == "br" and parent and not parent["skip"]:
+            self._write(" ", parent["block"], parent["ids"])
         # Recorded before the void check, and before anything asks what this element
         # shows: where an element sits is a fact about the markup, so an image, an
         # opaque widget and a slot a decision retired each answer it like any other.

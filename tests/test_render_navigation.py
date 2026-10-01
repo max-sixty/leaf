@@ -488,7 +488,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     preview_geometry = preview.evaluate(
         """el => {
           const card = el.getBoundingClientRect();
-          const history = el.querySelector('.lf-margin-preview-list');
+          const history = el.querySelector('.lf-thread-transcript');
           const body = document.querySelector('#left-reading > :not(header, footer)')
             .getBoundingClientRect();
           return {card: card.toJSON(), body: body.toJSON(),
@@ -504,7 +504,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     assert preview_geometry["scrollHeight"] > preview_geometry["clientHeight"], (
         preview_geometry
     )
-    history = preview.locator(".lf-margin-preview-list")
+    history = preview.locator(".lf-thread-transcript")
     history.evaluate("el => el.scrollTop = el.scrollHeight")
     assert history.evaluate("el => el.scrollTop") > 0
     page.keyboard.press("Escape")  # onto the passage, the card beside it

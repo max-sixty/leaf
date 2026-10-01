@@ -213,6 +213,23 @@ STATES = (
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
+    ),
+    State(
+        "ship-card-short-window-dark",
+        "ship-review",
+        card_by_pointer,
+        viewport=(1440, 480),
+        scheme="dark",
+    ),
+    State(
+        "ship-card-touch",
+        "ship-review",
+        card_by_pointer,
+        viewport=(390, 500),
+        touch=True,
+    ),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),

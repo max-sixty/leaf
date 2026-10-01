@@ -1324,7 +1324,9 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
             item.get_by_role(
                 "button", name=re.compile(f"^{outcome.title()} the ")
             ).click()
-        expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 1))
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
         render_checks_model.wait_until_ready(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         _unfold(item)
@@ -1333,7 +1335,9 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
             suggestion_control(page, target, visible=False).and_(
                 page.locator('[aria-label^="Undo "]')
             ).click()
-        expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 1))
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
         render_checks_model.wait_until_ready(page)
         _unfold(item)
         expect(
@@ -1441,7 +1445,9 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
             item.get_by_role(
                 "button", name=re.compile(f"^{outcome.title()} the ")
             ).click()
-        expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 1))
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
         render_checks_model.wait_until_ready(page)
         _unfold(item)
         applied += 1
@@ -1449,7 +1455,9 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
             suggestion_control(page, target, visible=False).and_(
                 page.locator('[aria-label^="Undo "]')
             ).click()
-        expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 1))
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
         render_checks_model.wait_until_ready(page)
         # The pin just pressed is held under the pointer; let it go so it folds back.
         page.mouse.move(0, 0)

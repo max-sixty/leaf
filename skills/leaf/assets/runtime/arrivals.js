@@ -66,7 +66,10 @@ export function watchArrivals(selector, attributes, { arrive, leave }) {
     } else if (arrived.delete(el)) leave(el);
   };
   const beside = (node) =>
-    node?.nodeType === Node.ELEMENT_NODE && node.matches(selector) ? [node] : [];
+    node?.nodeType === Node.ELEMENT_NODE &&
+    (arrived.has(node) || node.matches(selector))
+      ? [node]
+      : [];
   const observer = new MutationObserver((records) => {
     const offered = new Set();
     for (const record of records) {

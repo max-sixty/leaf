@@ -1,22 +1,15 @@
 """The complete state response for one served page."""
 
-import time
 from datetime import timedelta
 from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import WORKING_GRACE, canonical_activity, canonical_stream_reply
-from ..data import browser_data_from, read_data
-from ..event_log import now_iso
+from ..data import browser_data_from
 from ..events import build_threads
-from ..files import active_descriptor, version_descriptors
-from ..passages import SourceReading
-from ..presence import presence_with_activity
-from ..registry.contract import RegistryError
-from ..registry.storage import layer_metadata, page_vocabulary
-from ..revision_artifact import active_enclosing, read_revision
 from ..workflows import canonical_workflows
 from .browser import BrowserReading, project_browser_state
+from .context import PageRead, read_page
 
 
 class ServedPage(NamedTuple):
@@ -33,116 +26,63 @@ class ServedPage(NamedTuple):
 
 
 def project_activity(
-    page_dir: Path,
-    events: list,
-    present: dict,
-    now: str,
+    context: PageRead,
     browser: dict | None,
-    live_stream: dict | None = None,
 ) -> dict:
-    """Project activity with or without a usable vendored browser layer."""
+    """Project activity even before the page has an active document."""
     if browser is not None:
         return browser.pop("activity")
-    # Thread delivery and response ownership do not depend on a page's vendored
-    # widget registry. The Stop hook deliberately remains able to protect a
-    # thread on an older or damaged layer through this same canonical fold;
-    # only widget-scoped interaction evidence is unavailable.
-    try:
-        threads = build_threads(events, active_enclosing(page_dir))
-    except (FileNotFoundError, SystemExit):
-        threads = {}
+    # No active document means no page containment; thread obligations remain.
+    threads = build_threads(context.events, {})
     evidence = canonical_workflows(
-        present["claims"],
+        context.presence["claims"],
         threads,
         None,
-        events=events,
+        events=context.events,
     )
     return canonical_activity(
-        present,
+        context.presence,
         evidence,
-        now,
-        (live_stream or {}).get("activity"),
-        canonical_stream_reply(present, now, (live_stream or {}).get("reply")),
-        (live_stream or {}).get("reply_bindings"),
+        context.now,
+        (context.live_stream or {}).get("activity"),
+        canonical_stream_reply(
+            context.presence, context.now, (context.live_stream or {}).get("reply")
+        ),
+        (context.live_stream or {}).get("reply_bindings"),
     )
 
 
-def full_state(page_dir: Path, events: list, **options) -> dict:
-    """The complete state response for one served page; see `read_served_page`."""
-    return read_served_page(page_dir, events, **options).state
+def full_state(
+    page_dir: Path,
+    events: list,
+    *,
+    layer_identity: dict | None = None,
+    now: str | None = None,
+) -> dict:
+    """The live state reading for callers already holding the page transaction."""
+    return read_served_page(
+        read_page(page_dir, events, layer_identity=layer_identity, now=now)
+    ).state
 
 
 def read_served_page(
-    page_dir: Path,
-    events: list,
-    layer_identity: dict | None = None,
+    context: PageRead,
+    *,
     preview: dict | None = None,
     publication: dict | None = None,
     source_error: str | None = None,
     view_revision: int | None = None,
-    active_override: dict | None = None,
-    readings_override: dict[int, SourceReading] | None = None,
-    data_override: dict | None = None,
-    versions_override: list[dict] | tuple[dict, ...] | None = None,
-    presence_override: dict | None = None,
-    live_stream_override: dict | None = None,
-    now_override: str | None = None,
-    taken_override: float | None = None,
 ) -> ServedPage:
-    if active_override is not None:
-        active = active_override
-    else:
-        active = active_descriptor(page_dir, events)
-    if presence_override is None:
-        present, live_stream = presence_with_activity(page_dir, events)
-    else:
-        present = presence_override
-        live_stream = live_stream_override
-    now = now_override or now_iso()
-    if readings_override is not None:
-        registry = readings_override[active["revision"]].registry
-    else:
-        try:
-            registry = page_vocabulary(
-                page_dir, active["revision"] if active is not None else None
-            )
-        except RegistryError:
-            registry = None
-    stored_data = (
-        data_override if data_override is not None else read_data(page_dir, registry)
-    )
-    projected = project_browser_state(
-        page_dir,
-        events,
-        view_revision,
-        active,
-        present,
-        now,
-        readings_override=readings_override,
-        live_stream=live_stream,
-    )
+    active = context.active
+    projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)
-    activity = project_activity(
-        page_dir,
-        events,
-        present,
-        now,
-        browser,
-        live_stream,
+    activity = project_activity(context, browser)
+    selected_registry = (
+        context.revision(view_revision or active["revision"]).registry
+        if active is not None
+        else context.registry
     )
-    if active is not None:
-        selected_revision = view_revision or active["revision"]
-        selected_registry = (
-            readings_override[selected_revision]
-            if readings_override is not None
-            else read_revision(page_dir, selected_revision)
-        ).registry
-        identity = selected_registry["$layer"]
-    else:
-        selected_registry = registry
-        identity = (
-            layer_metadata(page_dir) if layer_identity is None else layer_identity
-        )
+    identity = selected_registry["$layer"] if active is not None else context.layer
     workflows = (
         browser.pop("workflows") if browser is not None else activity.pop("workflows")
     )
@@ -153,7 +93,7 @@ def read_served_page(
         # calls a claim made this minute an hour stale, on every seat at once, and
         # neither side can tell from the timestamp alone. Sent so the reading is
         # against the writer's clock rather than the user's.
-        "now": now,
+        "now": context.now,
         # How long working may go unheard before it reads as quiet, measured on that
         # clock. Activity below is already read against it; a package dating a
         # worker's own reports asks `quietSince`, which reads this rather than a copy.
@@ -167,16 +107,12 @@ def read_served_page(
         # order they land. The wall clock rather than a counter: a counter starts over
         # with the server, and a tab open across that restart would refuse every
         # answer until the count caught up.
-        "taken": time.time() if taken_override is None else taken_override,
+        "taken": context.taken,
         "active": active,
-        "versions": (
-            list(versions_override)
-            if versions_override is not None
-            else version_descriptors(page_dir, events)
-        ),
+        "versions": list(context.versions),
         "source_error": source_error,
-        "data": browser_data_from(stored_data, selected_registry),
-        **present,
+        "data": browser_data_from(context.data, selected_registry),
+        **context.presence,
         "activity": activity,
         "workflows": workflows,
         "browser": browser,
@@ -184,8 +120,8 @@ def read_served_page(
         # and its markup is the fragment the CLI gate validated. The wire adds nothing,
         # so the only vocabulary a page's frozen layer has to keep speaking is the
         # log's own, which $events already stamps.
-        "events": events,
+        "events": context.events,
         **({"preview": preview} if preview else {}),
         **({"publication": publication} if publication else {}),
     }
-    return ServedPage(state, reading, stored_data)
+    return ServedPage(state, reading, context.data)

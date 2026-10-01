@@ -344,7 +344,7 @@ def sent(browser, serve, name):
             for edge, value in box.items()
         },
     )
-    return {
+    reading = {
         "expected": expected,
         "comment box": {
             "side": box_side,
@@ -356,6 +356,10 @@ def sent(browser, serve, name):
         },
         "moves": movement(box, placed, card_side),
     }
+    # Read, the case is over. A page left open while the later cases run sees its
+    # message's age turn from "just now" to "1m ago", which is not what this test reads.
+    context.close()
+    return reading
 
 
 def test_where_a_comment_stands_before_and_after_send(browser, serve, snapshot):

@@ -476,8 +476,6 @@ declareCovering({
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
 declareStanding({
-  threadsBox,
-  narrowing,
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||

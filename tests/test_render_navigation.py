@@ -3427,53 +3427,53 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
     expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-# Ways to stand in the Threads list where it shows one card expanded: on the list
-# itself, or on that card's title.
+# Every way into the Threads list while it shows a thread, which hands focus on to that
+# thread's title.
 EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
 LIST_ROUTES = {
-    "go to Threads": (["g", "Shift+t"], ".lf-threads"),
-    "back out of the page box": (["c", "Escape"], ".lf-threads"),
-    "back out of a walked title": (["g", "Shift+t", "t", "Escape"], ".lf-threads"),
-    "walk to a title": (["g", "Shift+t", "t"], EXPANDED + " > .lf-thread-summary"),
+    "go to Threads": ["g", "Shift+t"],
+    "back out of the page box": ["c", "Escape"],
+    "walk to a title": ["g", "Shift+t", "t"],
 }
 
 
 @pytest.mark.parametrize("width", [1600, 420])
 @pytest.mark.parametrize("route", LIST_ROUTES.values(), ids=LIST_ROUTES.keys())
-def test_the_threads_list_answers_c_in_the_card_it_shows_expanded(
+def test_the_threads_list_hands_focus_to_the_thread_it_shows_open(
     browser, serve, route, width
 ):
-    """Standing on the list is standing at its expanded card, as at a margin card.
+    """Focus given to the list lands on its open thread, so every key answers for it.
 
-    The list always shows one card expanded, and where that card fills the list the
-    list's focus ring draws round it, so the user reads the card as selected and its
-    reply box as the one `c` writes in. `c` once sent them to the page box from here,
-    a rule settled while the list showed only titles. The page box remains `c`'s answer
-    from a list showing no card (`test_c_comments_and_g_t_navigates_to_threads`).
+    The open card fills the list, and the list's own ring once drew round it while
+    `c` wrote in the page box and Escape, `r` and the shading treated the stop as the
+    whole panel. The list keeps focus itself only while it shows no thread
+    (`test_c_comments_and_g_t_navigates_to_threads`). From the thread, Escape is the
+    panel's own: it closes.
 
-    At 420px the panel covers the page, which drops the page's own `c`, so the panel's
-    row is the only one that can answer; it once knew only the page box, and stood down
-    on a title for the page's row to answer, so `c` there did nothing at all.
+    At 420px the panel covers the page, which drops the page's own `c` unless it
+    declares itself covering.
     """
-    steps, standing = route
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
     )
     page.set_viewport_size({"width": width, "height": 900})
-    for step in steps:
+    for step in route:
         page.keyboard.press(step)
         rendered(page)
 
-    expect(page.locator(standing)).to_be_focused()
     card = page.locator(EXPANDED)
     expect(card).to_have_count(1)
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     reply = card.locator("leaf-text")
     if width > 420:  # the narrow line and boxes draw no key badges
         expect(page.locator("leaf-text[placeholder$=' c']")).to_have_count(1)
         expect(reply).to_have_attribute("placeholder", "Reply c")
     page.keyboard.press("c")
     expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, False)
 
 
 def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):

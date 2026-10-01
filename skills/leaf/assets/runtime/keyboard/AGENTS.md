@@ -50,16 +50,18 @@ browser's order.
   Page-side selections, targets, clusters, and the page composer coexist beside
   it, and focus decides which answers first.
 - A composer, reply box, or find box exits to its container; a reply box returns
-  to its thread, then the whole panel, which clears narrowing before closing.
+  to its thread, and the thread to the panel's rungs, which clear narrowing before
+  closing.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread once sent. A thread in the margin card leaves them on the element it
   is about, with the card still up, so one Escape takes the card down and moving
   elsewhere needs none. A box that stays open for more messages, such as a seat's
   or the Threads panel's general box, keeps the user in it.
-- Threads has two selection levels, the whole panel (`g T`) and one thread, and a
-  title selects the same thread as its body. Enter or Space selects a closed
-  title and keeps an open one selected; Comment enters the reply box even from a
-  collapsed title.
+- Threads selects one thread whenever it shows any, and focus on the list is focus
+  on that thread's title: `g T`, and an Escape from the general box, land there.
+  The list stands alone only while it shows no thread. A title selects the same
+  thread as its body. Enter or Space selects a closed title and keeps an open one
+  selected; Comment enters the reply box even from a collapsed title.
 - The versions menu opens from inside More, so More is its parent whichever route
   opened it (`g V` included), and Escape steps back to the version picker there.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
@@ -72,10 +74,6 @@ reference) own the keyboard and their return while active and add no page mode.
 Unwinding closes a surface even if it was open before entry. Closing by pointer
 focuses the surviving reopening control. `register.js` exposes the innermost step
 as one `navigation.back` command.
-
-TODO: the page's `t` departs from this for threads that need the panel: it opens them
-directly but exits through whole-panel selection. Keep that until a route
-respects the hierarchy without making page threads harder to reach.
 
 ## Page grammar
 

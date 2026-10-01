@@ -8,11 +8,17 @@
    carry no native `name`: its exclusivity closes a card the moment it is named beside
    an open one, which the list's own choice then opens again. This mechanical state
    never publishes a new application epoch. Narrowing keeps the
-   selected card when visible and otherwise selects the first visible card. */
+   selected card when visible and otherwise selects the first visible card.
+
+   Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
+   Escape from the panel's general box, a Tab, a fold that took the focused card — so
+   every key answers for the thread the screen shows selected. The list keeps focus
+   itself only while it shows no card, and its ring never outlines one. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
+import { focusThread } from "./focus.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -66,14 +72,6 @@ class ThreadListView extends RetainedFace {
     return this.#visibleRows().map((row) => row.node);
   }
 
-  // The one card the list shows expanded, which the list stands for while it holds
-  // focus: its reply box is the one on screen (`standingThread`, landing.js).
-  expandedThread() {
-    return (
-      this.#visibleRows().find((row) => row.key === this.#expandedKey)?.node ?? null
-    );
-  }
-
   // The shown cards in the page's order, whichever order the list stands in.
   inPageOrder(cards) {
     const seats = this.model.pageSeats;
@@ -95,6 +93,11 @@ class ThreadListView extends RetainedFace {
 
   constructor() {
     super(EMPTY_MODEL);
+    this.addEventListener("focus", () => {
+      this.#showExpanded();
+      const open = this.#visibleRows().find((row) => row.key === this.#expandedKey);
+      if (open) focusThread(open.node, { preventScroll: true });
+    });
   }
   configure(commands, initialModel) {
     if (this.#commands) return;

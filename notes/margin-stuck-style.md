@@ -55,16 +55,54 @@ once, at the end.
 }
 ```
 
-The harness was a throwaway, non-nightly test in `tests/` (not committed). Each of 48
-parametrized copies opens `FEATURE_GALLERY` with `open_page`, sets CPU throttling
-(`Emulation.setCPUThrottlingRate`, 20), resizes to 1440×900, clicks the
-`[data-lf-margin-entry-owner="suggestion:bg-insert"][data-lf-margin-entry-key="reject"]`
-entry from script, runs `round_trip`, waits 1s, and records the probe for
-`bg-insert-line`, `bg-insert` and `bg-replace-line`:
+The harness is a non-nightly test, kept here rather than in the suite because each run
+takes minutes. Save it as `tests/test_scratch_stuck.py` (and delete it after): each of
+48 copies opens the gallery at 20x CPU throttling, rejects `bg-insert` from script, waits,
+and writes the probe for three elements to `.tmp/stuck/<copy>.json`.
+
+```python
+import json
+import pathlib
+
+import pytest
+from render_harness import FEATURE_GALLERY, open_page, resized, round_trip
+
+OUT = pathlib.Path(__file__).parents[1] / ".tmp" / "stuck"
+STUCK = """(ids) => Object.fromEntries(ids.map(id => {
+  const t = document.getElementById(id);
+  t.style.setProperty('--lf-stuck-probe', 'q1');
+  const ok = getComputedStyle(t).getPropertyValue('--lf-stuck-probe').trim() === 'q1';
+  t.style.removeProperty('--lf-stuck-probe');
+  return [id, !ok];
+}))"""
+REJECT = (
+    '[data-lf-margin-entry-owner="suggestion:bg-insert"]'
+    '[data-lf-margin-entry-key="reject"]'
+)
+
+
+@pytest.mark.parametrize("copy", range(48))
+def test_scratch_stuck(browser, serve, copy):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Emulation.setCPUThrottlingRate", {"rate": 20})
+    resized(page, 1440, 900)
+    page.locator(REJECT).evaluate("button => button.click()")
+    round_trip(page)
+    page.wait_for_timeout(1000)
+    OUT.mkdir(exist_ok=True)
+    stuck = page.evaluate(STUCK, ["bg-insert-line", "bg-insert", "bg-replace-line"])
+    (OUT / f"{copy}.json").write_text(json.dumps(stuck))
+```
 
 ```sh
+rm -rf .tmp/stuck
 uv run pytest tests/test_scratch_stuck.py -m 'not nightly' -n 8 -p no:randomly
+grep -l '"bg-insert-line": true' .tmp/stuck/*.json | wc -l
 ```
+
+The tests themselves pass; the browser fixture reports the page's layout shifts at
+teardown, which this throttling provokes and the count ignores.
 
 About 2.5 minutes. On main (2026-10-01) the span stayed stuck in 6–15 of 48 copies
 across runs; at 10x throttling, 2 of 24. The flake predates #1493: CI nightly at

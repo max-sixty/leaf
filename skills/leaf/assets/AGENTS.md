@@ -78,9 +78,9 @@ thread the agent starts wait behind a notice in a row the seat already draws
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page makes a
-layout shift Chrome reports without recent input, or whose typing carries its field
-(`tests/shift_watch.js`).
+suite's browser fixture fails any test outside the nightly selection whose page moves
+a box on screen without input, news landing just after a press included, or whose
+typing carries its field (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-interactive]`, the size its module will draw it at, so first paint
@@ -221,7 +221,9 @@ the step between. The browser fixture fails a write that changes
 nothing in any test (`tests/write_watch.js`), and
 `test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 
-What a page says follows from where it stands now, not from how it got there. A page
+What a page says follows from where it stands now, not from how it got there. The one
+history its arrangement keeps is the order its margin rows came in, since a row that
+arrives yields to those already there rather than moving them (`margin-layout.js`). A page
 nobody touches writes nothing, asks for no frame, and moves no focus; a surface opened
 and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever

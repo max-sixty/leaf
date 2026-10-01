@@ -1053,7 +1053,7 @@ def until_draft_settled(page, ctx: str) -> None:
 
 
 _BROWSER_PROBLEM_LISTS = None
-_WATCH_SHIFTS = True
+_TEST = None
 
 
 @contextmanager
@@ -1065,23 +1065,23 @@ def clean_browser(test=None):
     by `WatchedBrowser`, render helpers, and tests that navigate a page
     themselves. The fixture hands over its `test` node, for which `known_faults` says
     whether to watch for layout shifts (`shift_watch.js`) and which shift or lost words
-    (`words_watch.js`) are its known ones: defects waiting on their fix.
+    (`words_watch.js`) are its known ones: defects waiting on their fix, which
+    `watched` drops as it hears them.
     """
-    global _BROWSER_PROBLEM_LISTS, _WATCH_SHIFTS
+    global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
     captured = []
     _BROWSER_PROBLEM_LISTS = captured
-    _WATCH_SHIFTS = test is None or watches_shifts(test)
+    _TEST = test
     try:
         yield
     finally:
         _BROWSER_PROBLEM_LISTS = None
-        _WATCH_SHIFTS = True
+        _TEST = None
     problems = [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
-        if not (test and known(test, problem))
     ]
     assert problems == [], problems
 
@@ -1124,8 +1124,11 @@ def watched(page):
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
 
+    # A test's known shift is dropped where it is heard, so it never reaches what the
+    # test consumes.
     def console_message(message):
-        if problem := render_gate_model.console_problem(message):
+        problem = render_gate_model.console_problem(message)
+        if problem and not (_TEST and known(_TEST, problem)):
             errors.append(problem)
 
     page.on("console", console_message)
@@ -1133,7 +1136,7 @@ def watched(page):
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     page.add_init_script(path=WORDS_WATCH_SOURCE)
-    if _WATCH_SHIFTS:
+    if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(path=SHIFT_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(

@@ -37,7 +37,7 @@ import { shadowHost, under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
-import { packRows, rowPosture, seatRows } from "./margin-placement.js";
+import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
 import { pointBand } from "./pointed-place.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
@@ -52,9 +52,8 @@ export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
 // the pointer, with focus in it, or whose entry has the thread card open, as that entry's
 // disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
-// relative to its row (thread-card-geometry.js), so a row arriving beside it, such as the
-// receipt of a pick made with the card open, would otherwise push the row down and the
-// card the user is reading with it.
+// relative to its row (thread-card-geometry.js), so a standing row whose target moves
+// into it would otherwise push the row down and the card the user is reading with it.
 const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 // The anchor name the rail hangs from: `main`'s own box.
 const PAGE_ANCHOR = "--lf-page";
@@ -663,8 +662,8 @@ function seatPins(standing, { bands, shell, pinInset }) {
     pins.push({
       key: entry,
       rect: homeAt(wide),
-      priority: entry.priority,
       held: holding,
+      came: entry.came,
       parts,
       cover,
       walls,
@@ -716,9 +715,8 @@ function observeLayout() {
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
-// (`point`, pointed-place.js), its place among the others in the layer (`order`), its
-// packing priority, and how to move it between lanes without dropping the focus it holds
-// (`move`).
+// (`point`, pointed-place.js), its place among the others in the layer (`order`), and how
+// to move it between lanes without dropping the focus it holds (`move`).
 export function registerMarginRow(row, options = {}) {
   rows.set(row, options);
   observeLayout();
@@ -794,6 +792,12 @@ function pinStands(row, box) {
 }
 
 const pushes = new Map();
+// The layout pass each row came at (`arrivals`). Packing seats the rows that came earlier
+// first (`packRows`), so a row arriving takes the room left to it and moves none already
+// there: a pick's receipt, an agent's change, a thread just sent, each lands below the
+// markers standing by its target, and an open card with them, rather than pushing them.
+let pass = 0;
+let came = new Map();
 const steps = new Map();
 const clips = new WeakMap();
 // A row whose anchor the browser would not take — one behind an author's `anchor-scope`,
@@ -854,6 +858,8 @@ export function layoutMarginRows() {
   cancelRender(pending);
   pending = 0;
   if (!layer) return;
+  pass += 1;
+  const present = [];
   const main = marginColumn();
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
@@ -891,6 +897,7 @@ export function layoutMarginRows() {
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
+      present.push({ row, at: null });
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
@@ -901,6 +908,7 @@ export function layoutMarginRows() {
     // tab switch does not move the rows of a reading region's hidden panels between
     // lanes.
     if (skipped(target)) {
+      present.push({ row, at: null });
       reads.push({ row, options, lane: row.parentElement ?? layer.root, shown: false });
       continue;
     }
@@ -908,6 +916,7 @@ export function layoutMarginRows() {
     // Level with the row a gesture pointed into, where the row's comment has one
     // (pointed-place.js); otherwise level with the target's top.
     const point = options.point?.() ?? null;
+    present.push({ row, at: point ?? target });
     for (
       let root = (point ?? target).getRootNode();
       shadowHost(root);
@@ -948,6 +957,7 @@ export function layoutMarginRows() {
       top,
     });
   }
+  came = arrivals(came, present, pass);
   // What each lane's region shows, cut by the scrollers around it but not by the window,
   // so a pane below the fold is clipped where its own edges will be when it arrives.
   const regions = new Map();
@@ -1002,7 +1012,11 @@ export function layoutMarginRows() {
     row.classList.toggle("lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
-    if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
+    if (row.dataset.lfPlace !== place) {
+      // A push in one posture says nothing of where the row stands in the other.
+      pushes.delete(row);
+      row.dataset.lfPlace = place;
+    }
     if (shown) continue;
     setStyle(row, "--lf-inset-top", px(extent && top - box.top));
     setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
@@ -1031,8 +1045,11 @@ export function layoutMarginRows() {
           top: read.top,
           bottom: read.top + box.height,
         },
-        priority: read.options.priority ?? 0,
-        held: read.row.matches(HELD),
+        // Held where it stands, which a row has only once it has stood in its posture:
+        // one that has just come, or just changed posture, takes its place as any other.
+        held: pushes.has(read.row) && read.row.matches(HELD),
+        came: came.get(read.row),
+        pushed: pushes.get(read.row),
         read,
       };
     });
@@ -1046,6 +1063,8 @@ export function layoutMarginRows() {
   const standing = placed.filter(({ stranded }) => !stranded);
   seatPins(standing, { bands, shell, pinInset });
   const packed = packRows(standing, GAP);
+  // A push says where a standing row stands, so a row that no longer stands has none.
+  for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
   for (const { key: row, rect, read } of standing) {
     // Written as insets from the box the row anchors to, so the row keeps its place
     // beside its target through every scroll with no pass.

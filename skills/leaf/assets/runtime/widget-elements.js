@@ -510,12 +510,17 @@ export function relabel(node, label, { says } = {}) {
 // control whose face has changed since measures its words again.
 //
 // What it cannot stand out of is an ancestor that isn't drawn: display: none upward is
-// nobody's box, and every word measures zero there. A control whose ancestors may be
-// undrawn — anything a widget builds, since a widget upgrades wherever the runtime
-// connects it and a shut panel is display: none — reserves from inside `measure`, which
-// asks again the first time there is a box. A floor of zero is not a missing
-// measurement to look at; it is the control holding no room at all.
+// nobody's box, and every word measures zero there. A floor of zero is not a missing
+// measurement to look at; it is the control holding no room at all. So the floor is
+// taken inside `measure`, which takes it now where the control has a box and otherwise
+// the first time it has one. Any control may be undrawn when it reserves: a widget
+// upgrades wherever the runtime connects it, and a shut panel, or a tab set's later
+// panels before it upgrades, is display: none.
 export function reserve(control, labels) {
+  measure(control, () => floor(control, labels));
+}
+
+function floor(control, labels) {
   const copy = control.cloneNode(false);
   copy.removeAttribute("id");
   Object.assign(copy.style, {
@@ -535,7 +540,6 @@ export function reserve(control, labels) {
   control.style.minWidth = Math.ceil(widest) + "px";
   forgetDetached();
   reservations.set(control, { labels, face: reservedFace(control) });
-  reservedFaces.observe(document.documentElement);
 }
 
 // What of a control's computed face a reserved floor was measured in.
@@ -556,17 +560,17 @@ function forgetDetached() {
   for (const control of reservations.keys())
     if (!control.isConnected) reservations.delete(control);
 }
-// A control an undrawn ancestor holds would measure zero and keep it as its floor, so
-// it waits, still holding the face it was measured in, for a resize that draws it.
+// When the window's size changes, a control whose face has changed measures its words
+// again, through `reserve`, so one undrawn by then waits for its box. The root is
+// watched from the start rather than by each reservation: a floor is often taken inside
+// `measure`'s own resize delivery, and observing the root there asks for a delivery
+// shallower than the one in progress, which the browser reports as undelivered.
 const reservedFaces = sizeObserver(() => {
   forgetDetached();
   for (const [control, { labels, face }] of reservations)
-    if (
-      control.parentElement?.getClientRects().length &&
-      reservedFace(control) !== face
-    )
-      reserve(control, labels);
+    if (reservedFace(control) !== face) reserve(control, labels);
 });
+reservedFaces.observe(document.documentElement);
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such

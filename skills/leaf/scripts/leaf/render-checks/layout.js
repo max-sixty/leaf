@@ -6,6 +6,30 @@ import { openRoots } from "./open-roots.js";
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 
+// The page's own margin residents, without Leaf's rail: that holds only markers and
+// never moves the column. Both a sweep sample and its breakpoint refinement read the
+// tokens the margin layout publishes, rather than rediscovering residency from boxes.
+export function marginResidents() {
+  return (document.querySelector("main")?.getAttribute("data-lf-margin") ?? "")
+    .split(" ")
+    .filter((token) => token && token !== "rail")
+    .join(" ");
+}
+
+// One settled-width geometry sample. These readers are synchronous and read-only:
+// taking them in one browser turn preserves their findings while removing the
+// protocol round trips between fields. Resize and rendering completion belong to the
+// caller, so a sample neither advances the page nor waits for a different layout.
+export function geometryReading(open) {
+  return {
+    overflow: rootOverflow(),
+    misplaced: misplacedBoxes(),
+    margin: marginResidents(),
+    arrangement: arrangedBoxes(open),
+    panes: heldPanes(),
+  };
+}
+
 // How the page's own arrangement stands: for each flex or grid box the page wrote (a
 // Layout, or the page's own grid), how many of its items stand in each row. The walk goes
 // through the widgets named in `open`, those whose content is the page's own markup or

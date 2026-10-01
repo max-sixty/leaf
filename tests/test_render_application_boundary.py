@@ -512,22 +512,23 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
             "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
         )
 
-    removed = first.element_handle()
-    first.evaluate("node => node.remove()")
+    # The widget taken out stands last, so taking it out moves nothing else.
+    removed = second.element_handle()
+    second.evaluate("node => node.remove()")
     stopped_at = removed.evaluate("node => node.updates")
-    second.locator("input").fill("Delta")
-    second_before = second.evaluate("node => node.updates")
+    first.locator("input").fill("Delta")
+    first_before = first.evaluate("node => node.updates")
     with sending(page, "another Thread after one widget disconnected"):
         write(page.locator(".lf-general leaf-text"), "Delta")
         page.locator(".lf-general button").click()
-    expect(second.locator("li")).to_have_text("Delta")
-    assert second.evaluate("node => node.updates") > second_before
+    expect(first.locator("li")).to_have_text("Delta")
+    assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
 
-    thread_id = second.evaluate(
+    thread_id = first.evaluate(
         "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
-    second.locator("button", has_text="Delta").click()
+    first.locator("button", has_text="Delta").click()
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
 
@@ -610,7 +611,10 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
       node.removeAttribute('data-held');
       node.consumer.update();
     }""")
-    expect(second.locator(".lf-page-thread")).to_contain_text("While held")
+    # The log answered the reply before the held mirror drew it, so to that mirror it is
+    # news, which waits behind a notice rather than moving its reply box.
+    expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
+    expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
     second_handle = second.element_handle()
     second.evaluate("node => node.remove()")
@@ -1066,16 +1070,17 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
 
 def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
+    # The widget the test takes out and puts back stands last in the page, where neither
+    # moves anything else.
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>'
         '<lf-ask id="package-ask"><h2>Package choice</h2>'
         '<lf-options id="package-options" choose>'
         '<lf-option id="package-a">A</lf-option>'
         '<lf-option id="package-b">B</lf-option>'
         "</lf-options></lf-ask>",
-    )
+    ).replace("</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>')
     version_url = serve(
         source,
         page_files={
@@ -1200,10 +1205,11 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     browser, serve
 ):
     """One widget owns distinct render and preparation regions across its lifetime."""
+    # The owner is removed and reattached by script below. Keep it after the page's
+    # content so that neither operation moves text the reader did not ask to move.
     source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
+        "</main>",
+        '<lf-local id="page-local" choice="idle"></lf-local></main>',
     )
     page = open_page(
         browser,
@@ -2046,9 +2052,21 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     with sending(page, "a package reaction"):
         actions.get_by_role("button", name="React").click()
     expect(actions).to_have_attribute("data-reacted", "true")
-    with sending(page, "the same reaction withdrawn"):
-        actions.get_by_role("button", name="React").click()
+    pressed = page.locator(
+        '.lf-thread[data-id="thread-action-root"] .lf-react[aria-pressed="true"]'
+    )
+    expect(pressed).to_have_count(1)
+    # Taking the reaction back is drawn while the log has yet to answer it.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    actions.get_by_role("button", name="React").click()
+    holding(page, held, 1, "the same reaction withdrawn")
     expect(actions).to_have_attribute("data-reacted", "false")
+    expect(pressed).to_have_count(0)
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(pressed).to_have_count(0)
     assert [
         event["kind"]
         for event in events_model.read_events(serve.page_dir)

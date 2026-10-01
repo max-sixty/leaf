@@ -17,6 +17,7 @@ from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
+from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
@@ -293,7 +294,7 @@ def _write_page_state(
     itself is not repeated here: `active.file` is its HTML, which an agent reads
     beside `state`."""
     registry = require_registry(page_dir)
-    served, reading, stored_data = read_served_page(page_dir, events)
+    served, reading, stored_data = read_served_page(read_page(page_dir, events))
     active = served["active"]
     if active is not None:
         active["file"] = (

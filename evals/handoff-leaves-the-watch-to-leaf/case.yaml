@@ -1,0 +1,38 @@
+# Added when Leaf's Claude Code watch moved from a background `leaf wait` the model
+# restarts into Leaf's own `asyncRewake` Stop hook, which Claude Code 2.1.286 keeps
+# past the two-hour limit it puts on a background command. Replaces a case that
+# pinned the wait's `timeout`. Base at 12432f61c, whose reference has the model
+# start a background `leaf wait`, passed 0 of 4 runs that finished; the change 4 of
+# 4. Two runs in each arm ended on a model error and measured nothing.
+schema_version: '1.0'
+name: handoff-leaves-the-watch-to-leaf
+description: "Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since Leaf's Stop hook watches between turns."
+tags:
+- wait-loop
+execution:
+  prompt: |
+    You are a Claude Code session, and the user asked for your plan for the session
+    cache as a Leaf page they can comment on. You have written the page at
+    ~/.local/state/leaf/pages/cache-plan and `leaf server start` printed its URL,
+    http://127.0.0.1:8123/?t=abc. Now hand it off, following the leaf skill for this
+    host; the user expects to comment a few hours from now.
+
+    Read whatever guidance you need. Only Skill and Read run here, so write out each
+    other tool call you would make before your closing message, as the tool's name
+    and its full JSON input, then give the closing message itself.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-claude-code-host
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/host-claude-code\.md
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if the reply hands the page over without starting any `leaf wait`
+    (foreground or background, named or not) and its closing message gives the URL
+    http://127.0.0.1:8123/?t=abc. Writing a `leaf status` is fine. Fail if any
+    written-out tool call runs `leaf wait`.

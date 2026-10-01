@@ -67,7 +67,8 @@ contracts, `validation` composes those gates, `page` composes page-owned
 declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
-Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
+Within `served_state/`, `context` owns the live or captured inputs every fold reads;
+`wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for the news stream, and
 `service` owns the page transaction every route reads through.

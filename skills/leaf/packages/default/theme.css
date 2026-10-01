@@ -19,9 +19,9 @@ lf-gloss { display: inline; }
  * span takes over. */
 lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
 /* Where the runtime runs, the module puts the words in the card, so the phrase never
- * shows them inline, before the upgrade either, unless the runtime could not start
- * (`data-lf-startup-error`, runtime/prepaint.js) and no card will come. */
-html[data-lf-interactive]:not([data-lf-startup-error]) lf-gloss[tip]::after,
+ * shows them inline, before the upgrade either. A runtime missing what it needs to start
+ * takes the mark off (runtime/prepaint.js), since no card will come. */
+html[data-lf-interactive] lf-gloss[tip]::after,
 lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
   html:root lf-gloss {
@@ -1595,10 +1595,10 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * (`data-lf-opening`, runtime/prepaint.js) as the one the module will open. The
      * page's flow is the first set in `main` whose list is a row, as lf-tabs.js decides
      * it (`#syncRootContext`). Not reserved: names that wrap the strip onto a second
-     * row, and a side list taller than its panel. A page whose runtime could not
-     * start (`data-lf-startup-error`, runtime/prepaint.js) keeps the stacked, labeled
-     * panels, since no strip will come to reach the hidden ones. */
-    &[data-lf-interactive]:not([data-lf-startup-error]) lf-tabs:not(.lf-rendered):has(> lf-tab) {
+     * row, and a side list taller than its panel. A page whose runtime is missing
+     * what it needs to start loses the mark (runtime/prepaint.js) and keeps the
+     * stacked, labeled panels, since no strip will come to reach the hidden ones. */
+    &[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) {
       margin: var(--sp-4) 0 32px; border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card); --lf-block-frame: 1;
       &::before { content: ""; display: block; box-sizing: border-box;
@@ -1609,14 +1609,14 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       & > lf-tab::before { content: none; }
       & > lf-tab:not([data-lf-opening]) { display: none; }
     }
-    &[data-lf-interactive]:not([data-lf-startup-error]) body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
+    &[data-lf-interactive] body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
         [list="side"]):has(> lf-tab) {
       margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
       & > lf-tab { padding: var(--sp-4) 0 0; }
     }
-    &[data-lf-interactive]:not([data-lf-startup-error])
+    &[data-lf-interactive]
       lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
       container-type: inline-size; display: grid;
       grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); align-items: start;
@@ -2257,6 +2257,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
    face's `ch`. */
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
+             padding-block-start: calc(12px + var(--lf-code-copy-space));
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
 /* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
    frame hid its end behind a scrollbar at the block's foot, and the end is where a log
@@ -2328,6 +2329,7 @@ html[data-lf-interactive] lf-code:not(.lf-rendered) {
   & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
             border-radius: var(--r);
             padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+            padding-block-start: calc(12px + var(--lf-code-copy-space));
             white-space: pre-wrap; overflow-wrap: anywhere; }
   & > lf-note { margin-inline: 1px; }
 }

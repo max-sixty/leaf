@@ -64,9 +64,9 @@ from .codex import (
     delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
+    finish_codex_batch,
     hook_turn,
     offer_delivery,
-    receive_codex_batch,
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
@@ -77,7 +77,6 @@ from .codex import (
 )
 from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
-from .files import read_json
 from .host import CodexHarness, session_harness
 from .leases import (
     adapter_is_live,
@@ -392,7 +391,7 @@ class TaskObserver:
         elif fold is None and ended and delivery_id is not None:
             fold = TurnFold(self.thread_id, turn_id)
         if fold is not None and delivery_id is not None and fold.delivery_id is None:
-            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
+            accept_codex_delivery(self.thread_id, delivery_id, turn_id)
             fold.bind(
                 delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
             )
@@ -439,12 +438,6 @@ class TaskObserver:
 def _turn_delivery_id(turn: dict) -> str | None:
     """The Leaf delivery a snapshot turn carries, read off its items."""
     return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
-
-
-def accept_offered_delivery(session_id: str, delivery_id: str, turn_id: str) -> None:
-    """Accept the offered delivery against the provider turn known to carry it."""
-    if delivery_record_state(session_id, delivery_id) == "offering":
-        accept_codex_delivery(session_id, turn_id)
 
 
 def _log_record(event: str, **fields) -> None:
@@ -550,7 +543,7 @@ class DeliveryTurn(CarriedTurn):
     def begin(self) -> None:
         """Record the delivery against this turn, and bind the answer it will give."""
         self.open()
-        accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
+        accept_codex_delivery(self.session_id, self.delivery_id, self.turn_id)
         self.open_reply()
         codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
@@ -627,13 +620,6 @@ def _sync_receipts(path: Path, record: dict) -> None:
         archive_record(path, record)
 
 
-def _record_receipt(path: Path, batch_index: int) -> None:
-    record = read_json(path)
-    if record is not None and not record["batches"][batch_index]["receipted"]:
-        record["batches"][batch_index]["receipted"] = True
-        write_record(path, record)
-
-
 def _recover_receipt(session_id: str) -> bool:
     """Reconcile one accepted batch while its session still owns the page."""
     lock = delivery_lock_path(session_id)
@@ -658,9 +644,7 @@ def _recover_receipt(session_id: str) -> bool:
     if pending is None:
         return False
     path, batch_index, batch, transport = pending
-    receive_codex_batch(batch, transport)
-    with flocked(lock):
-        _record_receipt(path, batch_index)
+    finish_codex_batch(path, batch_index, batch, transport)
     return True
 
 
@@ -704,7 +688,7 @@ def _offer_queued_delivery(
             ),
             None,
         )
-        offered = None
+        prepared = None
         if unoffered is not None:
             path, record = unoffered
             prepared = offer_delivery(
@@ -715,10 +699,8 @@ def _offer_queued_delivery(
                 "turn": None,
             }
             write_record(prepared.record_path, record)
-            offered = prepared.record_path, record, prepared
-    if offered is None:
+    if prepared is None:
         return False
-    path, _record, prepared = offered
     target = stream_reply_target(prepared.payload)
     if observer is not None:
         delivery_id = prepared.payload["id"]
@@ -742,12 +724,7 @@ def _offer_queued_delivery(
             "the observed App Server delivery is awaiting reconciliation"
         )
     queue_delivery(codex_path, session_id, prepared.prompt)
-    with flocked(lock):
-        record = read_json(path)
-        if record is not None and record["state"] == "offering":
-            record["state"] = "accepted"
-            record["transport"] = {"phase": "queued", "turn": None}
-            write_record(path, record)
+    accept_codex_delivery(session_id, prepared.payload["id"], None)
     return True
 
 

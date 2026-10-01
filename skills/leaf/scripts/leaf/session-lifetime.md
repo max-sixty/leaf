@@ -185,7 +185,11 @@ revision advances on a prompt, ending, or tool step: the queue rechecks it under
 the same delivery lock before reserving its route, so even a renewed step within
 the same turn invalidates an idle reading taken before it. Completing the hook does not prove
 the model read its output: `delivery read` in the owning task takes receipt and
-records opened pickup. Stop or Interrupt closes the observed turn, including a
+records opened pickup. Hook reads, App Server entry, and durable queue acceptance
+all use `codex.accept_codex_delivery` against the exact delivery id. It persists
+acceptance before page IO; normal receipt and interrupted-acceptance recovery use
+`codex.finish_codex_batch`, which never opens a turn. Stop or Interrupt closes the
+observed turn, including a
 page acquired before its first tool hook, and a newer prompt protects its claims.
 The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its

@@ -351,10 +351,10 @@ def read_delivery(delivery_id: str) -> dict:
 
 
 def cmd_delivery_read(delivery_id: str) -> None:
-    from .codex import read_hook_delivery
+    from .codex import accept_codex_delivery_read
 
     payload = read_delivery(delivery_id)
-    read_hook_delivery(payload)
+    accept_codex_delivery_read(delivery_id)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 

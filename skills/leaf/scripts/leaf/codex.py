@@ -1486,50 +1486,36 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
         return prepared.prompt
 
 
-def read_hook_delivery(payload: dict) -> None:
-    """Confirm a hook pointer only when its task actually reads it in a turn.
+def accept_codex_delivery_read(delivery_id: str) -> None:
+    """Use the owning task's pointer read as evidence of entry into its exact turn.
 
-    Reserve acceptance under the route lock before taking any page receipt. The
-    adapter's usual accepted-record recovery finishes interrupted receipts.
+    Reading an envelope alone authorizes no receipt. The hook observation is
+    rechecked under the acceptance lock, so queue reservation or a newer turn
+    invalidates this proof before any delivery record changes.
     """
     harness = session_harness()
     if harness is None or (turn := step_delivery_turn(harness.session)) is None:
         return
-    session_id = harness.session
-    lock = delivery_lock_path(session_id)
-    observed = hook_turn(session_id)
-    if not observed or observed["turn"] != turn or not observed["running"]:
+    observation = hook_turn(harness.session)
+    if not observation or observation["turn"] != turn or not observation["running"]:
         return
-    path = record_path(session_id, payload["id"])
-    with flocked(lock):
-        record = read_json(path)
-        if (
-            hook_turn(session_id) != observed
-            or record is None
-            or record.get("format") != RECORD_FORMAT
-            or record["state"] != "offering"
-            or record.get("transport", {}).get("phase") != "hook"
-        ):
-            return
-        record["state"] = "accepted"
-        record["transport"] = {"phase": "opened", "turn": turn}
-        write_record(path, record)
-    for batch in record["batches"]:
-        receive_codex_batch(batch, record["transport"])
-    with flocked(lock):
-        record = read_json(path)
-        if record is not None:
-            for batch in record["batches"]:
-                batch["receipted"] = True
-            write_record(path, record)
+    accept_codex_delivery(
+        harness.session, delivery_id, turn, hook_observation=observation
+    )
 
 
-def receive_codex_batch(batch: dict, transport: dict | None = None) -> None:
-    """Receipt one accepted batch, preserving a successor or removed page.
+def finish_codex_batch(
+    path: Path, batch_index: int, batch: dict, transport: dict | None = None
+) -> dict | None:
+    """Receipt and retire one accepted batch without opening a session turn.
 
-    Loss of one captured page never prevents the agent reading the immutable
-    envelope's remaining input. The accepted record still retires its batch.
+    Page validation, pickup and cursor writes share delivery.receive_batch.
+    The durable accepted record survives interruption before its receipt mark;
+    recovery retries this same operation. A gone or transferred page retires its
+    batch without advancing a successor's cursor or proving provider binding.
+    No page transaction is taken while holding the delivery lock.
     """
+    received = None
     try:
         with (
             PageTransaction(Path(batch["page"])) as page,
@@ -1542,8 +1528,18 @@ def receive_codex_batch(batch: dict, transport: dict | None = None) -> None:
                 session=batch["session"],
                 turn=(transport or {}).get("turn"),
             )
+            received = {
+                "page": Path(batch["page"]),
+                "events": tuple(event["id"] for event in batch["events"]),
+            }
     except (FileNotFoundError, ReceiptRefused):
         pass
+    with flocked(delivery_lock_path(batch["session"])):
+        record = read_json(path)
+        if record is not None and not record["batches"][batch_index]["receipted"]:
+            record["batches"][batch_index]["receipted"] = True
+            write_record(path, record)
+    return received
 
 
 def delivery_owed_moves(payload: dict) -> list[dict]:
@@ -1647,50 +1643,61 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
         raise
 
 
-def accept_codex_delivery(session_id: str, turn: str) -> list[dict]:
-    """Record the offered delivery's batches as opened in the provider turn that
-    took them.
+def accept_codex_delivery(
+    session_id: str,
+    delivery_id: str,
+    turn: str | None,
+    *,
+    hook_observation: dict | None = None,
+) -> list[dict]:
+    """Accept one exact delivery before completing its recoverable page receipts.
 
-    Acceptance names the turn and opens nothing: whoever follows that turn opens
-    it (`TurnFold.open`), and a turn read back after it ended stays ended."""
-    lock = delivery_lock_path(session_id)
-    with flocked(lock):
-        offered = [
-            (path, record)
-            for path, record in delivery_records(session_id)
-            if record["state"] == "offering"
-        ]
-        if len(offered) != 1:
-            raise RuntimeError("the Codex task has no delivery to accept")
-        path, record = offered[0]
-        batches = [dict(batch) for batch in record["batches"]]
+    A turn id proves entry into that provider turn; None proves durable queue
+    acceptance. A hook pointer's read also supplies the observation that must
+    still stand under the route lock. All transports commit accepted state first,
+    then receipt each batch through finish_codex_batch, which recovery also uses.
 
-    accepted = []
-    for batch in batches:
-        page_dir = Path(batch["page"])
-        with (
-            PageTransaction(page_dir) as page,
-            receive_batch(page, batch, session_id=session_id) as delivered,
-        ):
-            record_pickup(
-                page, delivered, phase="opened", session=session_id, turn=turn
-            )
-            accepted.append(
-                {
-                    "page": page_dir,
-                    "events": tuple(event["id"] for event in batch["events"]),
-                }
-            )
-
-    with flocked(lock):
+    A retry finishes only outstanding receipts, preserving its original acceptance
+    evidence. Acceptance opens no turn: its carrier observes that separately.
+    Return successfully completed page/event addresses for binding verification.
+    """
+    path = record_path(session_id, delivery_id)
+    with flocked(delivery_lock_path(session_id)):
         record = read_json(path)
-        if record is None or record["state"] != "offering":
-            raise RuntimeError("the Codex delivery changed before it was accepted")
-        for batch in record["batches"]:
-            batch["receipted"] = True
-        record["state"] = "accepted"
-        record["transport"] = {"phase": "opened", "turn": turn}
-        write_record(path, record)
+        if (
+            record is None
+            or record.get("format") != RECORD_FORMAT
+            or record["state"] not in {"offering", "accepted"}
+        ):
+            return []
+        if hook_observation is not None and (
+            hook_turn(session_id) != hook_observation
+            or not hook_observation["running"]
+            or hook_observation["turn"] != turn
+            or (
+                record["state"] == "offering"
+                and record.get("transport", {}).get("phase") != "hook"
+            )
+            or (
+                record["state"] == "accepted"
+                and record.get("transport") != {"phase": "opened", "turn": turn}
+            )
+        ):
+            return []
+        if record["state"] == "offering":
+            record["state"] = "accepted"
+            record["transport"] = {
+                "phase": "opened" if turn is not None else "queued",
+                "turn": turn,
+            }
+            write_record(path, record)
+    accepted = []
+    for index, batch in enumerate(record["batches"]):
+        if batch["receipted"]:
+            continue
+        received = finish_codex_batch(path, index, batch, record["transport"])
+        if received is not None:
+            accepted.append(received)
     return accepted
 
 
@@ -1703,8 +1710,9 @@ def open_app_server_delivery(
 ) -> None:
     """Record a provider-observed App Server delivery as opened in its turn,
     accepting it when its record is still offering."""
-    if delivery_record_state(session_id, delivery_id) == "offering":
-        accepted = accept_codex_delivery(session_id, turn)
+    state = delivery_record_state(session_id, delivery_id)
+    accepted = accept_codex_delivery(session_id, delivery_id, turn)
+    if state == "offering":
         if [
             delivery["events"] for delivery in accepted if delivery["page"] == page_dir
         ] != [event_ids]:

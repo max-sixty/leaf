@@ -1016,7 +1016,9 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     assert codex_model.prepare_codex_delivery(page_dir, harness) == prompt
     service_model.open_session_turn("hosted-thread", "app-turn")
-    [accepted] = codex_model.accept_codex_delivery("hosted-thread", "app-turn")
+    [accepted] = codex_model.accept_codex_delivery(
+        "hosted-thread", prompt.payload["id"], "app-turn"
+    )
 
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
     assert 'operation="delivery read"' in prompt.prompt
@@ -1169,17 +1171,21 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    codex_model.prepare_codex_delivery(page_dir, harness)
+    prepared = codex_model.prepare_codex_delivery(page_dir, harness)
     service_model.open_session_turn("hosted-thread", "app-turn")
-    codex_model.accept_codex_delivery("hosted-thread", "app-turn")
+    codex_model.accept_codex_delivery(
+        "hosted-thread", prepared.payload["id"], "app-turn"
+    )
     first_turn = service_model.page_claim(page_dir)["turn"]
 
     second = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "also change the title"},
     )
-    codex_model.prepare_codex_delivery(page_dir, harness)
-    codex_model.accept_codex_delivery("hosted-thread", "app-turn")
+    prepared = codex_model.prepare_codex_delivery(page_dir, harness)
+    codex_model.accept_codex_delivery(
+        "hosted-thread", prepared.payload["id"], "app-turn"
+    )
 
     claim = service_model.page_claim(page_dir)
     state = page_state(page_dir)
@@ -8902,8 +8908,8 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     files_model.write_json(epoch_path, epoch)
     batch = epoch["batches"][0]
 
-    codex_model.receive_codex_batch(batch)
-    codex_model.receive_codex_batch(batch)
+    codex_model.finish_codex_batch(epoch_path, 0, batch)
+    codex_model.finish_codex_batch(epoch_path, 0, batch)
 
     assert files_model.read_json(page_dir / "cursor.json") is None
     assert service_model.page_claim(page_dir) == successor
@@ -9759,7 +9765,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
             "codex", "codex-thread", None, None
         )
         assert [args[2] for args in queued] == [prompt]
-        assert codex_adapter_model._recover_receipt("codex-thread")
+        assert not codex_adapter_model._recover_receipt("codex-thread")
         pickups = [
             event
             for event in events_model.read_events(page_dir)
@@ -9830,14 +9836,16 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     release_queue.set()
     offering.join(timeout=5)
     assert not offering.is_alive()
-    first_delivery = files_model.read_json(first_path)
+    first_delivery = files_model.read_json(
+        first_path.parent / "history" / first_path.name
+    )
     assert first_delivery["state"] == "accepted"
     payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
     assert [
         event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
 
-    assert codex_adapter_model._recover_receipt("codex-thread")
+    assert not codex_adapter_model._recover_receipt("codex-thread")
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -9858,6 +9866,114 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         for batch in files_model.read_json(second_path)["batches"]
         for event in batch["events"]
     ] == ["second"]
+
+
+@pytest.mark.parametrize("carrier", ["hook", "app-server", "queue"])
+def test_codex_acceptance_survives_interruption_before_page_receipt(
+    page_dir, codex_loop, monkeypatch, carrier
+):
+    """Every transport commits acceptance before page IO, and recovery receipts it once."""
+    codex_loop(page_dir)
+    codex_model.start_hook_turn("codex-thread", "user-turn")
+    service_model.open_session_turn("codex-thread", "user-turn")
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Do not lose this"}
+    )
+    if carrier == "hook":
+        leases_model.mark_step_hook("codex-thread")
+    codex_model.offer_hook_delivery("codex-thread", "user-turn")
+    [(path, _)] = codex_records("codex-thread")
+    queued = []
+    monkeypatch.setattr(
+        codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+    )
+
+    def failed_pickup(*args, **kwargs):
+        raise OSError("receipt storage unavailable")
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(codex_model, "record_pickup", failed_pickup)
+        with pytest.raises(OSError, match="receipt storage unavailable"):
+            if carrier == "hook":
+                delivery_model.cmd_delivery_read(path.stem)
+            elif carrier == "app-server":
+                _observer()._fold("user-turn", path.stem, follow=True)
+            else:
+                codex_adapter_model._offer_queued_delivery(
+                    "codex", "codex-thread", None, None
+                )
+    accepted = files_model.read_json(path)
+    assert accepted["state"] == "accepted"
+    assert not accepted["batches"][0]["receipted"]
+    assert service_model.read_cursor(page_dir) == 0
+    assert bool(queued) == (carrier == "queue")
+    assert codex_adapter_model._recover_receipt("codex-thread")
+    assert not codex_adapter_model._recover_receipt("codex-thread")
+    assert not codex_records("codex-thread")
+    [pickup] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert pickup["events"] == [comment["id"]]
+    assert (pickup["phase"], pickup["turn"]) == (
+        ("queued", None) if carrier == "queue" else ("opened", "user-turn")
+    )
+
+
+def test_embedded_codex_acceptance_retries_its_unfinished_receipt(
+    page_dir, monkeypatch
+):
+    """The hosted provider opening itself recovers acceptance without an adapter."""
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Recover this reply"}
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir, host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    )
+    service_model.open_session_turn("hosted-thread", "provider-turn")
+
+    def failed_pickup(*args, **kwargs):
+        raise OSError("receipt storage unavailable")
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(codex_model, "record_pickup", failed_pickup)
+        with pytest.raises(OSError, match="receipt storage unavailable"):
+            codex_model.open_app_server_delivery(
+                page_dir,
+                "hosted-thread",
+                prepared.payload["id"],
+                (comment["id"],),
+                "provider-turn",
+            )
+    [(path, record)] = codex_records("hosted-thread")
+    assert record["state"] == "accepted"
+    assert not record["batches"][0]["receipted"]
+    assert service_model.read_cursor(page_dir) == 0
+    service_model.close_session_turn("hosted-thread", "provider-turn")
+    for _ in range(2):
+        codex_model.open_app_server_delivery(
+            page_dir,
+            "hosted-thread",
+            prepared.payload["id"],
+            (comment["id"],),
+            "provider-turn",
+        )
+    assert service_model.page_claim(page_dir)["turn_closed"]
+    assert service_model.read_cursor(page_dir) == comment["seq"]
+    assert not codex_records("hosted-thread")
+    history = files_model.read_json(path.parent / "history" / path.name)
+    assert history["transport"] == {"phase": "opened", "turn": "provider-turn"}
+    [pickup] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
+        "opened",
+        "provider-turn",
+        [comment["id"]],
+    )
 
 
 def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(

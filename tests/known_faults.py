@@ -18,6 +18,16 @@ KNOWN_UNASKED = {
         "test_incoming_reply_follows_a_selected_thread_before_later_cards": r"lf-shortcut",
         "test_a_repaint_unsettles_the_rendering_until_it_lands": r"lf-shortcut",
     },
+    "test_render_read_state.py": {
+        # The margin marker an arriving thread or a reopening brings, which the margin
+        # projection inserts unplaced and the layout places a frame later. On Linux's
+        # headless shell the unplaced row stands at the window's origin, and its move
+        # into the rail reads as a shift.
+        "test_a_reopening_in_a_page_seat_waits_where_reopen_stood": r"lf-margin-",
+        "test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_follow": (
+            r"lf-margin-"
+        ),
+    },
     "test_render_application_boundary.py": {
         # A live page's paragraphs and the margin beside them as a package's Ask and a
         # fresh document draw after presentation.

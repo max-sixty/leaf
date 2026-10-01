@@ -19,15 +19,10 @@ KNOWN_UNASKED = {
         "test_a_repaint_unsettles_the_rendering_until_it_lands": r"lf-shortcut",
     },
     "test_render_read_state.py": {
-        # The margin marker an arriving thread or a reopening brings, which the margin
-        # projection inserts unplaced and the layout places a frame later. On Linux's
-        # headless shell the unplaced row stands at the window's origin, and its move
-        # into the rail reads as a shift. In the second, also the shortcut line's More as
-        # its hints change, where the test focuses the notice by script after a reading
-        # landed.
-        "test_a_reopening_in_a_page_seat_waits_where_reopen_stood": r"lf-margin-",
+        # The shortcut line's More as its hints change, where the test focuses the
+        # notice by script after a reading landed.
         "test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_follow": (
-            r"lf-margin-|lf-shortcut"
+            r"lf-shortcut"
         ),
     },
     "test_render_application_boundary.py": {

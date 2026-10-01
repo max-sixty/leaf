@@ -220,8 +220,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  landedAt,
-  setLanded,
   forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
@@ -1542,7 +1540,6 @@ export function createVersionController({
     const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
       revision: runtime.currentRevision,
-      ask: landedAt()?.id,
       activeRegion: active?.id,
       regions: Object.fromEntries(regionViews),
     });
@@ -1558,7 +1555,6 @@ export function createVersionController({
   }
 
   function restoreView(view, currentIntent) {
-    setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??

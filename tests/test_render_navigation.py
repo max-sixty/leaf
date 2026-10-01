@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from interact_support import element_declaration
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
@@ -2109,6 +2110,79 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]'
         )
     expect(next_thread).to_be_focused()
+
+
+@pytest.mark.parametrize("shadow", [False, True], ids=["light", "shadow"])
+def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shadow):
+    """A fresh fragment has no focused target or caret, but still names a reading place."""
+    destination = '<h2 id="destination">The linked destination begins here.</h2>'
+    layer_registry = None
+    layer_widgets = None
+    if shadow:
+        destination = (
+            '<lf-shadow-reading id="destination">'
+            "The linked destination begins here.</lf-shadow-reading>"
+        )
+        declaration = element_declaration("lf-shadow-reading", upgrade=True)
+        declaration["x-shadow"] = True
+        layer_registry = {"lf-shadow-reading": declaration}
+        layer_widgets = {
+            "lf-shadow-reading.js": """
+import { once } from "/runtime/widget-api.js";
+customElements.define("lf-shadow-reading", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const paragraph = document.createElement("p");
+    paragraph.textContent = this.textContent.trim();
+    this.attachShadow({mode: "open"}).append(paragraph);
+  }
+});
+"""
+        }
+    url = serve(
+        leaf_page(
+            "a fresh fragment reading",
+            f"""
+<h1>Reference navigation</h1>
+<p id="source">The source discussion is before the destination.</p>
+<div style="height: 1600px"></div>
+{destination}
+<p id="later">The next discussion is after the destination.</p>
+<div style="height: 900px"></div>
+""",
+            head="<style>lf-shadow-reading {display: block}</style>",
+        ),
+        anchored=[
+            ("source", "source discussion"),
+            ("later", "next discussion"),
+        ],
+        layer_registry=layer_registry,
+        layer_widgets=layer_widgets,
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, f"{url}#destination")
+    expect(page.locator("#destination")).to_be_in_viewport()
+    assert page.evaluate(
+        "() => document.activeElement === document.body && getSelection().focusNode === null"
+    )
+    assert (
+        page.evaluate(
+            """async () => {
+          const { readingBlock } = await window.__lfRuntimeImport('/runtime/reading-place.js');
+          return readingBlock().getRootNode() instanceof ShadowRoot;
+        }"""
+        )
+        == shadow
+    )
+
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+    ).to_be_focused()
 
 
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
@@ -9353,6 +9427,50 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(drawer).to_be_visible()
 
 
+def test_the_ask_walk_uses_the_visible_reading_after_its_focus_is_released(
+    browser, serve
+):
+    """Letting go and scrolling starts a new walk where the user is now reading."""
+    asks = "".join(
+        f"""
+<lf-ask id="question-{index}"><h2>Question {index}: which route should we take?</h2>
+<lf-options id="routes-{index}" choose>
+  <lf-option id="route-{index}-left">Take the left route</lf-option>
+  <lf-option id="route-{index}-right">Take the right route</lf-option>
+</lf-options></lf-ask>
+<div style="height: 1200px"></div>
+"""
+        for index in range(1, 5)
+    )
+    page = open_page(
+        browser, serve(leaf_page("a resumed ask walk", f"<h1>Routes</h1>{asks}"))
+    )
+    page.emulate_media(reduced_motion="reduce")
+    page.keyboard.press("a")
+    expect(page.locator("#question-1")).to_be_focused()
+    page.keyboard.press("Escape")
+    rendered(page)
+    assert page.evaluate(
+        "() => document.activeElement === document.body && getSelection().focusNode === null"
+    )
+
+    third = page.locator("#question-3 h2")
+    goal = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) + 8"
+    )
+    page.mouse.move(220, 450)
+    page.mouse.wheel(0, third.bounding_box()["y"] - goal)
+    page.wait_for_function(
+        "([heading, goal]) => Math.abs(heading.getBoundingClientRect().top - goal) < 2",
+        arg=[third.element_handle(), goal],
+    )
+    scroll_settled(page)
+    expect(third).to_be_in_viewport()
+
+    page.keyboard.press("a")
+    expect(page.locator("#question-4")).to_be_focused()
+
+
 def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     browser, serve
 ):
@@ -9366,9 +9484,8 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     measures. So the question is which asks the layer holds and not whether the layer is
     chrome.
 
-    The backward press is made after walking off the reply's ask and down to the first, so
-    `landed` names a page ask. A walk that cannot read where the user is answers from it
-    instead, and answers plausibly."""
+    The backward press follows a walk down to the first page ask, but focus has since
+    moved into the reply's ask. That current focus supplies the step's origin."""
     url = serve(
         leaf_page(
             "asks over a panel",
@@ -9410,8 +9527,8 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     page.keyboard.press("a")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # The reply's ask is in the route. Walking off it and back down to the first leaves
-    # `landed` on a page ask, which is what the last press below must not answer from.
+    # The reply's ask is in the route. Walking off it and back down to the first must
+    # not leave a remembered origin that overrides a later focus on the reply's ask.
     page.keyboard.press("a")
     expect(page.locator("#second-decision")).to_be_focused()
     page.keyboard.press("a")

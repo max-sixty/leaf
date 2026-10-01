@@ -36,7 +36,7 @@
     "happy-dom": "20.14.5",
     "highlight.js": "11.12.0",
     "lit": "3.3.3",
-    "lit-html": "3.3.3",
+    "lit-html": "3.3.0",
     "marked": "18.0.14",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"

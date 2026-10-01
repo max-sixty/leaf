@@ -246,7 +246,6 @@ function toggleWorkers(goal) {
 function configureGoal(goal) {
   if (configured.has(goal)) return;
   configured.add(goal);
-  goal.dataset.lfCommandGoal = "1";
   const threadRole = declarationFor(goal, "x-thread-seat");
   if (threadRole && matchesWhen(goal, threadRole.when)) {
     const thread = threadBox(goal, "Say something here");
@@ -541,11 +540,6 @@ const render = (plan) => paint(plan);
 function paint(plan) {
   const restoreFocus = projectionFocus(plan);
   const snapshot = commandSnapshot(plan);
-  // This marker is the renderer's generic relation hook. It covers workers at every
-  // remit depth, including a project-wide worker directly under the command.
-  for (const worker of snapshot.workers)
-    if (!worker.element.hasAttribute("data-lf-command-worker"))
-      worker.element.dataset.lfCommandWorker = "1";
   for (const goal of snapshot.goals) renderGoal(goal);
   renderHeader(snapshot);
   renderStopped(snapshot);

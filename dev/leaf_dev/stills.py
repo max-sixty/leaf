@@ -118,7 +118,7 @@ def card_grabbed(page: Page) -> None:
 
 def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
-    page.locator("pre .lf-code-note").first.evaluate(
+    page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
 
@@ -195,6 +195,13 @@ STATES = (
         "plan-versions-touch",
         "review-a-plan",
         versions_menu,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "plan-panel-touch",
+        "review-a-plan",
+        threads_panel,
         viewport=(390, 844),
         touch=True,
     ),

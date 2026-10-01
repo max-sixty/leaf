@@ -228,9 +228,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    thread = preview.locator(".lf-page-thread")
     reply = preview.locator("leaf-text")
-    expect(thread).to_be_focused()
+    # The send leaves the user on the target, the card up beside it.
+    expect(target).to_be_focused()
     full = reply.evaluate(
         "node => ({ family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize })"
@@ -287,7 +287,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
     expect(ghost).to_have_count(0)
     expect(preview).to_have_css("opacity", "1")
-    expect(thread).to_be_focused()
+    expect(target).to_be_focused()
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):

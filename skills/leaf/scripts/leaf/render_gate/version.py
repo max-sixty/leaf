@@ -12,6 +12,7 @@ from .readings import (
     stacked_panes,
     sweep,
     swept_overflow,
+    unreserved_height_advice,
 )
 from .scheme import _render_scheme
 
@@ -85,8 +86,9 @@ def _render_version_attempt(
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme, it
-    reads more: as advice, whether a margin pin stands over text, and whether a
-    drawing's fit to its box shrinks its labels past reading; and then, resizing that
+    reads more: as advice, whether a margin pin stands over text, whether a
+    drawing's fit to its box shrinks its labels past reading, and whether a widget
+    declaring x-height drew at a height its first paint did not hold; and then, resizing that
     loaded page through every width from 360px to 1920px, the sideways readings again:
     a version holds at each of them, not only at the two it renders. There it also
     reads whether a workspace whose panes stand side by side at the desktop viewport
@@ -121,6 +123,11 @@ def _render_version_attempt(
     def once(page, registry):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
         advice.extend(shrunk_label_advice(page))
+        advice.extend(
+            unreserved_height_advice(
+                page, {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+            )
+        )
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         swept.extend(stacked_panes(widths, RENDER_VIEWPORTS[0]["width"]))

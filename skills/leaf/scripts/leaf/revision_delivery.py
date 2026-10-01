@@ -21,15 +21,17 @@ served as captured.
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
 server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
-the same way. It also paints what each element's registry entry declares for the
-stylesheet to read (`mark_declared`), so the first paint lays out what a script would
-otherwise only mark once the registry loads.
+the same way. It also paints what each element's registry entry declares, and the size
+of the page media it names, for the stylesheet to read (`mark_declared`), so the first
+paint lays out what a script would otherwise only mark once the registry loads or an
+image once it decodes.
 """
 
 import html
 import json
 import posixpath
 import re
+import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -233,14 +235,59 @@ def rebase_document(
     return source
 
 
-def mark_declared(source: str, registry: Mapping) -> str:
+def media_size(data: bytes) -> tuple[int, int] | None:
+    """The width and height an image states in its header, for the raster formats page
+    media holds (`schema.MEDIA_TYPES`), or None where the bytes state none: an SVG, whose
+    size is its layout's, or a file cut short. A JPEG's EXIF rotation is not applied."""
+    if (
+        len(data) >= 24
+        and data.startswith(b"\x89PNG\r\n\x1a\n")
+        and data[12:16] == b"IHDR"
+    ):
+        return struct.unpack(">II", data[16:24])
+    if data.startswith((b"GIF87a", b"GIF89a")) and len(data) >= 10:
+        return struct.unpack("<HH", data[6:10])
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP" and len(data) >= 30:
+        chunk = data[12:16]
+        if chunk == b"VP8 ":
+            width, height = struct.unpack("<HH", data[26:30])
+            return width & 0x3FFF, height & 0x3FFF
+        if chunk == b"VP8L":
+            bits = int.from_bytes(data[21:25], "little")
+            return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+        if chunk == b"VP8X":
+            return (
+                int.from_bytes(data[24:27], "little") + 1,
+                int.from_bytes(data[27:30], "little") + 1,
+            )
+        return None
+    if data.startswith(b"\xff\xd8"):
+        at = 2
+        while at + 9 <= len(data) and data[at] == 0xFF:
+            marker = data[at + 1]
+            (length,) = struct.unpack(">H", data[at + 2 : at + 4])
+            # Every start-of-frame marker but the three that share its range.
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                height, width = struct.unpack(">HH", data[at + 5 : at + 9])
+                return width, height
+            at += 2 + length
+    return None
+
+
+def mark_declared(
+    source: str, registry: Mapping, resources: Mapping[str, Resource]
+) -> str:
     """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
-    rest byte-for-byte.
+    rest byte-for-byte, and the size of the page media it names.
 
     A mark painted by the runtime would land a registry fetch after the document first
-    draws, so a workspace would draw its panes before knowing they are panes. What a
-    template holds is inert until a module clones it, and a declarative shadow tree's
-    content is its host's to style, so neither is marked.
+    draws, so a workspace would draw its panes before knowing they are panes. An image
+    has no size until it decodes, so an element naming page media in its attributes is
+    painted with the box that holds any of them, the largest width and the largest
+    height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
+    out a frame that the images arrive in. What a template holds is inert until a
+    module clones it, and a declarative shadow tree's content is its host's to style, so
+    neither is marked.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -257,6 +304,17 @@ def mark_declared(source: str, registry: Mapping) -> str:
                 marks[mark["paint"]] = attrs[authored]
             elif declared := declaration.get(key):
                 marks[mark["paint"]] = "" if declared is True else str(declared)
+        sizes = [
+            size
+            for value in attrs.values()
+            if value
+            and value.startswith(f"/{MEDIA_DIR}/")
+            and (media := resources.get(value)) is not None
+            and (size := media_size(media.data)) is not None
+        ]
+        if sizes:
+            marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
+            marks["data-lf-media-height"] = str(max(height for _, height in sizes))
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
@@ -456,8 +514,9 @@ def compose_document(
 ) -> str:
     """Deliver one authored document under a host's `delivery`.
 
-    The source is marked with what its `registry` declares (`mark_declared`) and
-    re-addressed (`rebase_document`), and then receives delivery's head
+    The source is marked with what its `registry` declares and the size of the media
+    it names (`mark_declared`), re-addressed (`rebase_document`), and then receives
+    delivery's head
     right after the head's start tag, ahead of any authored executable content: the
     prelude, the import map, the runtime script, the theme, the adopted
     sheets, the host's metadata, the runtime entry, and the canonical address, each
@@ -468,7 +527,7 @@ def compose_document(
     begun to load.
     """
     source = rebase_document(
-        mark_declared(source, registry),
+        mark_declared(source, registry, resources),
         delivery.address,
         inline_stylesheet=delivery.inline_stylesheet,
     )

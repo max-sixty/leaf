@@ -177,6 +177,11 @@ Delivery paints declared layout facts into the served document as `[data-lf-inli
 selectors read those attributes instead of naming widget tags. The registry's `$keys`
 entries for `x-space`, `x-bound`, and `x-height` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
+An element whose attributes name page media also arrives with the largest width and the
+largest height among those images, read from their bytes, as `data-lf-media-width` and
+`data-lf-media-height`, so a theme can give a frame the images' shape before they decode
+(`aspect-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height
+type(<number>))`, as `lf-shot` does).
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may
@@ -1191,11 +1196,13 @@ and a blank image stands in for any media an example names. The checks:
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-live]`, which Leaf sets before first paint,
   as its module will draw it. Where the markup cannot say how tall the drawing will
-  be, declare `x-height` and draw at the height it states. A widget holding others is named only for the change
-  left once the changed widgets inside it are put back to their first sizes. An
-  inline widget's old lines are more than a size, so a widget holding a changed
-  inline one is named beside it. A widget the page hides once presented, such as an
-  inactive tab, is left to the widget that hid it.
+  be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
+  draw at the stated height where the drawing can take any; `page check --render`
+  advises a page's author the height to state for one that cannot. A widget holding
+  others is named only for the change left once the changed widgets inside it are put
+  back to their first sizes. An inline widget's old lines are more than a size, so a
+  widget holding a changed inline one is named beside it. A widget the page hides once
+  presented, such as an inactive tab, is left to the widget that hid it.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

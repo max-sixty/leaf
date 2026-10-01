@@ -10730,9 +10730,8 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     page.keyboard.press("Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
-    # The send carried the user into the thread it became, in its card's reply box:
-    # the box hands them back to the thread, and the card is the level after that.
-    page.keyboard.press("Escape")
+    # The send left the user on the element the new thread's card is about, and letting
+    # go of it takes the card down.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -10754,6 +10753,8 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
 
 
 def test_submitting_a_reply_reveals_its_new_message(browser, serve):
+    """A send lands the new message in the list's band with the reply area under it,
+    and leaves the user on the thread's title."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Where should this explanation go?")
     page = open_page(browser, url)
@@ -10784,7 +10785,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     # The reserved ring room protects focusable controls; a posted message has no ring.
     assert shown["top"] >= shown["textTop"] - 1, shown
     assert shown["bottom"] <= shown["bandBottom"] + 1, shown
-    expect(box).to_be_focused()
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-compose leaf-text')
 
     write(box, "Long reply. " * 90)
@@ -10806,7 +10807,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     assert long_reading["height"] > long_reading["room"]
     assert long_reading["bottom"] <= long_reading["bandBottom"] + 1
     assert long_reading["bottom"] > long_reading["bandTop"]
-    expect(box).to_be_focused()
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
 
 

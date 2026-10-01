@@ -809,11 +809,11 @@ def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve
 def test_a_shot_outlines_where_its_images_differ(browser, serve):
     """A reader shown one side of the divider, or a screenshot of the page, can't tell
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
-    whose sides matched in every part its prose described. So the widget outlines each
-    changed region over both frames, at the same place, and says on the rail what they
-    add up to, including a difference too slight to point at. The outlines and their
-    count are the author's to ask for, with `outlines`; the rest of the reading shows
-    on every pair."""
+    whose sides matched in every part its prose described. So the widget outlines what
+    changed where each frame holds it, and nothing where a frame holds nothing, and
+    says on the rail what they add up to, including a difference too slight to point
+    at. The outlines and their count are the author's to ask for, with `outlines`; the
+    rest of the reading shows on every pair."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -852,7 +852,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
     assert page.locator("#shot-tint .lf-shotdiff > span").count() == 0
 
-    # Each frame's mark stands just outside the square, in the frame's own scale.
+    # The after frame's mark stands just outside the square, in the frame's own scale,
+    # and the before frame, which holds nothing there, has none.
     readings = page.locator("#shot-patch .lf-shotframe").evaluate_all(
         """frames => frames.map(frame => {
           const image = frame.querySelector('img').getBoundingClientRect();
@@ -865,16 +866,16 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
           })};
         })"""
     )
-    assert {r["state"] for r in readings} == {"before", "after"}
-    for reading in readings:
-        [(left, top, right, bottom)] = reading["marks"]
-        assert left < 420 and right > 480 and top < 200 and bottom > 240
-        assert right - left < 80 and bottom - top < 60
+    marks = {reading["state"]: reading["marks"] for reading in readings}
+    assert marks["before"] == []
+    [(left, top, right, bottom)] = marks["after"]
+    assert left < 420 and right > 480 and top < 200 and bottom > 240
+    assert right - left < 80 and bottom - top < 60
 
     # Without `outlines` a pair hides its outlines and their count, but not the word
     # that it has nothing to point at.
     quiet = page.locator("#shot-quiet")
-    expect(quiet.locator(".lf-shotdiff > span")).to_have_count(2)
+    expect(quiet.locator(".lf-shotdiff > span")).to_have_count(1)
     expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
     expect(quiet.locator(".lf-shotdelta")).to_have_text("1 changed area")
     expect(quiet.locator(".lf-shotdelta")).to_be_hidden()

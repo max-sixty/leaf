@@ -397,6 +397,17 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Consider moving the before/after reading out of the core.** How
+  `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
+  experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
+  `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
+  only what every page needs. Try it on non-Leaf captures first (another site, a
+  terminal, a plot); where the capture is a browser's, recording each element's box
+  beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
+  Known gaps: a pane that scrolled within itself reads as scattered changes and moves
+  rather than one region, a border that changed length draws a thin outline, and a
+  changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which
+  a worker would take off it.
 - **Consider dragging thread cards and comment boxes.** Once both share placement,
   try temporary, passage-relative movement from a handle. Keep it only if scrolling,
   typing, and resizing stay predictable and the implementation stays simple.
@@ -404,7 +415,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   invalid control with a bounded explorer and cold user. The
   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
   change; review that proposal with its owner before changing the policy.
-
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

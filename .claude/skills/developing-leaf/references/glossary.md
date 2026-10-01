@@ -68,7 +68,7 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, term or description, quote, caption, or heading) keeps the reading measure; every other box is a surface and fills its frame. On a column page, a surface whose `x-space` or `data-width` is wider than the column breaks out of it |
 | **Bounded block** | A block with its own height that scrolls inside it (`x-bound`, `data-bound`). While in the page it is a reading region, so scrolling it moves its contents, not the page |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
-| **Full-height** | A workspace exactly filling the window, header and footer at their content's height and one body taking the rest, so the page itself doesn't scroll. Only where the window is large enough (`layouts.css`, which sets `--lf-full-height: 1` on `main`); elsewhere the workspace flows |
+| **Full-height** | A workspace exactly filling the window, header and footer at their content's height and one body taking the rest, so the page itself doesn't scroll. A workspace is full-height only where the window is large enough (`layouts.css` sets `--lf-full-height: 1` on `main` there); elsewhere it flows |
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, and an optional footer |
 | **Reading region** | A stable semantic place that navigation and reading-position recovery use |
 | **Effective reading scroller** | The scroll container currently governing one reading region (`effectiveScroller`) |

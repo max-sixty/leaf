@@ -48,7 +48,7 @@ from playwright.sync_api import expect
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
+# navigation waits on. tests/AGENTS.md, "Waits".
 from render_harness import (
     HANDOVER_DEADLINE_MS,
     consume_browser_errors,
@@ -84,8 +84,7 @@ def pages_under(directory):
     """The pages a sweep walks, proved to exist before it walks them. Four of the
     checks below are loops over a glob and nothing else, so a directory that moved or
     was renamed turns every one of them into a sweep that pressed nothing — green, and
-    for the wrong reason (tests/AGENTS.md, "A sweep that walks controls by index must
-    prove it pressed them")."""
+    for the wrong reason (tests/AGENTS.md, "Sweeps over controls")."""
     pages = sorted(directory.glob("*.html"))
     assert pages, f"no pages under {directory}"
     return pages

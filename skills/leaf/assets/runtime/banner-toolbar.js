@@ -297,7 +297,7 @@ export function bannerControlDoor(control) {
 }
 
 // Escape from a layer that opens from a banner control lands on that control, its parent
-// (runtime/keyboard/AGENTS.md, "Escape unwinds the hierarchy"). A control behind More is
+// (runtime/keyboard/AGENTS.md, "Escape"). A control behind More is
 // reached as its door reaches it: More opens from the door, so More's own Escape then
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {

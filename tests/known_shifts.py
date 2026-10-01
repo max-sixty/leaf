@@ -6,8 +6,7 @@ pattern for the region its known shift moves. A report from that test that names
 in that region is kept, and any other shift fails it. Chrome names only the five nodes a
 frame moved most, which differ between runs and machines, so a pattern names the
 region rather than the node. Fixing a defect deletes its entry. A test joins only as a
-defect to fix, never as behavior to keep (`tests/AGENTS.md`, "Consume a browser error
-where it is caused")."""
+defect to fix, never as behavior to keep (`tests/AGENTS.md`, "Browser errors")."""
 
 import re
 

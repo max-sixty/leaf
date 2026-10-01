@@ -910,7 +910,7 @@ def undo(page):
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
 # The console can tell them apart, which is what the reason is chosen for:
-# tests/AGENTS.md, "A test cannot assert over noise it makes itself". A refused event
+# tests/AGENTS.md, "Test-made noise". A refused event
 # request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
@@ -1108,8 +1108,8 @@ def watched(page):
     by layout shifts without input or that carry a field being typed in
     (`shift_watch.js`).
     Call before navigation so the init scripts take effect.
-    Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
-    error where it is caused", owns consumption and cleanup policy."""
+    Repeated calls return the existing list. `tests/AGENTS.md`, "Browser errors", owns
+    consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
@@ -1574,7 +1574,7 @@ class WatchedBrowser:
     `unwatched` exposes the underlying browser for product gates that deliberately
     open faulty pages and report those faults themselves. Ordinary clean-page
     journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
-    "Consume a browser error where it is caused"."""
+    "Browser errors"."""
 
     def __init__(self, browser):
         self._browser = browser
@@ -1632,8 +1632,8 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "A wait
-    consumes a fact the system states"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "Waits"), so
+    the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 
@@ -1765,7 +1765,7 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     outer scroller's smooth movement, rather than a machine-dependent time window.
 
     Each call resets its observation. Timeout reports the selected scroller and
-    its last reading. `tests/AGENTS.md`, "A wait consumes a fact the system states",
+    its last reading. `tests/AGENTS.md`, "Waits",
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:

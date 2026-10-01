@@ -119,8 +119,7 @@ when the current change leaves it as easy to make as it was before.
 `./` as the plugin payload, so Claude Code and Codex install the tracked tree whole.
 Before changing an area, read the `AGENTS.md` its entry names.
 
-- `bin/leaf`, `pyproject.toml`, and `uv.lock`: the launcher and the uv project it
-  runs;
+- `bin/leaf`, `pyproject.toml`, and `uv.lock`: the launcher and its uv project;
 - `skills/leaf/scripts/leaf/`: the CLI, server, event model, validation,
   projection, vendoring, and export (`skills/leaf/scripts/AGENTS.md`);
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon
@@ -140,13 +139,11 @@ Before changing an area, read the `AGENTS.md` its entry names.
 - `dev/`: the `leaf_dev` package and its `leaf-dev` commands (`dev/AGENTS.md`);
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
   example to the Python server (`leaf_website`) in a per-user container
-  (`worker/README.md`, which also names its tokens and how an unattended agent
-  loads one);
+  (`worker/README.md`);
 - `docs/`: the site's own pages, each a Leaf source;
 - `TODO.md`: the ordered priority list;
 - `notes/`: research and plans for unresolved work. When a design lands, its
-  contract moves beside the code or into the reference whose reader acts on it,
-  and the note is deleted.
+  contract moves beside the code or into a reference, and the note is deleted.
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -164,7 +161,7 @@ kind of task goes in `/developing-leaf`.
 ### The install runs this tree
 
 A host copies the tracked tree into its plugin cache and builds nothing. `bin/leaf`
-runs `uv run --no-dev` on the tree, so the install must be writable, and Leaf writes
+runs `uv run --no-dev` on the tree, so the install must be writable; Leaf writes
 nothing else there. Point Codex at the git source, since a local-directory
 marketplace also copies a checkout's `.venv`. A plugin update may replace the
 directory wholesale, so state that must survive one belongs in the page directory or
@@ -174,11 +171,9 @@ floor and no cap. The host supplies Chrome and `jq`; Leaf never downloads a brow
 Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are generated
 and committed where their consumer reads them (`build/AGENTS.md`).
 
-Every tracked byte ships in every install and stays in history, so the tree holds no
-binary or large files: the suite refuses a binary file, and pre-commit refuses a new
-file over 500 KB. An image a tool here reads, such as the demo recording, a catalog
-preview, an example page's image, or an eval case's capture, lives in
-`max-sixty/leaf-assets` at the path its reader looks for it, pinned by
+Every tracked byte ships in every install and stays in history, so the suite refuses
+a binary file and pre-commit refuses a new file over 500 KB. An image a tool here
+reads lives in `max-sixty/leaf-assets` at the path its reader looks for it, pinned by
 `leaf-assets.json` (`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots,
 probe captures, recordings, and raw run output, stays in `.tmp/` and reaches the
 user on a Leaf page; a note keeps the finding and the command that reproduces it.
@@ -235,20 +230,16 @@ state, so it lives only as long as the node holding it: whatever replaces a node
 carries the state across, under the identity the replacement already keys on, or
 the user loses it.
 
-Python derives page-wide `activity` and per-input `workflows` from the agent's status
-declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner and neighboring-page rows show `activity`. Messages, thread
-attention, and margin entries read `workflows`, and thread attention also reflects
-outstanding user Asks. Page activity does not mean every message is being worked on.
-JavaScript adds its unresolved local sends through the publisher and may schedule a
-read at `next_transition_at`; it never ages or reclassifies workflow evidence. The
-stop guard reads the same response obligations.
+Python derives page-wide `activity` and per-input `workflows` from the agent's
+declaration and the evidence beside it (`skills/leaf/scripts/leaf/session-lifetime.md`).
+The banner and neighboring-page rows show `activity`; messages, margin entries, and
+thread attention read `workflows`, and thread attention also holds outstanding user
+Asks. Page activity never implies work on every message. JavaScript adds its unresolved
+local sends through the publisher and may schedule a read at `next_transition_at`; it
+never ages or reclassifies workflow evidence.
 
-The page directory is the durable record and the unit of deployment: mutable
-`index.html`, immutable revisions, the append-only event log, and one replaceable
-JSON file per external-data source under `data/`, whose source ids keep the contract
-`data.json` records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
-defines the layout.
+A page's directory holds its whole durable record and is the unit Leaf deploys
+(`skills/leaf/scripts/leaf/page-storage.md`).
 
 ### Validate once and share readings
 

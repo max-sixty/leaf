@@ -29,8 +29,8 @@ a seat that covers no words where one is within reach (`margin-placement.js`). N
 makes room for an overlay, so nothing moves when a marker arrives, leaves, or changes
 place, even one that always accompanies its target, such as an Ask's: reserved room
 would make the page's geometry depend on which markers are shown. Where a pin covers
-something the user needs, the answers are `o` (More's Hide annotations under a
-finger) and a better placement.
+something the user needs, the answers are `o`, or More's Hide annotations under a
+finger, and a better placement.
 
 The auxiliary surfaces (Asks drawer, thread panel, Leaves drawer) lie over the page and
 never change its geometry; the Asks drawer and panel leave the page live beside
@@ -42,10 +42,12 @@ Content grows in flow. Add a vertical scroller only for a bounded inspection obj
 which chains its scroll into the document at its edges, and isolate scrolling only at a
 bounded task or a modal. Wheel and touch keep their navigation meaning; pan and zoom
 need a deliberate control. Every scroller has a keyboard route, visible bounds, and
-visible focus. Give evidence room before shrinking it; expanding content keeps the room
-its `x-space` declaration gave it. An object that leaves flow for inspection keeps the
-controls its task needs and, on return, restores the selection, inspection state, and
-document position.
+visible focus. Give evidence room before shrinking it, and decide how a narrow screen
+shows two-dimensional evidence, such as a wide table or a diagram, rather than letting
+it shrink. Expanding content keeps the room its `x-space` declaration gave it. An
+object that leaves flow for inspection keeps the controls its task needs and, on
+return, restores the selection, inspection state, and document position. A root
+workspace is never shown again inside another inspection layer.
 
 ### Stability
 
@@ -76,14 +78,15 @@ where it will stay: feedback may repaint it or swap its label but not resize it
 (`reserve` sizes a control for all its labels), and adjacent actions get disjoint hit
 boxes.
 
-A gesture shows its result as it is made (root `AGENTS.md`, "The document starts
-state; the log changes it"). `standGesture` (`drafts.js`) owns both the send and the
-refusal that returns the words to their box. The changed content and its Undo confirm
-success, so success needs no notice beyond the screen-reader announcement. A gesture
-that moves the user, as settling a thread does, owns the move back on refusal and on
-undo (`thread/folding.js`). A result only the log can supply waits under `aria-busy`,
-painted after a delay so a fast answer shows nothing. Persistent status text is for a
-state the user must come back to, such as a failure.
+A gesture whose result the page can draw shows that result as it is made (root
+`AGENTS.md`, "The document starts state; the log changes it"). `standGesture`
+(`drafts.js`) owns both the send and the refusal that returns the words to their box.
+The changed content and its Undo confirm success, so success needs no notice beyond the
+screen-reader announcement. A gesture that moves the user, as settling a thread does,
+owns the move back on refusal and on undo (`thread/folding.js`). A result only the log
+can supply waits under `aria-busy`, which dims the existing control after a shared
+delay, so a fast answer shows nothing. Persistent status text is for a state the user
+must come back to, such as a failure.
 
 ### Visual grammar
 

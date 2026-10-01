@@ -66,7 +66,7 @@ observed result, with the evidence that decides the claim. Read focus, surface
 and owner identities, and retained values where those matter. Measure geometry
 for spatial claims; inspect paired screenshots for hierarchy, spacing, and paint.
 For motion, capture the path as well as endpoints: `tests/AGENTS.md`,
-"Distinguish a frame, a sequence, and an instant", owns the recording and
+"Frames, sequences, and instants", owns the recording and
 `HOLD_MOTION` mechanics. The hold patches `Element.prototype.animate`; CSS
 animations bypass it, so sample their geometry frame by frame. Settled boxes
 cannot establish a smooth transition.

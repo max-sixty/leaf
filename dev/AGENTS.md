@@ -2,8 +2,7 @@
 
 `leaf_dev` is Leaf's developer tooling: the mechanisms the suite and the eval
 harnesses share, and the `leaf-dev` commands built on them. `uv run leaf-dev --help`
-lists the commands, and each command's help says what it does, what it costs, and
-where its output lands.
+lists the commands, and each command's `--help` says what it does.
 
 Only the root dev group depends on this uv workspace member, so the checkout's
 environment installs it editable and `bin/leaf`, which runs `--no-dev`, never does.

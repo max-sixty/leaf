@@ -13333,9 +13333,8 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     server = standing_server(page_dir)
     # The only held window in the suite, because it is the only assertion with nothing
     # to consume: a watcher that never starts states nothing, and the server going on
-    # living is not an event to wait for (tests/AGENTS.md, "A wait consumes a fact the
-    # system states"). So the window is the grace a watcher would have acted after,
-    # plus room to act — long enough that the bug, had it been here, would have shown.
+    # living is not an event to wait for (tests/AGENTS.md, "Waits"). So the window is
+    # the grace a watcher would have acted after, plus room to act — long enough that the bug, had it been here, would have shown.
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
     assert server.poll() is None, "a manual server inherited the stale session claim"
     assert hosting_model.cmd_stop(page_dir) is True

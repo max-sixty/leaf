@@ -329,7 +329,12 @@ def journey(task: Task, page: Path, endpoint: str) -> None:
 
 @click.command()
 def verify_codex_task() -> None:
-    """Run one Codex task through Leaf's App Server adapter and check what it wrote."""
+    """Run one Codex task through Leaf's App Server adapter and check what it wrote.
+
+    Spends a few model turns on the host's Codex login. The task and its page live in
+    a temporary directory, removed when every check passes and kept, with its path
+    printed, when one fails.
+    """
     codex = shutil.which("codex")
     if codex is None:
         raise click.ClickException("cannot find the `codex` executable on PATH")

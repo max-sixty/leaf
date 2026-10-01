@@ -43,7 +43,8 @@ else. A page directory holds:
   input, refused requests included. Nothing reads it but a person following the file
   (`tail -F`); it never enters page state or acknowledgement and is never served. The
   server appends each request's method, path without query, status, and duration,
-  and `/api/interaction` each tab's batches, a sample's going to its parent page. A
+  `/api/interaction` appends each tab's batches, and a sample page's batches go to its
+  parent's trace. A
   resent record repeats its `(session, sequence)`; a large one arrives as
   `interaction_part` rows whose `json` fields concatenate in `part` order; a dropped
   one leaves a sequence gap or an `interaction_omitted` row

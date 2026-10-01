@@ -11,8 +11,9 @@ directly:
   vocabulary checks to a fragment;
 - a layer `page init` would vendor at `compatibility.incoming_registry`, and against the
   standing log at `compatibility.candidate_vocabulary_gaps`, which refuses a layer that
-  drops an event kind, reaction token, verb, visual part, or thread-markup contract the
-  log still uses;
+  drops vocabulary the log still uses: an event kind, a reaction token, a verb or the
+  fold its admitted actions were read with, a visual part, a held comment's hold target,
+  or a thread-markup contract;
 - what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation
@@ -93,50 +94,35 @@ over, in the host's browser (`render_gate/browser.py` resolves it), and refuses 
 only for a fault its author can fix by editing it; a fault in Leaf's own chrome or
 theme belongs in the suite. `render_version` is the one implementation, called by the
 command and by the `tests/test_render_*.py` modules over the shipped examples.
-`render_gate/version.py` sequences it, `scheme.py` and `readings.py` take the readings,
-and `render-checks/` holds the probes the table names.
+`render_gate/version.py` sequences it, and `scheme.py` and `readings.py` take the
+readings. Each probe is an export of `render-checks/` named for the fault it reports,
+and the comment above it states the contract where the name does not.
 
-The readings run at 1200×900 and 540×720 in both color schemes, except the
-scheme-blind ones, `missingThreads` through `relativeReplays`, which run in the light
-scheme only. Once per version, on the light desktop page, the advice readings run and
-the page is resized through 360–1920px in 40px steps to read `rootOverflow` and
-`misplacedBoxes` again, and `arrangedBoxes` and `heldPanes`, which run only there. A
-fault only this sweep finds is reported with the widths it spans. Each width where the
-page's own margin content changes (`data-lf-margin` on `main`, less the rail) is then
-rendered in the light scheme too.
+Readings that are not probes:
 
-| Reading | Contract |
-| --- | --- |
-| pre-upgrade proof (`start_with_pre_upgrade_proof`, `preUpgradeFindings`) | while the Leaf entry is held: one canonical Leaf entry, one direct `main` with layout, and no widget upgraded or readiness stamp before the entry runs |
-| `runtimeStarted` | the runtime injected its chrome |
-| console, `pageerror`, failed responses | no console error or warning, uncaught error, or failed response; a ResizeObserver loop notice fails only if a second complete attempt reports it again |
-| `issueNode` | no DevTools issue (an unsized lazy image, a blocked or mixed-content request, a deprecated API) outside a form control's shadow tree; one in an embedded frame is placed at that frame |
-| `upgraded`, `wait_until_ready`, `pageSettled` (`moving`) | upgrade completed, the page reached readiness against the state read (`PageNotReady` otherwise), and geometry settled |
-| `invalidVisualProviders`, `unrevealedVisualProviders` | each `x-visual` widget registers valid parts, and every authored part resolves, in the current state or after its `reveal` |
-| `failSoftErrors` | no widget failed soft into an error box |
-| `missingUpgrades` | every widget on the page whose entry declares a module defined its element |
-| `invalidPaints` | every var()-backed SVG paint resolves |
-| `tinyBoxes` | every declared widget has a usable box |
-| `unmarkableElements` | every addressable element has a visible part to outline |
-| `rootOverflow`, `misplacedBoxes` | no sideways scroll; boxes stay in the column or in reachable overflow |
-| `strandedMargins` | every margin marker has an element to sit by |
-| `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `clippedControls` | controls are visible and reachable |
-| `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or covered by chrome |
-| `unreadSyntax` | highlighting does not alter source words |
-| `undeclaredShadowRoots` | every shadow root outside generated controls is on a tag whose entry declares `x-shadow` |
-| `shownVerbatim` | each `x-verbatim` owner shows the words of its projected passage, the one a user can point at |
-| `missingThreads` | every `x-thread-seat` instance outside thread chrome holds exactly one thread seat |
-| `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
-| `undeclaredAttrs` | modules write no undeclared author-namespace state |
-| `retiredSlots` | settlement marks agree with the projection |
-| `replayOverrides` | no attribute or placement fact is changed both by the author and by a user action carried from an earlier revision; the log's value would silently override the markup |
-| `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `shrunkLabels` | advice only: a drawing scaled so far that its labels fall below a legible size |
-| `unreservedHeights` | advice only: an `x-height` widget drew at a height its first paint did not reserve |
-| `arrangedBoxes` | advice only: the swept widths where a flex or grid box the page wrote splits its children into rows differently |
-| `heldPanes` | a workspace whose panes sit side by side at the desktop viewport does not stack them in one column at a width where the Layout still fills the window, since stacked there they share one window's height |
-| `trappedMargins`, `splitEdges`, `apparatusAmongAuthored` | suite only: the theme's frame trim reaches Leaf's own boxes, and the runtime adds nothing among the page's own elements |
+- the pre-upgrade proof (`start_with_pre_upgrade_proof`, `preUpgradeFindings`): while
+  the Leaf entry is held, the page has one canonical Leaf entry and one direct `main`
+  with layout, and nothing upgraded or stamped readiness before the entry ran;
+- the console, `pageerror`, and failed responses: no console error or warning,
+  uncaught error, or failed response. A ResizeObserver loop notice fails only if a
+  second complete attempt reports it again;
+- readiness (`upgraded`, `wait_until_ready`, `pageSettled`): upgrade completed, the page
+  reached readiness against the state read (`PageNotReady` otherwise), and geometry
+  settled.
+
+Every reading runs at 1200×900 and 540×720 in both color schemes, except the
+scheme-blind ones, which run in the light scheme only: `missingThreads`,
+`silentWords`, `undeclaredAttrs`, `retiredSlots`, `replayOverrides`, and
+`relativeReplays`. Once per version, on the light desktop page, the advice readings
+run and the page is resized through 360–1920px in 40px steps to read `rootOverflow`
+and `misplacedBoxes` again, and `arrangedBoxes` and `heldPanes`, which run only there.
+A fault only this sweep finds is reported with the widths it spans. Each width where
+the page's own margin content changes (`data-lf-margin` on `main`, less the rail) is
+then rendered in the light scheme too.
+
+`shrunkLabels`, `unreservedHeights`, and `arrangedBoxes` never refuse a version; the
+command prints what they find. `trappedMargins`, `splitEdges`, and
+`apparatusAmongAuthored` judge Leaf's own frame and run only in the suite.
 
 A version that passes gets screens for its author to read, saved under the state
 home's `screens/` and named by the command (`render_gate/screens.py`); `render_version`

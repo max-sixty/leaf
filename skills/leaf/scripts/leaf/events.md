@@ -27,12 +27,13 @@ command named below.
 | `note` | agent, `leaf page stamp` | maps `version` to an immutable `revision`; `restated` names the decisions it takes back, `settles` the reports and work it answers |
 | `pickup` | page, from the delivery carrier or a host's failure receipt | the named user events reached the Codex queue (`queued`), entered an agent turn (`opened`), or will get no answer (`failed`); never a work claim |
 | `error` | page, from the browser runtime | a failure shown to the user; the agent hears it as a report |
-| `undo` | user | withdraws the gesture `undoes` names ("Undo") |
+| `undo` | user | withdraws the gesture `undoes` names (see "Undo") |
 
 An event *stands* until the log withdraws it: an action until an `undo` names it or a
 version note's `restated` names an element it rests on, a report until a note
-`settles` it, any other gesture until an `undo` names it. The glossary's
-**Standing** and the `standing` server lifetime are unrelated terms.
+`settles` it, any other gesture until an `undo` names it. This sense of *stands* is
+unrelated to the glossary's **Standing** (where the user is on the page),
+`dispatch.js`'s `standing` scope test, and the `standing` server lifetime.
 
 ## Anchors
 
@@ -58,7 +59,7 @@ reading can reproduce them, so the door bounds their shape and does not re-read 
 
 The user may withdraw a resolve, unresolve, action, or approval
 (`schema.UNDOABLE_KINDS`), and a reaction while nothing has answered it and its
-thread is unresolved. A message with words, an undo, and a move the newest revision
+thread is unresolved. A spoken message, an undo, and a move the newest revision
 has absorbed ("Position moves") cannot be withdrawn. The door refuses an `undoes`
 naming anything but an unwithdrawn gesture of the user's own (`events.UndoReading`).
 
@@ -178,9 +179,9 @@ revisions and never enter agent delivery. A page has one user for its lifetime, 
 
 ### Turns
 
-An agent comment asks the user. An agent reply asks only when it records
-`awaits: true` (`leaf thread reply --awaits`), which the browser cannot write. A user
-reply always hands the thread to the agent.
+An agent comment asks the user. An agent reply asks when it records `awaits: true`
+(`leaf thread reply --awaits`, which the browser cannot write) or carries a widget with
+a local `x-awaits` Ask (below). A user reply always hands the thread to the agent.
 
 An agent reply records the delivery event it answers as `responds`, including one
 whose move was settled during the turn; a reply sent without `--for` carries none.
@@ -214,7 +215,7 @@ the thread. `served_state/thread.py` owns this precedence.
   frozen, because a user action may rest on a widget in it. Readings show the latest
   text on the original message, labelled edited.
 - A thread with no `thread_title` has a null `title`, and the panel falls back to a
-  label of its own (`runtime/thread/thread-card.js`).
+  label of its own (`../../assets/runtime/thread/thread-card.js`).
 - `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
   one thread; a reaction may lie inside it but not at an endpoint. A later overlapping
   summary replaces an earlier one, disjoint ones coexist, and editing a covered

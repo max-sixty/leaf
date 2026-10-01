@@ -17,7 +17,7 @@
    composition here is every bundled one.
 
    This is not Chrome, and which readings may be asked of it is `tests/AGENTS.md`'s,
-   under "Put each assertion at the boundary that owns it". */
+   under "Test placement". */
 
 import { existsSync, readdirSync } from "node:fs";
 import { registerHooks } from "node:module";

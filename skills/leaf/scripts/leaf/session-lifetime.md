@@ -78,9 +78,10 @@ failed:
 
 A condition belongs to whoever holds the gesture that recovers from it. Stale, ended,
 and interrupted conditions offer the user nothing to do, so they stay the agent's. A
-terminal host failure hands recovery to the user: it writes the failure its answer
-takes, which settles the Stop hook's obligation and leaves an `answered` workflow with
-a failed response until the user moves again. A refused send is the user's too: the
+host that gives up on a move writes the failure its answer takes
+(`thread.fail_answer`). That settles the Stop hook's obligation and hands recovery to
+the user: the workflow reads `answered`, with a failed response, until the user moves
+again. A refused send is the user's too: the
 browser offers Retry from its own unresolved ledger, with no workflow record. Browser
 notices read the current condition, so an old failure is not news after a later
 successful answer.
@@ -165,25 +166,25 @@ say when it is not. No code outside `host.py` compares the name.
 
 A carrier takes one of three shapes (`host.Harness`):
 
-- **wait**: direct watchers the model runs. Under Claude Code each `leaf wait` ends to
+- Direct watchers the model runs. Under Claude Code each `leaf wait` ends to
   open a turn, and the prompt or Stop hook hands the batch to that turn and advances
   the cursor; a wait also ends itself just before Claude Code's background limit
   (`Harness.wait_lifetime`). Where nothing carries input by hook, the wait prints the
   batch and `leaf wait --ack <delivery-id>` confirms it and becomes the next watcher.
-- **adapter**: one detached process for a Codex task, holding the task's wait lease
+- A Codex adapter, one detached process for a Codex task, holding the task's wait lease
   and an adapter lease of its own, since a wait lease alone cannot prove its output
   reaches a later Codex turn.
-- **embedded**: a host that drives App Server itself, as the website's per-user
+- An embedded host that drives App Server itself, as the website's per-user
   container does, and starts each turn directly.
 
 ### Direct watchers and the nudge
 
-Only a wait carrier stops while its session lives on, so only its harness has a nudge
-(`Harness.nudge`). Under Claude Code the nudge is a user message sent through the
-session's messaging socket (`host.message_claude_code_session`, which also records
-when the session holds or drops such a message). It tells the agent to start an
-unnamed `leaf wait`, which stays the one delivery path; the message fires
-UserPromptSubmit, so the prompt hook opens the turn and lists the input.
+Only direct watchers stop while their session lives on, so only their harness has a
+nudge (`Harness.nudge`). Under Claude Code the nudge is a user message sent through the
+session's messaging socket (`host.message_claude_code_session`, whose docstring says
+when a session holds or drops such a message; nothing reports delivery back). It tells
+the agent to start an unnamed `leaf wait`, which stays the one delivery path; the
+message fires UserPromptSubmit, so the prompt hook opens the turn and lists the input.
 
 Browser-event admission (`event_endpoint`) nudges when input that needs the agent
 (`service.requires_agent_attention`) reaches a page whose claimant holds no wait lease
@@ -223,13 +224,15 @@ checks ownership and retires.
 
 Each delivery has one immutable envelope, addressed globally by id, and one mutable
 Codex delivery record that moves through collecting, offering, and accepted. After the
-freeze the record keeps only the event identities its page receipts need. Once a
-page's cursor passes a batch, the record marks it receipted, so re-initializing a page
-at the same path cannot revive old transport work; a batch whose events no longer
-match its page is retired. Archiving moves only the record under `history/`, and `leaf
-delivery read <id>` still resolves the envelope. Abandoning an unaccepted record
-(`codex.abandon_codex_delivery`) leaves the envelope in place for a turn whose
-acceptance may have raced the failure.
+freeze the record keeps only the event identities its page receipts need. Once a page's
+cursor passes a batch, the record marks it receipted, so re-initializing a page at the
+same path cannot revive old transport work; a batch whose events no longer match its
+page is retired. Archiving moves only the record under `history/`, and `leaf delivery
+read <id>` still resolves the envelope. The website's container abandons an unaccepted
+record (`codex.abandon_codex_delivery`) after settling its triggering event with a
+failure receipt (`leaf_website.write_failure_receipt`), or when it withdraws a delivery
+whose turn never started, which leaves the moves for the Worker to receipt. Abandoning
+leaves the envelope in place for a turn whose acceptance may have raced the failure.
 
 ### Embedded App Server
 
@@ -251,11 +254,11 @@ than leaving a gap to read across. How the turn's messages become the reply is
 
 ### Detached starts
 
-`server start` and `leaf codex start` spawn their process into a session of its own,
-so a killed carrier costs only delivery. Both go through `detached`, whose handshake
-leaves the commit to the caller; a child whose caller leaves first withdraws what it
-started. The claim a start takes is `service.starting_claim`, restored if the start
-does not commit unless a successor has replaced it.
+`server start` and `leaf codex start` spawn their process into a session of its own, so
+a killed carrier costs only delivery. Both go through `detached`, whose handshake leaves
+the commit to the caller; a child whose caller leaves first withdraws what it started. A
+start takes the page's claim through `service.starting_claim`. If the start does not
+commit, the claim is restored, unless a successor has replaced it in between.
 
 ## Lifetime
 

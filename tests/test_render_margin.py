@@ -1308,7 +1308,7 @@ def _unfold(item):
 def _unfold_suggestion_undo(page, target):
     """Find Undo where a settled suggestion now perches, even if its slot vanished."""
     control = suggestion_control(page, target, "undo", visible=False)
-    _unfold(control.locator('xpath=ancestor::*[@data-lf-margin-for][1]'))
+    _unfold(control.locator("xpath=ancestor::*[@data-lf-margin-for][1]"))
     return control
 
 

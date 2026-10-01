@@ -304,6 +304,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
+/* What a seat holds while it would move the page under the reader (thread/held-news.js).
+   The rows it appears in already stand at the height of a control beside it: the head
+   row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
+   it asks for none of the depth below the words; in the resolved row it stands at the
+   end, beside Reopen, or in Reopen's place and face where it holds the reopening. A seat
+   that draws no thread shows it in its first-message row's place, at the height the
+   runtime measured that row at. */
+.lf-thread-news { flex: none; align-self: center; }
+.lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
+.lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-page-thread-head time { color: var(--muted-2); }
 .lf-page-thread-head .lf-edited { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
@@ -730,3 +740,42 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
   cursor: auto !important; }
+/* Code reserves its copy row before paint; the control stays outside the
+   horizontal scroller and never covers source text. */
+:root {
+  --lf-code-copy-size: max(32px, var(--aim-floor));
+  --lf-code-copy-space: 0px;
+}
+html[data-lf-interactive] { --lf-code-copy-space: var(--lf-code-copy-size); }
+:root pre:has(> code) { padding-block-start: calc(12px + var(--lf-code-copy-space)); }
+.lf-code-copy {
+  position: absolute;
+  top: calc(anchor(top) + 4px);
+  left: calc(anchor(right) - var(--lf-code-copy-size) - 4px);
+  width: var(--lf-code-copy-size);
+  height: var(--lf-code-copy-size);
+  z-index: 1;
+  white-space: normal;
+  font-size: 0;
+  line-height: 0;
+}
+.lf-code-copy::part(button) {
+  width: var(--lf-code-copy-size);
+  height: var(--lf-code-copy-size);
+  padding: 6px;
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+  background: var(--pre-bg);
+  color: var(--muted);
+  display: flex;
+  font-size: var(--t-5);
+}
+.lf-code-copy::part(button):hover { color: var(--ink); }
+.lf-code-copy::part(button):focus-visible {
+  outline: var(--focus-ring);
+  --lf-focus-ring: code-copy;
+}
+@media print {
+  :root, html[data-lf-interactive] { --lf-code-copy-space: 0px; }
+  .lf-code-copy { display: none; }
+}

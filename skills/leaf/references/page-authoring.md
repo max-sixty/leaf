@@ -116,6 +116,23 @@ the room a page has depends only on the window, and nothing Leaf draws moves the
 content: the rail stands in room the page leaves beside its column ("The rail and the
 margin", below).
 
+### Contents navigation
+
+Long scrolling documents include a contents outline by default, unless the reader can
+see the document's structure at a glance. It gives them a persistent route between
+sections and shows where they are in the document. Put an empty `lf-toc` with a stable
+id in an `aside.sidebar`, directly inside `main` near the opening:
+
+```html
+<aside class="sidebar" id="contents-sidebar">
+  <lf-toc id="contents"></lf-toc>
+</aside>
+```
+
+On a column page with room in the desktop margin, Leaf presents it as the contents
+spine; in a narrow window it is an open outline in the page's flow ("The rail and the
+margin"). Workspaces and root page tabs use their own navigation.
+
 ### Layouts
 
 A Layout is a class that arranges the box it is on. Three set the page's shape, on
@@ -339,11 +356,14 @@ capture. A proposal or a mechanism has nothing to capture yet, so draw it. A pro
 that unfolds over time is a diagram that moves: draw it in a page module from its
 state and the moment, with controls to pause and scrub, so every moment stays
 readable and its parts stay commentable. A recorded video is flat and heavy, and
-belongs only where the explanation leaves the page. Use a table when the user
-compares the same dimensions across items; use `lf-compare` for a few alternatives
-read as wholes, and `lf-options` when the user must choose among them. A headline
-measurement is a metric, and a pattern across measurements is a chart. Movable
-things form a board. Use images only when they carry information.
+belongs only where the explanation leaves the page. When the shape of numbers is
+the point — a trend, ranking, groups on one scale, or series moving together —
+lead with an `lf-chart`, even if the numbers compare the same dimensions across
+items. Put a table below it in `<details>` when readers also need exact values.
+Use a table for value lookup, mixed units that cannot share an axis, or comparisons
+with text-heavy cells; use `lf-compare` for a few alternatives read as wholes,
+and `lf-options` when the user must choose among them. A headline measurement is
+a metric. Movable things form a board. Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
 

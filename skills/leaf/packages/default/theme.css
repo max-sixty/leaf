@@ -18,10 +18,10 @@ lf-gloss { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over. */
 lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
-/* A live page's module puts the words in the card, so the phrase never shows them
- * inline, before the upgrade either, unless the runtime could not start
- * (`data-lf-startup-error`, bootstrap.js) and no card will come. */
-html[data-lf-live]:not([data-lf-startup-error]) lf-gloss[tip]::after,
+/* Where the runtime runs, the module puts the words in the card, so the phrase never
+ * shows them inline, before the upgrade either. A runtime missing what it needs to start
+ * takes the mark off (runtime/prepaint.js), since no card will come. */
+html[data-lf-interactive] lf-gloss[tip]::after,
 lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
   html:root lf-gloss {
@@ -619,14 +619,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
-    /* On a live page the authored options paint before their generated Add and Done
-     * cells. Keep their rows occupied until upgrade so the next block stays put. The
-     * form needs more room in a card because its action seat sits inside the card
-     * inset. */
+    /* Where the runtime runs, the authored options paint before their generated Add
+     * and Done cells. Keep their rows occupied until upgrade so the next block stays
+     * put. The form needs more room in a card because its action seat sits inside the
+     * card inset. */
     --lf-add-cell-height: 32px;
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) { --lf-add-cell-height: 44px; }
-    &:where([data-lf-live] *)::after { content: "";
+    &:where([data-lf-interactive] *)::after { content: "";
       display: block; height: var(--lf-missing-cells, 0px); }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
@@ -636,8 +636,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
       --lf-missing-cells: calc(var(--lf-done-cell-height) + var(--lf-missing-add, 0px));
     }
     /* The last cell present draws the hairline above the first reserved one. */
-    &:where([data-lf-live] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
-    &:where([data-lf-live] *)[multiple]:not(:has(> lf-options-done)) {
+    &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
+    &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
       & > :is(lf-option, .lf-another, lf-options-done):last-child {
         border-bottom: 1px solid var(--rule); }
     }
@@ -1018,17 +1018,17 @@ lf-milestone[status="active"]::before { border-color: var(--accent);
                                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 lf-milestone[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
 lf-milestone > strong { display: block; margin: 0 0 2px; }
-/* On a live page the chip row the module builds from `when` and `tags` (the kernel's
- * .lf-chips) has its room from the first paint: one row of chips under the title, or
- * at the top of a milestone that has none. Chips that wrap onto a second row are not
- * reserved. */
-html[data-lf-live]
+/* Where the runtime runs, the chip row the module builds from `when` and `tags` (the
+ * kernel's .lf-chips) has its room from the first paint: one row of chips under the
+ * title, or at the top of a milestone that has none. Chips that wrap onto a second row
+ * are not reserved. */
+html[data-lf-interactive]
   lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(:has(> .lf-chips))
   > strong:first-of-type::after { content: ""; display: block;
     height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
 /* The row's top margin collapses through the milestone once it is the first child, so
  * the milestone wears it until then. */
-html[data-lf-live]
+html[data-lf-interactive]
   lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(
     :has(> .lf-chips, > strong)) { margin-top: 2px;
     padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
@@ -1589,17 +1589,16 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       pointer-events: none;
     }
 
-    /* On a live page a set has the geometry above from the first paint: the frame its
-     * flow draws, one row of the strip kept empty for the names the module writes, and
-     * its first panel alone. The page's flow is the first set in `main` whose list is a
-     * row, as lf-tabs.js decides it (`#syncRootContext`). Not reserved: names that wrap
-     * the strip onto a second row, a side list taller than its panel, and a set that
-     * opens on another panel, because the address's fragment is inside it or this
-     * browser tab last left it open; the browser matches `:target` only once the
-     * document has loaded, and the stored tab is the module's to read. A page whose
-     * runtime could not start (`data-lf-startup-error`, bootstrap.js) keeps the
+    /* Where the runtime will run, a set has the geometry above from the first paint:
+     * the frame its flow draws, one row of the strip kept empty for the names the
+     * module writes, and the panel it opens on alone, which the prepaint marks
+     * (`data-lf-opening`, runtime/prepaint.js) as the one the module will open. The
+     * page's flow is the first set in `main` whose list is a row, as lf-tabs.js decides
+     * it (`#syncRootContext`). Not reserved: names that wrap the strip onto a second
+     * row, and a side list taller than its panel. A page whose runtime is missing
+     * what it needs to start loses the mark (runtime/prepaint.js) and keeps the
      * stacked, labeled panels, since no strip will come to reach the hidden ones. */
-    &[data-lf-live]:not([data-lf-startup-error]) lf-tabs:not(.lf-rendered):has(> lf-tab) {
+    &[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) {
       margin: var(--sp-4) 0 32px; border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card); --lf-block-frame: 1;
       &::before { content: ""; display: block; box-sizing: border-box;
@@ -1608,16 +1607,16 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
         background: var(--field); }
       & > lf-tab { padding: var(--sp-4); --lf-block-frame: 1; }
       & > lf-tab::before { content: none; }
-      & > lf-tab:not(:first-of-type) { display: none; }
+      & > lf-tab:not([data-lf-opening]) { display: none; }
     }
-    &[data-lf-live]:not([data-lf-startup-error]) body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
+    &[data-lf-interactive] body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
         [list="side"]):has(> lf-tab) {
       margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
       & > lf-tab { padding: var(--sp-4) 0 0; }
     }
-    &[data-lf-live]:not([data-lf-startup-error])
+    &[data-lf-interactive]
       lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
       container-type: inline-size; display: grid;
       grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); align-items: start;
@@ -1649,11 +1648,11 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * Print stacks both frames. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot:has(.lf-shotframe) { display: grid; }
-/* On a live page the rail and the frame stand empty from the first paint, the frame in
- * the pair's shape, which delivery reads from the images (`data-lf-media-width`,
- * `data-lf-media-height`), so the images and the comparison arrive in a box that is
- * already there. */
-html[data-lf-live] lf-shot:not(:has(> .lf-shotrail)) {
+/* Where the runtime runs, the rail and the frame stand empty from the first paint, the
+ * frame in the pair's shape, which delivery reads from the images
+ * (`data-lf-media-width`, `data-lf-media-height`), so the images and the comparison
+ * arrive in a box that is already there. */
+html[data-lf-interactive] lf-shot:not(:has(> .lf-shotrail)) {
   &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
     border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
   &::after { content: ""; display: block; box-sizing: border-box;
@@ -2219,9 +2218,9 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
  * on the tick beside it. Plot writes its face as attributes, which any rule here
  * outranks; lf-chart.js hands it to the legends Plot styles from its own sheet. */
 lf-chart .lf-chart-drawing { display: block; font: 10px var(--sans); color: var(--muted); }
-/* On a live page the chart's box is laid out before it draws (x-height), and the source
+/* Where the runtime runs, the chart's box is laid out before it draws (x-height), and the source
  * waiting in it is code for the drawing rather than words for the reader. */
-html[data-lf-live] lf-chart:not(.lf-rendered) > pre { visibility: hidden; }
+html[data-lf-interactive] lf-chart:not(.lf-rendered) > pre { visibility: hidden; }
 lf-chart .lf-chart-drawing svg { display: block; font: inherit; }
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
@@ -2233,12 +2232,12 @@ lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
 lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 lf-tree li { margin: 3px 0; }
-/* On a live page each line of the body stands at the pitch its rendered row will (a
+/* Where the runtime runs, each line of the body stands at the pitch its rendered row will (a
  * row, and the 3px between rows), so the tree takes its height from the first paint.
  * The line's half of the gap above the first row and below the last stays inside the
  * box, as the rendered rows' outer margins leave it. */
-html[data-lf-live] lf-tree:not(.lf-rendered) { display: flow-root; }
-html[data-lf-live] lf-tree:not(.lf-rendered) > pre {
+html[data-lf-interactive] lf-tree:not(.lf-rendered) { display: flow-root; }
+html[data-lf-interactive] lf-tree:not(.lf-rendered) > pre {
   line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
 lf-tree .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
@@ -2258,6 +2257,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
    face's `ch`. */
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
+             padding-block-start: calc(12px + var(--lf-code-copy-space));
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
 /* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
    frame hid its end behind a scrollbar at the block's foot, and the end is where a log
@@ -2320,15 +2320,16 @@ lf-code > lf-note, lf-code > pre > lf-note {
              border-block: 1px solid var(--code-border);
              color: var(--code-ink); font-family: var(--sans);
              font-size: var(--t-5); line-height: 1.5; white-space: normal; --lf-block-frame: 1; }
-/* On a live page the source stands in the frame its numbered lines will, wrapping where
+/* Where the runtime runs, the source stands in the frame its numbered lines will, wrapping where
    they will, and each note stands under it inside the frame's side rules, so the block
    has its height from the first paint and the module only moves each note up to its
    line. Not reserved: the elided rows an excerpt's `lines` leaves gaps for, and the
    deeper hang a wrapped line takes from its indent. */
-html[data-lf-live] lf-code:not(.lf-rendered) {
+html[data-lf-interactive] lf-code:not(.lf-rendered) {
   & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
             border-radius: var(--r);
             padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+            padding-block-start: calc(12px + var(--lf-code-copy-space));
             white-space: pre-wrap; overflow-wrap: anywhere; }
   & > lf-note { margin-inline: 1px; }
 }

@@ -232,6 +232,7 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
         for path, mime in (
             ("/runtime/bootstrap.js", "application/javascript"),
+            ("/runtime/prepaint.js", "application/javascript"),
             ("/runtime/chrome.css", "text/css"),
             ("/runtime/marks.css", "text/css"),
         )
@@ -3038,7 +3039,7 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
     def faulting_state(*_args, **_kwargs):
         raise RuntimeError("the projection could not be read")
 
-    monkeypatch.setattr(served_page, "full_state", faulting_state)
+    monkeypatch.setattr(served_page, "read_served_page", faulting_state)
     with running_http_server(httpd):
         with pytest.raises(urllib.error.HTTPError) as refused:
             get(f"{origin}/examples/decision/api/state")
@@ -3102,7 +3103,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         capsys.readouterr()
-        monkeypatch.setattr(served_page, "full_state", faulting_state)
+        monkeypatch.setattr(served_page, "read_served_page", faulting_state)
         with pytest.raises(urllib.error.HTTPError) as refused:
             get(f"{origin}{child['url']}api/state")
         assert refused.value.code == 500

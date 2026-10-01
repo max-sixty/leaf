@@ -445,6 +445,18 @@ def events(dir: str, after: int, follow: bool) -> None:
     cmd_events(resolve_dir(dir), after, follow=follow)
 
 
+@page.command(short_help="Take a page this session did not serve.")
+@click.argument("dir", metavar="PAGE")
+def claim(dir: str) -> None:
+    """Make PAGE this session's, as a named `leaf wait PAGE` does before it
+    watches, for a host whose own hook watches between turns. A watch another
+    session runs stops watching it."""
+    from leaf.service import claim_page
+
+    if not claim_page(resolve_dir(dir)):
+        sys.exit("only an agent host session can claim a page")
+
+
 @page.command(short_help="Print the page's exchange as Markdown.")
 @click.argument("dir", metavar="PAGE")
 def transcript(dir: str) -> None:
@@ -457,6 +469,17 @@ def transcript(dir: str) -> None:
 @cli.group(short_help="Read input delivered by any Leaf host.")
 def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
+
+
+@delivery.command("ack", short_help="Confirm one delivery you have read in full.")
+@click.argument("delivery_id", metavar="DELIVERY_ID")
+def delivery_ack(delivery_id: str) -> None:
+    """Confirm DELIVERY_ID once all of it is in your context, so the user's moves
+    read Picked up. Confirm nothing whose output was cut off; `leaf wait --ack`
+    confirms the same way and then waits for the next delivery."""
+    from leaf.delivery import receive_delivery
+
+    receive_delivery(delivery_id)
 
 
 @delivery.command("read", short_help="Read one immutable delivery envelope.")
@@ -903,12 +926,25 @@ def thread_resolve(dir: str, thread: str) -> None:
 
 
 @cli.command(hidden=True)
-def hook() -> None:
+@click.option(
+    "--watch",
+    is_flag=True,
+    help="Watch the session's pages until input, printing what wakes the session.",
+)
+def hook(watch: bool) -> None:
     """Answer an agent-host hook on stdin."""
-    from leaf.hooks import cmd_hook
+    from leaf.hooks import cmd_hook, cmd_watch
+    from leaf.leases import release_on_termination
 
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
         sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
+    if watch:
+        # The host stops a watch at the hook's timeout, which must release its
+        # lease the way a wait's does.
+        release_on_termination()
+        if woke := cmd_watch(payload):
+            print(woke, flush=True)
+        return
     cmd_hook(payload)

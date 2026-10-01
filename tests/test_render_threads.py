@@ -7573,9 +7573,9 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     browser, serve, kind
 ):
     """The new turn went in above the reply box the user was typing in and pushed it,
-    caret and all, below the fold. News moves no control under the user's hands.
-    A short bounded block grows in the page rather than scrolling, so the page takes
-    the move there."""
+    caret and all, below the fold. News moves no control under the user's hands: the
+    turn waits behind the thread's notice, since the thread's foot is on screen, and
+    the box stands where it was, in a bounded block as on the page."""
     messages = 1 if kind == "bounded-short" else 3
     url, root = seated_thread(serve, kind, messages)
     page = open_page(browser, url)
@@ -7599,16 +7599,15 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
         },
     )
     told(page)
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(messages + 1)
+    expect(thread.get_by_role("button", name="1 new reply")).to_be_visible()
     rendered(page)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(messages)
     expect(box).to_be_focused()
     assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
         before, abs=1
     )
-    if kind == "bounded":
-        # The block scrolls the box, so it takes the move and the page stands still.
-        page_after = page.evaluate("() => document.scrollingElement.scrollTop")
-        assert page_after == pytest.approx(page_before, abs=1)
+    page_after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert page_after == pytest.approx(page_before, abs=1)
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

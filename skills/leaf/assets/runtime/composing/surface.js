@@ -34,10 +34,13 @@
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
-   When the target fills the viewport, the viewport still caps the field. When a
-   thread panel leaves no usable band for the response bar, placement withdraws it
-   without discarding its draft. If the disappearing bar held focus, the visible
-   Threads list takes it; an unrelated focused control keeps it. A partially exposed
+   When the target fills the viewport, the viewport still caps the field. Geometry
+   decides where the bar stands, never whether it stands: when a thread panel, a
+   pane scrolled past the target, or a closed disclosure leaves it nowhere, placement
+   withholds it, draft and anchor kept, and it stands again once there is room
+   (`standFab`). If the withheld bar held focus, the visible Threads list takes it
+   where the panel took the room, else the page; an unrelated focused control keeps
+   it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Shift+Enter
    inserts a newline; Enter sends. Tab extends the bar with the layer's reaction
    tokens. A layer with no reaction vocabulary keeps the bar's Comment and Suggest
@@ -77,8 +80,10 @@ import {
   showBannerControl,
 } from "../banner-toolbar.js";
 import {
+  pagePlaneRect,
   seenRect,
   shellRight,
+  shownBox,
   shownExtent,
   shownParts,
   shownRect,
@@ -206,6 +211,10 @@ export function createResponseSurface({
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
   let fabPositionFrame = 0;
+  // Whether the bar the user has is waiting out of view for room to stand
+  // (withholdFab), and where it takes them back to when it stands again.
+  let fabWithheld = false;
+  let fabWithheldFocus = null;
   const fabPosition = floatingPlacement({
     floating: fabBar,
     update: () => scheduleFabPosition(),
@@ -299,6 +308,7 @@ export function createResponseSurface({
     fabBar.style.display = "inline-flex";
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
+    stoodAgain();
     return true;
   }
 
@@ -314,11 +324,8 @@ export function createResponseSurface({
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;
     moveFab(responseHome);
-    if (place && fabAnchor) {
-      if (!placeFab()) showFab(null);
-      else if (restoreFocus)
-        void fabPositioned().then((positioned) => positioned && restoreFocus());
-    }
+    if (place && fabAnchor && standFab() && restoreFocus)
+      void fabPositioned().then((positioned) => positioned && restoreFocus());
     return true;
   }
 
@@ -389,10 +396,13 @@ export function createResponseSurface({
       range.setEnd(segments.at(-1).node, segments.at(-1).end);
       return range.getBoundingClientRect();
     }
+    // In the page's plane, as the quoted words above are: the page's own boxes cut it (a
+    // pane or a board scrolled past it), and the window does not, so an item the user
+    // scrolls off screen keeps its box and takes the bar with it rather than having none.
     const clips = new Map();
     const box = union(
       targetParts(found)
-        .map((part) => shownRect(part, clips))
+        .map((part) => pagePlaneRect(shownBox(part), part, clips))
         .filter(Boolean),
     );
     const point = box && fabPointIn(targetElement(found));
@@ -697,6 +707,7 @@ export function createResponseSurface({
         fabPosition.stand(position);
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
+        stoodAgain();
         return true;
       })
       .catch((error) => {
@@ -739,6 +750,10 @@ export function createResponseSurface({
     if (!anchor || (fabInlineOutlet && !keptInline)) restoreFab({ place: false });
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
+    if (!anchor || !sameAnchor(previous, anchor)) {
+      fabWithheld = false;
+      fabWithheldFocus = null;
+    }
     if (!anchor && composerOpen) hideComposer();
     // A gesture opening the bar says where in its target the bar stands, `null` for
     // nowhere; re-placing the bar on the same anchor keeps where the last one said, and
@@ -786,18 +801,25 @@ export function createResponseSurface({
       // A margin control can name an item whose rendered box is currently off
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
-      // skipped. Every route that actually shows the bar keeps the geometry gate.
+      // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
+      // is for opening: the bar already standing on this anchor, placed again, is
+      // withheld rather than put away (standFab).
       if (place && fabFloating && !placeFab(target ?? anchorBox(fabAnchor))) {
-        fabAnchor = null;
-        fabOrigin = null;
-        stopFabPositioning({ reset: true });
-        resetResponseOptions();
-        fabBar.removeAttribute("data-lf-target-only");
-        fabInputTakingFocus = false;
-        if (composerOpen) hideComposer();
-        fabBar.style.display = "none";
-        fabInput.style.display = "none";
-        fab.style.display = "none";
+        if (sameAnchor(previous, fabAnchor) && anchorStands(fabAnchor)) withholdFab();
+        else {
+          fabAnchor = null;
+          fabOrigin = null;
+          fabWithheld = false;
+          fabWithheldFocus = null;
+          stopFabPositioning({ reset: true });
+          resetResponseOptions();
+          fabBar.removeAttribute("data-lf-target-only");
+          fabInputTakingFocus = false;
+          if (composerOpen) hideComposer();
+          fabBar.style.display = "none";
+          fabInput.style.display = "none";
+          fab.style.display = "none";
+        }
       }
     }
     // A bar raised on a new target takes the thread card down: the card stands above
@@ -827,15 +849,50 @@ export function createResponseSurface({
     showFab(null);
   }
   function refreshFab() {
-    // A target row holds its anchor without floating the bar; layout cannot reject that
-    // semantic place merely because the target's rendered box has scrolled away.
     if (!fabAnchor || !fabFloating) return;
-    if (fabAnchor.quote && (composerOpen || fabHoldsCapturedPassage())) {
-      if (!placeFab() && fabBar.hasAttribute("data-lf-placement"))
-        showFab(null, null, { returnFocus: "page" });
-    } else if (fabAnchor.quote) updateFab();
-    else if (!placeFab() && fabBar.hasAttribute("data-lf-placement"))
+    // A bare selection's bar is the selection's, and goes with it.
+    if (fabAnchor.quote && !composerOpen && !fabHoldsCapturedPassage()) updateFab();
+    else standFab();
+  }
+  // Stands the bar the user already has again. Geometry says where it stands, never
+  // whether: the bar goes when a gesture puts it away or when its subject leaves the
+  // document, and never because a scroll, a resize, a panel or a closed disclosure left
+  // it no room. A bar with nowhere to stand is withheld, draft, anchor and all, and the
+  // next placement that finds room stands it again.
+  function standFab() {
+    if (!anchorStands(fabAnchor)) {
       showFab(null, null, { returnFocus: "page" });
+      return false;
+    }
+    if (placeFab()) return true;
+    withholdFab();
+    return false;
+  }
+  // Hidden, keeping everything that says what it is: where its target lost its box, the
+  // side it stood on too, so that it comes back where it was. Hiding a focused bar drops the focus to nowhere, so
+  // the bar holds the user's place, caret included, whether they stand in it or a
+  // repositioning that hid it just dropped them (`holdFocus`), and takes them back when
+  // it stands again unless they have stood somewhere since. Where a covering panel took
+  // the bar's room, the Threads list takes the focus instead: the user is left in the
+  // surface in front of them. While it waits, its keys are not the user's (the
+  // composer's scope and the selection rung stand down), and `c` is the way back to it.
+  function withholdFab() {
+    if (fabWithheld) return;
+    fabWithheld = true;
+    const held = holdFocus(fabBar);
+    const toPanel = held && panelIsOpen() && !fabFits();
+    stopFabPositioning({ reset: false });
+    fabBar.style.visibility = "hidden";
+    if (toPanel) threadsBox.focus({ preventScroll: true });
+    else fabWithheldFocus = held;
+  }
+  // The bar is in view again, by whichever placement put it there.
+  function stoodAgain() {
+    if (!fabWithheld) return;
+    fabWithheld = false;
+    const returning = fabWithheldFocus;
+    fabWithheldFocus = null;
+    returning?.();
   }
   // The durable anchor names the authored coordinate an event can replay, while the
   // margin needs the rendered block the gesture is visibly on. Those are deliberately
@@ -1278,6 +1335,7 @@ export function createResponseSurface({
     // inline, it is in flow and the browser's own reveals reach it.
     declareOffFlowSurface(fabBar, {
       floats: () => Boolean(fabAnchor && fabFloating),
+      away: () => fabWithheld,
       bringBack: (behavior) => {
         const found = resolveAnchor(fabAnchor, pageText());
         const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;
@@ -1603,7 +1661,7 @@ export function createResponseSurface({
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
-    at: () => composerOpen,
+    at: () => composerOpen && !fabWithheld,
     rows: [
       {
         id: "comment.options",
@@ -1634,7 +1692,7 @@ export function createResponseSurface({
   // user just chose, so it keeps its binding and its place in the reference while
   // yielding the short line's promoted slot to them.
   pageRung("selection", () =>
-    pageSelection() || fabAnchorAt()
+    pageSelection() || (fabAnchorAt() && !fabWithheld)
       ? {
           says: "unselect",
           does: "Clear the selection",

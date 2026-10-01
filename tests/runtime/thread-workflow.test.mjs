@@ -150,7 +150,7 @@ test("a thread the user is still sending waits on that send", () => {
     text: "Question",
     ts: "2026-09-22T10:00:00Z",
   };
-  const [thread] = foldThreads([], [root], [], []);
+  const [thread] = foldThreads([], [root], [], [], new Set());
   const [record] = readThreadRecords(
     [{ ...thread, unread: [] }],
     { revision: 1, descriptors: new Map(), messageBodies: new Map() },
@@ -178,7 +178,7 @@ test("a local prose answer clears accepted user attention until refusal", () => 
     ts: "now",
     pending: true,
   };
-  const [folded] = foldThreads([thread], [reply], [], []);
+  const [folded] = foldThreads([thread], [reply], [], [], new Set());
 
   const [record] = readThreadRecords(
     [folded],
@@ -225,7 +225,7 @@ test("a thread this tab opened carries every field a served thread does", () => 
     text: "Question",
     ts: "2026-09-22T10:00:00Z",
   };
-  const [opened] = foldThreads([], [root], [], []);
+  const [opened] = foldThreads([], [root], [], [], new Set());
   assert.deepEqual(
     Object.keys(opened).sort(),
     Object.keys(servedThread([root])).sort(),

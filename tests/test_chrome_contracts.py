@@ -343,8 +343,8 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     to leave free room or long enough to scroll, and where the user has scrolled the
     card's end below the fold, pinning the box over the free room.
 
-    The replies land past the half second in which Chrome counts the user's typing as
-    recent input, so the browser fixture's shift watch fails any move they cause."""
+    The replies are news, so the browser fixture's shift watch fails any move they
+    cause."""
     url = serve(LONG_PAGE)
     for index in range(earlier_cards):
         panel_comment(serve.page_dir, f"An earlier thread {index}.")
@@ -389,9 +389,6 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
 
     for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
-        # Past the half second a key counts as recent input (`shift_watch.js`).
-        typed = page.evaluate("performance.now()")
-        page.wait_for_function("at => performance.now() - at > 500", arg=typed)
         newest = events_model.append_event(
             serve.page_dir,
             {
@@ -863,9 +860,6 @@ def test_news_that_settles_the_last_thread_and_takes_it_back_moves_nothing(
     page = open_page(browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # Past the half second a press counts as recent input (`shift_watch.js`).
-    pressed = page.evaluate("performance.now()")
-    page.wait_for_function("at => performance.now() - at > 500", arg=pressed)
     [root] = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)

@@ -25,11 +25,10 @@ has tried; settle that before building it.
   tokens per title here, and it leaves the user's MCP servers on, which the App
   Server request turns off by name. A request at admission, as Claude Code's is,
   would serve every harness once the page server can reach each one's model.
-- **Keep a long Thread's standing visible.** Let the agent maintain one line at the
-  head of a Thread saying what is decided and what remains open, so a user
-  returning to a long discussion knows where it stands before reading it. Decide
-  whether this is a summary checkpoint that covers the whole Thread or a separate
-  reading, and how it goes stale.
+- **Keep a long Thread's standing visible.** Summary checkpoints already condense
+  older messages. Test a current one-line reading of what is decided and what remains
+  open, distinct from a historical summary, and decide how a revision invalidates it.
+  See the [Thread plan](notes/threads.md#current-standing).
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -39,6 +38,18 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **Keep a reply's words on screen when another actor settles its thread.** An agent
+  resolving a thread while the user types a reply takes the reply box away, words and
+  all; the draft is kept but gone from view, against "Words stay where they were
+  typed" (`skills/leaf/assets/AGENTS.md`). Three tests carry it in
+  `tests/known_faults.py` (`KNOWN_LOSSES`). Likely shape: the box stays while it holds
+  words, and sending it reopens the thread.
+- **Decide where `c` goes once the user has left a withheld comment box.** A comment
+  box whose target a pane has scrolled past waits hidden, and `c` brings it back even
+  after the user has walked to another item, where before the box had closed and `c`
+  commented where they stood. Likely shape: after a focus placement since the
+  withhold, `c` comments at the standing item and the draft follows it
+  (`commentOnTarget`).
 - **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
   Follow one task through reading, panes, comments, and Threads.
 
@@ -56,6 +67,14 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
+
+### Prose
+
+- **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** The maintainer
+  rewrite is written and awaits independent review and landing. Agent guidance is
+  the next phase, scored with `evals/`. Site structure, UI vocabulary and example
+  selection wait on the five decisions in the note. Judge each rewrite by reader
+  usefulness and preserved behavior; word counts describe the cut, not its quality.
 
 ## Next
 
@@ -75,12 +94,6 @@ has tried; settle that before building it.
   Threads and Approve off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
-- **Take the layout readings across widths.** The render check renders each page at
-  1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
-  drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
-  below its pane's first screen ([#19](notes/workspace-followups.md#item-19)). The
-  arrangement eval's pages failed at 900px and on a phone in both ways. Take both
-  readings across widths, phones included.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
@@ -90,10 +103,32 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Find a better shape for news in a short Threads list.** In a list too short to
+  scroll, any news moves something on screen, so the open card fills the list with
+  its reply box at the foot (#1480). A reply lands in the room above the box, and a
+  thread returning above the open card makes the list scrollable, so the place hold
+  scrolls the newcomer out of view rather than pushing down the card being read. It
+  is the best tradeoff found, not a perfect one: a short list's open card is as tall
+  as the panel, later cards wait below the fold, and a thread that returns above lands
+  scrolled past, so the user sees it only in the count. The rejected alternatives
+  were holding replies behind an "N new replies" chip, which hides the answer the user
+  is waiting for, and letting a list that can't scroll push its contents down, which
+  needs the shift watch to stop checking such lists.
+- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
+  a comment's target in a single wheel step draws the box about 60px off for a frame
+  before it lands, on `main` too and for selected words as well as items; a script's
+  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
+  target's far edge while the target left the window, and the correction lands a frame
+  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
+  `shift_watch.js` reproduces it.
+- **Keep a thread card still while the user types in it inside a pane.** Typing in a
+  margin thread card's reply, with its target in a pane that scrolls on its own, moves
+  the whole card (`shift_watch.js`: "typing in leaf-text moved
+  aside#lf-margin-preview"), on `main` too.
 - **Decide whether a workspace's panes scroll on their own.** Its regions could instead
   stick to the root scroller, which keeps native keyboard scrolling and restoration on
-  workspace pages and settles the side list's full-height form; then drop the bottom
-  bar and give the phone banner one row ([plan](notes/chrome-and-covers.md)).
+  workspace pages. Compare both scrolling forms before choosing; bottom-bar removal
+  and the phone banner are separate product decisions ([plan](notes/chrome-and-covers.md)).
 - **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
   beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
   `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
@@ -118,24 +153,42 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS. Option E of the
-  [chrome plan](notes/chrome-and-covers.md) settles it, since a sticky region works at
-  any depth with no scrolling ancestor.
-- **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
-  target that covers no words (`pinSpot`), which clears single markers on most pages,
-  but under a finger Accept and Reject together are a 96×44px pair: that needs a line
-  ending 100px short on the run's last line, 44px from that line to the next block, or
-  the empty end of a neighbouring block's line within reach, such as a short heading
-  just above. At 390px, 3 of the 7 shipped suggestions find no such room and stay over
-  their words (the feature gallery's replace and insert, release-notes' API
-  deletion). Folding the pair into one marker that opens Accept and Reject, only where
-  the pair has no room, is the nearest design; it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
-  a finger) stays the escape.
+  [chrome plan](notes/chrome-and-covers.md) could remove the scroller-depth constraint;
+  verify it against a concrete nested workspace before choosing.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
   (`leaf-dev corpus`) sets every example's body in one column page, so only the
   nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
   own Layout.
+- **Show each floating surface across the content it can hold.** `leaf-dev stills`
+  screenshots the same states on the base and the branch, so it reports a change but
+  misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
+  the room right of the text, 584px around the one word "why?" at 1920px, and no still
+  showed it, because every card in the catalogue held a long thread. Build a suite that
+  varies what a surface holds as well as the window:
+  - Graded content for each surface. For a thread card that is one word, one line, two
+    short lines, a paragraph, an exchange with an agent reply, and an unbreakable URL,
+    each opened at 1920, 1440, beside an open panel, 1024 and 360px and cropped to the
+    card and the marker that opened it. The comment box, the selection action bar and
+    the Threads panel take the same treatment.
+  - Measurements beside each still: the surface's box, how much of its width its
+    content fills, whether it covers the control that opened it while there is room
+    beside it, and whether it crosses the visible edge. A threshold on each fails a
+    surface that was already wrong, on both arms, which a comparison cannot do.
+  - One page showing every still in a grid, a row per window width with the content
+    growing along it and changed cells outlined. `lf-visual-review` steps through one
+    case at a time, so the grid is a new view, in that package or beside it.
+  - For thread placement alone, an SVG atlas of `thread-card-geometry.js` over a grid
+    of inputs, which `npm run test:runtime` can draw without a browser.
+
+  How to keep the candidates maintainable is not yet thought through, and comes before
+  building. Adding a few dozen hand-written entries to `STATES` grows a list that
+  nothing keeps complete. Decide whether a surface declares the ways its content
+  varies and the suite takes every combination, where the graded fixtures live so one
+  edit reaches every surface, how the matrix stays small enough to run and to read,
+  and which measurements become thresholds a test enforces rather than numbers a
+  person reads.
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.
@@ -190,6 +243,11 @@ and its chrome coordinate.
 
 ### The agent's text interface
 
+- **Reproduce the Codex delivery-start race.** Another client may start a turn
+  between Leaf's idle check and its start request. **Unconfirmed:** test the installed
+  App Server's behavior before changing delivery policy; the
+  [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
+
 - **Wake the agent only for input that changes what it owes.** `leaf wait` ends
   on every event `requires_agent_attention` admits, so input that asks nothing
   still costs the agent a turn. Comments, replies and a move that finishes an Ask
@@ -210,7 +268,9 @@ and its chrome coordinate.
   reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
   each reading the sweep can take at every swept
   width, and report each fault at the narrowest width it starts, as
-  `swept_overflow` does for sideways overflow. The readings stay advice: which
+  `swept_overflow` does for sideways overflow. Separately verify the Ask's premise,
+  controls and resulting evidence below the first pane screen, as the arrangement
+  eval exposed. The readings stay advice: which
   widths a page answers for is the author's call.
 - **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
@@ -287,6 +347,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Consider dragging thread cards and comment boxes.** Once both share placement,
+  try temporary, passage-relative movement from a handle. Keep it only if scrolling,
+  typing, and resizing stay predictable and the implementation stays simple.
+- **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
+  invalid control with a bounded explorer and cold user. The
+  [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
+  change; review that proposal with its owner before changing the policy.
+
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and
@@ -304,9 +372,8 @@ Revisit these when their stated trigger becomes real; they are not an active que
   warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
   uv adds about 15ms, Python startup about 10ms, and importing the CLI about
   15ms. A session holding a page adds about 0.1s to import page reading and
-  read each page's state, so its prompt and Stop hooks cost about 0.15s. That cost is why the `PostToolUse`
-  registration keeps its `if` prefilter, and it limits what else hooks can
-  carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
+  read each page's state, so its prompt and Stop hooks cost about 0.15s. That
+  cost limits what else hooks can carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
   can answer more events itself. Rewriting the hook path in a compiled language
   is the further step if that is not enough.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace

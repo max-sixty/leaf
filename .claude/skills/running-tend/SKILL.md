@@ -10,8 +10,8 @@ description: Project-specific guidance loaded by tend workflows alongside AGENTS
 Tend uses `merge: yolo`. Merge a pull request that fixes tests, without waiting
 for maintainer approval, once each test it claims to fix failed before the change
 and passes after it (a skipped or deleted test has not passed), and `monitor-ci`'s
-poll exits 0 on the exact head. Pull requests don't run nightly tests, so run the
-claimed ones yourself.
+poll exits 0 on the exact head. Pull requests run only the nightly tests they edit,
+so run the claimed ones yourself.
 
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
@@ -36,10 +36,12 @@ change meets the deferral condition in **Fix the underlying issue**.
 
 ## Review test selection
 
-Before approving a product change, run the smallest test selection that exercises
-the failures the diff could introduce, chosen from the product paths and
-contracts it touches rather than the test files it edits. A docs-only or
-generated-workflow change may need none; a selected failure withholds approval.
+Before approving a product change, run the few tests that exercise the failures
+the diff most plausibly introduces, chosen from the product paths and contracts
+it touches rather than the test files it edits, and within the local limit in
+`tests/AGENTS.md` ("Run the narrowest useful surface"): the `nightly` job
+reports the rest once the change lands. A docs-only or generated-workflow change
+may need none; a selected failure withholds approval.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
 belongs at. For a change that can alter browser startup, apply `AGENTS.md`'s
 **Working on the repository** performance rule to the candidate and base
@@ -98,6 +100,36 @@ Leave a **"Bot temporarily unavailable"** tracker open until `tend-review-runs`
 drains its rows, whatever its body says, since each row names a stranded
 trigger. This applies by title; `ci-fix`
 diagnosis trackers have no rows and `ci-fix` closes them.
+
+## Nightly: agent release notes
+
+Find upstream changes worth acting on in Leaf. Each nightly run, scan the
+[Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
+[Codex releases](https://github.com/openai/codex/releases), and
+[Codex product changelog](https://developers.openai.com/codex/changelog/).
+Read entries since the last successful `tend-nightly` run, with a day's overlap;
+on the first run, read the past week. If a source cannot be read, report that in
+the run summary rather than treating it as having no changes.
+
+Open an issue only for a concrete, material opportunity or incompatibility in
+Leaf's current code or agent workflow. Check the affected implementation and
+upstream documentation before deciding. Hooks, waking agents, background work,
+plugins, MCP, and permissions can affect Leaf's host integration; a release
+mentioning one of them does not by itself justify an issue. Claude Code's
+`asyncWake` is the calibration example: a host capability that could improve
+Leaf's comment-to-agent wake loop warrants investigation. Routine fixes,
+cosmetic changes, and speculative relevance do not.
+
+Expect a qualifying finding on roughly 5% of days. This is a high relevance
+threshold, not a quota or a reason to suppress an important finding. Most runs
+should open no release-note issue. Search open and closed issues and pull
+requests before filing, and skip changes already covered, adopted, or declined.
+
+For a qualifying finding, open an issue here, rather than implementing it as
+part of the scan. Include the upstream version/date and source link, the
+affected Leaf code or workflow, the concrete benefit or breakage, and a proposed
+next step. Distinguish confirmed behavior from an integration hypothesis. When
+nothing qualifies, keep the result in the run summary; do not post a digest.
 
 ## Weekly: interface sweep
 

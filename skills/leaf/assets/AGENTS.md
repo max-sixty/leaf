@@ -66,20 +66,26 @@ inspection layer.
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. News causes no layout
 shift: when a box's content changes without a gesture, that box may grow or shrink
-into free room, but no other element moves. So a thread's reply box stands at the
-foot of the scroller that shows the thread, in the Threads panel as in the margin card,
-and a reply grows the thread above it without moving the box or its caret. A change
-the user requested may reflow the content it replaces, shown as motion the eye can
-follow. A hover, focus, or
+into free room, but no other element moves. News grows where the reader isn't
+looking: above the screen, where scroll anchoring takes the growth into what they
+scrolled past, or below it. So a thread's reply box stands at the foot of the
+scroller that shows the thread, in the Threads panel as in the margin card, and a
+reply grows the thread above it without moving the box or its caret. Where news would
+move what the reader is reading, it waits behind a control of fixed size until they
+open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
+thread the agent starts wait behind a notice in a row the seat already draws
+(`thread/held-news.js`). A change the user requested may reflow the
+content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page makes a
-layout shift Chrome reports without recent input, or whose typing carries its field
-(`tests/shift_watch.js`).
+suite's browser fixture fails any test outside the nightly selection whose page moves
+a box on screen without input, news landing just after a press included, or whose
+typing carries its field (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
-`html[data-lf-live]`, the size its module will draw it at, so first paint already has
-the page's geometry and upgrade adds behavior without moving what follows. The
+`html[data-lf-interactive]`, the size its module will draw it at, so first paint
+already has the page's geometry and upgrade adds behavior without moving what follows,
+in a served page and an export alike. The
 widget quality check `keeps-first-box` measures each widget's box at first paint and
 once the page presents (`leaf package check PACKAGE --render`,
 `scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
@@ -102,6 +108,21 @@ refusing it and the user taking it back (`thread/folding.js`). A result only the
 log can supply waits with `aria-busy`, painted on a delay so a fast answer shows
 nothing. Persistent status text is for a state the user must return to, such as
 failure.
+
+### Words stay where they were typed
+
+What the user has typed stays in front of them until they put it away. A box holding
+words closes only in answer to a key or a press that means to close it (Send,
+Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
+document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
+news never closes it. Geometry decides where a box stands, never whether: a box
+with nowhere to stand waits out of view with its words, anchor, and caret, and
+stands again, focus returned, when its target comes back (`standFab`,
+`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+words and caret to the replacement. The suite's browser fixture fails any test
+whose page loses typed words without a key or press (`tests/words_watch.js`), and
+every corpus page is scrolled to both ends and back with each typed box open
+(`test_words_in_a_box_survive_scrolling_away_and_back`).
 
 ### Visual grammar
 
@@ -133,9 +154,18 @@ share; the theme's guard answers for CSS.
 
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
-boot sequence. `runtime/bootstrap.js` loads before everything else, can show a startup
-failure even if the module graph never loads, and holds page keys pressed
-before presentation. Content modules import only
+boot sequence. Two classic scripts run before the first paint, which no module
+reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
+else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
+it shows a startup failure and waits for a server that can start the page, even if
+the module graph never loads; and it holds page keys pressed before presentation.
+`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
+ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
+each widget its upgraded box, and takes the mark off when the runtime could not start
+because something it needs did not arrive (naming why in `data-lf-startup-error`), so
+the themes give back the readable fallback for every widget at once; it declares the
+page's storage scope;
+and it decides which member an `x-views` holder opens on. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -193,7 +223,9 @@ the step between. The browser fixture fails a write that changes
 nothing in any test (`tests/write_watch.js`), and
 `test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 
-What a page says follows from where it stands now, not from how it got there. A page
+What a page says follows from where it stands now, not from how it got there. The one
+history its arrangement keeps is the order its margin rows came in, since a row that
+arrives yields to those already there rather than moving them (`margin-layout.js`). A page
 nobody touches writes nothing, asks for no frame, and moves no focus; a surface opened
 and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever

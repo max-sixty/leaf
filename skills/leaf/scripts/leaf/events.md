@@ -67,7 +67,8 @@ user's own. An exact control may withdraw a forward action before that action's
 POST finishes: the browser derives the withdrawal immediately, keeps both gestures
 in its ordered ledger, and replaces the local dependency with the accepted action id
 before sending the undo. Refusal of the action discards its dependent undo; refusal
-of the undo re-derives the still-standing action.
+of the undo re-derives the still-standing action. A reaction's withdrawal is drawn
+the same way, from the moment it is sent, and its refusal brings the reaction back.
 
 ## Authorship and voice
 

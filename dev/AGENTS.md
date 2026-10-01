@@ -45,6 +45,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
+  The copies share every fixed path a test writes in the checkout, such as an export
+  under `.tmp/`, so a failure naming one is the copies racing there, not load.
 - `leaf-dev bugback NODEID...` runs the tests on HEAD and with the branch's non-test
   change reverted, in a scratch worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an

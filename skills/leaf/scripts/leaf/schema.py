@@ -394,6 +394,7 @@ EXTENSION_SCHEMA = {
             "uniqueItems": True,
         },
         "x-history": {"const": True},
+        "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -433,8 +434,10 @@ ATTRIBUTE_KEYS = (
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
 # (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
-# (x-height), and the reading structure it supplies (x-reading-role). A stylesheet
-# cannot read the registry, so each is painted where a selector can ask. `authored` is
+# (x-height), the reading structure it supplies (x-reading-role), and whether it shows
+# one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
+# before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
+# each is painted where a selector can ask. `authored` is
 # the attribute an occurrence writes to override its tag's declaration. `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
@@ -452,6 +455,7 @@ DECLARED_MARKS = {
     "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
     "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+    "x-views": {"paint": "data-lf-views", "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent

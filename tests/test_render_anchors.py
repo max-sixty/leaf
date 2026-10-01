@@ -18,7 +18,7 @@ from leaf import files as files_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -87,6 +87,7 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
+    watch_message_arrival,
     write,
 )
 
@@ -138,15 +139,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
-    result = page.evaluate(
-        """async () => {
-        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
-        const tick = () => new Promise(r => setTimeout(r, 0));
-        const composer = document.querySelector('.lf-composer');
-        const fab = document.querySelector('.lf-fab-input');
-        // A user reaches everything eventually — opens the details, clicks through to
-        // the other tab — so everything is in scope, not just what the page opens on.
-        // The page's own content, not the chrome, whose runtime owns what it shows.
+    # A user reaches everything eventually — opens the details, clicks through to the
+    # other tab — so everything is in scope, not just what the page opens on. The page's
+    # own content, not the chrome, whose runtime owns what it shows.
+    page.evaluate("""() => {
         const own = el => !el.closest('.lf-ui');
         document.querySelectorAll('details').forEach(d => {
             if (own(d)) d.toggleAttribute('open', true);
@@ -154,6 +150,18 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         document.querySelectorAll('[hidden]').forEach(e => {
             if (own(e)) e.removeAttribute('hidden');
         });
+    }""")
+    # What the reveal brings into view finishes arriving before the sweep reads it, as it
+    # does before a user can select it: a chart in a shut tab draws only once it has a
+    # box, and its drawing replaces the source a sweep that started first had counted.
+    rendered(page)
+    wait_until_ready(page)
+    result = page.evaluate(
+        """async () => {
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const tick = () => new Promise(r => setTimeout(r, 0));
+        const composer = document.querySelector('.lf-composer');
+        const fab = document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -1358,6 +1366,150 @@ def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser,
     assert page.locator("#unknown code").text_content() == "y = 2"
 
 
+def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
+    browser, serve
+):
+    """Copy uses source, including whitespace, rather than rendered annotations.
+
+    A numbered widget and both ordinary block shapes share the same gesture. The
+    control stays reachable beside horizontally scrolling code, and a revision
+    updates its source or removes it with its block without duplicating controls.
+    """
+    colored = '\n  print("' + "long source " * 30 + '")\t\n'
+    plain = "  printf '" + "hello " * 30 + "\\n'\t\n"
+    widget = 'def greet():\n    return "hello"'
+
+    def document(colored_source=colored, plain_source=plain, *, keep_colored=True):
+        return leaf_page(
+            "copy source",
+            '<h1 id="title">Copy source</h1>'
+            + (
+                '<pre id="colored" style="anchor-name: --authored-colored, --authored-secondary">'
+                '<code class="language-python">'
+                + escape(colored_source)
+                + "</code></pre>"
+                if keep_colored
+                else ""
+            )
+            + '<pre id="plain"><code>'
+            + escape(plain_source)
+            + '</code></pre><lf-code id="numbered" language="python" hi="2"><pre>'
+            + escape(widget)
+            + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
+            + '<lf-draft id="draft"><pre>Non-code data has no copy control.</pre></lf-draft>',
+            head="<style>#plain { anchor-name: --authored-plain; }"
+            "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
+        )
+
+    page = open_page(browser, live_url(serve(document())))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    controls = page.locator(".lf-code-copy")
+    expect(controls).to_have_count(3)
+    expect(page.locator("#numbered lf-note")).to_contain_text("not source")
+    expect(page.locator("#numbered .lf-quiet")).to_have_count(1)
+
+    anchors = controls.evaluate_all(
+        """copies => Object.fromEntries(copies.map(copy => {
+          const pre = copy.previousElementSibling;
+          return [pre.id || pre.parentElement.id, {
+            names: getComputedStyle(pre).anchorName.split(',').map(name => name.trim()),
+            copyAnchor: getComputedStyle(copy).positionAnchor,
+          }];
+        }))"""
+    )
+    authored = {
+        "colored": {"--authored-colored", "--authored-secondary"},
+        "plain": {"--authored-plain"},
+        "numbered": {"--authored-numbered"},
+    }
+    for block, reading in anchors.items():
+        assert authored[block].issubset(reading["names"]), anchors
+        assert reading["copyAnchor"] in reading["names"], anchors
+
+    def copy(selector, expected, *, keyboard=False):
+        control = page.locator(selector)
+        button = control.get_by_role("button")
+        expect(button).to_have_attribute("aria-label", "Copy code")
+        if keyboard:
+            # The preceding overflowing block is a native scroll focus stop. Tab
+            # crosses from its words to its adjacent copy control in keyboard mode.
+            page.locator("#plain").focus()
+            page.keyboard.press("Tab")
+            expect(button).to_be_focused()
+            assert button.evaluate("el => el.matches(':focus-visible')")
+            page.keyboard.press("Enter")
+        else:
+            button.click()
+        expect(button).to_have_attribute("aria-label", "Code copied")
+        assert page.evaluate("navigator.clipboard.readText()") == expected
+
+    copy("#colored + .lf-code-copy", colored)
+    # Make this block itself scrollable, so Tab has a known native starting stop.
+    resized(page, 360, 900)
+    copy("#plain + .lf-code-copy", plain, keyboard=True)
+    copy("#numbered > .lf-code-copy", widget)
+
+    clearance = controls.evaluate_all(
+        """copies => copies.map(copy => {
+          const pre = copy.previousElementSibling;
+          const source = pre.querySelector('code') ?? pre.querySelector('.lf-code-line');
+          const range = new Range();
+          range.selectNodeContents(source);
+          const first = range.getClientRects()[0];
+          return {buttonBottom: copy.shadowRoot.querySelector('button').getBoundingClientRect().bottom,
+                  sourceTop: first.top};
+        })"""
+    )
+    assert all(box["buttonBottom"] <= box["sourceTop"] for box in clearance), clearance
+
+    pre = page.locator("#colored")
+    pre.scroll_into_view_if_needed()
+    assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
+    control = page.locator("#colored + .lf-code-copy")
+    before = control.bounding_box()
+    assert before
+    pre.focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("document.querySelector('#colored').scrollLeft > 0")
+    scroll_settled(page)
+    after = control.bounding_box()
+    block = pre.bounding_box()
+    assert after and block
+    assert after["x"] == pytest.approx(before["x"], abs=1)
+    assert block["x"] <= after["x"]
+    assert after["x"] + after["width"] <= block["x"] + block["width"]
+
+    revised = colored.replace("print", "display")
+    _publish(serve.page_dir, 2, document(revised), "Revise copied source")
+    wait_for_revision(page, 2)
+    expect(controls).to_have_count(3)
+    copy("#colored + .lf-code-copy", revised)
+    _publish(serve.page_dir, 3, document(keep_colored=False), "Remove copied block")
+    wait_for_revision(page, 3)
+    expect(controls).to_have_count(2)
+    copy("#plain + .lf-code-copy", plain)
+
+    # A renderer can keep the pre while changing what it holds. Leaving the code
+    # shape must retire its generated control just as removing the pre does.
+    page.locator("#plain").evaluate("pre => pre.replaceChildren('ordinary text')")
+    expect(page.locator("#plain > code")).to_have_count(0)
+    expect(page.locator("#plain + .lf-code-copy")).to_have_count(0)
+    expect(controls).to_have_count(1)
+
+    restored = "\n  restored_source()\t\n"
+    page.locator("#plain").evaluate(
+        """(pre, source) => {
+          const code = document.createElement('code');
+          code.textContent = source;
+          pre.replaceChildren(code);
+        }""",
+        restored,
+    )
+    expect(page.locator("#plain + .lf-code-copy")).to_have_count(1)
+    expect(controls).to_have_count(2)
+    copy("#plain + .lf-code-copy", restored)
+
+
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way
     leaves it to the pass in flight, so that pass colors the text the block holds when
@@ -1617,7 +1769,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
-        nativeDisclosure: getComputedStyle(d.querySelector('summary')).display === 'list-item',
+        // The row draws its own triangle, since a flex row draws no native marker.
+        disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
+          .startsWith(d.open ? '"\u25bc"' : '"\u25b6"'),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -1653,8 +1807,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(file["summaryAligned"] for file in files), (
         "a file path and its change counts split across summary rows"
     )
-    assert all(file["nativeDisclosure"] for file in files), (
-        "a file summary lost its native disclosure indicator"
+    assert all(file["disclosure"] for file in files), (
+        "a file summary lost the triangle that says whether it is open"
     )
     assert all(file["statGenerated"] for file in files), (
         "derived change counts should be said but not read as authored words"
@@ -4915,15 +5069,15 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         7,
         16,
     ]
+    # Folding the file away leaves the box nowhere to stand, so it waits, words and
+    # focus held, and stands again with them when the file is opened.
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
-    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
     details.evaluate("element => { element.open = true; }")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
     expect(composer_outlet.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
@@ -5454,6 +5608,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     told(page)
+    # The inline seat holds arrivals that would move the on-screen diff. Opening its
+    # notice makes the replies visible before comparing their workflow lines with
+    # the panel's copy.
+    news = thread.get_by_role("button", name="3 new replies")
+    expect(news).to_be_visible()
+    news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         active = view.locator(
             f'.lf-page-thread-msg[{message_attr}="{question["id"]}"] '
@@ -5557,8 +5717,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
     expect(thread.locator("leaf-text")).to_be_visible()
     write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
-    with sending(page, "the inline reply"):
-        thread.get_by_role("button", name="Send", exact=True).click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    watch_message_arrival(thread, ".lf-page-thread-msg")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the inline reply")
+    pending = thread.locator('.lf-page-thread-msg[aria-busy="true"]')
+    expect(pending).to_contain_text("Confirmed from the inline thread.")
+    assert page.evaluate("window.__messageArrival") == 0.5
+    expect(pending).to_have_css("opacity", "0.5")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["text"]) == (
         "reply",
@@ -5566,6 +5736,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "Confirmed from the inline thread.",
     )
     expect(thread).to_contain_text("Confirmed from the inline thread.")
+    accepted = thread.locator(f'.lf-page-thread-msg[data-event="{sent["id"]}"]')
+    expect(accepted).not_to_have_attribute("aria-busy", "true")
+    expect(accepted).to_have_css("opacity", "1")
 
 
 def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):

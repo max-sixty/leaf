@@ -55,7 +55,7 @@ import { standingPoint } from "./pointed-place.js";
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
 }
 
 export function createAnchorTravel({
@@ -157,9 +157,19 @@ export function createAnchorTravel({
   // `:target` and the sequential focus starting point with it, so the arrival at a
   // fresh load (version.js, `aimArrival`) and one in session reveal and land alike. A
   // fragment naming nothing here is not claimed, and the browser keeps it.
+  //
+  // Firefox's `scroll()` on an intercepted push moves nothing (measured in 156: the
+  // hash changed and the page stayed put), so travel then lands the place by the same
+  // rule itself. Where the browser's landing already put it there, that moves nothing.
   function followFragment(url, land) {
     const where = fragmentTarget(url.hash);
-    return where && fragmentTrip(where, land);
+    return (
+      where &&
+      fragmentTrip(where, () => {
+        land();
+        scrollToFragment(where);
+      })
+    );
   }
 
   // Back or Forward restores the offset the entry was left at (history.js), which is

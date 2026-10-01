@@ -554,6 +554,11 @@ export function createSemanticApplication({
               ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
             )
             .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
+          new Set(
+            local
+              .filter(({ event }) => event.kind === "undo")
+              .map(({ event }) => event.undoes),
+          ),
         )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);

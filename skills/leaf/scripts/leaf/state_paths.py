@@ -25,7 +25,7 @@ def session_file(session_id: str, suffix: str) -> Path:
     """One state-home file belonging to a single host session.
 
     A host's session id is not a filename, so the session is named by a digest of
-    it. Every file one session owns — its leases, their start mark and locks, and a
+    it. Every file one session owns — its leases and their locks, and a
     Codex task's deliveries and adapter log — is that one name with a different
     suffix, in the state home's `sessions/`.
     """

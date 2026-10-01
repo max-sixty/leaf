@@ -174,7 +174,6 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
         f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )
@@ -385,12 +384,12 @@ class PageEndpoint:
                 raise ValueError(f"unknown view revision r{view_revision}")
             registry = self._registry(view_revision)
         elif self.page_snapshot is not None:
-            registry = self.page_snapshot.registry
+            registry = self.page_snapshot.context.registry
         else:
             registry = require_registry(self.page_dir)
         self.response_layer = registry["$layer"]["generation"]
         if self.page_snapshot is not None:
-            reading = self.page_snapshot.data["sources"].get(source)
+            reading = self.page_snapshot.context.data["sources"].get(source)
         elif contract := read_contracts(self.page_dir).get(source):
             reading = read_source(self.page_dir, source, contract, registry)
         else:
@@ -690,9 +689,9 @@ class PageEndpoint:
 
     def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
-            revision = self.page_snapshot.active["revision"]
+            revision = self.page_snapshot.context.active["revision"]
             artifact = self.page_snapshot.artifacts[revision]
-            version = self.page_snapshot.active["version"]
+            version = self.page_snapshot.context.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir)
@@ -718,7 +717,7 @@ class PageEndpoint:
         """One revision's document under its captured vocabulary, without
         materializing its bundle."""
         if self.page_snapshot is not None:
-            return self.page_snapshot.readings[revision]
+            return self.page_snapshot.context.revision(revision)
         return read_revision(self.page_dir, revision)
 
     def _registry(self, revision: int) -> dict:
@@ -823,13 +822,13 @@ class PageEndpoint:
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
             events = (
-                list(self.page_snapshot.events)
+                list(self.page_snapshot.context.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
             mapping = version_revisions(events)
             published = (
-                {item["version"] for item in self.page_snapshot.versions}
+                {item["version"] for item in self.page_snapshot.context.versions}
                 if self.page_snapshot is not None
                 else set(published_versions(self.page_dir, events))
             )
@@ -846,7 +845,7 @@ class PageEndpoint:
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
-                set(self.page_snapshot.readings)
+                self.page_snapshot.context.revisions
                 if self.page_snapshot is not None
                 else set(list_revisions(self.page_dir))
             )
@@ -861,7 +860,7 @@ class PageEndpoint:
                 return self._json({"error": "unknown revision"}, 404)
             artifact = self._artifact(revision)
             events = (
-                list(self.page_snapshot.events)
+                list(self.page_snapshot.context.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
@@ -870,7 +869,7 @@ class PageEndpoint:
             )
         if path == "/registry.json":
             revision = (
-                self.page_snapshot.active["revision"]
+                self.page_snapshot.context.active["revision"]
                 if self.page_snapshot is not None
                 else latest_revision(self.page_dir)
             )
@@ -998,7 +997,7 @@ class PageEndpoint:
             current_layer = self._registry(view_revision)["$layer"]["generation"]
         else:
             active_revision = (
-                self.page_snapshot.active["revision"]
+                self.page_snapshot.context.active["revision"]
                 if self.page_snapshot is not None
                 else latest_revision(self.page_dir)
             )
@@ -1031,8 +1030,8 @@ class PageEndpoint:
             try:
                 if self.page_snapshot is not None:
                     artifact = self._artifact(revision)
-                    events = list(self.page_snapshot.events)
-                    data = self.page_snapshot.data
+                    events = list(self.page_snapshot.context.events)
+                    data = self.page_snapshot.context.data
                     asset_root = self._sample_asset_root(revision)
                 else:
                     with PageTransaction(self.page_dir) as page:
@@ -1122,7 +1121,9 @@ def page_endpoint(
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
     identity = (
-        page_snapshot.layer if page_snapshot is not None else layer_metadata(page_dir)
+        page_snapshot.context.layer
+        if page_snapshot is not None
+        else layer_metadata(page_dir)
     )
     if refusal := foreign_runtime(page_dir, identity):
         sys.exit(refusal)

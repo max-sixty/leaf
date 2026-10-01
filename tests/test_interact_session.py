@@ -89,6 +89,7 @@ from leaf.detached import StartRefused
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
+from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
 from leaf_dev.page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
@@ -2375,9 +2376,7 @@ def _activity_at(page, minutes=0):
     """The page's activity as the server would read it `minutes` from now."""
     now = datetime.now().astimezone() + timedelta(minutes=minutes)
     events = events_model.read_events(page)
-    return served_page.full_state(page, events, now_override=now.isoformat())[
-        "activity"
-    ]
+    return served_page.full_state(page, events, now=now.isoformat())["activity"]
 
 
 def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pid):
@@ -5437,7 +5436,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
         },
     )
     monkeypatch.setattr(
-        served_page,
+        read_context,
         "now_iso",
         lambda: (datetime.now().astimezone() + timedelta(minutes=20)).isoformat(),
     )
@@ -5489,7 +5488,7 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     )
 
     monkeypatch.setattr(
-        served_page,
+        read_context,
         "now_iso",
         lambda: (started + timedelta(minutes=14)).isoformat(),
     )
@@ -5500,7 +5499,7 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     assert before["next_transition_at"] == (started + timedelta(minutes=15)).isoformat()
 
     monkeypatch.setattr(
-        served_page,
+        read_context,
         "now_iso",
         lambda: (started + timedelta(minutes=15)).isoformat(),
     )

@@ -7,34 +7,52 @@ These contracts live in [layouts.css](../skills/leaf/assets/layouts.css),
 [theme.css](../skills/leaf/assets/theme.css), and the
 [package header contract](../skills/leaf/references/packages.md).
 
-The remaining decision is whether a workspace's main region scrolls with the root
-or whether its panes keep their own scrollers. Bottom-bar removal and the phone
-banner are separate choices. No further layout choice has been made.
+## Decided: a workspace is a screen
 
-## Options weighed
+A full-height workspace stays a screen whose regions hold their own overflow. Some
+pages behave like a TUI or a dashboard rather than a document, and the workspace
+Layout exists for them; a long read beside a panel kept in view is a `layout-sidebar`
+document whose aside sticks (`page-authoring.md`, A workspace).
 
-**A, implemented:** the document scrolls at the root; covers have stated heights
-stacked through `--lf-top`. This preserves native page scrolling and restoration.
-Moving the whole page into an inner scrolling box would need separate keyboard,
-restoration, print and export behavior without settling header stacking.
+Option E, a workspace whose main region flows with the root while its other regions
+stick, is rejected. It kept native page scrolling at the cost of reworking the
+full-height widgets, footers, margin lanes and phone stacking, all to make workspaces
+scroll better, which is not what they are for.
 
-**E, proposed:** keep A and make a workspace's main region flow with the document.
-Side regions stick below the headers and scroll internally only when taller than
-the available window. This changes the workspace's full-height contract and the
-widgets and pages that consume it; it is not just a different grid rule.
+The aim is pages that need little scrolling, composed simply, rather than better
+scrolling inside regions. `page check --render` names each pane or body of a screen
+that runs past its room, so an author trims or splits it (`overflowing_regions`).
 
-**Keep pane scrollers:** retain the full-height workspace. Decide whether
-`lf-tabs list="side"` needs independent list and item scrolling, with the item
-registered as a reading region, or whether both may scroll away together.
+A branch that made a side list (`lf-tabs list="side"`) a screen was built and
+abandoned (`screen-workspace-review`, October 2026): it gave the list and the open
+item separate scrollers, routed the reading keys to the item, and stacked queue and
+item on a phone. It bound the workspace's behavior to one widget and spent its
+weight on scrolling, so none of it shipped except the overflow advice and the
+guidance above.
 
-Compare E and the pane-scroller form over the same `alert-review` task in a
-playground before choosing. A root-scrolling grid could also work inside a block,
-but a nested workspace still needs a concrete page that requires it.
+## Still open
+
+- **The phone banner,** decided and not built: one 53px row holding the status in
+  words, cut short with an ellipsis, with a passing notice taking that slot for a few
+  seconds; then Threads as an icon with its count; then More. Approve moves into More,
+  which wears a dot while approval is open.
+- **The desktop bottom bar,** undecided. Removing it deletes `--lf-bottom-bar-h` and
+  its readers (`theme.css`, whose `--lf-view-height` the contents map reads,
+  `chrome.css`, `shortcut-bar.js`), `declareBottomBar`, and the bottom edge in
+  `shownWindow`; its key hints would move to `?` and its status (notices, the Go-to
+  sequence, the walk position) to the banner. The bar is how a desktop user learns the
+  keys without asking. A middle path keeps the hints at the foot and moves the status
+  into the banner.
+- **Two gaps in the sticky headers.** A box the theme makes scroll starts `--lf-top`
+  again; one an author makes scroll does not, so an `lf-diff` inside it pins its file
+  header that far below the box's top. And a diff's file header is one line whose path
+  gives way from its folders, with the whole path in its title, which a keyboard user
+  focusing the header does not see.
 
 ## Evidence
 
-The original review ran on 29 September 2026 at `5ed41df4b`, with alternatives
-reviewed at `ef3cea8b3`. On a plain Chrome page it found:
+The original review ran on 29 September 2026 at `5ed41df4b`. On a plain Chrome page
+it found:
 
 | Gesture | Root scroller | Inner page box |
 |---|---|---|
@@ -44,48 +62,5 @@ reviewed at `ef3cea8b3`. On a plain Chrome page it found:
 | Back after `pushState` | Restored position | Kept the later position |
 | Back from another document, or reload | Restored position | Returned to top |
 
-On `alert-review` at 1440×900, PageDown twice on load moved nothing; after a click
-in the detail pane it scrolled that pane. These are dated observations, not new
-measurements of the current candidate. Repeat them for both playground arms:
-
-```bash
-uv run leaf-dev probe alert-review --viewport 1440x900 --do press:PageDown
-```
-
-Read root and pane `scrollTop`, then test reload and browser Back. A screenshot
-alone cannot establish scroll ownership or restoration.
-
-## Costs of option E
-
-- **Full-height widgets:** `lf-playground`, `lf-visual-review` and `lf-ask` would
-  need forms that work in sticky regions. Check `notification-playground` and
-  `visual-review-gallery` as well as the workspace examples.
-- **Footers:** queue counts and policy Asks currently remain at the window's foot.
-  In document flow they move to the end unless another sticky cover holds them.
-- **Margin lanes:** a stuck region's clipped lane must follow root scrolling while
-  its rows remain attached to their targets.
-- **Landings:** scrolling to an item inside a stuck side region must leave the
-  root's reading position intact. A plain-page probe moved the root by 552px.
-- **Per-item position:** changing a side-list item must preserve the places that
-  root tab sets already retain through `reading-place.js`.
-- **Phones:** stacked regions must stop sticking and drop their maximum height,
-  rather than become window-tall inner scrollers.
-
-## Remaining plan
-
-Build both scrolling forms over `alert-review`, including a long queue and detail,
-a footer Ask, a margin thread and an unfinished comment. Test PageDown from load,
-reload, Back, side-region landing and per-item return at wide and narrow widths.
-Include `rust-sort`, `wt-merge`, the review-queue and comparison fixtures, and the
-full-height widget examples as distinguishing neighbors.
-
-If E wins, cut over the Layout, widgets, examples and author guidance together.
-Retire `--lf-full-height`, `syncLayoutRegion` and the render check's `heldPanes`
-only when their duties are covered by the new contract. If pane scrollers win,
-settle the side-list reading region without duplicating scroller measurements.
-
-Independently compare keeping and removing the bottom shortcut bar. Removing it
-moves key discovery behind `?` and its notices and navigation state into the
-banner. Design the phone row for those contents before changing either surface.
 Use `leaf-dev stills` against the merge base for changed first viewports and banner
-states, alongside gesture evidence for scrolling and restoration.
+states, on a phone too.

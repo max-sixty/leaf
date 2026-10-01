@@ -20,9 +20,15 @@ FIELD = """<!doctype html><body style="margin:0">
 </script>"""
 
 
+# Chrome reports no shift before a page first paints, and `load` can come before it.
+PAINTED = """() => new Promise((done) => requestAnimationFrame(() =>
+  requestAnimationFrame(done)))"""
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
+    page.evaluate(PAINTED)
     page.evaluate("key => { document.body.dataset.key = key; }", key)
     return page
 
@@ -171,10 +177,7 @@ def test_a_row_moved_only_where_its_box_moves_on_screen(browser, where):
     page.goto("data:text/html," + quote(CLIPPED.format(rows=rows)))
     if where == "above the window":
         page.evaluate("scrollTo(0, document.getElementById('r8').offsetTop)")
-    page.evaluate(
-        """() => new Promise((done) => requestAnimationFrame(() =>
-          requestAnimationFrame(done)))"""
-    )
+    page.evaluate(PAINTED)
     page.evaluate("document.getElementById('grows').style.height = '300px'")
     judge_shifts()
     if where == "in view":

@@ -36,12 +36,9 @@
 // user does is drawn in the turn they do it, before the server answers. Once the page
 // has adopted news since the latest input began, every frame is without input whatever
 // Chrome's flag says, until the next input: tests deliver a reply right after a press,
-// and Chrome counts the reply's frames as the press's for half a second. Two kinds of
-// frame stay the input's. Its first frame paints what the input drew, which news
-// adopted before that frame, such as the answer to the send the input made, paints
-// beside; no reading can tell the two apart. And a frame in which motion the input
-// began still runs, such as a panel sliding in, moves what the input asked to move:
-// motion begun after the input and before the news, which may begin its own.
+// and Chrome counts the reply's frames as the press's for half a second. A frame in
+// which motion the input began still runs, such as a panel sliding in, stays the
+// input's: motion begun after the input and before the news, which may begin its own.
 //
 // Chrome's rects are what a node paints, a focus ring or a shadow included, clipped to
 // the viewport, not the node's box. Nor are they always where it was on screen: Chrome
@@ -171,11 +168,11 @@
     }
   };
   const boxAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at)?.rect;
-  // Each input's rendering: when it began; the start of its second frame; the motion
-  // it began, and the start of the latest frame that motion moved; whether news has
-  // landed since; and a keystroke's typing, which
-  // holds its field; the box of the field and of each element holding it at the key; the
-  // animations already moving any of them; and until when the typing rule reads it.
+  // Each input's rendering: when it began; the motion it began, and the start of the
+  // latest frame that motion moved; whether news has landed since; and a keystroke's
+  // typing, which holds its field; the box of the field and of each element holding it
+  // at the key; the animations already moving any of them; and until when the typing
+  // rule reads it.
   const renderings = [];
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
@@ -190,7 +187,7 @@
     end();
     open = {
       start,
-      second: Infinity,
+      first: true,
       moved: -Infinity,
       own: new Set(),
       motion: false,
@@ -214,14 +211,15 @@
       const motion = [...open.own].some(({ playState }) => playState === "running");
       if (motion || open.motion) open.moved = at;
       open.motion = motion;
-      if (open.first === undefined) {
-        open.first = at;
-        // Motion the key found under way carries the field for the gesture that began
-        // it, so a rendering whose first frame finds it still running is no one's to
-        // judge: its frames are that motion's.
-        if (open.typing?.moving.some(({ playState }) => playState === "running"))
-          open.typing.free = true;
-      } else if (open.second === Infinity) open.second = at;
+      // Motion the key found under way carries the field for the gesture that began
+      // it, so a rendering whose first frame finds it still running is no one's to
+      // judge: its frames are that motion's.
+      if (
+        open.first &&
+        open.typing?.moving.some(({ playState }) => playState === "running")
+      )
+        open.typing.free = true;
+      open.first = false;
       if (open.last || at - open.start > WINDOW) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
@@ -290,7 +288,7 @@
   const input = (entry, rendering, frame) => {
     const at = entry.startTime;
     const since = rendering?.start ?? -Infinity;
-    const drawn = rendering && (frame < rendering.second || frame <= rendering.moved);
+    const drawn = rendering && frame <= rendering.moved;
     if (!drawn && news.some((n) => n > since && n <= at)) return false;
     return (
       entry.hadRecentInput ||

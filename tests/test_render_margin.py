@@ -1305,6 +1305,13 @@ def _unfold(item):
         item.locator(".lf-margin-more").click()
 
 
+def _unfold_suggestion_undo(page, target):
+    """Find Undo where a settled suggestion now perches, even if its slot vanished."""
+    control = suggestion_control(page, target, "undo", visible=False)
+    _unfold(control.locator('xpath=ancestor::*[@data-lf-margin-for][1]'))
+    return control
+
+
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and dense overflow."""
@@ -1329,16 +1336,16 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         )
         render_checks_model.wait_until_ready(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
-        _unfold(item)
+        margins_laid_out(page)
+        undo_control = _unfold_suggestion_undo(page, target)
         applied += 1
         with sending(page, f"undo {target}"):
-            suggestion_control(page, target, visible=False).and_(
-                page.locator('[aria-label^="Undo "]')
-            ).click()
+            undo_control.click()
         expect(page.locator("body")).to_have_attribute(
             "data-lf-applied", str(applied + 1)
         )
         render_checks_model.wait_until_ready(page)
+        margins_laid_out(page)
         _unfold(item)
         expect(
             item.get_by_role("button", name=re.compile("^Accept the "))
@@ -1449,16 +1456,16 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
             "data-lf-applied", str(applied + 1)
         )
         render_checks_model.wait_until_ready(page)
-        _unfold(item)
+        margins_laid_out(page)
+        undo_control = _unfold_suggestion_undo(page, target)
         applied += 1
         with sending(page, f"undo {target}"):
-            suggestion_control(page, target, visible=False).and_(
-                page.locator('[aria-label^="Undo "]')
-            ).click()
+            undo_control.click()
         expect(page.locator("body")).to_have_attribute(
             "data-lf-applied", str(applied + 1)
         )
         render_checks_model.wait_until_ready(page)
+        margins_laid_out(page)
         # The pin just pressed is held under the pointer; let it go so it folds back.
         page.mouse.move(0, 0)
         page.evaluate(RELEASE_FOCUS)

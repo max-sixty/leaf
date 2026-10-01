@@ -66,8 +66,8 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   // unanswered send included, and the server remains final admission. Two things it
   // cannot order: another action the log holds but the page has not yet presented may
   // change which gestures the page can honestly offer, whether or not its own POST
-  // has answered, and only an action has a withdrawal the page draws before the log
-  // answers, so a message the log has not taken waits for its answer.
+  // has answered, and only an action's withdrawal can name its target before the log
+  // does, so a message the log has not taken waits for its answer.
   function withdrawable(event) {
     if (event.kind !== "action" && String(event.id).startsWith(PENDING)) return false;
     return !applicationState

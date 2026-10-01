@@ -39,7 +39,7 @@
    card opened low in the window rises back to its cluster once a scroll gives it room;
    every other offset is where the card stood. The caller passes the hold back on every
    later placement, saying whether the user is `drafting` a reply in it, which lasts
-   from their first keystroke until an answer follows what they sent. The card keeps
+   from their first keystroke until what they sent is on the log. The card keeps
    its side and one edge at its offset, and grows from it; which edge is whichever holds
    still what the user is working in.
 

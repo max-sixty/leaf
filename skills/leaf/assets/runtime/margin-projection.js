@@ -862,19 +862,19 @@ export function createMarginProjection({
         if (!boundary.width || !boundary.height) return {};
         const replyEditor = previewList.querySelector(REPLY_BOX);
         // Drafting is standing anywhere in the reply's row, Send included, holding words
-        // in it, or having the newest turn: a send takes the user out of the box it
-        // empties (`landSent`), and the turn it adds must not move the reply row or
-        // Send from under the press. An answer arriving ends it.
+        // in it, or a send of the user's still on its way. The send takes the user out
+        // of the box it empties (`landSent`), and the turn it adds must not move the
+        // reply row or Send from under the press.
         const newest = [
-          ...(replyEditor?.closest(".lf-page-thread")?.querySelectorAll(
-            ".lf-page-thread-msg",
-          ) ?? []),
+          ...(replyEditor
+            ?.closest(".lf-page-thread")
+            ?.querySelectorAll(".lf-page-thread-msg") ?? []),
         ].at(-1);
         const drafting = Boolean(
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
             replyEditor.value !== "" ||
-            newest?.classList.contains("user")),
+            newest?.matches('.user[aria-busy="true"]')),
         );
         const clusterBox = cluster.getBoundingClientRect();
         // Client pixels per positioning-space pixel.

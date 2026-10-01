@@ -6077,22 +6077,32 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
         "e => e.tabIndex >= 0 && e.checkVisibility()) === document.activeElement"
     ), "the open thread's title is not the list's first stop"
     faults += ring_faults(rings_drawn(page), "on the open thread's title")
+    # Each title Tab reaches opens its thread, so the list's stops grow as the walk goes:
+    # it has held every one when it leaves the list from the last.
+    on_last = (
+        "() => [...document.querySelectorAll('.lf-threads *')]"
+        ".filter((e) => e.tabIndex >= 0 && e.checkVisibility()).at(-1)"
+        " === document.activeElement"
+    )
     stops = 1
-    for _ in range(tabbable + 5):
+    left_from_last = False
+    for _ in range(threads * 8):
+        last = page.evaluate(on_last)
         page.keyboard.press("Tab")
         rendered(page)
         if not page.evaluate(
             "() => document.querySelector('.lf-threads')"
             ".contains(document.activeElement)"
         ):
+            left_from_last = last
             break
         stops += 1
         faults += ring_faults(
             rings_drawn(page), f"tabbing to stop {stops} inside the list"
         )
-    assert stops == tabbable, (
-        f"the walk stood on {stops} of the list's {tabbable} controls, so the room "
-        "it reserves at its edges is only partly held by this"
+    assert left_from_last and stops > threads, (
+        f"the walk left the list after {stops} stops, before its last control, so the "
+        "room it reserves at its edges is only partly held by this"
     )
     assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
 

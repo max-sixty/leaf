@@ -3468,6 +3468,30 @@ def test_the_threads_list_hands_focus_to_the_thread_it_shows_open(
     panel_settled(page, False)
 
 
+def test_a_title_taking_focus_opens_its_thread(browser, serve):
+    """Focus on a collapsed title opens its thread, so the focused thread is always the
+    open one and its reply box is the one carrying `c`. A title once held focus closed
+    while another card stood open, and `c` wrote into a box nothing on screen named."""
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    page.set_viewport_size({"width": 1600, "height": 900})
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    cards = page.locator(".lf-threads > .lf-thread")
+    expect(cards.nth(0)).to_have_attribute("open", "")
+    title = cards.nth(1).locator(":scope > .lf-thread-summary")
+    title.focus()
+    expect(cards.nth(1)).to_have_attribute("open", "")
+    expect(cards.nth(0)).not_to_have_attribute("open", "")
+    expect(page.locator(EXPANDED)).to_have_count(1)
+    reply = cards.nth(1).locator("leaf-text")
+    expect(reply).to_have_attribute("placeholder", "Reply c")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+
+
 def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
     url = serve(PANEL_PAGE)
     roots = [panel_comment(serve.page_dir, f"Thread {i}.") for i in range(3)]

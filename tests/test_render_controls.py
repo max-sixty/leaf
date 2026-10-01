@@ -2626,7 +2626,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
         edge_control = page.locator(edge_selector)
         edge_control.evaluate("edge => edge.blur()")
-        for _ in range(80):
+        # Every thread title Tab reaches opens its thread, so the walk crosses each
+        # thread's own controls on the way to the grip.
+        for _ in range(400):
             page.keyboard.press("Tab")
             if edge_control.evaluate("edge => document.activeElement === edge"):
                 break

@@ -8,10 +8,10 @@ commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each p
 built from this checkout's example source and served by the arm's own launcher, so
 only the runtime, theme and server differ between the two stills of a state.
 
-A state is an example, a viewport and color scheme, and the input that brings a fresh
-tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs). The catalogue
-(`STATES`) covers states a user reaches by acting, not only pages at rest; add one
-where a change touches a surface it does not reach.
+A state is an example, a viewport, a color scheme and a pointer, and the input that
+brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
+The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
+add one where a change touches a surface it does not reach.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
@@ -116,12 +116,9 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
-def code_focused(page: Page) -> None:
-    """The first code block with a note, focused by keyboard, with the note in view."""
-    page.keyboard.press("Tab")
-    pre = page.locator("pre:has(.lf-code-note)").first
-    pre.focus()
-    pre.locator(".lf-code-note").first.evaluate(
+def code_note(page: Page) -> None:
+    """The first code block with a note, the note in view."""
+    page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
 
@@ -138,13 +135,11 @@ def element_thread(page: Page) -> None:
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
 
 
-def side_list(page: Page) -> None:
-    """The feature gallery's side-list queue, its top at the top of the window."""
-    page.evaluate("location.hash = '#bg-side-queue'")
-    page.wait_for_function(
-        "() => document.getElementById('bg-side-queue')?.checkVisibility()"
-    )
-    page.locator("#bg-side-queue").evaluate("el => el.scrollIntoView({block: 'start'})")
+def versions_menu(page: Page) -> None:
+    """The Versions menu, opened from More: a row for each version, with its note."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-version").click()
+    page.locator(".lf-version-menu .lf-version-row").first.wait_for()
 
 
 def go_to(page: Page) -> None:
@@ -164,10 +159,10 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         panel_reply_sent,
         composer,
         card_grabbed,
-        code_focused,
+        code_note,
         pane_focused,
         element_thread,
-        side_list,
+        versions_menu,
         go_to,
     )
 }
@@ -180,6 +175,7 @@ class State:
     drive: Callable[[Page], None]
     viewport: tuple[int, int] = DESKTOP
     scheme: str = "light"
+    touch: bool = False
 
 
 STATES = (
@@ -195,25 +191,37 @@ STATES = (
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State(
+        "plan-versions-touch",
+        "review-a-plan",
+        versions_menu,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "plan-panel-touch",
+        "review-a-plan",
+        threads_panel,
+        viewport=(390, 844),
+        touch=True,
+    ),
     # Last on its page, since the reply it sends stays in the log.
     State("plan-panel-sent", "review-a-plan", panel_reply_sent),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),
-    State("walkthrough-code", "pr-walkthrough", code_focused),
-    State("walkthrough-code-dark", "pr-walkthrough", code_focused, scheme="dark"),
+    State("walkthrough-code", "pr-walkthrough", code_note),
+    State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("ship-thread", "ship-review", element_thread),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
-    State("side-list", "developer/feature-gallery", side_list),
-    State("side-list-dark", "developer/feature-gallery", side_list, scheme="dark"),
 )
 
 
 def capture(browser, address: str, state: State, path: Path) -> None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme) as page:
+    with tab(browser, state.viewport, state.scheme, state.touch) as page:
         load(page, address)
         state.drive(page)
         settle(page)

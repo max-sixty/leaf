@@ -468,9 +468,8 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         )
         # Put the card the send opened away before selecting the next passage. The
         # thread stands in the page margin over this narrow document, so the case after
-        # it would reach for a composer under that card and press the card instead. Two
-        # presses: the reply box the send landed in, then the card holding it.
-        page.keyboard.press("Escape")
+        # it would reach for a composer under that card and press the card instead. The
+        # send landed on the passage, and letting go of it takes the card.
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -1461,7 +1460,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const block = document.querySelector('#walk-code pre');
       const line = document.querySelector('#walk-code .lf-code-line');
-      const note = document.querySelector('#walk-code .lf-code-note');
+      const note = document.querySelector('#walk-code pre > lf-note');
       const noteStyle = getComputedStyle(note);
       const blockRect = block.getBoundingClientRect();
       const noteRect = note.getBoundingClientRect();
@@ -1494,24 +1493,6 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["noteRadius"] == "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
     assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
-
-    scrolled_note = page.evaluate("""() => {
-      const block = document.querySelector('#walk-code pre');
-      const note = block.querySelector('.lf-code-note');
-      block.querySelector('.lf-code-line').style.width = '1600px';
-      block.scrollLeft = 500;
-      const blockRect = block.getBoundingClientRect();
-      const noteRect = note.getBoundingClientRect();
-      return {
-        scrollLeft: block.scrollLeft,
-        inset: {
-          left: noteRect.left - blockRect.left,
-          right: blockRect.right - noteRect.right,
-        },
-      };
-    }""")
-    assert scrolled_note["scrollLeft"] == 500, scrolled_note
-    assert scrolled_note["inset"] == {"left": 1, "right": 1}, scrolled_note
 
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
     post_event(
@@ -2357,12 +2338,12 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected contour the pointer raises stays above the figure's own paint
+    # The projected contour an open thread raises stays above the figure's own paint
     # without putting any paint over its contents.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
-    figure.hover()
+    figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
@@ -2603,11 +2584,12 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click lands back in the thread. The mark must not look deselected in that gap.
+    click lands back in the thread. Nothing that says where the user stands may look
+    deselected in that gap: not the element's contour, which the pointer on the page no
+    longer raises, and not the margin entry's selection.
 
-    Hover and current therefore resolve to the same accent contour for the whole
-    down/up gesture, while the element's comment and reaction draw nothing at rest. The
-    reaction beside the comment is the case that first showed the gap.
+    So standing holds across the whole press, every frame from mouse-down until after
+    the click. The reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
     events_model.append_event(
@@ -2650,18 +2632,38 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
+    assert selected == {"line": "solid", "width": "2px"}
+    expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
+
+    # Every frame of the press and a few after it, read where the user sees them.
+    page.evaluate(
+        """() => {
+          window.lfFrames = [];
+          const sample = () => {
+            window.lfFrames.push({
+              contour: Boolean(document.querySelector(
+                '.lf-visual-mark-here[data-for="fig"]')),
+              entry: document.querySelectorAll('[data-lf-target-selected]').length,
+            });
+            if (window.lfFrames.length < 400) requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }"""
+    )
     page.mouse.move(*point)
     page.mouse.down()
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
-    pressed = mark.evaluate(look)
     page.mouse.up()
-
-    assert selected == pressed, (
-        f"the selected contour changed during mouse-down: {selected} -> {pressed}"
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
-    assert selected == {"line": "solid", "width": "2px"}
+    frames = page.evaluate("() => window.lfFrames.splice(0)")
+    lost = [frame for frame in frames if not frame["contour"] or frame["entry"] != 1]
+    assert not lost, (
+        f"standing blinked during the press: {lost} of {len(frames)} frames"
+    )
 
 
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
@@ -2799,7 +2801,11 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    # The send leaves the user on the element the card is about, not in its reply box.
+    page.wait_for_function(
+        "() => document.activeElement !== document.body"
+        " && !document.activeElement.closest('.lf-chrome')"
+    )
     expect(page.locator(".lf-margin-preview leaf-text")).not_to_be_focused()
 
     d = serve.page_dir
@@ -6031,17 +6037,17 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
           const host = document.querySelector('lf-diff');
           const input = document.createElement('input');
           input.value = 'draft reply';
-          shadowStage(host, [
-            document.createTextNode('old reading'),
-            document.createComment('old stage'),
-            input,
-          ]);
+          const old = document.createElement('p');
+          old.textContent = 'old reading';
+          shadowStage(host, [old, document.createComment('old stage'), input]);
           input.focus();
           input.setSelectionRange(2, 5);
-          shadowStage(host, [document.createTextNode('new reading'), input]);
+          const next = document.createElement('p');
+          next.textContent = 'new reading';
+          shadowStage(host, [next, input]);
           return {
             text: [...host.shadowRoot.childNodes]
-              .filter(node => node.nodeType === Node.TEXT_NODE)
+              .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
@@ -6058,6 +6064,28 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
         "value": "draft reply",
         "selection": [2, 5],
     }
+
+
+def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, serve):
+    page = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {rangeAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+          const host = document.querySelector('lf-diff');
+          const first = document.createElement('p');
+          first.textContent = 'first';
+          const last = document.createElement('p');
+          last.textContent = 'last';
+          shadowStage(host, [first, last]);
+          const range = document.createRange();
+          range.setStart(first.firstChild, 0);
+          range.setEnd(last.firstChild, last.firstChild.length);
+          return rangeAnchor(range);
+        }"""
+    )
+    assert result["section"] == "patch"
+    assert result["quote"] == "first last"
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):

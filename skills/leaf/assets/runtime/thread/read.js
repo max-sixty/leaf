@@ -36,9 +36,10 @@ function mergeIntervals(intervals) {
 
 // A child viewport does not know how much of it the parent page shows. Walk each
 // containing frame and cut this viewport down to what its owner shows of it, through
-// the owner's viewport and every clipping ancestor, in this window's coordinates. A
-// frame taller than its owner's viewport, as a live sample is, shows a band of its
-// page the way the top page's own viewport does.
+// every clipping ancestor, in this window's coordinates. The climb ends at the owner's
+// root element, whose shown band is the owner's viewport (`shownBand`). A frame taller
+// than its owner's viewport, as a live sample is, shows a band of its page the way the
+// top page's own viewport does.
 function frameBand() {
   let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
   let x = 0;
@@ -63,7 +64,6 @@ function frameBand() {
         bottom: Math.min(band.bottom, rect.bottom - y),
       };
     };
-    cut({ left: 0, top: 0, right: owner.innerWidth, bottom: owner.innerHeight });
     const modal = owner.document.querySelector("dialog:modal");
     if (modal && !under(frame, modal)) return null;
     for (let ancestor = upFrom(frame); ancestor; ancestor = upFrom(ancestor)) {

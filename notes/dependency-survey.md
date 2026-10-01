@@ -39,5 +39,3 @@ Two candidates remain conditional:
 - **Invoker commands:** `command` and `commandfor` can replace imperative dialog and
   popover invocation once Leaf's Chromium floor is at least 135. They do not replace
   Leaf's layer stack, semantic state, or focus-restoration rules.
-- **MCP page ports:** replace `/p/<capability>` multiplexing only after a host proves that
-  wildcard-port `frame_domains` admit the per-page server model.

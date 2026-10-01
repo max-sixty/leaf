@@ -80,8 +80,6 @@ def accept_event(
     page_dir: Path,
     event: dict,
     state: StateReader,
-    *,
-    capture_anchors: bool = False,
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
     try:
@@ -106,14 +104,13 @@ def accept_event(
         return event_rejection(event, f"{kind} event is invalid: {error}")
     # A fault raises out of here, before or after the append, and the transport's
     # one fault boundary answers it with `event_fault`.
-    return _execute_event(page_dir, event, state, capture_anchors)
+    return _execute_event(page_dir, event, state)
 
 
 def _execute_event(
     page_dir: Path,
     event: dict,
     state: StateReader,
-    capture_anchors: bool,
 ) -> EventAnswer:
     """Admit and append as one log transaction, then read the page back.
 
@@ -136,7 +133,7 @@ def _execute_event(
         if not accepted:
             event["author"] = "page" if event["kind"] == "error" else "user"
             try:
-                admitted = append_admitted(page, event, capture_anchors=capture_anchors)
+                admitted = append_admitted(page, event)
             except EventRefused as error:
                 return event_rejection(event, error.user)
             except RegistryError as error:

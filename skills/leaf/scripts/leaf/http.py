@@ -85,11 +85,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import (
-    EXTERNAL_SOURCES,
-    FRAME_ANCESTORS_CSP,
-    PAGE_CSP,
-)
+from .structure import FRAME_ANCESTORS_CSP
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
 # a word before saying it is still there.
@@ -159,8 +155,8 @@ def page_delivery(
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
     The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
-    and starts under the current layer CSP, the import map its layer modules resolve
-    through, and the runtime bootstrap with its server incarnation probe, so historical
+    and starts under the import map its layer modules resolve through and the runtime
+    bootstrap with its server incarnation probe, so historical
     sources inherit the current delivery boundary without carrying delivery markup
     themselves. `write_live_shell` delivers published documents the same way.
     """
@@ -173,32 +169,17 @@ def page_delivery(
         else ""
     )
 
-    def runtime(nonce: str | None) -> str:
-        return (
-            f'<script nonce="{nonce}" data-lf-runtime data-lf-server="{server_id}" '
-            f'data-lf-layer="{layer_id}"{release} '
-            f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
-            f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-            f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
-            f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
-            f"{bootstrap}</script>"
-        )
+    runtime = (
+        f'<script data-lf-runtime data-lf-server="{server_id}" '
+        f'data-lf-layer="{layer_id}"{release} '
+        f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
+        f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
+        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+        f"{bootstrap}</script>"
+    )
 
-    # 'unsafe-eval' is delivered for the drivers rather than for the page. An
-    # automated browser compiles a wait predicate with eval on each poll — Playwright
-    # keeps a compiled function but recompiles a bare expression — and only the poll
-    # that runs inside the driver's own evaluate call inherits permission from it. A
-    # script-src without the allowance therefore refuses any wait whose fact is not
-    # already true when the poll is installed, which surfaces as an intermittent red
-    # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs. Published documents carry the allowance
-    # to users no driver polls.
     return Delivery(
         address=address,
-        policy=lambda nonce: (
-            PAGE_CSP
-            + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
-        ),
         import_map=layer_import_map(assets),
         runtime=runtime,
         page_root=page_root,
@@ -216,8 +197,7 @@ class PageEndpoint:
     banner has to be able to show.
     """
 
-    # One value for the whole transport rather than a per-request binding: the MCP
-    # delivery server clears it, because it serves into a frame it cannot name.
+    # A page refuses every frame; `SampleEndpoint` answers into its parent page's.
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def __init__(
@@ -258,8 +238,8 @@ class PageEndpoint:
         # A website release spans its document, static layer and container image.
         # Ordinary page servers have no release boundary beyond their vendored layer.
         self.release = release
-        # Empty on the ordinary one-page server. The MCP delivery server sets this to
-        # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+        # Empty on the ordinary one-page server. A published site and a sample's child
+        # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
         self.page_root = page_root
         # The generation this answer speaks, which a route narrows to the revision it
         # actually served.
@@ -536,7 +516,7 @@ class PageEndpoint:
         """Encode a body whose producer has already addressed its dependencies."""
         is_html = ctype.startswith("text/html")
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
-        if is_html and self.frame_ancestors_policy:
+        if is_html:
             headers["Content-Security-Policy"] = self.frame_ancestors_policy
         return Response(body, status_code=status, headers=headers)
 
@@ -700,9 +680,6 @@ class PageEndpoint:
         child.parent = self
         child.passive = sample.passive
         child.asset_root = sample.asset_root
-        child.frame_ancestors_policy = (
-            "frame-ancestors 'self'" if self.frame_ancestors_policy else None
-        )
         with sample.lock:
             if sample.closed:
                 return self._not_found()
@@ -1095,6 +1072,9 @@ class PageEndpoint:
 
 class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
+
+    # Drawn in a frame on its parent page, which is the same origin.
+    frame_ancestors_policy = "frame-ancestors 'self'"
 
     def authorized(self) -> bool:
         return True

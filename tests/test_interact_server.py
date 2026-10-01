@@ -28,7 +28,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
-    ROOT,
     TOKEN,
     append_command,
     check,
@@ -79,9 +78,8 @@ from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
-from leaf.structure import EXTERNAL_ORIGINS
 from leaf_dev.example_data import patch_manifest
-from leaf_dev.page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import example_media, package_selection_args
 
 
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
@@ -575,7 +573,7 @@ def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
     pixels return the same name and leave one file, and that exact file is what the
     page serves back.
     """
-    pixels = (ROOT / "examples" / "media" / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     headers = {"Content-Type": "image/png"}
 
     first = fetch(f"{server}/api/media", data=pixels, headers=headers)
@@ -749,10 +747,7 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     module wrote — while an earlier runtime spells the same words in whitespace this
     side collapses away. So the door does not read a served page's anchor back off
     the file: a re-capture there refused a quote whose only sin was a line break, and
-    every comment made on a tab's own name.
-
-    The MCP surface is the transport that does ask for the capture, because nothing
-    has resolved its selection (`capture_anchors`, held by test_interact_mcp)."""
+    every comment made on a tab's own name."""
     publish(page_dir)
     passage = "The cutoff lives in"
     for name, quote in {
@@ -781,8 +776,8 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     ], "the door rewrote an anchor the browser had already settled"
 
     # The refusal a re-capture here would bring back: a quote only the rendering holds.
-    # The file reading places a widget's body in its source and turns it down outright
-    # (test_interact_mcp holds that refusal on the MCP path), while the spellings above
+    # The file reading places a widget's body in its source and turns it down outright,
+    # while the spellings above
     # all collapse to text the file does hold, so none of them reaches it.
     source_quote = {
         "kind": "comment",
@@ -1123,11 +1118,12 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     assert reading["source_error"] is None
 
 
-def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
-    """Google Fonts and the script CDNs pass capture and delivery untouched."""
+def test_a_page_loads_from_other_servers_as_written(server, page_dir):
+    """A stylesheet, font, script or module on another server passes capture and
+    delivery untouched, whichever server it is."""
     font = "https://fonts.googleapis.com/css2?family=Instrument+Sans&display=swap"
-    chart = "https://cdn.jsdelivr.net/npm/chart.js@4/+esm"
-    tailwind = "https://cdn.tailwindcss.com/3.4.1"
+    chart = "https://esm.sh/chart.js@4"
+    tailwind = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "app.js").write_text(f'import "{chart}";\n')
     (page_dir / "index.html").write_text(
@@ -1136,7 +1132,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
             f'<link rel="stylesheet" href="{html.escape(font)}">\n'
             f'<style>@import url("{font}"); main {{ font-family: "Instrument Sans"; }}'
             "</style>\n"
-            f'<script type="module" src="{tailwind}"></script>\n'
+            f'<script defer src="{tailwind}"></script>\n'
             '<script type="module" src="/page/app.js"></script>\n</head>',
         )
     )
@@ -1150,16 +1146,6 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
     assert status == 200
     for url in (html.escape(font), font, tailwind):
         assert url.encode() in body
-    policy = html.unescape(
-        re.search(rb'http-equiv="Content-Security-Policy" content="([^"]*)"', body)
-        .group(1)
-        .decode()
-    )
-    directives = {
-        name: sources for name, *sources in (part.split() for part in policy.split(";"))
-    }
-    for name in ("default-src", "style-src", "script-src", "img-src"):
-        assert set(EXTERNAL_ORIGINS) <= set(directives[name]), name
     module = re.search(rb'src="([^"]*/page/app\.js)"', body).group(1).decode()
     assert fetch(f"{server}{module}")[1].decode() == f'import "{chart}";\n'
 
@@ -1215,7 +1201,6 @@ def test_server_round_trip(server, page_dir):
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
     assert marker in body
-    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
     assert body.index(marker) < body.index(entry) < body.index(b"</style>")
     # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
@@ -1223,7 +1208,6 @@ def test_server_round_trip(server, page_dir):
         assert response.status == 200
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
     assert b"lf-board" in pinned and marker in pinned
-    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
     for path in [
@@ -1577,8 +1561,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
 
     The revision address used to fall through to the static file branch, which
     returned the authored bytes. The module that source names still started a
-    runtime, but without the layer's policy, the bootstrap that policy hashes, or
-    the revision identity that tells the runtime which document it is showing. Each
+    runtime, but without the layer's bootstrap or the revision identity that tells the runtime which document it is showing. Each
     address names the page root as canonical, which is how a user sent to one of
     them, and a crawler that finds all three, arrive at one page.
     """

@@ -10,9 +10,8 @@ description: Project-specific guidance loaded by tend workflows alongside AGENTS
 Tend uses `merge: yolo`. Merge a pull request that fixes tests, without waiting
 for maintainer approval, once each test it claims to fix failed before the change
 and passes after it (a skipped or deleted test has not passed), and `monitor-ci`'s
-poll exits 0 on the exact head. Pull requests don't run nightly tests, so run the
-claimed ones yourself. `test` outlasts one poll, so poll up to twice more; a check
-still pending after that leaves the fix unverified.
+poll exits 0 on the exact head. Pull requests run only the nightly tests they edit,
+so run the claimed ones yourself.
 
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
@@ -37,10 +36,12 @@ change meets the deferral condition in **Fix the underlying issue**.
 
 ## Review test selection
 
-Before approving a product change, run the smallest test selection that exercises
-the failures the diff could introduce, chosen from the product paths and
-contracts it touches rather than the test files it edits. A docs-only or
-generated-workflow change may need none; a selected failure withholds approval.
+Before approving a product change, run the few tests that exercise the failures
+the diff most plausibly introduces, chosen from the product paths and contracts
+it touches rather than the test files it edits, and within the local limit in
+`tests/AGENTS.md` ("Run the narrowest useful surface"): the `nightly` job
+reports the rest once the change lands. A docs-only or generated-workflow change
+may need none; a selected failure withholds approval.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
 belongs at. For a change that can alter browser startup, apply `AGENTS.md`'s
 **Working on the repository** performance rule to the candidate and base

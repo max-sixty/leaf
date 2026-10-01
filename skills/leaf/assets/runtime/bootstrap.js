@@ -1,4 +1,4 @@
-// The server places this exact hashed script before any loadable page resource.
+// The server places this script before any loadable page resource.
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
   const arrived = new URL(location.href);
@@ -17,6 +17,9 @@
   }
   const script = document.currentScript;
   const root = document.documentElement;
+  // A served page draws the live chrome, the banner and the bottom bar, so the theme
+  // reserves their room from the first paint (`html[data-lf-live]`). An export runs the
+  // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   // A sample's child takes its form and its dress from its frame before it paints
   // (sample.js).
@@ -24,8 +27,6 @@
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;
   const release = script.dataset.lfRelease;
-  const entry = new URL(script.dataset.lfEntry, location.href).href;
-  const theme = new URL(script.dataset.lfTheme, location.href).href;
   let recovering = false;
   // What the profile says about a startup fault. A page that would not start is the one
   // reading nobody here can reproduce, so the record has to name the thing that did not
@@ -202,9 +203,9 @@
       childList: true,
       subtree: true,
     });
-    // The supervisor's own `lf-startup-failed` listener is registered before this
-    // function runs, so a declared failure has already named its fault by the time
-    // `failed` is reported here.
+    // The prepaint's `lf-startup-failed` listener runs before this one, since the
+    // prepaint runs first, so a declared failure has already named its fault by the
+    // time `failed` is reported here.
     window.addEventListener("lf-startup-failed", () => report("failed"), {
       once: true,
     });
@@ -215,15 +216,13 @@
     };
   }
 
-  // `awaits` is whether a replacement server would answer this fault. A resource the
-  // page needs and does not have — its entry module, its theme — leaves it incomplete
-  // however far it gets, and a page that declares it cannot start says so itself; both
-  // wait, and the notice stands until a server that can start the page replaces this
-  // one. An uncaught error in code that did load leaves nothing to wait for: the same
-  // server would serve the same bytes, so if the page presents it has started with
-  // everything it is going to get.
-  function recover(reason, awaits = true) {
-    root.dataset.lfStartupError = reason;
+  // `awaits` is whether a replacement server would answer this fault, which is so
+  // where the page is incomplete (prepaint.js): it lacks something it needs however
+  // far it gets, so the notice stands until a server that can start the page replaces
+  // this one. An uncaught error in code that did load leaves nothing to wait for: the
+  // same server would serve the same bytes, so if the page presents it has started
+  // with everything it is going to get.
+  function recover(reason, awaits) {
     recordStartupFault(reason);
     stopHoldingKeys();
     if (recovering) return;
@@ -308,27 +307,9 @@
     void check();
   }
 
-  window.addEventListener(
-    "error",
-    (event) => {
-      const target = event.target;
-      if (target instanceof HTMLScriptElement && target.src === entry)
-        recover("entry module did not load");
-      else if (target instanceof HTMLLinkElement && target.href === theme)
-        recover("theme stylesheet did not load");
-      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
-        // A browser that treats the script as another origin gives "Script error." and
-        // nothing else, so the file and line ride along: between them they are enough
-        // to find the fault in a build nobody here can run.
-        recover(
-          `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
-          false,
-        );
-    },
-    true,
-  );
-  window.addEventListener("lf-startup-failed", (event) =>
-    recover(event.detail?.reason || "the page reported it could not start"),
+  // The prepaint names each startup fault and marks the page for it (prepaint.js).
+  window.addEventListener("lf-startup-fault", (event) =>
+    recover(event.detail.reason, event.detail.incomplete),
   );
   holdEarlyKeys();
   try {

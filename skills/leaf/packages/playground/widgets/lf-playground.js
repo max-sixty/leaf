@@ -46,6 +46,13 @@ const NAME = /^[a-z][a-z0-9-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
+// What one pointer press operates: a preset, Reset, and the controls whose press or
+// drag is the whole gesture.
+const ONE_PRESS = [
+  ".lf-playground-preset",
+  ".lf-playground-reset",
+  ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
+].join(", ");
 const COPY_LABELS = Object.freeze([
   ["rest", "Copy instruction"],
   ["success", "Copied"],
@@ -101,6 +108,7 @@ customElements.define(
     #storedCandidate = null;
     #instructionProvider = null;
     #output = null;
+    #preview = null;
     #submit = null;
     #copy = null;
     #reset = null;
@@ -123,6 +131,8 @@ customElements.define(
       try {
         this.#build();
         this.#ready = true;
+        // Built, so the height the page reserved for it lifts (x-height).
+        this.classList.add("lf-rendered");
         if (this.#interactive)
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
@@ -197,6 +207,7 @@ customElements.define(
       if (previews.length !== 1) throw new Error("needs exactly one preview");
       if (outputs.length !== 1) throw new Error("needs exactly one output");
       this.#output = outputs[0];
+      this.#preview = previews[0];
       this.#interactive = !quoted(this);
       this.classList.toggle("lf-playground-quoted", !this.#interactive);
 
@@ -238,6 +249,11 @@ customElements.define(
         for (const preset of presets) this.#buildPreset(preset);
         const actions = this.#buildActions();
         this.#buildLayout({ panel, presetBar, preview: previews[0], actions });
+        this.addEventListener("mousedown", (event) => {
+          const pressed = event.target.closest(ONE_PRESS);
+          if (pressed?.closest("lf-playground") === this && this.#standsInPreview())
+            event.preventDefault();
+        });
       }
 
       this.#storedCandidate = this.#readStoredCandidate();
@@ -411,6 +427,15 @@ customElements.define(
         input.size = "s";
         input.append(heading);
         input.addEventListener("change", () => this.#takeInputs());
+        // A press's mousedown decides where focus goes, and the switch's label would
+        // then focus the switch as it passes the press on, so the switch toggles the
+        // way a script's click does. That click reaches the switch's own input, which a
+        // pointer never does, and passes through.
+        input.addEventListener("click", (event) => {
+          if (event.composedPath()[0].localName === "input") return;
+          event.preventDefault();
+          input.click();
+        });
         control.append(input);
         return;
       }
@@ -583,6 +608,20 @@ customElements.define(
       );
       this.append(split);
       this.#registerRegions();
+    }
+
+    // Whether the user stands in the preview, where a candidate can draw on the element
+    // they stand at: a sample child's focus treatment, for one. A pointer press on a
+    // control that changes the candidate in one gesture leaves them standing there, since
+    // taking focus to the control would put that state away as the candidate changed.
+    // Text and colour controls take focus to be operated, and a key reaches any control
+    // by moving focus onto it first, so the keyboard still acts where it stands.
+    #standsInPreview() {
+      let at = document.activeElement;
+      if (!this.#preview.contains(at)) return false;
+      // A sample's frame holds focus for its child page, which may stand on nothing.
+      while (at?.contentDocument) at = at.contentDocument.activeElement;
+      return Boolean(at) && at !== at.ownerDocument.body;
     }
 
     #registerRegions() {

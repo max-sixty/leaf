@@ -67,66 +67,89 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
-# a block's width in the page's flow and whether it bounds its own height, and, on
+# a block's width in the page's flow, whether it bounds its own height, the height in
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and, on
 # `body` alone, whether the page claims the rail its margin rows stand in or keeps that
 # margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
+    "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),
 }
 # The allocations only the page's `body` states, being about the page as a whole.
 PAGE_ALLOCATIONS = frozenset({"data-rail"})
+
+
+def allocation_expects(attr: str, value: str) -> str | None:
+    """What an authored allocation's value should have been, or None where it is
+    one of the values `attr` takes."""
+    values = AUTHORED_ALLOCATIONS[attr]
+    if isinstance(values, re.Pattern):
+        return None if values.fullmatch(value) else "a whole number of CSS pixels"
+    return None if value in values else f"one of {', '.join(values)}"
+
+
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
 # would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The public CDNs a page may load from, the set a Claude artifact page is given:
-# Google Fonts' stylesheets and font files, and the script CDNs. A reference to
-# one of these is served from there as written; capture neither reads nor
-# refuses it, and every fetch directive of every policy below admits it.
-EXTERNAL_ORIGINS = (
-    "https://fonts.googleapis.com",
-    "https://fonts.gstatic.com",
-    "https://cdnjs.cloudflare.com",
-    "https://cdn.jsdelivr.net",
-    "https://unpkg.com",
-    "https://cdn.tailwindcss.com",
-    "https://code.jquery.com",
-)
-EXTERNAL_SOURCES = " ".join(EXTERNAL_ORIGINS)
 
 
-def external_reference(reference: str) -> bool:
-    """Whether a URL names one of the EXTERNAL_ORIGINS."""
+def remote_reference(reference: str) -> bool:
+    """Whether a URL names another server, which the page loads from as written:
+    capture neither reads nor refuses it."""
     try:
         parsed = urlsplit(reference)
     except ValueError:
         return False
-    return f"{parsed.scheme}://{parsed.netloc}" in EXTERNAL_ORIGINS
+    return parsed.scheme in {"", "http", "https"} and bool(parsed.netloc)
 
 
-# The one CSP delivery gives every page. Delivery adds a nonce and writes it onto the
-# runtime bootstrap and every authored module block, so only the inline scripts it
-# composed run. 'self' is the immutable page layer whole; base-uri and form-action
-# need their own directives because default-src governs only fetches. data: admits
-# the images `page export` inlines. 'unsafe-inline' admits the <style> block a
-# page writes its own CSS in, and the one the theme arrives in on export.
-PAGE_CSP = (
-    f"default-src 'self' {EXTERNAL_SOURCES}; base-uri 'none'; form-action 'none'; "
-    f"img-src 'self' data: {EXTERNAL_SOURCES}; "
-    f"style-src 'self' 'unsafe-inline' {EXTERNAL_SOURCES}"
+# The script types a browser runs as JavaScript, per the HTML standard: no type, or a
+# JavaScript MIME type, runs as a classic script, and "module" as a module. It reads
+# "importmap" and "speculationrules" as JSON, and never runs any other type.
+JAVASCRIPT_TYPES = frozenset(
+    {
+        "",
+        "application/ecmascript",
+        "application/javascript",
+        "application/x-ecmascript",
+        "application/x-javascript",
+        "text/ecmascript",
+        "text/javascript",
+        "text/javascript1.0",
+        "text/javascript1.1",
+        "text/javascript1.2",
+        "text/javascript1.3",
+        "text/javascript1.4",
+        "text/javascript1.5",
+        "text/jscript",
+        "text/livescript",
+        "text/x-ecmascript",
+        "text/x-javascript",
+    }
 )
-# A meta policy cannot govern the document's ancestors. The ordinary server adds this
-# separate header policy, and the site manifest carries it to the Worker; the
-# capability-scoped MCP transport is deliberately frameable.
+
+
+def script_kind(attrs: dict) -> str:
+    """What a browser does with a script element: "module", "classic", "importmap",
+    "speculationrules", or "data" for a block it never runs."""
+    kind = (attrs.get("type") or "").strip().lower()
+    if kind in {"module", "importmap", "speculationrules"}:
+        return kind
+    return "classic" if kind in JAVASCRIPT_TYPES else "data"
+
+
+# The one policy a page is delivered under: no other site may frame a live page, where it
+# could lay its own content over a decision and take the user's click. The ordinary
+# server sends it as a header, and the site manifest carries it to the Worker.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.
 DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
 HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
-SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
 def _srcset_urls(value: str):
@@ -237,24 +260,19 @@ class SourceDocument:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        # Exact text of each inline script, plus where its start tag ends: the capture
-        # digests the text, and delivery inserts the CSP nonce that authorizes the
-        # block at that offset. Validation admits only authored modules; keeping the
-        # parser neutral lets it report the actual attributes on anything else.
+        # Exact text of each inline script: the capture digests it.
         self.inline_scripts = []
-        # Executable behavior has one visible source form: a module block. Event
-        # attributes and javascript: URLs are recorded here so the static door can
-        # refuse hidden second forms before a user discovers them by acting.
-        self.executable_attributes = []
         # Every <link>, whatever relation it declares. Two checks read these — the one
         # stylesheet a page dresses itself with, and the canonical address only
         # delivery may name — and indexing the tag answers both from one parse.
         self.links = []
+        # {tag, line} per element that declares something about the whole document:
+        # a <base>, an http-equiv <meta>, an import map.
+        self.document_declarations = []
         # {name, content, line} per <meta name>, lf- declarations and ordinary
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        self.http_equivs = []  # {equiv, content, line, position, raw} per meta
         self.encoding_metas = []  # {charset, line} per authored encoding declaration
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
@@ -299,10 +317,9 @@ class SourceDocument:
         self._source = source
         self._source_index = source_index(source)
         self._first_body_position = None
-        # (start, end) of the first html, head, and body start tag the source spells,
-        # and where its last </body> begins: where delivery writes into the document.
+        # (start, end) of the first html, head, and body start tag the source spells:
+        # where delivery writes into the document.
         self.wrapper_tags = {}
-        self.body_close = None
         self._finish()
 
     @staticmethod
@@ -352,8 +369,6 @@ class SourceDocument:
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))
                 )
-            elif token.type is turbohtml.TokenType.END_TAG and token.tag == "body":
-                self.body_close = self._source_index(token.line, token.col)
         starts = {
             (token.line, token.col): token
             for token in tokens
@@ -419,25 +434,13 @@ class SourceDocument:
             if attrs.get("src"):
                 self.external_scripts.append(script)
             else:
-                start_tag = element.source_location.start_tag
-                self.inline_scripts.append(
-                    {
-                        **script,
-                        "body": element.text,
-                        "start_tag_end": self._source_index(
-                            start_tag.end_line, start_tag.end_col
-                        ),
-                    }
-                )
-        for name, value in attrs.items():
-            if (len(name) > 2 and name.startswith("on")) or (
-                name in SCRIPT_URL_ATTRIBUTES
-                and isinstance(value, str)
-                and "".join(value.split()).lower().startswith("javascript:")
-            ):
-                self.executable_attributes.append(
-                    {"tag": tag, "line": line, "name": name, "value": value}
-                )
+                self.inline_scripts.append({**script, "body": element.text})
+        if (
+            tag == "base"
+            or (tag == "meta" and "http-equiv" in attrs)
+            or (tag == "script" and script_kind(attrs) == "importmap")
+        ):
+            self.document_declarations.append({"tag": tag, "line": line})
         if tag == "link":
             self.links.append(
                 {
@@ -450,17 +453,6 @@ class SourceDocument:
         if tag == "meta" and attrs.get("name"):
             self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
-            )
-        if tag == "meta" and attrs.get("http-equiv"):
-            location = element.source_location
-            self.http_equivs.append(
-                {
-                    "equiv": attrs["http-equiv"],
-                    "content": attrs.get("content"),
-                    "line": line,
-                    "position": (line, column),
-                    "raw": self._span_source(location.start_tag),
-                }
             )
         if tag == "meta" and attrs.get("charset"):
             self.encoding_metas.append({"charset": attrs["charset"], "line": line})
@@ -495,9 +487,7 @@ class SourceDocument:
         self.page_resource_refs.update(
             reference
             for _, reference in references
-            # A page file, or an absolute URL, which capture either leaves as written
-            # or refuses with the origins the page's CSP admits.
-            if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
+            if reference.startswith(("/page/", "page/", "./page/"))
         )
 
         if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):

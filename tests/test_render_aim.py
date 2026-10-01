@@ -228,9 +228,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    thread = preview.locator(".lf-page-thread")
     reply = preview.locator("leaf-text")
-    expect(thread).to_be_focused()
+    # The send leaves the user on the target, the card up beside it.
+    expect(target).to_be_focused()
     full = reply.evaluate(
         "node => ({ family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize })"
@@ -285,7 +285,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
     expect(ghost).to_have_count(0)
     expect(preview).to_have_css("opacity", "1")
-    expect(thread).to_be_focused()
+    expect(target).to_be_focused()
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
@@ -405,8 +405,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     compact = field.bounding_box()
     placement = page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
     before_scroll = page.evaluate("scrollY")
-    if placement in {"top-end", "bottom-end"}:
-        assert placement == "bottom-end", (
+    if placement in {"top-start", "bottom-start"}:
+        assert placement == "bottom-start", (
             "the page has substantially more reachable room below this passage"
         )
     clear = """() => {
@@ -453,7 +453,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
             expanded["x"] + expanded["width"]
             < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
-    if placement == "bottom-end":
+    if placement == "bottom-start":
         assert page.evaluate("scrollY") > before_scroll
         revealed_scroll = page.evaluate("scrollY")
         page.mouse.move(8, 450)
@@ -510,7 +510,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     expect(field).to_be_visible()
     field.click()
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
     before_scroll = page.evaluate("scrollY")
 
     write(
@@ -521,7 +521,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         ),
     )
     rendered(page)
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
     assert page.evaluate("scrollY") < before_scroll
     boxes = page.evaluate(
         """() => {
@@ -551,7 +551,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         ) == pytest.approx(float_height, abs=1)
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
 
 
 def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, serve):
@@ -953,7 +953,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     target.click(modifiers=["Alt"], position={"x": 200, "y": 25})
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
-    assert bar.get_attribute("data-lf-placement") in {"top-end", "bottom-end"}
+    assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
 
     write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
     page.wait_for_function(
@@ -1527,7 +1527,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     placement = bar.get_attribute("data-lf-placement")
-    assert placement in {"top-end", "bottom-end"}, placement
+    assert placement in {"top-start", "bottom-start"}, placement
 
     target.evaluate("node => { node.style.width = '180px' }")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
@@ -1559,7 +1559,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     bar = page.locator(".lf-fab-bar")
     rendered(page)
     placement = bar.get_attribute("data-lf-placement")
-    assert placement in {"top-end", "bottom-end"}, placement
+    assert placement in {"top-start", "bottom-start"}, placement
     empty = bar.bounding_box()
     draft = "A draft long enough that its own width would widen the bar it opens in."
     write(field, draft)
@@ -1615,7 +1615,7 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     write(field, "Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
-    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
 
     target.evaluate(
         """node => {
@@ -1623,7 +1623,7 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
         }"""
     )
     resized(page, 700, 601)
-    expect(bar).to_have_attribute("data-lf-placement", "bottom-end")
+    expect(bar).to_have_attribute("data-lf-placement", "bottom-start")
     target_after = target.bounding_box()
     after = bar.bounding_box()
     assert after["y"] >= target_after["y"] + target_after["height"] + 5, (
@@ -2927,9 +2927,13 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     page = open_page(browser, url)
     inner = page.locator("#inner")
     expect(inner).to_be_hidden()
-    # Pointing at the visual raises the thread's contour, and it encloses the whole.
-    page.locator("#visual").hover()
-    placed = page.evaluate(
+    # Pointing at the thread in Threads raises its contour, and it encloses the whole,
+    # in a window wide enough that the open panel covers none of the visual.
+    resized(page, 1800, 900)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.click()
+    page.locator('.lf-threads > .lf-thread[data-id="inner-comment"]').hover()
+    page.wait_for_function(
         """() => {
           const box = (el) => el.getBoundingClientRect();
           const mark = document.querySelector('.lf-visual-mark-hover');
@@ -2938,8 +2942,8 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
             && box(mark).height >= visual.height;
         }"""
     )
-    assert placed
     page.mouse.move(0, 0)
+    toggle.click()
 
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
@@ -3001,8 +3005,8 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     """Decoration omitted from a contour still belongs to its semantic part.
 
     The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle remains the only cloned paint of the contour the pointer
-    raises. A second draft on the same part wears the pending contour, since the posted
+    package-selected rectangle remains the only cloned paint of the contour its open
+    thread raises. A second draft on the same part wears the pending contour, since the posted
     comment draws none at rest.
     """
     url = serve(
@@ -3042,14 +3046,14 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    assert page.eval_on_selector_all(
-        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
     page.mouse.click(point["x"], point["y"])
     expect(
         page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
     ).to_be_visible()
+    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    assert page.eval_on_selector_all(
+        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
@@ -3085,7 +3089,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
     mark = page.locator(".lf-visual-mark")
 
-    surface.hover()
+    surface.click()
     expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(mark).to_be_visible()
     expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
@@ -3132,7 +3136,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface = host.locator("#wide-surface")
     mark = page.locator(".lf-visual-mark")
 
-    surface.hover(position={"x": 20, "y": 20})
+    surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
     mark_box = mark.bounding_box()

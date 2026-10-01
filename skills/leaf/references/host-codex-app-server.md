@@ -108,10 +108,8 @@ page to the running adapter, prints `started: false`, and reports that adapter's
 `--app-server` endpoint other than the one the adapter holds. The adapter watches
 every page this task owns, and a completed turn does not stop it.
 
-For an inline MCP App, follow `references/host-codex.md`, "Experimental inline MCP
-App": it starts this same adapter. A `leaf wait` this task already runs, or a
-watcher task, carries input without the adapter, as that contract's "Routes without
-the adapter" describes; on those routes there is no App Server turn to bind, so
+A `leaf wait` this task already runs, or a watcher task, carries input without the
+adapter, as `references/host-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
 answer with `leaf thread reply`.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its

@@ -1,7 +1,6 @@
 """Published documents and modules retain their complete captured revision."""
 
 import json
-import re
 import subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -15,7 +14,6 @@ from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
 from leaf.revision_delivery import json_script, layer_import_map
 from leaf.revisioning import activate_source
-from leaf.structure import SourceDocument
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
@@ -117,7 +115,6 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         root = (asset_root if asset_root is not None else page_root) + "/" + relative
         resources = destination / relative
         document = (destination / "versions" / f"v{version}.html").read_text()
-        parsed = SourceDocument(document)
         assert (destination / "revisions" / marker).read_text() == document
         assert f'name="lf-revision" data-lf-runtime content="{revision}"' in document
         assert f'name="lf-version" data-lf-runtime content="{version}"' in document
@@ -149,17 +146,6 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         ].data
         assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
         assert json_script(layer_import_map(root)) in document
-        # CSP authorizes what executes: the nonce the policy names is on every script
-        # this delivery composed, and the runtime's stylesheet text is inert data.
-        policy = next(
-            meta["content"]
-            for meta in parsed.http_equivs
-            if meta["equiv"].lower() == "content-security-policy"
-        )
-        nonce = re.search(r"script-src 'self' 'nonce-([^']+)'", policy).group(1)
-        for script in parsed.inline_scripts:
-            if script["attrs"].get("type") != "application/json":
-                assert script["attrs"].get("nonce") == nonce, script["attrs"]
         expected_widget = (
             f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2

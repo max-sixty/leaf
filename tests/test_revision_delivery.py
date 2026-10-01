@@ -1,12 +1,13 @@
 """Captured dependency addresses are independent of the document's public URL."""
 
 import json
+import struct
 from urllib.parse import urljoin, urlsplit
 
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import embedding, inline_css_assets
+from leaf.exporting import AssetInliner
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import (
@@ -15,6 +16,7 @@ from leaf.revision_delivery import (
     compose_document,
     deliver_resource,
     json_script,
+    media_size,
     rebase_document,
 )
 from leaf.structure import SourceDocument
@@ -82,11 +84,9 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
-    embedded = embedding(
-        read_resource=lambda url: Resource(b"main { color: green; }", "text/css")
-    )
+    embedded = AssetInliner(lambda url: Resource(b"main { color: green; }", "text/css"))
     exported = rebase_document(
-        source, embedded.address, inline_stylesheet=embedded.inline_stylesheet
+        source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
     assert "<style>" in exported
@@ -162,7 +162,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
         read.append(url)
         return artifact.resources[url]
 
-    inline_css_assets(sheet, read_resource=reader, document_url="/page/style.css")
+    AssetInliner(reader).css(sheet, "/page/style.css")
     assert set(read) == expected
 
 
@@ -306,8 +306,7 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
 @pytest.mark.parametrize("explicit_html", [True, False])
 def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     """A host's marks land on the document's own wrapper tags, whether or not the
-    source spells `<html>`, and a policy's nonce reaches every inline script, the
-    author's and delivery's alike, while the rest of the source stays as written."""
+    source spells `<html>`, while the rest of the source stays as written."""
     source = (
         '<!doctype html><html lang="en"><head><title>T</title></head>'
         '<body><main><script type="module">window.ran = 1;</script>'
@@ -325,12 +324,10 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         registry={},
         delivery=Delivery(
             address=ADDRESS,
-            policy=lambda nonce: f"script-src 'nonce-{nonce}'",
             import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
             page_root=PAGE_ROOT,
             html_attributes={"data-lf-contained": ""},
             body_attributes={"inert": ""},
-            body_end='<script type="module" src="/ready.js"></script>',
         ),
     )
 
@@ -338,13 +335,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    assert served.tree.find("body").find_all("script")[-1].attrs["src"] == "/ready.js"
-    policy = served.http_equivs[0]["content"]
-    nonce = policy.removeprefix("script-src 'nonce-").removesuffix("'")
-    assert [script["attrs"].get("nonce") for script in served.inline_scripts] == [
-        nonce,
-        nonce,
-    ]
     assert served.title == "T" and "<p>Text.</p>" in delivered
 
 
@@ -352,14 +342,24 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     """The theme and the workspace Layout read what an element's registry entry
     declares, and a stylesheet cannot read the registry, so the document arrives with
     each declaration painted on the element: the first paint lays out a board's room and
-    a package's pane before any script runs. An occurrence's own `data-width` or
-    `data-bound` says it for that occurrence. Markup inside a template is inert, and
+    a package's pane before any script runs. An occurrence's own `data-width`,
+    `data-bound` or `data-height` says it for that occurrence. An element naming page
+    media carries the box that holds all of it, read from the images, so a frame stands
+    in their shape before they decode. Markup inside a template is inert, and
     everything else in the source stays as written."""
+
+    def png(width, height):
+        return Resource(
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + struct.pack(">II", width, height),
+            "image/png",
+        )
+
     registry = {
         "lf-zone": {"x-reading-role": "pane"},
         "lf-board": {"x-space": "wide"},
         "lf-chip": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
+        "lf-plot": {"x-height": 400},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -367,6 +367,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<lf-board id="board" data-width="column"></lf-board>'
         '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
         '<pre data-bound="start">log</pre>'
+        '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
+        '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
         "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
         "</main></body></html>"
     )
@@ -376,7 +378,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         None,
         executable=None,
         widgets={},
-        resources={},
+        resources={"/media/a.png": png(1200, 750), "/media/b.png": png(1100, 800)},
         registry=registry,
         delivery=Delivery(address=ADDRESS),
     )
@@ -396,6 +398,12 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
+    assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
+    assert marks[("lf-plot", "tall")] == {"data-lf-height": "240"}
+    assert marks[("lf-pair", "pair")] == {
+        "data-lf-media-width": "1200",
+        "data-lf-media-height": "800",
+    }
     assert marks[("lf-zone", "later")] == {}
     unmarked = delivered
     for mark in (
@@ -405,8 +413,45 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         ' data-lf-bound="end"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
+        ' data-lf-height="400"',
+        ' data-lf-height="240"',
+        ' data-lf-media-width="1200" data-lf-media-height="800"',
     ):
         unmarked = unmarked.replace(mark, "", 1)
+    # Media is addressed at the page root, which is the rebase's change rather than a mark.
+    unmarked = unmarked.replace(f"{PAGE_ROOT}/media/", "/media/")
     assert source.removeprefix("<!doctype html><html><head>").split("</head>")[1] in (
         unmarked
     )
+
+
+def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
+    """The frame a page lays out for its media is only the images' shape if delivery
+    reads the size a browser decodes, so each format a browser encodes here is read
+    back against the canvas it was drawn from. A GIF, which no canvas encodes, states
+    its size in the same fixed place for every encoder."""
+    page = browser.new_page()
+    encoded = page.evaluate(
+        """async () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 321;
+            canvas.height = 123;
+            canvas.getContext('2d').fillRect(0, 0, 10, 10);
+            const bytes = {};
+            for (const type of ['image/png', 'image/jpeg', 'image/webp']) {
+                const blob = await new Promise((done) => canvas.toBlob(done, type));
+                bytes[type] = [...new Uint8Array(await blob.arrayBuffer())];
+            }
+            return bytes;
+        }"""
+    )
+    assert {kind: media_size(bytes(data)) for kind, data in encoded.items()} == {
+        "image/png": (321, 123),
+        "image/jpeg": (321, 123),
+        "image/webp": (321, 123),
+    }
+    assert media_size(b"GIF89a" + struct.pack("<HH", 321, 123)) == (321, 123)
+    assert media_size(b'<svg xmlns="http://www.w3.org/2000/svg"/>') is None
+    # An upload is checked by its signature alone, so a file cut short after it is a
+    # file delivery still serves.
+    assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None

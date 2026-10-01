@@ -27,6 +27,7 @@ import { seenRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
+import { newsNotice } from "./held-news.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
@@ -217,6 +218,9 @@ export class ThreadView {
   #navigation = null;
   #marginControls = null;
   #viewId = ++nextViewId;
+  // What a thread in the page's flow holds back says so in its control row (held-news.js).
+  #news = newsNotice();
+  #lastMessage = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -232,6 +236,11 @@ export class ThreadView {
       this.node.dataset.lfOffer = "";
     }
     this.#metadataActions.className = "lf-thread-meta-actions";
+    // A folded outlet's summary is its control row: opening it shows what it holds.
+    if (surface === "outlet")
+      this.node.addEventListener("toggle", () => {
+        if (this.node.open) this.#model?.news?.open();
+      });
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
       this.node.classList.toggle("grow", false);
@@ -255,6 +264,14 @@ export class ThreadView {
 
   get model() {
     return this.#model;
+  }
+
+  // The last of the thread a reader can see, after which its news grows: a folded
+  // outlet's summary, and otherwise its last message.
+  get foot() {
+    if (this.node.localName === "details" && !this.node.open)
+      return this.node.querySelector(":scope > summary:not([hidden])");
+    return this.#lastMessage;
   }
 
   present(model) {
@@ -283,6 +300,8 @@ export class ThreadView {
       }
     }
     this.#model = model;
+    if (model.news) this.#news.set(model.news);
+    const news = model.news ? this.#news.node : nothing;
     const panel = model.surface === "panel";
     const navigation = panel ? this.#navigation : null;
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
@@ -303,7 +322,7 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = this.#settlement(model);
+    const settlement = model.settlement ? this.#settlement(model) : nothing;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || model.folding || marginControls) {
@@ -349,6 +368,7 @@ export class ThreadView {
       view.present(message, index === 0 && Boolean(headerActions));
       return { key: message.key, node: view.node, header: view.header };
     });
+    this.#lastMessage = messages.at(-1)?.node ?? null;
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const ranges = rangeState.map((range) => {
       if (range.kind === "message") {
@@ -381,8 +401,14 @@ export class ThreadView {
                 data-lf-offer=""
                 ?hidden=${!model.resolved}
               >
-                Resolved · ${model.messages.length}
-                message${model.messages.length === 1 ? "" : "s"}
+                ${
+                  model.news?.reopened
+                    ? model.news.label
+                    : html`Resolved · ${model.messages.length}
+                      message${model.messages.length === 1 ? "" : "s"}${
+                        model.news ? ` · ${model.news.label}` : ""
+                      }`
+                }
               </summary>`
             : nothing
         }
@@ -417,7 +443,7 @@ export class ThreadView {
         ${
           headerActions && messages[0]
             ? html`<div class="lf-thread-root-meta">
-                ${messages[0].header}${headerActions}
+                ${messages[0].header}${news} ${headerActions}
               </div>`
             : nothing
         }
@@ -444,7 +470,7 @@ export class ThreadView {
                       : nothing
                   }</span
                 >
-                ${settlement}
+                ${news}${settlement}
               </div>`
             : nothing
         }
@@ -538,6 +564,17 @@ export class ThreadView {
       button.type = "button";
       button.onclick = this.#settle;
       this.#settlements.set(state.kind, button);
+      const word = reopen ? "Reopen" : "Resolve";
+      keys(button, `On a thread's ${word} button`, [
+        {
+          id: reopen ? "thread.reopen" : "thread.resolve",
+          keys: PRESS,
+          does: `${word} it`,
+          line: word.toLowerCase(),
+          when: () => !this.#model.settlement?.pending,
+          run: () => button.click(),
+        },
+      ]);
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
@@ -609,24 +646,6 @@ export class ThreadView {
           line: "return to the passage",
           when: () => Boolean(this.#model.quote?.found),
           run: () => quote.click(),
-        },
-      ]);
-    }
-    const button = this.node.querySelector(
-      ":scope .lf-thread-meta-actions > .lf-resolve, :scope .lf-thread-meta-actions > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-page-thread-resolved > .lf-reopen",
-    );
-    if (button && !this.#keys.has(button)) {
-      this.#keys.add(button);
-      const reopen = this.#model.resolved;
-      const word = reopen ? "Reopen" : "Resolve";
-      keys(button, `On a thread's ${word} button`, [
-        {
-          id: reopen ? "thread.reopen" : "thread.resolve",
-          keys: PRESS,
-          does: `${word} it`,
-          line: word.toLowerCase(),
-          when: () => !this.#model.settlement.pending,
-          run: () => button.click(),
         },
       ]);
     }

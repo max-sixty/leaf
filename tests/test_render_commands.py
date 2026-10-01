@@ -30,7 +30,6 @@ from render_cases_layout import (
 )
 from render_harness import (
     CARRIED_PAGE,
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
@@ -38,6 +37,7 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     SETTLED_PAGE,
+    example_media,
     leaf_page,
     open_page,
     page_registry,
@@ -434,7 +434,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     (page_dir / "index.html").write_text(
         (root / "examples" / "release-notes.html").read_text()
     )
-    shutil.copytree(EXAMPLE_MEDIA, page_dir / "media", dirs_exist_ok=True)
+    shutil.copytree(example_media(), page_dir / "media", dirs_exist_ok=True)
     stamp = subprocess.run(
         [
             launcher,

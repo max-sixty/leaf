@@ -1,0 +1,40 @@
+# Added when Claude Code 2.1.285 began stopping background commands at their
+# `timeout` (30 minutes unless given, 2 hours at most), and 1,042 of 1,114 recorded
+# background `leaf wait` launches had given none. Base at 892dab48f gave no timeout
+# (0 of 5 runs that finished); the change 6 of 6. 3 of 8 base and 2 of 8 candidate
+# runs ended on a model safeguard error and measured nothing.
+schema_version: '1.0'
+name: wait-runs-its-longest
+description: "Claude Code reference: the background `leaf wait` is started with the longest `timeout` Claude Code allows."
+tags:
+- wait-loop
+execution:
+  prompt: |
+    You are a Claude Code session, and the user asked for your plan for the session
+    cache as a Leaf page they can comment on. You have written the page at
+    ~/.local/state/leaf/pages/cache-plan and `leaf server start` printed its URL. Now
+    hand it off, following the leaf skill for this host; the user expects to comment
+    a few hours from now.
+
+    Read whatever guidance you need. Only Skill and Read run here, so write out each
+    other tool call you would make before your closing message, as the tool's name
+    and its full JSON input, then give the closing message itself.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-claude-code-host
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/host-claude-code\.md
+- name: longest-timeout
+  type: regex
+  pattern: '"timeout"\s*:\s*7200000'
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if the reply starts `leaf wait` (unnamed, or naming the cache-plan
+    page) as one Bash call with `run_in_background` true and a `timeout` of 7200000,
+    before the closing message. Fail if the wait runs in the foreground, if it is
+    given no timeout or a shorter one, or if the reply starts more than one wait.

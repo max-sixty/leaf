@@ -26,13 +26,7 @@ export { authoredScope } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export {
-  declareStickyHeaders,
-  landingInsets,
-  shownBand,
-  shownBox,
-  shownParts,
-} from "./geometry.js";
+export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
@@ -151,7 +145,7 @@ export {
 } from "./target-references.js";
 export { projectData } from "./application.js";
 export { retainUserIntent } from "./user-intent.js";
-export { tabStore } from "./storage.js";
+export { keepView, openingView, tabStore } from "./storage.js";
 export {
   highlightBlocks,
   langForPath,

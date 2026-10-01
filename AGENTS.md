@@ -23,9 +23,8 @@ primitive must give the user something that site would not:
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.
-- **Trust.** A page runs under a locked-down content policy, and an action
-  records its meaning when taken, so a control does what it says and the
-  record shows what the user decided.
+- **Trust.** An action records its meaning when taken, so a control does what
+  it says and the record shows what the user decided.
 - **Presentation craft.** Layout, type, and composition that hold at every
   width and beside every open panel, improved once and inherited by every
   page. A bespoke site starts from nothing each time.
@@ -76,6 +75,14 @@ sentence in a reference saying that something relies on the current shape is
 a consumer to update, never a reason to keep the shape or to carve an
 exception around it.
 
+Leaf's own restrictions do not settle what a feature may do either. When a
+content security policy, a validator's refusal, an import allowlist, or a limit
+on what some markup may carry stands between the user and a feature, raise it
+with the user rather than dropping the feature or working around it quietly.
+Name the restriction, what it blocks, what it protects, and what lifting it
+would cost. It may guard something the user values, or it may be a side effect
+nobody chose, and only the user can weigh the feature against it.
+
 Coherent new features can be tried before every product detail is settled, so
 long as any architectural problem they leave remains easy to fix.
 
@@ -118,7 +125,6 @@ and Codex install the tracked tree whole.
   projection, vendoring, and export, with their internal contracts beside them;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
-- `skills/leaf/mcp-app/`: the MCP App resource an MCP host reads;
 - `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/hooks.json`: the shared host hooks;
@@ -172,9 +178,20 @@ survive one belongs in the page directory or the state home. Runtime
 dependencies, and those a package script declares, state a floor and no cap. The
 host supplies Chrome and `jq`; leaf never downloads a browser.
 
-Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
-`skills/leaf/mcp-app/` are generated and committed where their consumer reads
-them; `build/AGENTS.md` says how to regenerate them.
+Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
+generated and committed where their consumer reads them; `build/AGENTS.md` says
+how to regenerate them.
+
+Every tracked byte ships in every install and stays in history, so the tree
+holds no binary files and no large ones. An image a tool in this repository
+reads, such as the demo recording, a catalog preview, an example page's image,
+or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
+its reader looks for it and pinned by `leaf-assets.json`
+(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+captures, recordings and raw run output, stays in `.tmp/` and reaches the user
+on a Leaf page; a note keeps the finding and the command that reproduces it,
+not the capture. The suite refuses a binary file, and pre-commit refuses a new
+file over 500 KB.
 
 ## Cross-runtime invariants
 

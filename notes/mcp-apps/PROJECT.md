@@ -1,74 +1,43 @@
-# MCP Apps research
+# MCP Apps
 
-## Research Questions
+Leaf shipped an experimental MCP Apps transport until 2026-09-29 and removed it. It
+was opt-in, Codex's default handoff opens the page in its browser pane instead, and
+it had to follow every change to delivery, anchoring and the runtime. The last tree
+that carries it is `a8ed55e68`:
 
-**Primary**: Can Leaf add MCP Apps as a delivery surface without adding a second interface or state authority?
+```sh
+git ls-tree -r --name-only a8ed55e68 -- skills/leaf/mcp-app skills/leaf/scripts/leaf build/mcp-app tests notes/mcp-apps | grep -i mcp
+```
 
-**Secondary**:
+## What it was
 
-- What is the smallest server-tool boundary that preserves the page directory and append-only log as Leaf's durable record?
-- Can one current, option-shaped user ask degrade into a useful disposable inline surface?
-- Which host capabilities are prerequisites, conveniences, or policy-dependent enhancements?
+`leaf mcp` ran a stdio MCP server that the Codex plugin registered. It exposed
+`leaf_present` and one `ui://leaf/page/v1.html` resource, a bundle of
+`@modelcontextprotocol/ext-apps` and Leaf's own app code. That resource framed the
+real page from a process-scoped loopback server at an unguessable `/p/<capability>`
+path, or, when a host refused the frame, drew a comments-only snapshot of its own. The
+snapshot was a second, reduced rendering of the page: every change to anchoring,
+threads or delivery had to be made there too.
 
-## Current Status
+## What experiment 56 found
 
-MCP Apps is not a current focus (2026-09-27), and the probe no longer passes
-against the current runtime. Its page renders in the reference host, but a choice
-pressed on it never reaches the page's event log: `observe-direct.mjs` stops at
-"No new matching durable event", and the MCP server logs no request or error. Resume
-by comparing the fetch and `EventSource` stand-ins in `probe/direct-entry.js` with
-how the runtime now sends a gesture, before running any experiment below.
+A developer probe bundled the canonical vendored runtime straight into the `ui://`
+resource and routed its reads and writes through MCP tools to the same
+`PageStateService` and event door, with no nested frame. In the official reference
+host the real design-decision page rendered, a keyboard choice and an anchored comment
+reached the page's log and showed in the Threads panel, and the resource made no
+network requests. `ui/message` was accepted, which is not evidence that it wakes an
+idle Codex task. It was never tried in Codex's own inline renderer. By 2026-09-27
+the probe no longer passed: the page rendered, but a pressed choice never reached the
+log (`observe-direct.mjs` stopped at "No new matching durable event"). The next step
+was to compare the fetch and `EventSource` stand-ins in
+`a8ed55e68:notes/mcp-apps/probe/direct-entry.js` with how the runtime now sends a
+gesture.
 
-### Latest Results: experiment 56
+## Rebuilding it
 
-The real Leaf design-decision page travels directly in a `ui://` resource in the
-official MCP Apps reference host. Its canonical theme/runtime render; a keyboard
-choice and anchored comment append through the existing event endpoint, and the
-comment appears in Leaf's normal Threads panel. The resource has no nested Leaf
-iframe, makes no external resource requests, and declares no connect, resource,
-or frame domains. The reference host accepts ui/message. Its acceptance is not
-evidence of an idle Codex turn.
-
-The reviewed runner reproduced this result from a fresh pinned reference-host
-checkout and passed 21 HTTP host/origin checks. It resolves temporary paths to
-their physical location and keeps that host outside hidden parent directories,
-as required by npm workspace resolution and the host's Express file policy.
-
-The prototype bundles the existing vendored runtime and widgets, substituting
-MCP tools only for state reads and event writes. It owns no parallel projection
-or durable log. The experiment demonstrates this fixture, not every widget or
-version/data/package operation. A narrow inline comment card and the tall-frame
-probe control expose remaining layout questions.
-
-This was also viewed in Codex's browser pane, but not in Codex's built-in inline
-MCP renderer. The earlier blocked HTTP iframe was a limitation of our wrapper,
-not evidence that direct Leaf resources cannot work. The separate browser-pane
-route rendered the canonical page in Codex and returned a keyboard choice and
-anchored comment through the detached adapter. Those deliveries reached later turns
-of the originating task; a reply, revisions, reload, and version travel preserved
-the standing state. Its actions began while the task was active, so the run did not
-isolate idle wake-up.
-
-### Latest experiment: 56
-
-**Status**: Complete. Direct
-rendering, durable gestures, visible comment UI, accepted ui/message, no-network,
-and HTTP boundary checks pass. Source hashes identify the reviewed code.
-
-## Next Steps
-
-1. Register this direct-resource probe in Codex and inspect its actual inline
-   renderer, not a reference host in a browser tab. A fresh probe connection/task
-   is required; the installed production MCP route has not been replaced.
-2. Test ui/message after that task is idle, with no detached watcher, active goal,
-   or diagnostic tool calls before or after the message. Preserve exact event
-   timing so acceptance and wake are separate observations.
-3. If Codex accepts the direct resource, extend the transport to version/data and
-   dynamic assets and test compact comment layout before choosing a production
-   cutover. These are missing prototype coverage, not MCP protocol prohibitions.
-
-## Reference
-
-- Read the direct-resource result: `cat notes/mcp-apps/experiments/56/README.md`
-- Read its machine result: `jq . notes/mcp-apps/experiments/56/results/reference-host.json`
-- Run the current reference-host probe: `bash notes/mcp-apps/probe/run-direct-probe.sh 57`
+Rebuild from the direct-resource design rather than the shipped transport: it keeps
+one rendering, needs no loopback frame or capability paths, and puts nothing in the
+page server's way. Before building, confirm in the host the user runs that its inline
+renderer accepts the resource, that the resource's CSP admits what pages need
+(`'unsafe-eval'` for `lf-chart` bodies), and that `ui/message` reaches an idle task.

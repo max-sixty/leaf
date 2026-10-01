@@ -12,11 +12,12 @@ from leaf_dev.bench_latency import bench_latency
 from leaf_dev.bugback import bugback
 from leaf_dev.corpus import corpus
 from leaf_dev.delivery_eval import delivery_eval
-from leaf_dev.example_assets import fetch_previews
 from leaf_dev.example_previews import refresh_previews
 from leaf_dev.flake import flake
 from leaf_dev.guidance_eval import guidance_eval
 from leaf_dev.keydocs import keydocs
+from leaf_dev.leaf_assets import fetch_assets
+from leaf_dev.page_fixtures import publish_media
 from leaf_dev.preview import preview
 from leaf_dev.probe import probe
 from leaf_dev.profile import profile
@@ -42,7 +43,8 @@ cli.add_command(probe)
 cli.add_command(stills)
 cli.add_command(site)
 cli.add_command(verify_site)
-cli.add_command(fetch_previews)
+cli.add_command(fetch_assets)
+cli.add_command(publish_media)
 cli.add_command(refresh_previews)
 cli.add_command(record_demo)
 cli.add_command(bench_latency)

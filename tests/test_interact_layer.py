@@ -779,72 +779,23 @@ def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
     assert collect(tmp_path / "outside").returncode == 0
 
 
-def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
-    """A developer tool's generated evidence is not something a host installs.
-
-    `notes/mcp-apps/probe/run-direct-probe.sh` wrote each run's screenshots and logs to
-    `notes/mcp-apps/experiments/<number>/results/`, inside the tracked tree, so every
-    probe grew what a host copies by up to a megabyte that no install reads — 47
-    result directories and 6.5M of the payload by the time it was measured. The rule
-    `dev/AGENTS.md` states is that a tool's output lands where git ignores it
-    unless an install reads that output from a committed path, and the runner's own
-    assignment is what holds it. Read the directory off the script rather than
-    naming it twice, then write where a run writes and ask the payload.
-    """
-    runner = PLUGIN_ROOT / "notes" / "mcp-apps" / "probe" / "run-direct-probe.sh"
-    assignment = re.search(
-        r'^results="\$repo/(.+)"$', runner.read_text(encoding="utf-8"), re.MULTILINE
-    )
-    assert assignment, "the runner no longer names its evidence directory"
-    results = PLUGIN_ROOT / assignment.group(1).replace("$1", "57")
-
-    results.mkdir(parents=True, exist_ok=True)
-    evidence = results / "payload-check.log"
-    try:
-        evidence.write_text("probe evidence", encoding="utf-8")
-
-        assert evidence not in shipped_payload(), (
-            f"a probe run would ship {evidence.relative_to(PLUGIN_ROOT)}"
-        )
-    finally:
-        evidence.unlink(missing_ok=True)
-        for parent in (results, *results.parents):
-            if parent in (PLUGIN_ROOT, PLUGIN_ROOT / ".tmp"):
-                break
-            with contextlib.suppress(OSError):
-                parent.rmdir()
-
-
-def test_every_tracked_experiment_screenshot_is_named_by_its_written_up_result():
-    """The archive keeps the screenshots its prose reads, and no others.
-
-    The probe's evidence is scratch, and `notes/mcp-apps/probe/README.md` says what a
-    maintainer copies back out of it: "a screenshot earns its megabyte only where
-    the prose points at it." Nothing held that rule over what was already tracked,
-    so the archive carried a re-render of the same fixture for each run of a chain
-    of repeats — 4.0M across eleven files no write-up mentioned, three of them
-    byte-identical to another tracked screenshot. A copied-back file is a
-    maintainer's `git add` rather than a script's output, so the payload test above
-    cannot see it coming; this reads the rule off the archive itself. The prose that
-    licenses a screenshot is its own experiment's, not the archive's as a whole,
-    or one write-up's citation would license every other run's copy of the shot.
-    """
-    archive = PLUGIN_ROOT / "notes" / "mcp-apps" / "experiments"
-    unread = []
+def test_the_payload_is_text():
+    """Every tracked byte ships in every install and stays in history, so the tree
+    holds no screenshot, recording or other binary (`AGENTS.md`, "The install runs
+    this tree"). Screenshots came in under `notes/` twice, 5.6M of a probe's evidence
+    and then 1.8M of a design study's before/after pairs, each by a maintainer's
+    `git add` that no test of a tool's output path sees coming. An image lives in
+    max-sixty/leaf-assets, at the path its reader looks for it, and evidence in
+    `.tmp/`."""
+    binary = []
     for path in shipped_payload():
-        if path.suffix != ".png" or not path.is_relative_to(archive):
+        if not path.is_file():
             continue
-        experiment = path.relative_to(archive).parts[0]
-        prose = "".join(
-            note.read_text(encoding="utf-8")
-            for note in sorted((archive / experiment).glob("*.md"))
-        )
-        if path.name not in prose:
-            unread.append(path.relative_to(PLUGIN_ROOT).as_posix())
-    assert unread == [], (
-        "these screenshots ship in the payload and no write-up reads them: "
-        + ", ".join(unread)
-    )
+        try:
+            path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            binary.append(path.relative_to(PLUGIN_ROOT).as_posix())
+    assert binary == [], "binary files in the tree: " + ", ".join(binary)
 
 
 def test_claude_and_codex_read_the_same_repository_skills():
@@ -1100,25 +1051,6 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
-
-
-def test_init_does_not_vendor_the_mcp_app_resource(page_dir):
-    """The MCP App resource is delivery surface, not layer payload.
-
-    An MCP host reads it from the install over the tool transport, so a page
-    directory has no use for it. It sat in `assets/vendor/` once, and
-    `compose_layer` copied that whole directory into every page: 396KB, about
-    38% of what a page vendored. The check compares bytes, since the regression
-    is the file landing under a layer root under any name.
-    """
-    resources = [path for path in schema_model.MCP_APP.iterdir() if path.is_file()]
-    assert resources, "no MCP App resource to keep out of a page"
-    vendored = {
-        path.read_bytes(): path for path in page_dir.rglob("*") if path.is_file()
-    }
-    for resource in resources:
-        landed = vendored.get(resource.read_bytes())
-        assert landed is None, f"{resource.name} was vendored as {landed}"
 
 
 def _css_parse_errors(nodes):
@@ -1617,16 +1549,19 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
 
 
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
-    """The classic bootstrap cannot import modules, so the layer gate ties the root
-    state it writes to the stylesheet that reads it, and the surfaces' default widths
-    to the runtime owners that hold them."""
+    """The classic bootstrap and prepaint cannot import modules, so the layer gate ties
+    the root state they write to the stylesheet that reads it, and the surfaces' default
+    widths to the runtime owners that hold them."""
     assets = schema_model.ASSETS
     drawers = (assets / "runtime" / "drawers.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
+    prepaint = (assets / "runtime" / "prepaint.js").read_text()
     theme = (assets / "theme.css").read_text()
 
     assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
     assert "html[data-lf-live]" in theme
+    assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
+    assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
 
     def constant(pattern, source):
@@ -3676,9 +3611,7 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     } == before
 
 
-def test_package_init_starts_one_checked_upgraded_widget(
-    tmp_path, monkeypatch, headless_shell
-):
+def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     package = Path("packages/risk-notes")
@@ -3748,7 +3681,6 @@ def test_package_init_starts_one_checked_upgraded_widget(
         capture_output=True,
         text=True,
         check=False,
-        env=os.environ | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert rendered.returncode == 0, rendered.stdout + rendered.stderr
 

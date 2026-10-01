@@ -88,7 +88,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     RELEASE_FOCUS,
@@ -101,6 +100,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     draft_control,
+    example_media,
     expect_banner_control_offered,
     fills_the_window,
     holding,
@@ -736,13 +736,13 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     media = {
         "/media/051bee487bfb5d13.png": (
-            EXAMPLE_MEDIA / "051bee487bfb5d13.png"
+            example_media() / "051bee487bfb5d13.png"
         ).read_bytes(),
         "/media/a99a1b63048502d0.png": (
-            EXAMPLE_MEDIA / "a99a1b63048502d0.png"
+            example_media() / "a99a1b63048502d0.png"
         ).read_bytes(),
         "/media/3cf0e3efe80c6b01.png": (
-            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+            example_media() / "3cf0e3efe80c6b01.png"
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
@@ -1216,10 +1216,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     )
     media = {
         "/media/3cf0e3efe80c6b01.png": (
-            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+            example_media() / "3cf0e3efe80c6b01.png"
         ).read_bytes(),
         "/media/4f465a0582ab00fe.png": (
-            EXAMPLE_MEDIA / "4f465a0582ab00fe.png"
+            example_media() / "4f465a0582ab00fe.png"
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
@@ -1887,6 +1887,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
     expect(page.locator("html")).to_have_attribute("data-lf-live", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (
@@ -8437,7 +8438,7 @@ def test_a_command_goal_s_words_flow_as_prose(browser, serve):
           words.selectNodeContents(a.previousSibling);
           const lines = [...words.getClientRects()];
           const box = a.getBoundingClientRect();
-          const chip = a.closest('[data-lf-command-goal]')
+          const chip = a.closest('lf-task')
             .querySelector(':scope > .lf-task-meta > span');
           return {display: getComputedStyle(a).display,
                   sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
@@ -8885,6 +8886,8 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
         "The hunk is complete; see the run and park."
     )
+    # The reply landed where the user was looking, so it waits for them to open it.
+    seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()

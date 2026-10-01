@@ -60,24 +60,3 @@ above.
   background follow-up, and acknowledges it; this task runs no wait at all. Take it
   only when the user authorizes a visible watcher task, and follow
   `references/codex-watcher.md`.
-
-## Experimental inline MCP App
-
-Use the bundled model tool whose exposed name ends in `leaf_present` when the
-user requests an inline MCP App or a host-capability experiment. Pass the
-initialized page's absolute directory. The app attempts to frame the canonical
-page from a process-scoped localhost origin; hosts that disallow that frame get a
-comments-only snapshot. That snapshot has no package actions or version travel;
-open the full browser page whenever the observed mode lacks what the user needs.
-
-Judge the rendered mode from the visible app or host diagnostics. Model-visible
-text and a successful tool call do not establish which UI the host displayed.
-If visual evidence is unavailable, say the rendering is unverified. Use
-`leaf_present_snapshot` only when deliberately requesting the comments-only view;
-the app already handles automatic fallback. Do not call app-only tools from the
-model.
-
-Set the page to `waiting` and start the same Codex adapter before handing over an
-inline app. Name the review and report its observed mode or unverified rendering;
-its ephemeral iframe URL is not a durable browser handoff. A successful
-`ui/message` response is not a delivery receipt.

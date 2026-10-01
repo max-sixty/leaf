@@ -1,7 +1,9 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
    A reply send returns in the gesture that makes it. The send preserves the panel's
-   narrowing and leaves the user in the reply box, whichever control sent it. */
+   narrowing and, whichever control sent it, takes the user out of the reply box to stand
+   on the thread (`landSent`), since a reply is usually their last word until the agent
+   answers. `c`, or Enter on the thread, opens the box again. */
 import {
   loadDraft,
   mirrorDraft,
@@ -10,6 +12,9 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
+import { closestAcross } from "../passages.js";
+import { focused } from "../keyboard/scopes.js";
+import { THREAD } from "./selectors.js";
 
 const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 
@@ -28,7 +33,7 @@ export function wireReply(
   key,
   input,
   send,
-  { actions, wireInput, onDraftLoaded = null },
+  { actions, wireInput, landSent, onDraftLoaded = null },
 ) {
   const draftCtx = "reply:" + key;
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
@@ -46,10 +51,11 @@ export function wireReply(
       tellDraft(draftCtx, v);
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from.
+    // sent from, around wherever the send left them standing.
     send: (_text, raw, owns) => {
-      const land = sendLanding(input);
-      if (sendReply(draftCtx, key, raw, owns, actions)) land();
+      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+      landSent(closestAcross(input, THREAD));
+      sendLanding(input, focused())();
     },
   });
   sync();

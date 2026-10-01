@@ -134,7 +134,9 @@
           <a href="#x-data"><code>x-data</code></a>
           <a href="#x-example"><code>x-example</code></a>
           <a href="#x-exhibit"><code>x-exhibit</code></a>
+          <a href="#x-face"><code>x-face</code></a>
           <a href="#x-guidance"><code>x-guidance</code></a>
+          <a href="#x-height"><code>x-height</code></a>
           <a href="#x-history"><code>x-history</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
@@ -159,6 +161,7 @@
           <a href="#x-tone"><code>x-tone</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
           <a href="#x-verbatim"><code>x-verbatim</code></a>
+          <a href="#x-views"><code>x-views</code></a>
           <a href="#x-visual"><code>x-visual</code></a>
           <a href="#x-withdrawn-as"><code>x-withdrawn-as</code></a>
           <a href="#x-word"><code>x-word</code></a>
@@ -299,6 +302,30 @@
               </p>
             </div>
           </section>
+          <section class="reference-entry" id="x-face">
+            <h3><code>x-face</code></h3>
+            <div class="reference-copy">
+              <p>
+                Child selectors, each <code>:scope &gt; </code> and then a tag, classes,
+                or both (<code>:scope &gt; lf-new</code>,
+                <code>:scope &gt; .lf-shotrail</code>), naming the light-DOM children
+                that are painted boxes that draw the element's own face rather than
+                separate things it holds: a suggestion's tinted slots, a screenshot's
+                caption rail.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-face contract">Full contract</summary>
+                <p>
+                  A margin pin whose target is this element may stand on them, as it
+                  stands on the element itself, and still keeps off their words; every
+                  other box inside the target that paints its own extent counts whole,
+                  since a pin on it reads as that box's, as a choice's pin on its first
+                  option's card would read as that option's. Declare it only where a pin
+                  on the part reads as the whole element's.
+                </p>
+              </details>
+            </div>
+          </section>
           <section class="reference-entry" id="x-guidance">
             <h3><code>x-guidance</code></h3>
             <div class="reference-copy">
@@ -308,6 +335,32 @@
                 package-wide guidance, so instructions travel with the contribution they
                 explain rather than with whichever package happened to distribute it.
               </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-height">
+            <h3><code>x-height</code></h3>
+            <div class="reference-copy">
+              <p>
+                The height, in CSS pixels, the page reserves for the element before its
+                module draws: the declaration's number, or an authored occurrence's
+                data-height, which overrides it; <code>true</code> declares no number,
+                so only an occurrence's data-height reserves.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-height contract">Full contract</summary>
+                <p>
+                  Delivery paints it into the served document as data-lf-height, and
+                  wherever the runtime runs the theme holds the box to it from the first
+                  paint until the module marks the element drawn
+                  (<code>lf-rendered</code>), when the box becomes the drawing's own.
+                  Declare it on a widget whose drawing cannot be sized from its markup
+                  before the module draws. A module that can draw to any height, as a
+                  chart's can, draws at the stated one, so nothing moves when the
+                  reservation ends; one whose content has a height of its own draws
+                  that, and the reservation is the author's estimate of it. A failure
+                  takes the height of the message it shows.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-history">
@@ -806,6 +859,29 @@
               </details>
             </div>
           </section>
+          <section class="reference-entry" id="x-views">
+            <h3><code>x-views</code></h3>
+            <div class="reference-copy">
+              <p>
+                <code>true</code>: the element shows one of its members at a time, as a
+                tab set shows one panel, and its module opens it on the member the
+                runtime names (<code>openingView</code>) and records each member it
+                shows (<code>keepView</code>).
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-views contract">Full contract</summary>
+                <p>
+                  The runtime opens it on the member holding the element the address's
+                  fragment names, else on the member this browser tab last showed, else
+                  on the first; a reload puts the member last shown before the
+                  fragment's. Delivery paints it into the served document as
+                  data-lf-views, and before the first paint Leaf marks the member it
+                  will open <code>data-lf-opening</code>, so the package theme can show
+                  that member alone until the module upgrades the element.
+                </p>
+              </details>
+            </div>
+          </section>
           <section class="reference-entry" id="x-visual">
             <h3><code>x-visual</code></h3>
             <div class="reference-copy">
@@ -845,7 +921,10 @@
                   or geometry change, including an in-place attribute or style change.
                   The render gate validates every record, requires each authored token
                   to resolve, in the current state or after its <code>reveal</code>, and
-                  refuses a registered id its prefixes do not admit.
+                  refuses a registered id its prefixes do not admit. A
+                  <code>{parts: ATTR, complete: true}</code> declaration also refuses a
+                  nonempty authored list that omits a registered part; omitting ATTR
+                  keeps the whole picture as one target.
                 </p>
               </details>
             </div>

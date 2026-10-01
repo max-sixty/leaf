@@ -67,6 +67,17 @@ has tried; settle that before building it.
   beyond the author's own reading. The single-turn eval harness cannot run a review
   step, so this needs `notes/usability-eval/harness.py` or session replays.
 
+### Prose
+
+- **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** Six phases cover
+  the guidance, the website, UI and CLI copy, and the examples. Each phase is a
+  `/iteration:descartes` rewrite in Worktrunk's register, judged by the words it cuts.
+  Phase 0 has landed (#1476). Phase 1, the maintainer guidance, is written 26% shorter
+  and waits on review and landing. Phase 2, the agent guidance, needs no decision and is
+  scored with `evals/`. Phases 3–6 wait on five decisions the note lays out with a
+  recommendation for each: banner and delivery depth, how far to restructure the site,
+  the word for the user's input, `layout-sidebar`'s name, and the playground examples.
+
 ## Next
 
 ### User continuity and mobile access
@@ -100,17 +111,36 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Decide whether a workspace's panes scroll on their own.** Its regions could instead
+  stick to the root scroller, which keeps native keyboard scrolling and restoration on
+  workspace pages and settles the side list's full-height form; then drop the bottom
+  bar and give the phone banner one row ([plan](notes/chrome-and-covers.md)).
+- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
+  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
+  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
+  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
+  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
+  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
+  wide flow starts at the left edge. The column allocation and the text measure have to
+  align the same way first; start-aligned in any flow wider than the column is the
+  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
   the chrome — tokens it reads, named parts, or a layer the page ranks above — so a page
   can change the thread panel's format or hide one surface where it needs to.
-- **Give the workspace Layout a column setting.** Each workspace page writes the same
-  four-declaration pane grid that `columns="3fr 2fr"` used to say; a token such as
-  `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
-  panes outside a workspace also restates the Layout's pane scrolling (the feature
-  gallery), which could key on `--lf-full-height` instead.
+- **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
+  page, and since `layout-workspace` works only on `main`, it restates the Layout's
+  full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane
+  rules can't simply key on `--lf-full-height`: they say which panes the workspace sizes
+  by where they stand under `main`, and the property is inherited by every descendant.
+  Taking the Layout onto a block also means the runtime's layout region
+  (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
+  both look only at `main`, have to look at that block too. It waits for a page that
+  needs it; a workspace page's own pane grid stays plain CSS. Option E of the
+  [chrome plan](notes/chrome-and-covers.md) settles it, since a sticky region works at
+  any depth with no scrolling ancestor.
 - **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
   target that covers no words (`pinSpot`), which clears single markers on most pages,
   but under a finger Accept and Reject together are a 96×44px pair: that needs a line
@@ -121,16 +151,40 @@ and its chrome coordinate.
   deletion). Folding the pair into one marker that opens Accept and Reject, only where
   the pair has no room, is the nearest design; it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
   a finger) stays the escape.
-- **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
-  rail's width at every width, so on a phone it leaves a 295px column. The margin pass
-  admits residents by measuring the room they leave (`settleResidency`), which a rail
-  the shell has already reserved never fails.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
   (`leaf-dev corpus`) sets every example's body in one column page, so only the
   nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
   own Layout.
+- **Show each floating surface across the content it can hold.** `leaf-dev stills`
+  screenshots the same states on the base and the branch, so it reports a change but
+  misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
+  the room right of the text, 584px around the one word "why?" at 1920px, and no still
+  showed it, because every card in the catalogue held a long thread. Build a suite that
+  varies what a surface holds as well as the window:
+  - Graded content for each surface. For a thread card that is one word, one line, two
+    short lines, a paragraph, an exchange with an agent reply, and an unbreakable URL,
+    each opened at 1920, 1440, beside an open panel, 1024 and 360px and cropped to the
+    card and the marker that opened it. The comment box, the selection action bar and
+    the Threads panel take the same treatment.
+  - Measurements beside each still: the surface's box, how much of its width its
+    content fills, whether it covers the control that opened it while there is room
+    beside it, and whether it crosses the visible edge. A threshold on each fails a
+    surface that was already wrong, on both arms, which a comparison cannot do.
+  - One page showing every still in a grid, a row per window width with the content
+    growing along it and changed cells outlined. `lf-visual-review` steps through one
+    case at a time, so the grid is a new view, in that package or beside it.
+  - For thread placement alone, an SVG atlas of `thread-card-geometry.js` over a grid
+    of inputs, which `npm run test:runtime` can draw without a browser.
+
+  How to keep the candidates maintainable is not yet thought through, and comes before
+  building. Adding a few dozen hand-written entries to `STATES` grows a list that
+  nothing keeps complete. Decide whether a surface declares the ways its content
+  varies and the suite takes every combination, where the graded fixtures live so one
+  edit reaches every surface, how the matrix stays small enough to run and to read,
+  and which measurements become thresholds a test enforces rather than numbers a
+  person reads.
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.
@@ -186,24 +240,14 @@ and its chrome coordinate.
 ### Queues
 
 A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
-workspace"). The first real one, a 21-item triage page, showed these.
+workspace"). The first real one, a 21-item triage page, showed these. Its list's
+height and where a switch lands wait on the workspace decision under Layout.
 
-- **Show that a side list scrolls, and give it the view's height.** The list sticks
-  beside the open item and scrolls on its own, but when that item is shorter than the
-  window the list is only as tall as the item. On a 1200×900 desktop the queue stopped
-  at row 10 with nothing showing more below, and two agents reading the page both took
-  it for the whole queue. After an `a` press the list's first row also sat under the
-  banner. Branch `layout-widget-shape-conflicts` is re-examining how the list's bounds
-  are measured (`#fitList` in `lf-tabs.js`); fix it there rather than with another patch.
 - **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
   open Ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Keep the open item at the reading measure.** In a 1342px panel the prose stopped
-  at 720px while the option cards spanned 1294px, putting each option's digit 1200px
-  from its title. An open item is a reading view, so its blocks could take the
-  column's measure unless they declare more room (`x-space`), as a board does.
 - **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
   warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
   row whose Asks are answered could show the picked option's title where the count
@@ -229,6 +273,16 @@ workspace"). The first real one, a 21-item triage page, showed these.
   event changes the page's obligations or claims, not its kind. In this machine's
   page logs from the last 30 days, 40 of 204 deliveries held only resolves, and
   32 of those resolves closed a thread whose last word was already the agent's.
+- **Take every render-check reading at every width the check renders.** The check
+  lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
+  (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
+  the desktop width (`shrunk_label_advice`), though a narrower window scales a
+  drawing further still. Tiny text at 900px and on a phone recurs in the judge's
+  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
+  each reading the sweep can take at every swept
+  width, and report each fault at the narrowest width it starts, as
+  `swept_overflow` does for sideways overflow. The readings stay advice: which
+  widths a page answers for is the author's call.
 - **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and
@@ -283,9 +337,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other hosts:** add a blocking `leaf wait` route when another agent host needs
   foreground handoff.
-- **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
-  browser handoff when an inline-hosting task calls for it. See the
-  [research brief](notes/workspace-followups.md#item-22).
 - **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
@@ -332,9 +383,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).
-- **MCP page ports:** test wildcard-port `frame_domains` in a host before replacing
-  `/p/<capability>` multiplexing. See the
-  [dependency survey](notes/dependency-survey.md).
-- **Direct MCP bundle:** make evaluation-order faults fail visibly if the
-  experimental bundle becomes a supported path.
+- **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
+  the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

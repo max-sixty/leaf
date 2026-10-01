@@ -59,6 +59,19 @@ const rowSpan = (row) =>
     ? [Number(row.dataset.from), Number(row.dataset.to)]
     : [Number(row.dataset.line)];
 
+// How many columns a line's leading whitespace takes, a tab reaching the next stop of
+// eight (the <pre>'s tab-size).
+const indentColumns = (tokens) => {
+  const leading = tokens
+    .map((token) => token.text)
+    .join("")
+    .match(/^[ \t]*/)[0];
+  let columns = 0;
+  for (const char of leading)
+    columns = char === "\t" ? columns - (columns % 8) + 8 : columns + 1;
+  return columns;
+};
+
 // The numbers the body's lines carry, in body order. `page check` holds `lines` to
 // one strictly ascending number per body line (x-numbering), so the two agree here.
 const numbering = (el, count) =>
@@ -129,6 +142,11 @@ customElements.define(
           const line = document.createElement("span");
           line.className = `lf-code-line${hi(n) ? " hi" : ""}`;
           line.dataset.line = n;
+          // A line too long for the frame wraps, and its later rows hang from its own
+          // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place
+          // in the code's structure.
+          const indent = indentColumns(tokens);
+          if (indent) line.style.setProperty("--lf-code-indent", String(indent));
           line.append(...synNodes(tokens), "\n");
           // The tint says "this is the line" to the eye and nothing to a user
           // listening, who is handed the whole block with no idea which of it the note
@@ -141,7 +159,8 @@ customElements.define(
           // block is still the source and nothing else.
           if (hi(n)) quietWord(line, "highlighted");
           pre.append(line);
-          for (const note of byLine.get(n) ?? []) pre.append(noteNode(note));
+          // Moved, not copied: the authored element keeps its text and id.
+          pre.append(...(byLine.get(n) ?? []));
         });
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
@@ -167,11 +186,4 @@ function elided(from, to, highlighted, captions) {
   if (highlighted) quietWord(row, "highlighted");
   row.append(...captions);
   return row;
-}
-
-function noteNode(note) {
-  const box = document.createElement("div");
-  box.className = "lf-code-note";
-  box.append(note); // moved, not copied: the authored element keeps its text and id
-  return box;
 }

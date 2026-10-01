@@ -26,10 +26,12 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. */
+   supplies the caller-owned return target through `landInThread`. A send from a
+   thread's box leaves it the same way, onto the thread, except in the margin card,
+   whose thread stands for the element it is about (`landSent`). */
 import { landingBand, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { takesLetters } from "../focus.js";
+import { focusDestination, takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
@@ -53,15 +55,18 @@ const threadInputOf = (held) => {
 };
 
 // Start a long direct arrival on the earliest complete content block that still leaves
-// its reply target in the list's landable band. Native nearest-edge scrolling guarantees
-// the target is visible, but it can put the sticky heading through the middle of a text
-// line. The thread header and message bodies expose complete block boundaries; use
-// those rather than attempting to infer line boxes from prose.
+// its reply target in the list's landable band: the reply area, or the thread's end
+// where the target is the thread itself, since a reply row pinned at the list's foot
+// stands over that end. Native nearest-edge scrolling guarantees the target is visible,
+// but it can put the sticky heading through the middle of a text line. The thread
+// header and message bodies expose complete block boundaries; use those rather than
+// attempting to infer line boxes from prose.
 const threadLandingStart = (held, target, threadsBox) => {
   const band = landingBand(threadsBox);
-  if (!band) return target;
+  if (!band) return null;
   const room = band.bottom - band.top;
   const targetBox = shownBox(target);
+  const last = target === held ? targetBox.bottom : targetBox.top;
   const candidates = [
     ...held.querySelectorAll(
       ":scope > *, :scope > .lf-msg .lf-msg-body > *, " +
@@ -69,17 +74,18 @@ const threadLandingStart = (held, target, threadsBox) => {
     ),
     target,
   ]
+    .filter((node) => node !== held)
     .map((node) => ({ node, box: shownBox(node) }))
     .filter(
       ({ node, box }) =>
         node === target ||
         (getComputedStyle(node).display !== "contents" &&
           box.height > 0 &&
-          box.top <= targetBox.top &&
+          box.top <= last &&
           targetBox.bottom - box.top <= room),
     )
     .sort((a, b) => a.box.top - b.box.top);
-  return candidates[0]?.node ?? target;
+  return candidates[0]?.node ?? null;
 };
 
 export function threadInput(node) {
@@ -153,20 +159,24 @@ pageScope("text entry", {
         const target = back?.target ?? panelList;
         if (!target) return;
         if (!target.matches?.(THREAD)) return target.focus();
-        // Coming back out of the box is no arrival. A thread too tall to show whole is
-        // already on screen around the box, and landing its title would take the user
-        // away from the turn they were answering.
-        if (fitsWhole(target)) return focusThread(target);
-        keepingPlace = true;
-        try {
-          focusThread(target, { preventScroll: true });
-        } finally {
-          keepingPlace = false;
-        }
+        standOnThread(target);
       },
     },
   ],
 });
+
+// Coming back out of a thread's box onto the thread, by Escape or by a send, is no
+// arrival. A thread too tall to show whole is already on screen around the box, and
+// landing its title would take the user away from the turn they were answering.
+export function standOnThread(thread) {
+  if (fitsWhole(thread)) return focusThread(thread);
+  keepingPlace = true;
+  try {
+    focusThread(thread, { preventScroll: true });
+  } finally {
+    keepingPlace = false;
+  }
+}
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
 // click on its words focuses, the quote, a link in a reply. `r` settles the thread from any
@@ -392,20 +402,32 @@ async function showThreadNow(id, focus, revealThread, threadsBox) {
     else destination.focus({ preventScroll: true });
   }
   const directThread = node === thread && thread.contains(focused());
-  const target = directThread ? landingTarget(thread, focused()).node : node;
-  const scrollTarget =
-    directThread && target !== thread
-      ? threadLandingStart(thread, target, threadsBox)
-      : target;
-  scrollTarget.scrollIntoView({
+  // A direct arrival aims at the reply area wherever the user stands in the thread; a
+  // long thread whose reply row is pinned aims at the thread's end, which the row
+  // stands over.
+  const aim = directThread
+    ? landingTarget(thread, threadInputOf(thread) ?? focused())
+    : { node };
+  const target = aim.node ?? thread;
+  const long = directThread && (target !== thread || aim.block === "end");
+  const start = long ? threadLandingStart(thread, target, threadsBox) : null;
+  (start ?? target).scrollIntoView({
     behavior: scrollBehavior(),
     // A long thread begins at the clean content boundary chosen above. A short card
     // is context in full; a requested message keeps the least-moving direct route.
-    block: target === thread ? "center" : directThread ? "start" : "nearest",
+    block: start
+      ? "start"
+      : long
+        ? (aim.block ?? "start")
+        : target === thread
+          ? "center"
+          : "nearest",
   });
-  target.classList.toggle("grow", false);
-  target.classList.toggle("flash", true);
-  setTimeout(() => target.classList.toggle("flash", false), 1300);
+  const revealed =
+    (aim.block === "end" && thread.querySelector(":scope > .lf-compose")) || target;
+  revealed.classList.toggle("grow", false);
+  revealed.classList.toggle("flash", true);
+  setTimeout(() => revealed.classList.toggle("flash", false), 1300);
   return true;
 }
 
@@ -439,6 +461,7 @@ export function createThreadLanding({
   scrollToThread,
   revealThread,
   threadsBox,
+  cardTarget,
 }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
@@ -453,6 +476,16 @@ export function createThreadLanding({
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });
+  // Where a sent reply or first comment leaves the user: out of the box, standing on the
+  // thread, or, for a thread in the margin card, on the element the thread is about, with
+  // the card still up (`cardTarget`, the card's own step out). A user who sends is
+  // usually done with the thread until the agent answers, so they move on from there
+  // without Escaping out of the box first.
+  const landSent = (thread) => {
+    const target = cardTarget(thread);
+    if (target) focusDestination(target);
+    else standOnThread(thread);
+  };
   const showThread = (id, { focus = "reply" } = {}) => {
     setPanel(true);
     const ready = showThreadNow(id, focus, revealThread, threadsBox);
@@ -467,6 +500,7 @@ export function createThreadLanding({
   return {
     landIn,
     landInThread,
+    landSent,
     showThread,
     accompaniedThread: (ids) => accompaniedThread(ids, threadsBox),
     accompanyThread: (ids) => accompanyThread(ids, threadsBox),

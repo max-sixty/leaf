@@ -128,6 +128,10 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
+  // Delivery's, not a runtime writer's: the size of the page media an element names
+  // (revision_delivery.py, `mark_declared`).
+  mediaWidth: "data-lf-media-width",
+  mediaHeight: "data-lf-media-height",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the

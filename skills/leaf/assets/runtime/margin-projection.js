@@ -19,8 +19,10 @@
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
-   opened. Page Map and Go-to arrivals activate the exact visible control;
-   they do not choose another action for the user.
+   opened. A pin the layout found no room for stands folded to its toggle
+   (`standsFolded`, margin-model.js's `canFold`), and the same state opens it. Page Map
+   and Go-to arrivals activate the exact visible control; they do not choose another
+   action for the user.
 
    The thread card stands by its owning cluster, or, where the rail has no room for that
    cluster, by the page target the cluster is about. `thread-card-geometry.js` states
@@ -55,7 +57,8 @@
    for focus and presses. Keyboard arrival at a commented element puts the card up
    beside it; standing elsewhere on the page, letting go (`declareRelease`), or pressing
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
-   card lands on its target. With Threads open the list's one expanded thread plays the
+   card lands on its target, and so does a send from it (`cardTarget`), with the card
+   still up showing what was sent. With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
    The rest of the runtime reads both directions from here: `threadHere` gives the thread
    a user standing on the page is at, and the side this owner declares to
@@ -76,12 +79,19 @@
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { cancelRender, nextRender } from "./rendering.js";
-import { excerptWords, labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
+  KINDS,
+  excerptWords,
+  labelWords,
+  spokenSubject,
+} from "./margin-entry-model.js";
+import {
+  THREAD_CARD,
   mountMarginLayer,
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
+  standsFolded,
   unregisterMarginRow,
 } from "./margin-layout.js";
 import {
@@ -99,7 +109,6 @@ import {
   watchMarginContributions,
 } from "./margin-entries.js";
 import {
-  KINDS,
   entryEngaged,
   choosePrimary,
   readingKey,
@@ -109,6 +118,7 @@ import {
   entryHasMarginHost,
   contributionItem,
   optionsOffered,
+  canFold,
   markerFace,
   readingFace,
   readingLabel,
@@ -344,7 +354,7 @@ export function createMarginProjection({
   // tiered the keyboard over it, so standing on the passage it discusses took it down.
   // It shows while the user stands at its target (`followStanding`).
   const preview = el("aside", "lf-ui lf-margin-preview");
-  preview.id = "lf-margin-preview";
+  preview.id = THREAD_CARD;
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
@@ -583,6 +593,10 @@ export function createMarginProjection({
   let forcedInlineKey = null;
   let forcedInlineOptionsKey = null;
   let expandedOptionsKey = null;
+  // Whether an entry's pin stands folded is the layout's answer (`standsFolded`); the
+  // gesture that opens any options opens a folded one.
+  const folded = (entry) => standsFolded(hosts.get(entry.key));
+  let refoldQueued = false;
   // An explicit mode can focus one contribution inside the target's existing cluster.
   // The rail then shows that owner's complete control set without spending margin entries on
   // standing readings or unrelated actions; Page Map still reads the whole entry.
@@ -758,8 +772,8 @@ export function createMarginProjection({
       (sum, box) => sum + box.scrollHeight,
       0,
     );
-  function measureThreadCard(width, cap) {
-    preview.style.setProperty("--lf-thread-width", `${width}px`);
+  function measureThreadCard(room, cap) {
+    preview.style.setProperty("--lf-thread-width", `${room}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
     const content = threadCardContent();
@@ -771,12 +785,18 @@ export function createMarginProjection({
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
+  // The card fits its thread between the bounds it is given (chrome.css).
+  function measureThreadWidth(minimum, room) {
+    preview.style.setProperty("--lf-thread-min-width", `${minimum}px`);
+    preview.style.setProperty("--lf-thread-width", `${room}px`);
+    return preview.getBoundingClientRect().width;
+  }
   // The thread's turns, without the reply row pinned under them: what an arriving or a
   // sent turn changes and a new line of the reply does not. Unrounded, since the row's
   // height is fractional and a rounded difference moves with it.
   const boxHeight = (node) => node.getBoundingClientRect().height;
-  function measureTranscript(width) {
-    preview.style.setProperty("--lf-thread-width", `${width}px`);
+  function measureTranscript(room) {
+    preview.style.setProperty("--lf-thread-width", `${room}px`);
     return [...previewList.querySelectorAll(".lf-margin-thread")].reduce(
       (sum, thread) =>
         [...thread.querySelectorAll(".lf-say")].reduce(
@@ -842,12 +862,20 @@ export function createMarginProjection({
         const boundary = threadCardBoundary(target);
         if (!boundary.width || !boundary.height) return {};
         const replyEditor = previewList.querySelector(REPLY_BOX);
-        // Drafting is standing anywhere in the reply's row, Send included. A send leaves
-        // the user in the box it empties, and the card must not move then.
+        // Drafting is standing anywhere in the reply's row, Send included, holding words
+        // in it, or a send of the user's still on its way. The send takes the user out
+        // of the box it empties (`landSent`), and the turn it adds must not move the
+        // reply row or Send from under the press.
+        const newest = [
+          ...(replyEditor
+            ?.closest(".lf-page-thread")
+            ?.querySelectorAll(".lf-page-thread-msg") ?? []),
+        ].at(-1);
         const drafting = Boolean(
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
-            replyEditor.value !== ""),
+            replyEditor.value !== "" ||
+            newest?.matches('.user[aria-busy="true"]')),
         );
         const clusterBox = cluster.getBoundingClientRect();
         // Client pixels per positioning-space pixel.
@@ -868,8 +896,10 @@ export function createMarginProjection({
           gap: CARD_GAP,
           minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
           preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
-          heightAt: (width, cap) => measureThreadCard(width / scale.x, cap / scale.y),
-          transcriptAt: (width) => measureTranscript(width / scale.x),
+          widthAt: (minimum, room) =>
+            measureThreadWidth(minimum / scale.x, room / scale.x),
+          heightAt: (room, cap) => measureThreadCard(room / scale.x, cap / scale.y),
+          transcriptAt: (room) => measureTranscript(room / scale.x),
           drafting,
           hold: previewHold,
         });
@@ -924,7 +954,7 @@ export function createMarginProjection({
         previewHold = geometry.hold;
         previewAway = geometry.away;
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        previewPlacement.stand(position.x, position.y);
+        previewPlacement.stand(position);
         // Leaving with its cluster, the card passes under the chrome, which stacks over
         // it, and a reading region cuts it at the region's edge as it cuts the words.
         if (region) {
@@ -1334,6 +1364,32 @@ export function createMarginProjection({
       order,
       priority: 10,
       move: (into) => moveHost(row, into),
+      fold: {
+        able: () =>
+          canFold(row.lfEntry, {
+            expandedKey: expandedOptionsKey,
+            expandedOwner: expandedOptionsOwner,
+          }),
+        // How many controls the pin shows opened: its options and the toggle.
+        controls: () => {
+          const { options } = clusterProjection(row.lfEntry, {
+            expandedKey: row.lfEntry.key,
+            folded: true,
+          });
+          return options.visible.length + (options.spill ? 1 : 0) + 1;
+        },
+        // Told from inside the layout pass, which has already seated the row at its new
+        // size: the cluster is presented again once that pass has written, before the
+        // frame paints, however many rows it folded.
+        changed: () => {
+          if (refoldQueued) return;
+          refoldQueued = true;
+          queueMicrotask(() => {
+            refoldQueued = false;
+            renderMargin.refresh();
+          });
+        },
+      },
     };
   }
 
@@ -2056,16 +2112,8 @@ export function createMarginProjection({
           { writesRelation: false, writesSeat: false },
         );
         rows.set(entry.key, marker);
-        more = presentMarginEntry(
-          offer("button", "lf-margin-more"),
-          marginEntry({
-            key: "options",
-            icon: "more",
-            label: "More options",
-            behavior: "disclosure",
-            rank: "overflow",
-          }),
-        );
+        // Its face is the cluster's to paint (margin-cluster-view.js).
+        more = offer("button", "lf-margin-more");
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
         keys(host, "In the margin", marginKeys, () => marginKeysAvailable);
@@ -2089,11 +2137,29 @@ export function createMarginProjection({
             return;
           const current = host.lfEntry;
           const primary = current && choosePrimary(current);
-          if (!current || !optionsOffered(current, primary)) return;
+          const standsFoldedNow =
+            Boolean(current) &&
+            folded(current) &&
+            canFold(current, {
+              expandedKey: expandedOptionsKey,
+              expandedOwner: expandedOptionsOwner,
+            });
+          if (!current || !(standsFoldedNow || optionsOffered(current, primary)))
+            return;
           if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
           if (entryEngaged(current)) return;
+          // A folded cluster's toggle is its only control and stands after the actions it
+          // unfolds, so Tab arriving on it lands on the first of them, and Shift+Tab on
+          // the last.
+          const back =
+            event.relatedTarget instanceof Node &&
+            Boolean(
+              host.compareDocumentPosition(event.relatedTarget) &
+              Node.DOCUMENT_POSITION_FOLLOWING,
+            );
           setOptionsOpen(current, true, {
-            focusOption: control === more ? "last" : null,
+            focusOption:
+              control === more ? (standsFoldedNow && !back ? "first" : "last") : null,
           });
         });
         host.addEventListener("focusin", () => {
@@ -2169,6 +2235,7 @@ export function createMarginProjection({
         expandedKey: expandedOptionsKey,
         expandedOwner: expandedOptionsOwner,
         forcedInlineKey,
+        folded: folded(entry),
       });
       if (!projection.hasOptions && expandedOptionsKey === entry.key) {
         expandedOptionsKey = null;
@@ -2510,9 +2577,9 @@ export function createMarginProjection({
       optionsRung(),
     );
   };
-  const stepsOut = () => {
+  const stepsOut = (from = focused()) => {
     const target = targetFor(previewEntry);
-    return preview.contains(focused()) &&
+    return preview.contains(from) &&
       !unfoldedUnder() &&
       target?.isConnected &&
       target.checkVisibility()
@@ -2841,9 +2908,43 @@ export function createMarginProjection({
     }
     return standing;
   };
+  // A folded cluster opens while the keyboard stands at its target, as it does when
+  // the keyboard arrives on its toggle: what the user stands at offers its actions, and
+  // an Ask's digits name them. It folds again when they stand anywhere else but in the
+  // cluster itself, whose own focus then keeps it open (the host's `focusout`).
+  let standingUnfolded = null;
+  function unfoldStanding(active) {
+    const host = active && closestAcross(active, "[data-lf-margin-for]");
+    if (host?.lfEntry?.key === standingUnfolded) {
+      standingUnfolded = null;
+      return;
+    }
+    const state = {
+      expandedKey: expandedOptionsKey,
+      expandedOwner: expandedOptionsOwner,
+    };
+    const place =
+      active && !host && active.matches(":focus-visible") && placeOf(active);
+    const entry = place
+      ? pageInventory.find(
+          (candidate) =>
+            folded(candidate) &&
+            canFold(candidate, state) &&
+            under(place, targetFor(candidate)),
+        )
+      : null;
+    if (entry?.key === standingUnfolded) return;
+    if (standingUnfolded && expandedOptionsKey === standingUnfolded)
+      setOptionsOpen(null, false, { preservePreview: true });
+    standingUnfolded = null;
+    if (!entry || expandedOptionsKey === entry.key) return;
+    setOptionsOpen(entry, true, { preservePreview: true });
+    standingUnfolded = entry.key;
+  }
   function followStanding() {
     refreshHighlight();
     const active = focused();
+    unfoldStanding(active);
     if (
       !active ||
       active === document.body ||
@@ -3086,7 +3187,7 @@ export function createMarginProjection({
     if (!previewRegionMounted) {
       previewRegionMounted = true;
       registerReadingRegion({
-        id: "lf-margin-preview",
+        id: THREAD_CARD,
         host: preview,
         body: previewList,
       });
@@ -3112,6 +3213,9 @@ export function createMarginProjection({
     closePreview,
     inlineThreadView,
     keyboardRung,
+    // The element a thread in the card is about, where a send from it leaves the user
+    // with the card still up: the same step Escape takes out of the card.
+    cardTarget: stepsOut,
     optionsRung,
     openInlineThread,
     openPageThread,

@@ -1,13 +1,20 @@
 """Read and prepare one complete authored page fixture."""
 
+import functools
 import json
 import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import click
+from leaf.media import media_name
+from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+
 from leaf_dev import ROOT
 from leaf_dev.example_data import data_operations, example_versions
+from leaf_dev.leaf_assets import clone, pinned_copy, publish
 
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 
@@ -48,14 +55,57 @@ def source_packages(source: Path) -> list[str]:
     return json.loads(manifest.read_text(encoding="utf-8"))
 
 
+def layer_media(manifest: Path) -> Path | None:
+    """The images a layer's pages share: `media/` beside its manifest in the tree, or
+    else at that path in the checkout's pinned assets, where the example catalog's
+    live (`leaf_dev.leaf_assets`)."""
+    media = manifest.parent / "media"
+    return media if media.is_dir() else pinned_copy(media)
+
+
+@functools.cache
+def example_media() -> Path:
+    """The images the example catalog's pages share, content-addressed as
+    `leaf page media` names them (examples/AGENTS.md, "Media")."""
+    return layer_media(DEFAULT_PACKAGES)
+
+
 def media_source(source: Path) -> Path:
     media = source.parent / "media"
     manifest = source_manifest(source)
-    if not media.is_dir() and manifest is not None:
-        layer_media = manifest.parent / "media"
-        if layer_media.is_dir():
-            return layer_media
-    return media
+    if media.is_dir() or manifest is None:
+        return media
+    return layer_media(manifest) or media
+
+
+@click.command("publish-media")
+@click.argument(
+    "images", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False)
+)
+def publish_media(images: tuple[str, ...]) -> None:
+    """Publish images for the example pages to max-sixty/leaf-assets.
+
+    Each is named by its bytes, as `leaf page media` names it, and added beside the
+    catalog's other images; the pin moves to the new revision. Prints the path each
+    page names the image by."""
+    directory = DEFAULT_PACKAGES.parent.relative_to(ROOT) / "media"
+    paths = [Path(image) for image in images]
+    for path in paths:
+        if path.suffix.lower() not in MEDIA_TYPES:
+            raise click.BadParameter(
+                f"{path}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
+            )
+    named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
+    with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
+        checkout = clone(Path(raw))
+        target = checkout / directory
+        target.mkdir(parents=True, exist_ok=True)
+        for name, path in named.items():
+            shutil.copyfile(path, target / name)
+        revision = publish(checkout, f"Add {len(named)} example image(s)")
+    for name, path in named.items():
+        click.echo(f"/{MEDIA_DIR}/{name}  {path}")
+    click.echo(f"  max-sixty/leaf-assets@{revision}")
 
 
 def read_fixture(source: Path) -> PageFixture:

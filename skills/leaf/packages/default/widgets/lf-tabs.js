@@ -4,9 +4,11 @@
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
  * scrolls to a comment anchor. The open tab is view state for this user,
- * remembered per browser tab in the runtime's tabStore:
- * switching is reading, not editing, so it never sends an action and no
- * version carries it — this widget doesn't ride the action channel at all.
+ * remembered per browser tab (`keepView`): switching is reading, not editing, so it
+ * never sends an action and no version carries it — this widget doesn't ride the
+ * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
+ * which shows the same panel at the first paint, before this module has loaded
+ * (`x-views`).
  * The first tab set placed directly in main is the page's navigation over sections of
  * that page, whatever else main holds: its panel id is the URL fragment, and history
  * follows those panel entries. A link inside a panel is still fragment travel
@@ -23,10 +25,9 @@
  * box ("box"): framed, its strip in flow, each panel a bounded box that what it holds
  * measures itself against, and a switch leaves the page where it stands. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
- * down as well as across (theme.css says where it stacks, and how its list sticks); a
- * side list is a box even as the root set, which keeps the root's history, and an item
- * opened from its row, or by Back or Forward, lands the set's start when the user stood
- * below it.
+ * down as well as across (theme.css says where it stacks); a side list is a box even as
+ * the root set, which keeps the root's history, and Back or Forward there lands the
+ * set's start when the user stood below it.
  *
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list's row adds the panel's `summary` under the name. Every tab wears two
@@ -42,7 +43,7 @@ import {
   capturePlace,
   claimTraversals,
   commands,
-  declareStickyHeaders,
+  keepView,
   keeps,
   keepsText,
   openAsks,
@@ -50,20 +51,24 @@ import {
   listWalkPosition,
   offer,
   once,
+  openingView,
   pageScroller,
   preserveReadingRegions,
   pushEntry,
   relabel,
+  removeRuntimeRootStyle,
   replaceEntry,
   restorePlace,
-  scrollerFor,
   selectableOffer,
-  sizeObserver,
+  setRuntimeRootStyle,
   tabStore,
   watchAsks,
 } from "/runtime/widget-api.js";
 
-const TAB_KEY = "lf-tabs:";
+// The page's navigation strip, where one stands: the first tab set in main, drawn as
+// a row (`#syncRootContext`).
+const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
+
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
@@ -91,7 +96,6 @@ customElements.define(
     #stopAsks = null;
     #side = false;
     #pageFlow = false;
-    #listFit = null;
 
     connectedCallback() {
       if (!once(this)) {
@@ -99,7 +103,6 @@ customElements.define(
         this.#syncRootContext();
         this.#listenForHistory();
         this.#listenForAsks();
-        this.#watchListFit();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -124,6 +127,7 @@ customElements.define(
       this.#strip = strip;
       strip.setAttribute("role", "tablist");
       if (side) strip.setAttribute("aria-orientation", "vertical");
+      strip.append(this.#edge("start"));
       for (const panel of panels) {
         const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
@@ -147,7 +151,7 @@ customElements.define(
           chip.setAttribute("aria-hidden", "true");
           btn.append(chip);
         }
-        btn.onclick = () => this.#activate(panel, true, "ordinary");
+        btn.onclick = () => this.#activate(panel, "ordinary");
         strip.append(btn);
         this.#buttons.set(panel, btn);
         panel.setAttribute("role", "tabpanel");
@@ -155,11 +159,9 @@ customElements.define(
         panel.tabIndex = 0; // a tabpanel of prose has no focusable content; Tab must still reach it
         // The browser found something inside (find-in-page, an anchor jump), or
         // the runtime is about to scroll a comment anchor into view: open up.
-        panel.addEventListener("beforematch", () =>
-          this.#activate(panel, true, "reveal"),
-        );
+        panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
         panel.addEventListener("lf-reveal", (event) => {
-          const ready = this.#activate(panel, true, "reveal");
+          const ready = this.#activate(panel, "reveal");
           event.detail?.present?.(ready);
         });
       }
@@ -171,9 +173,8 @@ customElements.define(
         // whole of when this scope holds — is always one of these buttons.
         const at = order.indexOf(document.activeElement);
         const next = order[to(at, order.length)];
-        // The strip is always on screen, and a side list scrolls its row into view as the
-        // item opens (#showRow); focus scrolling a stuck tab back to its place in flow
-        // would move the view being left before the switch records it.
+        // The strip is always on screen; focus scrolling a stuck tab back to its place
+        // in flow would move the view being left before the switch records it.
         next.focus({ preventScroll: true });
         next.click();
         beginWalk("tab", "Tab", () =>
@@ -229,20 +230,15 @@ customElements.define(
           run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
         },
       ]);
+      strip.append(this.#edge("end"));
       this.prepend(strip);
-      this.#declareStickyHeader();
+      this.#declareHeader();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-      this.#watchListFit();
-      // Restore this user's tab; a remembered id always resolves in later
-      // versions because check forbids dropping ids. Restoration happens here,
-      // during upgrade, so the runtime's view restore measures final geometry.
-      const saved = tabStore.get(TAB_KEY + this.id);
-      const arrived = this.#panelForLocation(panels);
-      this.#activate(
-        arrived || panels.find((panel) => panel.id === saved) || panels[0],
-        false,
-        "arrival",
-      );
+      // Open on the tab the first paint showed: the one the address names, or this
+      // user's last, whose id resolves in later versions because check forbids
+      // dropping ids. It opens here, during upgrade, so the runtime's view restore
+      // measures final geometry.
+      this.#activate(openingView(this, panels), "arrival");
       if (this.#root) {
         this.#listenForHistory();
         this.#replaceLocation(this.#active);
@@ -261,48 +257,17 @@ customElements.define(
       this.#contextObserver = null;
       this.#stopAsks?.();
       this.#stopAsks = null;
-      this.#listFit?.disconnect();
-      this.#listFit = null;
-    }
-
-    // A side list sticks at the top of the box that scrolls the set and is never taller
-    // than that box's view (theme.css), and only the box knows both: the page's are the
-    // chrome's bands, less a page tab strip stuck under the banner, and any other
-    // scroller's are its own top and height. Written on the strip, the set's own box,
-    // and read again whenever the set or what scrolls it changes size.
-    #watchListFit() {
-      if (!this.#side || !this.#strip || this.#listFit) return;
-      this.#listFit = sizeObserver(() => this.#fitList());
-      this.#listFit.observe(this);
-      this.#fitList();
-    }
-
-    #fitList() {
-      const scroller = scrollerFor(this);
-      const page = scroller === pageScroller;
-      if (!page) this.#listFit.observe(scroller);
-      const fit = {
-        "--lf-list-top": page
-          ? "calc(var(--lf-top) + var(--lf-root-tab-clear, 0px))"
-          : "var(--lf-top)",
-        "--lf-list-view": page
-          ? "calc(var(--lf-view-height) - var(--lf-root-tab-clear, 0px))"
-          : `${scroller.clientHeight}px`,
-      };
-      for (const [name, value] of Object.entries(fit))
-        if (this.#strip.style.getPropertyValue(name) !== value)
-          this.#strip.style.setProperty(name, value);
-    }
-
-    // The open item's row stays in view in a list that scrolls on its own, however the
-    // item was opened: a press, the arrow walk, Ask travel, a link, Back or Forward.
-    #showRow(btn) {
-      const strip = this.#strip;
-      if (strip.scrollHeight <= strip.clientHeight) return;
-      const list = strip.getBoundingClientRect();
-      const row = btn.getBoundingClientRect();
-      if (row.top < list.top) strip.scrollTop -= list.top - row.top;
-      else if (row.bottom > list.bottom) strip.scrollTop += row.bottom - list.bottom;
+      // A revision that rebuilds the page's set disconnects this one and connects its
+      // replacement in one operation, so the header is withdrawn only once that
+      // operation is over and no strip has taken this one's place: withdrawn and
+      // declared again, it would restyle the whole document for nothing.
+      if (this.#covering) {
+        this.#covering = false;
+        queueMicrotask(() => {
+          if (!document.querySelector(PAGE_STRIP))
+            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+        });
+      }
     }
 
     #listenForAsks() {
@@ -344,7 +309,7 @@ customElements.define(
       });
     }
 
-    #activate(active, remember, reason) {
+    #activate(active, reason) {
       if (!this.#buttons.has(active)) return;
       if (active === this.#active) return Promise.resolve();
       const previous = this.#active;
@@ -370,11 +335,10 @@ customElements.define(
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
         this.#active = active;
+        this.#showTab(this.#buttons.get(active));
         if (switched) this.#open(active, from);
-        else if (reason === "history" || (this.#side && reason === "ordinary"))
-          this.#land();
-        if (this.#side) this.#showRow(this.#buttons.get(active));
-        if (remember) tabStore.set(TAB_KEY + this.id, active.id);
+        else if (reason === "history") this.#land();
+        keepView(this, active);
         const presentation = [];
         for (const panel of [previous, active].filter(Boolean)) {
           const child = soleSubstantiveElement(panel);
@@ -422,7 +386,7 @@ customElements.define(
       } else if (this.#buttons.size) {
         this.#listenForHistory();
       }
-      this.#declareStickyHeader();
+      this.#declareHeader();
       // A set that changed flow drew its open panel at another width.
       if (wasFlow !== this.#pageFlow && this.#active) {
         const child = soleSubstantiveElement(this.#active);
@@ -442,21 +406,58 @@ customElements.define(
       this.#contextObserver.observe(main, { childList: true });
     }
 
-    // A page-flow strip sticks under the banner, over the document it indexes, so it is
-    // a sticky header there (`declareStickyHeaders`): what it stands over is not on
-    // screen, and the room it takes is kept as `--lf-root-tab-clear`, which the
-    // document's `scroll-padding` reads. The document's sticky headers are one set, so
-    // only a set that declared its strip withdraws one, and a tab set nested in a root
-    // panel never clears the root's. A strip that leaves the document is let go on its own.
-    #declareStickyHeader() {
+    // A page-flow strip sticks under the banner over the whole document, so it is a
+    // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
+    // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
+    // below it. What the strip stands over inside its panels stacks through `--lf-top`
+    // (the package theme). A set that stops being the page's strip withdraws it only
+    // where no other set has become that strip.
+    #declareHeader() {
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
-      if (!covering && !this.#covering) return;
+      if (covering === this.#covering) return;
       this.#covering = covering;
-      declareStickyHeaders(
-        document.documentElement,
-        "--lf-root-tab-clear",
-        covering ? [this.#strip] : [],
-      );
+      const root = document.documentElement;
+      if (covering)
+        setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
+      else if (!document.querySelector(PAGE_STRIP))
+        removeRuntimeRootStyle(root, "--lf-root-headers");
+    }
+
+    // A press at one edge of the strip, which pages the names that run past it (the
+    // package theme shows it only while there is more that way). It takes no tab stop:
+    // the tabs are the keyboard's route, and a focused tab brings itself into view.
+    #edge(to) {
+      const edge = document.createElement("span");
+      edge.className = "lf-tabstrip-scroll";
+      edge.dataset.to = to;
+      edge.setAttribute("aria-hidden", "true");
+      const face = document.createElement("span");
+      face.onclick = () => {
+        const strip = this.#strip;
+        const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
+        strip.scrollBy({
+          left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
+          behavior: "smooth",
+        });
+      };
+      edge.append(face);
+      return edge;
+    }
+
+    // A tab the row runs past is scrolled into the strip, and only the strip: the
+    // strip sticks, and scrolling the page to it would move the view being read. It
+    // stops clear of the edge's press, which the strip states as its inline
+    // `scroll-padding` (the package theme).
+    #showTab(btn) {
+      if (!this.#pageFlow || !btn) return;
+      const strip = this.#strip;
+      const room = strip.getBoundingClientRect();
+      const box = btn.getBoundingClientRect();
+      const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
+      const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
+      const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
+      if (box.left < left) strip.scrollLeft -= left - box.left;
+      else if (box.right > right) strip.scrollLeft += box.right - right;
     }
 
     #listenForHistory() {
@@ -469,7 +470,7 @@ customElements.define(
         (url) => {
           const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
           return view && view !== this.#active
-            ? () => this.#activate(view, true, "history")
+            ? () => this.#activate(view, "history")
             : null;
         },
         { signal },
@@ -529,24 +530,10 @@ customElements.define(
     // the user reads: left where it stood, a view shorter than the one it replaced puts
     // them at the page's end, partway down it. So a traversal lands the set's start, as a
     // page-flow view without a place lands at its own, and leaves a set already in view
-    // where it is. A side list's item opened from its row lands the same way: the list
-    // sticks beside the item, so the row stays in view and the item opens at its start
-    // rather than partway down, or past the end of, the item before it. The set's start
-    // lands where its list sticks, or, for a set whose list does not stick, where the
-    // box that scrolls it puts a destination; a set that is a full-height workspace's
-    // body scrolls itself (layouts.css), so its start is its own scroll's.
+    // where it is.
     #land() {
-      const scroller = scrollerFor(this);
-      if (scroller === this) {
-        this.scrollTop = 0;
-        return;
-      }
-      const edge = scroller === pageScroller ? 0 : scroller.getBoundingClientRect().top;
-      const inset = this.#side
-        ? getComputedStyle(this.#strip).top
-        : getComputedStyle(scroller).scrollPaddingTop;
-      const above = edge + (parseFloat(inset) || 0) - this.getBoundingClientRect().top;
-      if (above > 0.5) scroller.scrollTop -= above;
+      if (this.getBoundingClientRect().top < 0)
+        this.scrollIntoView({ block: "start", behavior: "instant" });
     }
 
     #placeKey(panel) {

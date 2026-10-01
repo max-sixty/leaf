@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="docs/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/70a90eb42648b449904e088f67e112a34bce1bc3/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/70a90eb42648b449904e088f67e112a34bce1bc3/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](docs/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/70a90eb42648b449904e088f67e112a34bce1bc3/demo/demo.gif)
 
 </details>
 
@@ -27,8 +27,8 @@ private copy, or [explore the examples](https://leaf.page/examples/).
 
 You need [`uv`](https://docs.astral.sh/uv/),
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
-browser on the same machine as your agent. No Leaf account or configuration is
-required.
+browser that can reach the machine the agent runs on. No Leaf account or
+configuration is required.
 
 Claude Code:
 
@@ -74,5 +74,4 @@ your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
   reusable packages, and Leaf's shared kernel. Your agent can build a widget a
   task needs and use it in later pages.
 - [Public contracts](skills/leaf/SKILL.md): authoring, serving, and continuing a
-  Leaf page. The [experimental MCP App](skills/leaf/scripts/leaf/mcp-app.md)
-  provides an additional host integration.
+  Leaf page.

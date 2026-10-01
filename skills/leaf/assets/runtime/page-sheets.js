@@ -26,10 +26,13 @@
    lf-board .grip` restyles the board's grip on purpose and every other button by
    accident, and only the second half is narrowed.
 
-   The sheets read are the ones the delivered document states, and the next revision's
-   when it activates, including sheets they import. A sheet from another origin the
-   browser does not let a script read stays as written, and so does one a page module
-   builds for itself after boot. */
+   The sheets read are the ones the delivered document states, the next revision's when
+   it activates, and any a page's script puts in the head later, including sheets they
+   import. A CSS framework that builds its sheet from the classes it finds, such as
+   Tailwind's, writes a `<style>` there and rewrites it as the page changes, and each
+   rewrite is a new sheet, read again. A sheet from another origin the browser does not
+   let a script read stays as written, and so does one a page module constructs and
+   adopts, which it wrote for itself. */
 
 const APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
 
@@ -122,10 +125,25 @@ function narrowSheet(sheet) {
 // Every sheet the page states that has not been narrowed yet. Boot calls this before the
 // first widget builds a control, and a revision activation after it brings the next
 // revision's head and body in; a linked or importing sheet is complete only once its
-// element has loaded.
+// element has loaded. From boot on, a change in the head calls it too, and a link added
+// there calls it again once it loads.
+let watching = false;
 export function keepPageRulesOffLayer() {
   for (const sheet of document.styleSheets) {
     if (sheet.ownerNode?.hasAttribute("data-lf-runtime")) continue;
     narrowSheet(sheet);
   }
+  if (watching) return;
+  watching = true;
+  new MutationObserver((records) => {
+    for (const record of records)
+      for (const node of record.addedNodes)
+        if (node instanceof HTMLLinkElement)
+          node.addEventListener("load", keepPageRulesOffLayer, { once: true });
+    keepPageRulesOffLayer();
+  }).observe(document.head, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
 }

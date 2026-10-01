@@ -51,6 +51,11 @@ browser's order.
   it, and focus decides which answers first.
 - A composer, reply box, or find box exits to its container; a reply box returns
   to its thread, then the whole panel, which clears narrowing before closing.
+- A reply, or the first comment that starts a thread, leaves the user standing on
+  the thread once sent. A thread in the margin card leaves them on the element it
+  is about, with the card still up, so one Escape takes the card down and moving
+  elsewhere needs none. A box that stays open for more messages, such as a seat's
+  or the Threads panel's general box, keeps the user in it.
 - Threads has two selection levels, the whole panel (`g T`) and one thread, and a
   title selects the same thread as its body. Enter or Space selects a closed
   title and keeps an open one selected; Comment enters the reply box even from a
@@ -115,7 +120,8 @@ command reference and caret browsing describe or extend the keyboard itself.
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
 (native editing claims), `layer-stack.js` (popovers and dialogs over the page),
-`page.js` (the page's own parts and the foot of the ladder), `control-keys.js`,
+`page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
+(the `g` grammar), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
 for the keys).

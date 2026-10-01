@@ -52,9 +52,9 @@ other role.
 ## Document scaffold
 
 Write a complete HTML document. The authored head names and describes the page;
-Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address when it
-delivers the document. Put page-specific CSS in `<style>` and JavaScript in inline
-module blocks. Every `lf-*` element has an explicit end tag.
+Leaf adds the encoding, identity, theme, runtime, and canonical address when it
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in
+`<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
 when the head has no viewport meta. This lets Leaf's chrome use the device's
@@ -108,7 +108,7 @@ the stack from these:
   them as on any page. The `lf-tabs` entry says which placement makes which, and how
   to order and retire views.
 
-A page grows without changing kind: a report that gains live status gains a row of
+A page grows without changing its Layout: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
 The banner and the bottom bar at the foot of the window are fixed reservations, so
@@ -118,21 +118,27 @@ margin", below).
 
 ### Layouts
 
-A Layout is a class that arranges the box it is on. Put one on `main` to shape the
-page, or on any block to arrange that block's children. `layout-column` on a block keeps
-the measure but gives it no room to break out into, since that room is the page's:
+A Layout is a class that arranges the box it is on. Three set the page's shape, on
+`main`:
+
+| Class | The page |
+| --- | --- |
+| `layout-column` | the reading column, and a block's breakout beside it |
+| `layout-wide` | as wide as the window, up to a cap, holding one flow |
+| `layout-workspace` | fills the window: `header`, one body, `footer` |
+
+Two arrange a box's children, on `main` or on any block:
 
 | Class | Arranges |
 | --- | --- |
-| `layout-column` | the reading column, and a block's breakout beside it |
-| `layout-wide` | a page as wide as the window, up to a cap, holding one flow |
 | `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-tiles` | equal cells, as many to a row as fit |
-| `layout-workspace` | a page that fills the window: `header`, one body, `footer` |
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, text keeps the reading
-measure, and the title is set larger.
+included, starts at one left edge and takes the page's width, and text keeps the
+reading measure. The title is set larger, and a workspace sets it smaller so its
+header stays one row. `layout-column` on a block keeps the measure but gives it no
+room to break out into, since that room is the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -174,7 +180,7 @@ than a new split per row whose edges land somewhere new each time.
 A track shorter than the window can stay in view while the body scrolls beside it:
 give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
 holds `position: sticky; top: var(--lf-top)`, which keeps that block just below Leaf's
-banner. The block sticks only inside the track, so wherever the two stack, for either
+banner and any page tab strip. The block sticks only inside the track, so wherever the two stack, for either
 reason, the track is only as tall as what it holds and nothing sticks over the body; no
 width is needed. Leave a taller track in flow, since sticking it would hide its end
 until the page ends.
@@ -233,7 +239,7 @@ its last line, keeps that line in view while the user is at the end, and leaves 
 where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens it at the top, as the page's own activity feed
 does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
-CSS: Leaf keeps no reading position in a scroller it did not make, and `version
+CSS: Leaf keeps no reading position in a scroller it did not make, and `page
 check` advises against one.
 
 An individual block or section may request a responsive allocation with
@@ -247,6 +253,14 @@ widget's package default, so `data-width="column"` can deliberately keep a norma
 widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
+
+A widget whose entry declares `x-height`, such as `lf-chart` or `lf-diagram`, is drawn
+by its module at a height the page holds before the drawing arrives: the entry's
+number, or an occurrence's `data-height`, in CSS pixels. `lf-chart` draws at that
+height. A widget whose drawing has a height of its own, such as `lf-diagram` or
+`lf-diff`, has no number, so what follows it moves when it is drawn unless the
+occurrence states that height. `page check --render` advises the height to state
+wherever a drawing differs from what the page held.
 
 Show evidence at the scale needed to judge it. For a local change, supply an aligned
 detail view with the complete object available for context; use whole frames when their
@@ -272,18 +286,25 @@ geometry without them:
   in the margin on `main` as `data-lf-margin` (`rail`, `map`, `sidebar`, `note`), so page
   CSS that should follow the margin keys on it, such as
   `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
-- A wide page fills the window up to its cap and keeps no rail there. Its
-  markers stand as pins over the page by their targets, as every marker does where the
-  rail does not stand: in a narrower window, and in a pane that scrolls on its own. A
+- A wide page fills the window up to its cap, so the rail stands beside it only in a
+  window of about 1920px or wider. Elsewhere its markers stand as pins over the page by
+  their targets, as every marker does where the rail does not stand: in a narrower
+  window, and in a pane that scrolls on its own. A
   block's pin stands inside its top-right corner and a run of text's just after its
   last word, unless that covers words, a control, or another block; then it takes the
   nearest room beside its target that covers none, such as the free end of a line or
   the gap below it. Where its target leaves no such room, it may take the empty end of
   a neighbouring block's line, such as beside a short heading above it, unless that
-  block paints its box (a fill, border or shadow, as a card or table does). A pin is
-  26px with a mouse and 44px under a finger, and where no
-  such room exists, as for a pair of them in a phone's full lines, it stays in the
-  corner over the block's words.
+  block paints its box (a fill, border or shadow, as a card or table does). Where none
+  of that room lies within reach, it reaches one line further out, past a line of words
+  but never past a painted block or nearer another pin's target, such as to the end of
+  the section's heading above a full first line. A pin is 26px with a mouse and 44px
+  under a finger. A pair, such as a suggestion's Accept and Reject, that finds no such
+  room folds to one control, a marker wearing the face of what it folds (a suggestion's
+  is a change), that opens to both on a tap or when the keyboard arrives on it or on
+  its target, and takes room of that size; where even that finds none, as in a
+  phone's full lines deep in a paragraph, the pin stays in the corner over the block's
+  words.
 - A marker on a figure grown past the rail stands on the figure as a pin, at the
   corner of the part it names when it names one.
 - The user hides every pin and passage mark with `o`, or with Hide annotations in the
@@ -325,6 +346,10 @@ measurement is a metric, and a pattern across measurements is a chart. Movable
 things form a board. Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
+
+For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
+individual boxes need their own targets, list every nameable box in `parts`;
+`page check --render` reports a partial list so adjacent boxes do not behave differently.
 
 The prose beside a shape says only what the shape cannot. What is left for prose is
 the claim, the reason it holds, and the question the page is asking. A few sentences
@@ -370,9 +395,12 @@ or comparison rather than shrinking its source solely to fit the prose column.
 ## Page behavior
 
 Write page-specific behavior in an inline `<script type="module">` or in browser-ready
-modules below `page/`, referenced through `/page/…`. Page stylesheets and their local
-dependencies may live there too. Relative imports stay within `page/`; code that
-integrates with Leaf may import the public `/runtime/widget-api.js` module. Leaf captures
+modules below `page/`, referenced through `/page/…`. A library that ships only a classic
+script loads with `<script defer src>`, from `page/` or any server; every script runs after
+Leaf has read the page, so an inline classic, parser-blocking, or `async` script is
+refused. Page stylesheets and their local dependencies may live below `page/` too.
+Relative imports stay within `page/`; a module that integrates with Leaf may import the
+public `/runtime/widget-api.js`. Leaf captures
 the complete local dependency graph, effective registry, and selected layer bytes in the
 same immutable revision as the markup they control.
 
@@ -393,7 +421,7 @@ Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 
-`leaf page check` runs a page's own code, a module script or a page widget the
+`leaf page check` runs a page's own code, a script or a page widget the
 document places, once in the host's browser: through upgrade, presentation, and one
 frame after it. It fails on every error the page would report to you through the
 watcher, an uncaught exception or a rejected promise with the source location it came
@@ -409,16 +437,18 @@ page widget may replace the package implementation without restating its declara
 Both choices are fixed in the revision manifest.
 
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
-explorer or playground keeps its code in `page/`. Leaf captures literal local module
-and stylesheet dependencies, and refuses unresolved imports, filesystem escapes, classic
-scripts, event-handler attributes, and `javascript:` URLs.
+explorer or playground keeps its code in `page/`. Leaf captures the local files a
+page's scripts and stylesheets name literally, so import a page file by a literal URL;
+a computed `import()` reaches a module on another server, named by its full URL. Leaf
+refuses unresolved imports, filesystem escapes, and anything declared about the whole
+document (a `<base>`, an http-equiv `<meta>`, an import map), which would send the
+runtime's requests elsewhere or leave its modules unresolved.
 
-A stylesheet, font, module, or image may also come from Google Fonts or a public script
-CDN, the set a Claude artifact page may use: jsdelivr, cdnjs, unpkg, Tailwind's, and
-jQuery's. Name it by its absolute `https://` URL; the page loads it as written, so it
-arrives only while the user is online. Load a library as a module — jsdelivr's
-`/+esm` builds one from any npm package — since a classic script is refused. A
-reference to any other origin is refused, and the refusal names the ones admitted.
+A script, stylesheet, font, image, or frame may also come from another server, named
+by its absolute `http(s)://` URL, and a page's code may fetch from anywhere. The page
+loads it as written, so it arrives only while the user is online. Data the page
+presents belongs in a `data/` source instead (`references/packages.md`, "External or
+derived data"), where the log and an export hold it.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.
@@ -495,12 +525,13 @@ needs a tight id, either on itself or on its immediate semantic container.
 
 ## Reading cost
 
-Open words are read; collapsed words are there when the user wants them. What
-stands open in the column is what the user has to take from the page. History,
-method, source excerpts, exhaustive support, transcripts, and raw output are
-backing by default and go under `<details>`. Collapsed words stay quotable, and
-the runtime opens the disclosure when a comment or a walk lands inside one. An
-open Ask and the evidence it turns on never collapse.
+Open words are read; collapsed words are read only by a user who goes looking
+for them. So whatever the page asks its readers to take in or answer stands open:
+the finding, the evidence it rests on, and what they are asked to review, decide,
+or comment on, a proposed plan included. A disclosure holds what they can skip and
+still do that: history, method, source excerpts, exhaustive support, transcripts,
+and raw output. Collapsed words stay quotable, and the runtime opens the
+disclosure when a comment or a walk lands inside one.
 
 The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an

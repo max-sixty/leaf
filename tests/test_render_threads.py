@@ -46,13 +46,13 @@ from render_cases_layout import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
     any_owner_entry,
+    example_media,
     holding,
     leaf_page,
     open_page,
@@ -1568,7 +1568,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()
     reply = thread.locator("leaf-text")
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         reply.evaluate(
@@ -1666,7 +1666,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
-    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         field.evaluate(
@@ -1797,6 +1797,9 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     ]
     source, target = roots[12:14]
     page.locator(f'.lf-thread[data-id="{target}"] .lf-thread-summary').click()
+    # Opening closes the card above, and the list's hold on the pressed title corrects
+    # for that on the next render; the scroll below comes after it.
+    rendered(page)
     page.locator(f'.lf-thread[data-id="{target}"]').evaluate(
         "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
     )
@@ -4009,8 +4012,11 @@ def test_a_thread_completion_keeps_the_users_later_destination(
             "value",
             "The user is working here now." if destination == "other-thread" else "",
         )
-    elif kind in {"reply", "unresolve"}:
+    elif kind == "unresolve":
         expect(thread.locator("leaf-text")).to_be_focused()
+    elif kind == "reply":
+        # The send left the user on the thread's title, and its delivery keeps them there.
+        expect(thread.locator(".lf-thread-summary")).to_be_focused()
     else:
         expect(
             page.locator(
@@ -4090,8 +4096,8 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     # The room the first thread holds, the gap under it included, which is what its
     # neighbour rises by once the fold has given it back.
     room = stood["y"] - first["y"]
-    action_edge = page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').evaluate(
-        "node => node.getBoundingClientRect().right"
+    action = page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().toJSON()"
     )
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
@@ -4101,12 +4107,13 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     expect(outcome).to_have_attribute("aria-label", "Resolved")
     expect(outcome.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(page.locator(f'[data-id="{c1}"] .lf-thread-send')).to_be_hidden()
-    resolved_edge = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
-        "node => node.getBoundingClientRect().right"
+    resolved = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().toJSON()"
     )
-    assert resolved_edge == pytest.approx(action_edge, abs=1), (
-        "the held outcome left Resolve's thread-header edge"
-    )
+    assert (resolved["top"], resolved["right"]) == (
+        pytest.approx(action["top"], abs=1),
+        pytest.approx(action["right"], abs=1),
+    ), "the outcome moved from where the user pressed Resolve"
     held = page.evaluate(LIST_STATE)
     assert held["standing"] == [c1, c2, c3], (
         "the resolved thread gave up its place in the frame it was resolved in, so "
@@ -4134,21 +4141,14 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply c"
     )
 
-    # Half way down, the metadata-row outcome is still on screen rather than having
-    # moved with the folding geometry.
+    # Half way down, the outcome still stands on its metadata row: the fold clips it
+    # where it stood rather than carrying it.
     page.evaluate("() => window.__lfHeld.forEach((m) => (m.currentTime = 110))")
-    clip, says = page.evaluate(
-        """(id) => {
-          const going = document.querySelector(`[data-id="${id}"]`);
-          const outcome = going.querySelector(".lf-resolve");
-          return [going.getBoundingClientRect(), outcome.getBoundingClientRect()];
-        }""",
-        c1,
+    says = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().top"
     )
-    assert says["top"] < clip["bottom"] and clip["top"] < says["bottom"], (
-        f"the outcome sat at {says['top']:.0f}–{says['bottom']:.0f} with the fold "
-        f"clipped to {clip['top']:.0f}–{clip['bottom']:.0f}, so the word the press "
-        "left was already under the clip half way through"
+    assert says == pytest.approx(action["top"], abs=1), (
+        f"the outcome moved from {action['top']:.0f} to {says:.0f} as the fold ran"
     )
 
     # And the far end: the thread becomes a retained hidden result, once, and the room it held
@@ -4724,6 +4724,45 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     ]
 
 
+def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
+    browser, serve
+):
+    """A CSS framework such as Tailwind builds its sheet in the head after the page
+    loads and rewrites it as classes change, and each rewrite is a new sheet. Its
+    element rules reach the page's prose and stop at Leaf's controls, as the page's
+    own stylesheet's do: Tailwind's reset once took the family of every chrome
+    button."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
+                head="""<script type="module">
+const sheet = document.createElement("style");
+document.head.append(sheet);
+sheet.textContent = "button, a { font-family: fantasy; }";
+setTimeout(() => {
+  sheet.textContent = "button, a { font-family: cursive; }";
+  window.rewritten = true;
+}, 50);
+</script>""",
+            )
+        ),
+    )
+    page.wait_for_function("() => window.rewritten")
+    faces = page.evaluate("""() => {
+        const family = el => getComputedStyle(el).fontFamily;
+        return {
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(family),
+            prose: family(document.getElementById('prose')),
+        };
+    }""")
+    assert faces["prose"] == "cursive", faces
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
+
+
 def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
     """A package that declares widgets styles those widgets and nothing else, whatever
     its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
@@ -4909,7 +4948,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # 44px reaches the document, the chrome and every declared widget tree from one
         # rule. Each name below is a press the chrome also dresses inside its scope, so
         # the floor is a second, document-level rule on a scoped name. It states a
-        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # minimum and nothing else. The chip and the margin entry are on
         # that list too and are not here: nothing inside the scope names them any more,
         # so they are no longer a scoped vocabulary this exception has to cover.
         "lf-command-reference-command",
@@ -4987,9 +5026,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-response-more",
         "lf-response-open",
         "lf-response-options",
-        # The same metadata action slot carries settlement in panel and inline seats;
-        # the authored theme gives both views the same alignment.
-        "lf-thread-meta-actions",
         # The general text box's face is the theme's (the `.lf-ui textarea` rule), so a
         # widget's own box that names the same property outranks it in the shared layer.
         # It names the compact response field only to exclude it, since that field takes
@@ -5024,7 +5060,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
-        "lf-mark-hover",  # the same element mark, for the one the pointer indicates
+        "lf-mark-hover",  # the same element mark, for the row the pointer is on
         "lf-mark-here",  # the same element mark, for the comment the user is in
         "lf-pending",
         "lf-ins-block",
@@ -5382,9 +5418,11 @@ def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
     # Where the user is standing when they press: the thread on screen, which is
     # also what the driver's own scroll-into-view would arrange. Read after it, so the
     # baseline is the page as the press finds it rather than as the test left it.
-    focus_panel_thread(page.locator('.lf-thread[data-id="fx-on-design"]'))
-    thread = page.locator('.lf-thread[data-id="fx-on-design"] .lf-quote')
-    thread.scroll_into_view_if_needed()
+    card = page.locator('.lf-thread[data-id="fx-on-design"]')
+    focus_panel_thread(card)
+    rendered(page)
+    thread = card.locator(".lf-quote")
+    card.evaluate("el => el.scrollIntoView({block: 'nearest', behavior: 'instant'})")
     before = page.evaluate(BOTH_BOXES)
     seen = """() => {
       const t = document.querySelector('.lf-thread[data-id="fx-on-design"]');
@@ -6369,9 +6407,13 @@ def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serv
     page.locator(".lf-thread-summary").first.click()
     rendered(page)
 
-    # Nudge until a closed title is cut a few pixels, the user's own case.
+    # Nudge until a closed title is cut a few pixels, the user's own case. The open
+    # card fills the list's height, so the closed titles start a list's height down.
     buried = None
-    for top in range(0, 400, 3):
+    reach = page.locator(".lf-threads").evaluate(
+        "el => el.scrollHeight - el.clientHeight"
+    )
+    for top in range(0, reach, 3):
         page.evaluate(
             "t => { document.querySelector('.lf-threads').scrollTop = t; }", top
         )
@@ -7270,7 +7312,8 @@ def focus_clear_of_the_bar(page):
 
 def pressed_send_surface(browser, serve, surface):
     """A page with words typed into `surface`'s box, and that box, the control that
-    submits it, and the box the user continues in once it has sent."""
+    submits it, where the user stands once it has sent, and the reply box a follow-up
+    is written in: the same box for one that stays to take more, else None."""
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")
         page = open_page(browser, url)
@@ -7279,7 +7322,9 @@ def pressed_send_surface(browser, serve, surface):
         box.scroll_into_view_if_needed()
         name = "Send & pause" if surface == "pause" else "Send"
         send = seat.get_by_role("button", name=name, exact=True)
-        after = (
+        # A seat that gives its box up leaves the user on the thread it started.
+        after = box if surface == "pause" else seat.locator(":scope > .lf-page-thread")
+        reply = (
             box
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-say leaf-text")
@@ -7312,16 +7357,23 @@ def pressed_send_surface(browser, serve, surface):
                 holder = page.locator(".lf-general")
                 box = holder.locator("leaf-text")
         send = holder.locator(".lf-compose-submit")
-        # A first anchored comment lands the user on the thread it starts, as Enter
-        # does (#961); every other box keeps them.
-        after = (
-            page.locator(".lf-margin-preview .lf-page-thread")
-            if surface == "composer"
+        # A send in the margin card, a reply's or the comment that opens it, leaves the
+        # user on the element the card is about; a panel reply on its thread's title;
+        # the panel's general box stays to take more.
+        after = {
+            "card": page.locator("#how-store"),
+            "composer": page.locator("#how-cap"),
+            "panel": holder.locator(".lf-thread-summary"),
+            "general": box,
+        }[surface]
+        reply = (
+            page.locator(".lf-margin-preview .lf-say leaf-text")
+            if surface in {"card", "composer"}
             else box
         )
     write(box, "Sent from the box.")
     rendered(page)
-    return page, box, send, after
+    return page, box, send, after, reply
 
 
 @pytest.mark.parametrize(
@@ -7335,15 +7387,14 @@ def pressed_send_surface(browser, serve, surface):
         if (surface, how) != ("composer", "keyboard")
     ],
 )
-def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how):
-    """Pressing a box's submit control is its send key pressed from the box: the user
-    goes on typing where Enter would leave them. A pointer press left the focus on the
-    button, so the `o` and `k` of an "ok" typed next hid every mark and closed the
-    margin card, and neither letter reached the box. A keyboard press on the button
-    ends in the box too, so after any send the user is in it — or, where the seat gives
-    its box up, in the reply of the thread it started, as after Enter. The anchored
-    composer hands the user to the thread its comment starts, as Enter does there."""
-    page, box, send, after = pressed_send_surface(browser, serve, surface)
+def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
+    """Pressing a box's submit control is its send key pressed from the box, so it leaves
+    the user where Enter would, never on the button, where the next letters fall on
+    nothing. A box that stays to take more keeps them in it, typing on. A reply, or the
+    comment that starts a thread, finishes what they were writing: they stand on the
+    thread, or on the element the margin card is about with the card still up, and `c`
+    writes the follow-up."""
+    page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -7362,10 +7413,12 @@ def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how)
             page.mouse.up()
     rendered(page)
     expect(after).to_be_focused()
-    if surface != "composer":
-        page.keyboard.type("ok")
-        expect(after).to_have_js_property("value", "ok")
     expect(after).to_be_visible()
+    if after != reply:
+        page.keyboard.press("c")
+        expect(reply).to_be_focused()
+    page.keyboard.type("ok")
+    expect(reply).to_have_js_property("value", "ok")
     expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box." for event in sent), sent
@@ -7376,7 +7429,7 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     leaving the box is what finishes them: the send carries the finished words, and the
     box it empties stays empty. Held in the box, the words went out unfinished and the
     input method's commit afterwards wrote them back into the emptied box."""
-    page, box, send, after = pressed_send_surface(browser, serve, "general")
+    page, box, send, after, _ = pressed_send_surface(browser, serve, "general")
     ended = box.evaluate_handle(
         """box => {
           const ended = {count: 0};
@@ -7403,9 +7456,10 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
 
 
-def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):
+def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
     """A seat that gives its box up to the thread its first message starts took the
-    focus with it, so the next keys the user typed ran page commands."""
+    focus with it, dropping the user on the page. They stand on the thread instead,
+    where any send leaves them."""
     url, host = seated_page(serve, "verdict")
     page = open_page(browser, url)
     box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
@@ -7415,7 +7469,7 @@ def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):
         page.keyboard.press("Enter")
     thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
     expect(thread).to_have_count(1)
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_focused()
+    expect(thread).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])
@@ -7435,9 +7489,12 @@ def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
     sent = page.locator(f"{host} .lf-page-thread .lf-page-thread-msg").last
     expect(sent).to_contain_text("First thought.")
     assert clear_of_the_bar(page, sent), "the sent message was left below the fold"
-    focused = page.locator(f"{host} leaf-text:focus")
+    # Where the send left the user: the box a task seat keeps, or the thread a verdict
+    # seat gave its box up to.
+    focused = page.locator(f"{host} :is(leaf-text, .lf-page-thread):focus")
     expect(focused).to_have_count(1)
-    assert clear_of_the_bar(page, focused), "the box the user is in went below the fold"
+    if kind == "task":
+        assert clear_of_the_bar(page, focused), "the box went below the fold"
 
 
 def shown_in(page, node, scroller):
@@ -7536,9 +7593,9 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     browser, serve, kind
 ):
     """The new turn went in above the reply box the user was typing in and pushed it,
-    caret and all, below the fold. News moves no control under the user's hands.
-    A short bounded block grows in the page rather than scrolling, so the page takes
-    the move there."""
+    caret and all, below the fold. News moves no control under the user's hands: the
+    turn waits behind the thread's notice, since the thread's foot is on screen, and
+    the box stands where it was, in a bounded block as on the page."""
     messages = 1 if kind == "bounded-short" else 3
     url, root = seated_thread(serve, kind, messages)
     page = open_page(browser, url)
@@ -7562,16 +7619,15 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
         },
     )
     told(page)
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(messages + 1)
+    expect(thread.get_by_role("button", name="1 new reply")).to_be_visible()
     rendered(page)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(messages)
     expect(box).to_be_focused()
     assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
         before, abs=1
     )
-    if kind == "bounded":
-        # The block scrolls the box, so it takes the move and the page stands still.
-        page_after = page.evaluate("() => document.scrollingElement.scrollTop")
-        assert page_after == pytest.approx(page_before, abs=1)
+    page_after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert page_after == pytest.approx(page_before, abs=1)
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

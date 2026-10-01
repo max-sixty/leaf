@@ -279,6 +279,9 @@ customElements.define(
       const outcome = this.#outcome();
       const entries = this.#entries();
       return {
+        // What a suggestion is, for a face that stands for it: a pin folded for want of
+        // room wears this kind's (margin-model.js, `clusterProjection`).
+        kind: "change",
         // The slots use tint and strike/insert paint to carry their relationship on the
         // page. Away from that paint, concatenating them turns `red` → `blue` into the
         // meaningless `redblue`; give Page Map that relation in words.

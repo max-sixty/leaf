@@ -16,24 +16,22 @@ silent. Codex runs the same `hooks.json`, ignoring `asyncRewake` and so waiting 
 the hook, which is why that registration keeps a `$CLAUDECODE` gate ahead of this
 script.
 
-The library owns active-ownership discovery. Its standard-library hook entry
-marks the session and checks the same claim lifetimes the CLI reads, before
-starting uv. A session holding no page never starts the plugin environment;
-SessionEnd releases its claims under the page transaction lock. Both work even
-before this plugin copy has an environment. A host Python older than Leaf's
-3.10 floor leaves library discovery to uv, which supplies the supported runtime.
+The library owns discovery and every hook's behavior. uv supplies its Python and
+dependencies; the hook module runs directly, avoiding CLI imports and command
+registration before checking whether this session holds a page. The host's
+Python only launches that process and carries its answer.
 
-What is left is the one thing the CLI cannot do for itself: fail open. Anything
+What is left is the one thing the hook module cannot do for itself: fail open. Anything
 unexpected — no uv on PATH, an install that will not sync, a timeout — is
 swallowed, and the turn proceeds with the guard silent. A Stop hook is the worst
 possible place for a leaf bug to strand the user, and the failures worth
-guarding hardest against are the ones where the CLI never starts. The watch fails
+guarding hardest against are the ones where the module never starts. The watch fails
 open too: this script wakes the session only with what the watch printed on a
 clean exit, and passes the host's signal at the hook's timeout on to it.
 
 The hook's environment and the shell tool's have to agree on XDG_STATE_HOME. A
 serve and a `leaf wait` write their claim records from a shell initialized by
-the user's profile, while the CLI reads them here from the environment the
+the user's profile, while the library reads them here from the environment the
 agent host hands this process. A value set only in the shell profile leaves the
 guard reading an empty claims home and saying nothing — fail-open, like
 everything else here.
@@ -44,19 +42,28 @@ matches the launcher: the dev group is the suite's, not a host's.
 """
 
 import contextlib
-import json
 import signal
 import subprocess
 import sys
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[2]
-COMMAND = ["uv", "run", "-q", "--no-dev", "--project", str(PROJECT), "leaf"]
+COMMAND = [
+    "uv",
+    "run",
+    "-q",
+    "--no-dev",
+    "--project",
+    str(PROJECT),
+    "python",
+    "-m",
+    "leaf.hooks",
+]
 
 
 def watch(payload: str) -> None:
     """Run the watch, and wake the session, by exiting 2 with it on stderr, only
-    with what the watch printed on a clean exit. uv and click spend exit 2 on their
+    with what the watch printed on a clean exit. uv and Python spend exit 2 on their
     own failures, so the status alone would wake the session with an error at
     every turn's end."""
     children = []
@@ -72,7 +79,7 @@ def watch(payload: str) -> None:
     with contextlib.suppress(Exception):
         children.append(
             subprocess.Popen(
-                [*COMMAND, "hook", "--watch"],
+                [*COMMAND, "--watch"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -89,20 +96,11 @@ def watch(payload: str) -> None:
 def main() -> None:
     try:
         payload = sys.stdin.read()
-        hook = json.loads(payload)
-        # The host chooses python3, while uv supplies Leaf's Python >=3.10.
-        # Older launcher interpreters must leave library imports to uv.
-        if sys.version_info >= (3, 10):  # noqa: UP036 — host Python is outside uv
-            sys.path.insert(0, str(PROJECT / "skills" / "leaf" / "scripts"))
-            from leaf.hooks import prepare_hook
-
-            if not prepare_hook(hook):
-                return
         if "--watch" in sys.argv[1:]:
             watch(payload)
             return
         answer = subprocess.run(
-            [*COMMAND, "hook"],
+            COMMAND,
             input=payload,
             capture_output=True,
             text=True,

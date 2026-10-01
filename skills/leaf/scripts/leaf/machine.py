@@ -12,7 +12,7 @@ these need: the portable tool is `ps`, macOS ships it setuid root, and the
 seatbelt sandbox Codex runs its shell tool under refuses to exec it (measured
 inside `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
 permitted`). Only those readings import it: paths and `pid_alive` need no
-third-party library, so a cold hook can discover ownership before starting uv.
+third-party library, so ownership discovery need not import process inspection.
 psutil does not own `pid_alive`, whose comment records why."""
 
 import os

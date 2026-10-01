@@ -1,7 +1,7 @@
-"""State-home paths and session cleanup a cold hook can run without uv.
+"""State-home paths and session cleanup without page reading or host discovery.
 
-This module uses only the standard library so the installed plugin's SessionEnd
-hook can release a page claimed through another Leaf checkout.
+The shared state home lets the installed plugin's SessionEnd hook release a page
+claimed through another Leaf checkout.
 """
 
 import hashlib

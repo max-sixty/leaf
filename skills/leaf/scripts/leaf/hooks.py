@@ -11,22 +11,16 @@ the plugin is installed in, and most of those sessions hold no page, so this
 module imports none of that reading, nor the servers: a session holding no page
 is answered here, and one holding a page reaches `hook_carrier`, the prompt and
 Stop hooks as its carrier, or `session`, the watch a second Stop hook runs
-between turns (`cmd_watch`), through the imports below."""
+between turns (`cmd_watch`), through the imports below. The host runs this module
+directly under uv; `main` also supplies the CLI hook entry, so dispatch has one
+owner."""
 
 from .leases import mark_hooks
 from .service import owned_pages
 from .state_paths import end_session
 
 
-def prepare_hook(payload: dict) -> bool:
-    """Mark the hook, clean up an ended session, and discover active ownership.
-
-    This standard-library entry is shared with the installed hook script. A
-    session holding no page needs neither uv nor the CLI; ownership is still
-    decided by `service.owned_pages`, including its full claim lifetime reading.
-    A positive result lets the script start the plugin environment for page
-    reading, and the CLI rechecks ownership before carrying the turn.
-    """
+def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
         # Evidence that this host runs Leaf's hooks for the session, which is what
@@ -34,16 +28,11 @@ def prepare_hook(payload: dict) -> bool:
         mark_hooks(sid)
     if event == "SessionEnd":
         end_session(sid)
-        return False
+        return
     # A session holding no page has no turn to open or close on one, no input to
     # carry, and nothing owed, so its prompt and Stop hooks end here.
-    return bool(owned_pages(sid))
-
-
-def cmd_hook(payload: dict) -> None:
-    if not prepare_hook(payload):
+    if not owned_pages(sid):
         return
-    event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     # The one place a hook imports page reading (see the module docstring).
     from .hook_carrier import carry_turn
 
@@ -57,14 +46,43 @@ def cmd_watch(payload: dict) -> str | None:
 
     It watches only where this process is the session the hook names and its
     harness watches between turns, and only while the session holds a page."""
-    from .host import session_harness
-
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None
+    from .host import session_harness
+
     harness = session_harness()
     if harness is None or harness.session != sid or not harness.watches_between_turns():
         return None
     from .session import watch_between_turns
 
     return watch_between_turns(harness)
+
+
+def main(*, watch: bool = False) -> None:
+    """Read one host payload and dispatch it, without importing the CLI.
+
+    Both the registered hook (`python -m leaf.hooks`) and `leaf hook` enter here.
+    A watch owns leases, so it releases them when the host terminates it.
+    """
+    import json
+    import sys
+
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as error:
+        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
+    if watch:
+        from .leases import release_on_termination
+
+        release_on_termination()
+        if woke := cmd_watch(payload):
+            print(woke, flush=True)
+        return
+    cmd_hook(payload)
+
+
+if __name__ == "__main__":
+    import sys
+
+    main(watch="--watch" in sys.argv[1:])

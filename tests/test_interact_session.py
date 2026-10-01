@@ -12507,7 +12507,7 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
     assert (woke.returncode, woke.stdout) == (2, ""), woke.stderr
     assert woke.stderr.startswith(f"{claimed} has new input")
 
-    # uv and click spend exit 2 on their own failures, so a plugin copy uv cannot
+    # uv and Python spend exit 2 on their own failures, so a plugin copy uv cannot
     # run must end the hook silently rather than wake the session with an error.
     broken = tmp_path / "plugin"
     (broken / "hooks" / "scripts").mkdir(parents=True)
@@ -12522,8 +12522,8 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
-    """The script a host actually runs uses the library to discover ownership,
-    then runs page reading under uv, out of the payload project beside it.
+    """The script a host actually runs starts the hook module under uv,
+    out of the payload project beside it.
 
     Driven the way a host drives it — a separate `python3`, the payload's own copy of
     the guard, the hook payload on stdin — because the wiring is the subject, and no
@@ -12558,7 +12558,7 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     [batch] = json.loads(continued(answered.stdout).split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
 
-    # The library's ownership reading stands the script down without uv.
+    # The library answers an unowned session silently under uv as well.
     stranger = run(json.dumps({"hook_event_name": "Stop", "session_id": "s2"}))
     assert (stranger.returncode, stranger.stdout, stranger.stderr) == (0, "", "")
 
@@ -12576,61 +12576,18 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
 
 @pytest.mark.parametrize(
     "event,watch",
-    [("Stop", False), ("Stop", True), ("UserPromptSubmit", False)],
+    [
+        ("Stop", False),
+        ("Stop", True),
+        ("UserPromptSubmit", False),
+        ("SessionEnd", False),
+    ],
 )
-def test_an_idle_registered_hook_needs_no_environment(event, watch, tmp_path, page_dir):
-    """A cold hook uses the full ownership reading without third-party imports.
+def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_path):
+    """The host needs only stdlib to launch Leaf's supported interpreter.
 
-    -S excludes installed libraries; a recording uv proves the hook never starts
-    an environment for absent, unrelated, or released ownership. A live claim is
-    the control that must reach uv, in the guard and the background watch alike.
-    """
-    tools = tmp_path / "tools"
-    tools.mkdir()
-    uv = tools / "uv"
-    uv.write_text('#!/bin/sh\nprintf called > "$UV_CALLED"\n')
-    uv.chmod(0o755)
-    called = tmp_path / "uv-called"
-    env = os.environ | {"PATH": str(tools), "UV_CALLED": str(called)}
-    command = [
-        sys.executable,
-        "-S",
-        str(PLUGIN_ROOT / "hooks/scripts/loop-guard.py"),
-        *(["--watch"] if watch else []),
-    ]
-    payload = json.dumps({"hook_event_name": event, "session_id": "cold-hook"})
-
-    def run():
-        done = subprocess.run(
-            command,
-            input=payload,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-
-    run()
-    assert not called.exists()
-    assert leases_model.hooks_ran("cold-hook")
-    record_claim(page_dir, id="unrelated")
-    run()
-    assert not called.exists()
-    record_claim(page_dir, id="cold-hook", released="2026-10-01T00:00:00")
-    run()
-    assert not called.exists()
-    record_claim(page_dir, id="cold-hook")
-    run()
-    assert called.read_text() == "called"
-
-
-def test_an_older_hook_interpreter_leaves_library_imports_to_uv(tmp_path):
-    """Host python3 is independent of uv's runtime, and may be Python 3.9.
-
-    Exercise its launcher branch without a library or installed dependencies;
-    the real system Python 3.9 also reaches uv through this branch on macOS.
+    -S excludes installed dependencies, and this plugin copy has no library.
+    A recording uv witnesses the command and unchanged stdin for every hook.
     """
     project = tmp_path / "plugin"
     guard = project / "hooks/scripts/loop-guard.py"
@@ -12639,170 +12596,55 @@ def test_an_older_hook_interpreter_leaves_library_imports_to_uv(tmp_path):
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
-    uv.write_text('#!/bin/sh\nprintf called > "$UV_CALLED"\n')
+    uv.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n/bin/cat > "$UV_INPUT"\n'
+    )
     uv.chmod(0o755)
-    called = tmp_path / "uv-called"
-    env = os.environ | {"PATH": str(tools), "UV_CALLED": str(called)}
-    # Only the launcher version reading is replaced. The subprocess runs its real
-    # stdin, imports, command construction, uv subprocess, and output handling.
-    bootstrap = (
-        "import runpy, sys; sys.version_info = (3, 9); "
-        "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
-    )
-    for event, watch in (("Stop", False), ("Stop", True), ("UserPromptSubmit", False)):
-        called.unlink(missing_ok=True)
-        done = subprocess.run(
-            [
-                sys.executable,
-                "-S",
-                "-c",
-                bootstrap,
-                str(guard),
-                *(["--watch"] if watch else []),
-            ],
-            input=json.dumps({"hook_event_name": event, "session_id": "old-host"}),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-        assert called.read_text() == "called"
-
-
-def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
-    tmp_path, page_dir
-):
-    """An untouched session can end before this plugin copy has run any Leaf code.
-
-    The host gives SessionEnd three seconds; syncing a fresh environment can exceed
-    that on a network home. A session with no shared claim needs no CLI.
-    """
-    project = tmp_path / "plugin"
-    guard = project / "hooks" / "scripts" / "loop-guard.py"
-    guard.parent.mkdir(parents=True)
-    guard.write_bytes(
-        (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
-    )
-    package = project / "skills" / "leaf" / "scripts" / "leaf"
-    package.parent.mkdir(parents=True)
-    package.symlink_to(
-        PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True
-    )
-    tools = tmp_path / "tools"
-    tools.mkdir()
-    uv = tools / "uv"
-    uv.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n')
-    uv.chmod(0o755)
-    called = tmp_path / "uv-called"
-    env = {k: v for k, v in os.environ.items() if k != "UV_PROJECT_ENVIRONMENT"} | {
-        "PATH": f"{tools}:{os.environ['PATH']}",
-        "UV_CALLED": str(called),
-    }
-    payload = json.dumps({"hook_event_name": "SessionEnd", "session_id": "unused"})
-
-    cold = subprocess.run(
-        [sys.executable, str(guard)],
+    called, received = tmp_path / "uv-called", tmp_path / "uv-input"
+    payload = json.dumps({"hook_event_name": event, "session_id": "hook-host"})
+    done = subprocess.run(
+        [sys.executable, "-S", str(guard), *(["--watch"] if watch else [])],
         input=payload,
-        env=env,
+        env=os.environ
+        | {
+            "PATH": str(tools),
+            "UV_CALLED": str(called),
+            "UV_INPUT": str(received),
+        },
         capture_output=True,
         text=True,
-        timeout=3,
+        timeout=5,
         check=False,
     )
-    assert (cold.returncode, cold.stdout, cold.stderr) == (0, "", "")
-    assert not called.exists()
-
-    custom = subprocess.run(
-        [sys.executable, str(guard)],
-        input=payload,
-        env=env | {"UV_PROJECT_ENVIRONMENT": str(tmp_path / "another-environment")},
-        capture_output=True,
-        text=True,
-        timeout=3,
-        check=False,
-    )
-    assert (custom.returncode, custom.stdout, custom.stderr) == (0, "", "")
-    assert not called.exists()
-
-    record_claim(page_dir, id="another-session")
-    unrelated = subprocess.run(
-        [sys.executable, str(guard)],
-        input=payload,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=3,
-        check=False,
-    )
-    assert (unrelated.returncode, unrelated.stdout, unrelated.stderr) == (0, "", "")
-    assert not called.exists()
-
-    # A different Leaf checkout can claim a page in the shared state home while
-    # this plugin copy's environment is still cold. SessionEnd releases it
-    # without starting uv.
-    record_claim(page_dir, id="unused")
-    cross_copy = subprocess.run(
-        [sys.executable, str(guard)],
-        input=payload,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=3,
-        check=False,
-    )
-    assert (cross_copy.returncode, cross_copy.stdout, cross_copy.stderr) == (
-        0,
-        "",
-        "",
-    )
-    assert not called.exists()
-    assert service_model.page_claim(page_dir)["released"] is not None
-
-    installed = project / ".venv" / "bin" / "leaf"
-    installed.parent.mkdir(parents=True)
-    installed.touch()
-    warm = subprocess.run(
-        [sys.executable, str(guard)],
-        input=payload,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=3,
-        check=False,
-    )
-    assert (warm.returncode, warm.stdout, warm.stderr) == (0, "", "")
-    assert not called.exists()
+    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+    assert called.read_text().splitlines() == [
+        "run",
+        "-q",
+        "--no-dev",
+        "--project",
+        str(project),
+        "python",
+        "-m",
+        "leaf.hooks",
+        *(["--watch"] if watch else []),
+    ]
+    assert received.read_text() == payload
 
 
-def test_cold_session_end_releases_a_claim_from_another_checkout(tmp_path, page_dir):
-    project = tmp_path / "cold-plugin"
-    guard = project / "hooks" / "scripts" / "loop-guard.py"
-    guard.parent.mkdir(parents=True)
-    guard.write_bytes(
-        (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
-    )
-    package = project / "skills" / "leaf" / "scripts" / "leaf"
-    package.parent.mkdir(parents=True)
-    package.symlink_to(
-        PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True
-    )
-    record_claim(page_dir, id="cross-checkout")
-
-    ended = subprocess.run(
-        [sys.executable, str(guard)],
+def test_the_registered_session_end_releases_shared_claims(page_dir):
+    """SessionEnd uses the same uv entry as Stop, and releases shared ownership."""
+    record_claim(page_dir, id="ended-session")
+    done = subprocess.run(
+        [sys.executable, str(PLUGIN_ROOT / "hooks/scripts/loop-guard.py")],
         input=json.dumps(
-            {"hook_event_name": "SessionEnd", "session_id": "cross-checkout"}
+            {"hook_event_name": "SessionEnd", "session_id": "ended-session"}
         ),
-        env=os.environ | {"PATH": str(tmp_path / "no-uv")},
         capture_output=True,
         text=True,
-        timeout=3,
+        timeout=60,
         check=False,
     )
-
-    assert (ended.returncode, ended.stdout, ended.stderr) == (0, "", "")
+    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
     assert service_model.page_claim(page_dir)["released"] is not None
 
 
@@ -12817,10 +12659,11 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     record_claim(page_dir, id="another-session")
     probe = """\
 import json, sys
-from leaf.hooks import cmd_hook
+from leaf.hooks import cmd_hook, cmd_watch
 imported = sorted(sys.modules)
 for event in ("UserPromptSubmit", "Stop"):
     cmd_hook({"hook_event_name": event, "session_id": "holds-nothing"})
+cmd_watch({"hook_event_name": "Stop", "session_id": "holds-nothing"})
 print(json.dumps([imported, sorted(sys.modules)]))
 """
     done = subprocess.run(

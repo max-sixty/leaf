@@ -362,9 +362,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **Leaf tool-result hooks:** consider a `leaf` filter in front of every
-  tool-result hook so Leaf can observe tool activity itself. Empty-session Stop
-  and prompt hooks now discover ownership using only the standard library,
-  without uv or the CLI. A session holding a page still imports page reading and
+  tool-result hook so Leaf can observe tool activity itself. Stop and prompt
+  hooks run directly under uv, discovering ownership before page reading and
+  without importing the CLI. A session holding a page still imports page reading and
   reads each page's state before answering, which limits the cost of broader
   tool observation. Rewriting the hook path in a compiled language is the
   further step if that is not enough.

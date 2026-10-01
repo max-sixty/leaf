@@ -1,6 +1,5 @@
 """Filesystem path identity, containment, and overlap."""
 
-import ctypes
 import hashlib
 import os
 import sys
@@ -64,6 +63,8 @@ def _filesystem_case_sensitive(path: Path) -> bool:
     """Whether new names on path's filesystem distinguish letter case."""
     if sys.platform != "darwin":
         return os.path.normcase("A") != os.path.normcase("a")
+
+    import ctypes
 
     # Darwin exposes this per volume rather than through normcase: APFS can be
     # mounted either way, and normcase leaves names unchanged in both cases.

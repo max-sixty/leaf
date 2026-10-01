@@ -933,19 +933,6 @@ def thread_resolve(dir: str, thread: str) -> None:
 )
 def hook(watch: bool) -> None:
     """Answer an agent-host hook on stdin."""
-    from leaf.hooks import cmd_hook, cmd_watch
+    from leaf.hooks import main
 
-    try:
-        payload = json.load(sys.stdin)
-    except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
-    if watch:
-        from leaf.leases import release_on_termination
-
-        # The host stops a watch at the hook's timeout, which must release its
-        # lease the way a wait's does.
-        release_on_termination()
-        if woke := cmd_watch(payload):
-            print(woke, flush=True)
-        return
-    cmd_hook(payload)
+    main(watch=watch)

@@ -258,7 +258,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
           const end = motion.effect.getKeyframes().at(-1);
           return {
             card: {
-              x: parseFloat(preview.style.left), y: parseFloat(preview.style.top),
+              // Where layout stands it, whichever edges hold it (floating.js), before
+              // the reveal's own motion.
+              x: preview.offsetLeft, y: preview.offsetTop,
               width: card.width, height: card.height,
             },
             end: {
@@ -955,7 +957,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
 
-    write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
+    write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(6)))
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -1601,8 +1603,10 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     )
 
 
-def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve):
-    """Moving the reference across the block axis opens a better attachment side."""
+def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serve):
+    """Moving the reference across the block axis opens a better attachment side, once
+    a resize asks for the side again: the room the page can make over the paragraph
+    moves with it (comment-placement.js)."""
     page = open_page(
         browser,
         serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
@@ -1615,21 +1619,32 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     write(field, "Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
-    expect(bar).to_have_attribute("data-lf-placement", "top-start")
+    expect(bar).to_have_attribute(
+        "data-lf-placement", re.compile(r"^(top|bottom)-start$")
+    )
+    over = bar.get_attribute("data-lf-placement") == "top-start"
 
+    # Moved toward the side it stands on, the paragraph leaves more room on the other.
     target.evaluate(
-        """node => {
-          node.style.transform = 'translateY(-180px)';
-        }"""
+        "(node, up) => { node.style.transform = `translateY(${up ? -300 : 300}px)`; }",
+        over,
     )
     resized(page, 700, 601)
-    expect(bar).to_have_attribute("data-lf-placement", "bottom-start")
+    expect(bar).to_have_attribute(
+        "data-lf-placement", "bottom-start" if over else "top-start"
+    )
     target_after = target.bounding_box()
     after = bar.bounding_box()
-    assert after["y"] >= target_after["y"] + target_after["height"] + 5, (
-        target_after,
-        after,
-    )
+    if over:
+        assert after["y"] >= target_after["y"] + target_after["height"] + 5, (
+            target_after,
+            after,
+        )
+    else:
+        assert after["y"] + after["height"] <= target_after["y"] - 5, (
+            target_after,
+            after,
+        )
     expect(field).to_have_js_property(
         "value", "Keep this comment connected when its paragraph moves vertically."
     )

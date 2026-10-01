@@ -1489,18 +1489,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     --lf-focus-ring: help-command; outline-offset: 1px; }
   .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
-  /* margin-projection.js writes the width and height cap thread-card-geometry.js
-     measured the card under, in the card's own positioning space, which a scaled
-     ancestor makes other than the viewport's; these are the fallbacks for a card no
-     placement has measured yet, so only they are held to the viewport. The card itself never scrolls: its thread list does, in every
-     posture and before the first open, so the list is the preview's one reading
-     scroller (reading-regions.js reads posture off that list's overflow). Anchored to its
-     cluster, it moves with the words (floating.js), and passes under the banner and the
-     bottom bar the way they do. */
-  .lf-margin-preview { position: fixed; inset: 0 auto auto 0;
+  /* margin-projection.js writes the width and height cap the card's placement gives it
+     (comment-placement.js); these are the fallbacks for a card no placement has sized
+     yet, so only they are held to the viewport. The card itself never scrolls: its
+     thread list does, in every posture and before the first open, so the list is the
+     preview's one reading scroller (reading-regions.js reads posture off that list's
+     overflow). Anchored to what it is about, it moves with the words (floating.js), and
+     passes under the banner and the bottom bar the way they do. Its insets are its
+     placement's alone: floating.js writes the edges that hold it and clears the others,
+     so an edge the stylesheet set would stretch a card held by its foot. */
+  .lf-margin-preview { position: fixed;
     z-index: var(--lf-z-margin-preview);
     /* As wide as its thread, between the bounds its placement gives it
-       (thread-card-geometry.js). */
+       (margin-projection.js, `placeThreadPreview`). */
     width: max-content;
     min-width: var(--lf-thread-min-width, 0);
     max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
@@ -1512,8 +1513,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
   /* Open before its first placement lands (margin-projection.js, `placeThreadPreview`),
-     the card stands at the corner the fallbacks above give it, so it is not seen or
-     pressed there. */
+     the card has no spot yet, so it is not seen or pressed where it happens to lie. */
   .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
      own, so the keyboard standing on the thread rings the card: the ring takes the

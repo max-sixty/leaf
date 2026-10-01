@@ -179,8 +179,9 @@ and its chrome coordinate.
   - One page showing every still in a grid, a row per window width with the content
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
-  - For thread placement alone, an SVG atlas of `thread-card-geometry.js` over a grid
-    of inputs, which `npm run test:runtime` can draw without a browser.
+  - For comment placement alone, an SVG atlas of the side `comment-placement.js`
+    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
   building. Adding a few dozen hand-written entries to `STATES` grows a list that

@@ -55,7 +55,7 @@ import { standingPoint } from "./pointed-place.js";
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
 }
 
 export function createAnchorTravel({

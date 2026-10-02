@@ -5,6 +5,12 @@
 # With successful reference reads, baseline passed 0/3 and candidate 3/3; both
 # static sketch guardrails passed before and after. An earlier path-confused run
 # could not read the package guidance in either arm and measured nothing.
+# View selection was added from Codex chat 01a0fb64-3cdf-75c3-8166-64cc3b60273a:
+# outer case controls automated private thread chrome. Native Promptfoo runs on
+# Claude Code and Codex each passed 0/1 on c9b8dd33c and 1/1 on the candidate.
+# All four runs successfully read the references and preserved fixture isolation;
+# the view-selection assertion alone separated them. The earlier CC-only run hit
+# the old harness's turn limit on both baseline samples and measured no baseline.
 description: playground-isolates-fixture-history
 metadata:
   purpose: 'Playground: live Leaf candidates own fictional history and practice interactions; the outer

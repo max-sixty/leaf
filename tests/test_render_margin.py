@@ -5815,10 +5815,10 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     )
     assert frame["ground"] == frame["paper"], frame
     assert frame["fieldBorder"] == "solid", frame
-    # The field's box at the card's border and padding. The thread's reading edge
-    # sits one card inset plus its own transcript inset inside the card.
+    # The field's box stands at the card's padding; words share the conversation's
+    # reading inset, rather than gaining a second frame.
     assert frame["field"][0] - frame["card"] == 13, frame
-    assert frame["inset"] == 26, frame
+    assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned
@@ -7285,11 +7285,10 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    assert narrow["cardWidth"] >= narrow["minimum"], narrow
-    assert narrow["cardWidth"] <= narrow["preferred"], narrow
+    assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
-    # Under or over its words, the minimum width ends at the words' edge. A wider
-    # thread grows past that edge while keeping the same inline start.
+    # The sent thread retains the comment frame's width and inline start.
+    # Its control cluster remains clear when the card takes the lower route.
     assert narrow["cardLeft"] == pytest.approx(
         narrow["wordsRight"] - narrow["minimum"], abs=0.5
     ), narrow
@@ -7311,13 +7310,11 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
         "textbox", name="Reply", exact=True
     ).click()
 
-    # With room to spare, the card reaches its minimum unless its thread needs more,
-    # and never grows beyond the preferred measure.
+    # With room to spare, the carried frame stays clear of the target controls.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] >= wide["minimum"], wide
-    assert wide["cardWidth"] <= wide["preferred"], wide
+    assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
-    assert wide["cardLeft"] >= wide["controlsRight"], wide
+    assert wide["cardLeft"] > wide["controlsRight"], wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):

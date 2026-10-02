@@ -2220,8 +2220,6 @@ def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(
         const composer = document.querySelector('.lf-fab-bar');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
-        // Leave room above the passage for its field. A larger scroll reaches
-        // the window boundary, where placement correctly holds the field in.
         document.scrollingElement.scrollTop += 80;
         return before;
     }""")

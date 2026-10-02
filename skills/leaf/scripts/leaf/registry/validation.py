@@ -1,15 +1,13 @@
 """Complete registry validation orchestration."""
 
+from .contract import retirement_slots
 from .layer import (
     required_layer_declarations,
     validate_event_contracts,
     validate_event_handling,
     validate_layer_declarations,
 )
-from .state import (
-    retirement_slots,
-    validate_answered_conditions,
-)
+from .state import validate_answered_conditions
 from .widgets import (
     element_declarations,
     validate_widget_relations,

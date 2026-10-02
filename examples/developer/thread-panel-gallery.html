@@ -54,19 +54,31 @@
       async function showView(sample, ready) {
         const child = await ready;
         if (!sample.isConnected) return;
+        if (sample.id === "on-you-sample") {
+          const marker = await new Promise((resolve) => {
+            const find = () => {
+              const marker = child.querySelector(".lf-margin-marker");
+              if (!marker) return;
+              observer.disconnect();
+              resolve(marker);
+            };
+            const observer = new MutationObserver(find);
+            observer.observe(child.body, { childList: true, subtree: true });
+            find();
+          });
+          if (sample.isConnected) marker.click();
+          return;
+        }
         child.querySelector(".lf-threads-toggle").click();
         const view = {
           "overview-sample": "overview",
-          "on-you-sample": "you",
           "resolved-sample": "resolved",
           "summary-sample": "summary",
         }[sample.id];
-        if (view === "you" || view === "resolved") {
+        if (view === "resolved") {
           child.querySelector(".lf-thread-filter-toggle").click();
-          const [kind, value] =
-            view === "you" ? ["waiting", "user"] : ["status", "resolved"];
           child
-            .querySelector(`[data-filter-kind="${kind}"][data-filter-value="${value}"]`)
+            .querySelector('[data-filter-kind="status"][data-filter-value="resolved"]')
             .click();
         }
         if (view === "summary") {
@@ -99,9 +111,9 @@
     <main>
       <h1>Threads panel</h1>
       <p>
-        These are four separate instances of the current panel. Each uses Leaf's actual
-        thread renderer and its own event log. Open a thread, change View, reply, or
-        Reset a sample to return to the starting view.
+        These views share Leaf's conversation renderer across the panel and anchored
+        card. Each is a separate page with its own event log. Open a thread, change
+        View, reply, or Reset a sample to return to the starting view.
       </p>
       <nav id="thread-panel-jumps" aria-label="Panel views">
         <a href="#panel-overview">Open threads</a>
@@ -144,11 +156,12 @@
         </section>
 
         <section id="panel-on-you">
-          <h2>On you</h2>
+          <h2>On you, beside the page</h2>
           <p>
-            View narrows to a question that still needs an answer after a later update.
+            The anchored card shares the panel's message hierarchy and reply field. Open
+            Threads inside the sample to read the same discussion there.
           </p>
-          <lf-sample id="on-you-sample" label="waiting on you">
+          <lf-sample id="on-you-sample" label="anchored conversation" window>
             <template id="on-you-page" data-sample data-sample-threads="98850286">
               <h1>Room photo</h1>
               <p id="tpg-photo">

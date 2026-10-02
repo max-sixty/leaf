@@ -1,7 +1,7 @@
 /* Pull-request evidence uses the visual language of a change ledger: the branch path
  * and revision form its spine, while the author's own words sit in an inset signed
  * block. Surrounding page prose remains visually independent review analysis. */
-lf-pull-request {
+:scope:is(lf-pull-request) {
   display: block;
   margin: var(--sp-4) 0;
   container-type: inline-size;
@@ -233,7 +233,7 @@ lf-pull-request {
 /* CallDiff is literal review evidence rather than a second diagram language. Its
  * unchanged rows hold the mental map still while additions and removals carry the
  * same semantic washes as the source diff. */
-lf-call-diff {
+:scope:is(lf-call-diff) {
   --lf-block-frame: 1;
   display: block;
   max-width: 100%;
@@ -433,7 +433,7 @@ lf-call-diff {
 }
 
 @media print {
-  lf-call-diff,
+  :scope:is(lf-call-diff),
   .lf-call-line[data-meta],
   .lf-call-line[data-status="added"],
   .lf-call-line[data-status="removed"] {

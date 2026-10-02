@@ -50,7 +50,7 @@ from .schema import (
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
-from .session_cleanup import EVENTS_FILE, fsync_parents, json_bytes
+from .state import EVENTS_FILE, fsync_parents, json_bytes
 
 
 @contextlib.contextmanager

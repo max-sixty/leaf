@@ -36,7 +36,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
-from .session_cleanup import now_iso
+from .state import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. The news stream already allowed this much staleness,

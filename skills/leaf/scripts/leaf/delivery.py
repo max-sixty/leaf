@@ -31,6 +31,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from .state import open_session_turn
 from .files import read_json
 from .host import claim_harness, session_harness
 from .machine import state_home
@@ -38,12 +39,11 @@ from .schema import CURSOR_FILE
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
-    open_session_turn,
     owned_pages,
     requires_agent_attention,
     unacknowledged,
 )
-from .session_cleanup import flocked, write_json
+from .state import flocked, write_json
 
 DELIVERY_FORMAT = "leaf-delivery-v3"
 # The routes that carry a delivery to an agent: `leaf wait`'s output, a host hook's

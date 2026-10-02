@@ -6,8 +6,8 @@ without these hooks still gets the envelope printed, rather than waking to an
 empty turn. SessionEnd releases the session's claims.
 
 Codex's synchronous prompt hook records the provider turn even before the session
-claims a page. Its async tool hook can then bind a page acquired mid-turn, offer a
-pointer between steps, and leave receipt to the agent's actual delivery read.
+claims a page. Its async tool hook can identify an unknown session turn once, offer a pointer
+between steps, and leave receipt to the agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 page no tool hook has yet bound; a newer prompt protects its own claims.
@@ -19,7 +19,15 @@ application entry routes `leaf hook` here before loading the CLI."""
 
 from .leases import mark_hooks, mark_step_hook
 from .service import owned_pages
-from .session_cleanup import end_session
+from .state import (
+    advance_turn,
+    close_session_turn,
+    end_session,
+    flocked,
+    prompt_turn,
+    session_lock_path,
+    session_record,
+)
 
 
 def cmd_hook(payload: dict) -> None:
@@ -32,15 +40,25 @@ def cmd_hook(payload: dict) -> None:
         end_session(sid)
         return
     turn_id = payload.get("turn_id")
-    if event == "UserPromptSubmit" and turn_id:
-        from .codex_state import start_hook_turn
-
-        start_hook_turn(sid, turn_id)
+    if event == "UserPromptSubmit":
+        prompt_turn(sid, turn_id)
+    elif turn_id:
+        # A first trusted step can identify an unknown session-scoped turn.
+        # Once a prompt/provider named it, late callbacks cannot replace it.
+        with flocked(session_lock_path(sid)):
+            record = session_record(sid)
+            if (
+                not record
+                or record["ended"] is not None
+                or record["turn_closed"] is not None
+            ):
+                return
+            if record["turn"] != turn_id:
+                if record["provider"] or event != "PostToolUse":
+                    return
+                advance_turn(sid, turn_id, running=True)
     if event == "Interrupt":
-        if turn_id:
-            from .codex_state import end_hook_turn
-
-            end_hook_turn(sid, turn_id)
+        close_session_turn(sid, turn_id)
         return
     if event == "PostToolUse":
         # This registration is gated on Codex in hooks.json. Its output can
@@ -71,18 +89,14 @@ def cmd_hook(payload: dict) -> None:
     # carry, and nothing owed, so its prompt and Stop hooks end here.
     if not owned_pages(sid):
         if event == "Stop" and turn_id:
-            from .codex_state import end_hook_turn
-
-            end_hook_turn(sid, turn_id)
+            close_session_turn(sid, turn_id)
         return
     # Prompt and Stop debt and delivery reading belongs to their carrier.
     from .hook_carrier import carry_turn
 
     ended = carry_turn(event, sid, payload)
     if ended and turn_id:
-        from .codex_state import end_hook_turn
-
-        end_hook_turn(sid, turn_id)
+        close_session_turn(sid, turn_id)
 
 
 def cmd_watch(payload: dict) -> str | None:

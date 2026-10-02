@@ -17,17 +17,20 @@ the turn a preview and its path, so a delivery that large goes as a pointer its
 reader confirms instead of being confirmed unseen."""
 
 import json
+from dataclasses import dataclass
+from pathlib import Path
 
+from .state import close_session_turn
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     ReceiptRefused,
     freeze_delivery,
-    pending_batches,
+    batch_data,
     receive_one,
     record_pickup,
 )
-from .event_log import read_events
 from .host import Harness, claim_harness
+from .state import session_record
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
@@ -35,10 +38,7 @@ from .schema import (
 from .served_state.page import full_state
 from .service import (
     PageTransaction,
-    close_session_turn,
-    open_session_turn,
     owned_pages,
-    page_claim,
     unacknowledged,
 )
 
@@ -64,137 +64,179 @@ def reclaim(obligations: list[dict]) -> str:
     )
 
 
-def unattended_pages(
-    session_id: str, *, prompt_open: bool = False, handing: list[dict] = ()
+@dataclass(frozen=True)
+class PagePlan:
+    """A session-owned page read once under its transaction.
+
+    Selected input, response debt and carrier readiness come from one log,
+    cursor, status and ownership snapshot. Planning never records a pickup.
+    """
+
+    page: Path
+    claim: dict
+    harness: Harness
+    state: dict
+    pending: list[dict]
+    batch: dict | None
+    owed: list[dict]
+    acknowledged: list[dict]
+    carried: bool
+    preview: bool
+
+
+def read_plans(session_id: str) -> list[PagePlan]:
+    plans = []
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if claim is None or claim["id"] != session_id:
+                    continue
+                harness = claim_harness(claim)
+                # The lifecycle is independently published. Its revision makes
+                # a concurrent prompt/ending visible without holding a session
+                # lock over a page projection or taking locks in reverse order.
+                while True:
+                    lifecycle = session_record(session_id)
+                    state = full_state(page_dir, page.events)
+                    if session_record(session_id) == lifecycle:
+                        break
+                claim = page.active_claim
+                if claim is None or claim["id"] != session_id:
+                    continue
+                pending = unacknowledged(page.events, state["cursor"])
+                carried = harness.carrier_live(listening=state["listening"])
+                plans.append(
+                    PagePlan(
+                        page_dir,
+                        claim,
+                        harness,
+                        state,
+                        pending,
+                        batch_data(page_dir, page, pending)
+                        if pending and harness.hooks_carry()
+                        else None,
+                        turn_obligations(state, carried=carried),
+                        acknowledged_obligations(state),
+                        carried,
+                        (page_dir / PREVIEW_FILE).exists(),
+                    )
+                )
+        except FileNotFoundError:
+            continue
+    return plans
+
+
+def stop_continues(plans: list[PagePlan], *, repeated: bool) -> bool:
+    """Continue for newly owed input, or first-report debt/carrier housekeeping.
+
+    Repeated Stop ignores already reported housekeeping and response debt, but
+    genuinely new input still enters the current turn and owes an answer.
+    """
+    newly_owed = any(
+        "answer" in event
+        for plan in plans
+        if plan.batch
+        for event in plan.batch["events"]
+    )
+    needs_attention = any(
+        plan.owed
+        or (
+            not plan.carried
+            and (
+                plan.pending
+                or (plan.state["status"]["state"] != "idle" and not plan.preview)
+            )
+        )
+        for plan in plans
+    )
+    return newly_owed or (needs_attention and not repeated)
+
+
+def remedies(
+    plans: list[PagePlan], handing: list[dict] = ()
 ) -> list[tuple[str, str | None]]:
-    """The pages this session owes something, each with what to do about it.
-
-    A `(line, protocol)` pair per debt. The line is this page's — its path, its
-    count, the ids it names — and the protocol is the same words for every page
-    that owes the same kind of thing, so the composer prints it once rather than
-    once per page. `None` where the line is the whole remedy.
-
-    Two invariants hold between turns. A page is watched or idle, so anything
-    else has quietly stopped listening. And every move delivered into this turn
-    has an answer, or a work claim this turn wrote for it, where
-    `activity.turn_obligations` says which moves this turn owes.
-
-    `handing` is the input this same hook hands the turn, which is neither
-    unpicked nor owed yet: the reasons describe what is left beside it."""
+    """Format remedies from already-read facts, with host wording at the edge."""
     handed = {
         (batch["page"], event["id"]) for batch in handing for event in batch["events"]
     }
     reasons = []
-    for page_dir in owned_pages(session_id):
-        page_reasons = []
-        try:
-            events = read_events(page_dir)
-            state = full_state(page_dir, events)
-        except FileNotFoundError:
-            continue
-        discovered = page_claim(page_dir)
-        if discovered is None:
-            # A failed `server start` rolls its claim back, and discovery may
-            # have read it just before. An unclaimed page is not this session's
-            # to answer for.
-            continue
-        # The claim states which harness took the page and how its input is
-        # carried, so this reads the remedies and the watch question off that
-        # declaration rather than naming a harness here.
-        harness = claim_harness(discovered)
-        listening = state["listening"]
-        carried = harness.carrier_live(listening=listening)
-        # Asked of every page, watched or not, and ahead of the watch question
-        # below: a watcher cannot deliver a comment the cursor has already
-        # passed, so a live wait is no answer to this one.
-        stale = turn_obligations(state, carried=carried)
-        if stale:
-            page_reasons.append(
+    for plan in plans:
+        if plan.owed:
+            reasons.append(
                 (
-                    f"{page_dir}: {unanswered(stale, 'acknowledged')}{reclaim(stale)}.",
+                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{reclaim(plan.owed)}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )
-        # A live carrier is the watch, and it prints what's pending on its own.
-        # Reporting the page here would start a second waiter and print the same
-        # unacknowledged events twice.
-        if not carried:
-            # The watcher's whole batch — user events and workers' reports — not the
-            # user-facing count, which deliberately leaves reports out.
-            n = sum(
-                (str(page_dir), event["id"]) not in handed
-                for event in unacknowledged(events, state["cursor"])
+        if not plan.carried:
+            pending = sum(
+                (str(plan.page), event["id"]) not in handed for event in plan.pending
             )
-            if n:
-                # The harness's own remedy names this page, so it stays on the
-                # line; what follows it is the same for every page in the batch.
-                # The delivery that carries them says how to acknowledge it.
-                page_reasons.append(
+            if pending:
+                reasons.append(
                     (
-                        f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't "
-                        "picked up. "
-                        + harness.input_unpicked(page_dir, listening=listening),
+                        f"{plan.page}: {pending} update{'s' if pending != 1 else ''} you haven't picked up. "
+                        + plan.harness.input_unpicked(
+                            plan.page, listening=plan.state["listening"]
+                        ),
                         None,
                     )
                 )
-            # Nothing is owed and nothing is listening. That is a debt on a page
-            # handed to a user, and a developer preview is not one: the same
-            # `preview.json` the browser chrome reads to label it a preview says
-            # the page is a rendering of a tracked example, put up to be looked
-            # at. A session inspecting a dozen slots would otherwise carry a
-            # dozen copies of this one line into every turn. The two clauses that
-            # answer for a real user stay above it, so a gesture on a preview
-            # still arrives — this exempts the housekeeping, not the user.
-            #
-            elif (
-                state["status"]["state"] != "idle"
-                and not (page_dir / PREVIEW_FILE).exists()
-            ):
-                page_reasons.append(
+            elif plan.state["status"]["state"] != "idle" and not plan.preview:
+                reasons.append(
                     (
-                        f"{page_dir}: "
-                        + harness.nothing_listening(page_dir, listening=listening),
+                        f"{plan.page}: "
+                        + plan.harness.nothing_listening(
+                            plan.page, listening=plan.state["listening"]
+                        ),
                         None,
                     )
                 )
-        # Discovery is only a candidate read. Transfer can happen while the
-        # hook reads status, so decide against current ownership at the end.
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if claim and claim["id"] == session_id:
-                    # A prompt opens every acknowledged move for its turn, the
-                    # queued ones included: from here they block like the rest.
-                    acknowledged = acknowledged_obligations(state)
-                    if prompt_open and acknowledged:
-                        by_id = {event["id"]: event for event in page.events}
-                        record_pickup(
-                            page,
-                            [
-                                by_id[obligation["input"]]
-                                for obligation in acknowledged
-                                if obligation["input"] in by_id
-                            ],
-                            phase="opened",
-                            session=session_id,
-                            turn=claim.get("turn"),
-                        )
-                    reasons.extend(page_reasons)
-        except FileNotFoundError:
-            continue
     return reasons
 
 
-def stop_harness(session_id: str) -> type[Harness]:
-    """The harness this session's hooks run under, as its page claims record it:
-    every claim a session takes names the one harness it runs in. Should every
-    claim have gone since this hook read them, a block continues the turn on any
-    host."""
-    for page_dir in owned_pages(session_id):
-        claim = page_claim(page_dir)
-        if claim is not None and claim["id"] == session_id:
-            return type(claim_harness(claim))
-    return Harness
+def unattended_pages(session_id: str) -> list[tuple[str, str | None]]:
+    """Read and format the session's current debt, without state transitions."""
+    return remedies(read_plans(session_id))
+
+
+def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
+    """Record a prompt's entry of already-receipted debt as a separate transition.
+
+    A later receipt revalidates captured identities independently. This pickup
+    likewise checks generation and turn after reacquiring the page transaction.
+    """
+    for plan in plans:
+        if not plan.acknowledged:
+            continue
+        try:
+            with PageTransaction(plan.page) as page:
+                claim = page.active_claim
+                if not claim or (claim["id"], claim["generation"], claim["turn"]) != (
+                    session_id,
+                    plan.claim["generation"],
+                    plan.claim["turn"],
+                ):
+                    continue
+                current = full_state(plan.page, page.events)
+                still_owed = {
+                    item["input"] for item in acknowledged_obligations(current)
+                }
+                by_id = {event["id"]: event for event in page.events}
+                record_pickup(
+                    page,
+                    [
+                        by_id[item["input"]]
+                        for item in plan.acknowledged
+                        if item["input"] in by_id and item["input"] in still_owed
+                    ],
+                    phase="opened",
+                    session=session_id,
+                    turn=claim["turn"],
+                )
+        except FileNotFoundError:
+            continue
 
 
 # Claude Code writes a hook's context over this size to a file and hands the turn
@@ -256,35 +298,24 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
     """Answer a prompt, Stop, or other page-reading hook for a session holding a
     page: open or close its turn, hand over its pending input, and name what its
     pages are owed."""
-    batches = []
+    plans = read_plans(sid)
+    if payload.get("turn_id") and any(
+        plan.claim["turn"] != payload["turn_id"] for plan in plans
+    ):
+        return
+    batches = (
+        [plan.batch for plan in plans if plan.batch]
+        if event in {"UserPromptSubmit", "Stop"}
+        else []
+    )
     if event == "UserPromptSubmit":
-        # Codex names the turn (`turn_id`), and its App Server names the same one,
-        # so this and a carrier following the turn open one identity.
-        open_session_turn(sid, payload.get("turn_id"))
-        batches = pending_batches(sid)
-        reasons = unattended_pages(sid, prompt_open=True, handing=batches)
+        pick_up_acknowledged(sid, plans)
     elif event == "Stop":
-        # The Stop hook keeps a turn going only for what that turn owes: input
-        # that arrived as it ends and is owed an answer, or a debt it names.
-        # Input that owes nothing, such as a resolve, a worker's report or a
-        # page's own error, reaches the agent through its watcher like any other,
-        # and rides along when the turn goes on anyway. A repeated Stop has said
-        # its debts once already, and only newly owed input keeps it going again:
-        # the other input nobody paces, and could hold a turn open without end.
-        batches = pending_batches(sid)
-        owed = any("answer" in move for batch in batches for move in batch["events"])
-        reasons = unattended_pages(sid, handing=batches)
-        # A Stop that speaks does not end the turn: the host continues the same
-        # turn with what it says as new context. Stamp only a turn the hook lets
-        # end.
-        if not owed and (not reasons or payload.get("stop_hook_active")):
-            # A provider-named turn closes through the synchronous observation
-            # in cmd_hook, which also covers a page acquired mid-turn.
+        if not stop_continues(plans, repeated=bool(payload.get("stop_hook_active"))):
             if not payload.get("turn_id"):
                 close_session_turn(sid)
             return True
-    else:
-        reasons = unattended_pages(sid)
+    reasons = remedies(plans, batches)
     if not reasons and not batches:
         return
     # The message avoids "unattended": a page can be watched and still be owed
@@ -323,7 +354,11 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
             for page in refused
         )
     if event == "Stop":
-        print(json.dumps(stop_harness(sid).continue_turn(message)))
+        print(
+            json.dumps(
+                (type(plans[0].harness) if plans else Harness).continue_turn(message)
+            )
+        )
     else:
         print(
             json.dumps(

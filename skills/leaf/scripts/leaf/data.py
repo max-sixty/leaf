@@ -25,7 +25,7 @@ from .files import replace_files
 from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .session_cleanup import json_bytes
+from .state import json_bytes
 
 
 class StaleDataError(DataError):

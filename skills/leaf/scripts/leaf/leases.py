@@ -3,7 +3,7 @@
 A lease or lock file is the lock and nothing more, so it exists only while it is
 held or awaited, whoever it belongs to: its holder removes it on release, and a
 taker that locks a file already removed takes the lock again on whatever the path
-names now (`session_cleanup.still_named`). That is what lets a session's files end with
+names now (`state.still_named`). That is what lets a session's files end with
 the session: nothing reads them once they are released, so there is no later
 reader to retire them, and no signal that a session which can be resumed is over.
 A holder the kernel kills outright leaves its file behind, unheld; the next holder
@@ -20,7 +20,7 @@ from pathlib import Path
 from leaf.event_log import EventRefused
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
-from leaf.session_cleanup import (
+from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
     TITLES_SUFFIX,
@@ -188,7 +188,7 @@ def adapter_lease_path(session_id: str) -> Path:
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:
-    """`session_cleanup.session_file`, with its directory created."""
+    """`state.session_file`, with its directory created."""
     sessions_home()
     return session_file(session_id, suffix)
 

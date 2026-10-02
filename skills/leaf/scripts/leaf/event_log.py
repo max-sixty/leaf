@@ -11,7 +11,7 @@ from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
 from leaf.schema import CURSOR_FILE
-from leaf.session_cleanup import EVENTS_FILE, flocked, now_iso
+from leaf.state import EVENTS_FILE, flocked, now_iso
 
 
 def read_cursor(page_dir: Path) -> int:

@@ -1,14 +1,15 @@
-"""Cold session cleanup and the storage primitives shared with managed Leaf.
+"""Dependency-free machine storage and the session lifecycle authority.
 
-This file is also a standalone SessionEnd program: the launcher executes it with
-system Python 3.9 or newer, before a plugin environment exists. It imports only
-stdlib and never imports the Leaf package. Managed Leaf uses the same paths,
-identity, locking and durable JSON replacement, so cleanup of a claim written by
-another checkout holds its page transaction lock and cannot release a successor.
+The standalone SessionEnd entry runs on system Python 3.9 without a managed
+Leaf environment. One atomic record owns host lifetime, generation, turn identity
+and dated opening/ending evidence. Claims reference its generation; an ending
+invalidates them without page discovery, page locks or claim rewrites.
 
-Multi-target path validation belongs to files.replace_files, above the atomic
-replacement primitive here. Page events must exist before their lock is taken;
-purpose locks are removed by their holder and retaken when their name changes.
+The session lock also serializes Codex delivery route reservation, making its
+revision a compare-and-swap token for observations. Lock order is page then
+session. Session transitions never acquire page locks or call an external host;
+only short state publications and reservations run under the session lock.
+Storage replacement and cross-process locking are shared below the page model.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ def state_home_path() -> Path:
 # and its page servers' log of the thread titles they asked for.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
-HOOK_TURN_SUFFIX = "hook-turn"
+SESSION_SUFFIX = "lifecycle"
 TITLES_SUFFIX = "titles.log"
 
 
@@ -190,49 +191,154 @@ def write_json(path: Path, obj) -> None:
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
-def end_session(session_id: str) -> None:
-    """Release this session's claims under each page's transaction lock, then
-    remove the files that end with it.
+SESSION_FIELDS = {
+    "id",
+    "generation",
+    "ended",
+    "turn",
+    "turn_opened",
+    "turn_closed",
+    "revision",
+    "provider",
+    "lifetime",
+}
 
-    SessionEnd does not need the claim's lifetime reading: the host has ended
-    the session, so any unreleased record still naming it may be closed. A
-    successor is checked after taking the same log lock as claim transitions.
-    The files go last because a page server writes the titles log only under
-    that lock while the session holds the page (`thread_titles`), so none is
-    written after this removes it.
+
+def session_lock_path(session_id: str) -> Path:
+    path = session_file(session_id, "delivery.lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def session_record(session_id: str) -> dict | None:
+    """Read one atomic lifecycle publication; incompatible records are absent."""
+    try:
+        record = json.loads(session_file(session_id, SESSION_SUFFIX).read_text())
+    except (FileNotFoundError, ValueError):
+        return None
+    return (
+        record if isinstance(record, dict) and SESSION_FIELDS <= record.keys() else None
+    )
+
+
+def write_session(record: dict) -> dict:
+    record = {**record, "revision": record["revision"] + 1}
+    path = session_file(record["id"], SESSION_SUFFIX)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(path, record)
+    return record
+
+
+def new_session(session_id: str, lifetime: dict) -> dict:
+    return {
+        "id": session_id,
+        "generation": secrets.token_hex(16),
+        "ended": None,
+        "turn": None,
+        "turn_opened": None,
+        "turn_closed": None,
+        "revision": 0,
+        "provider": False,
+        "lifetime": lifetime,
+    }
+
+
+def ensure_session(session_id: str, lifetime: dict) -> dict:
+    """Claim into the active generation, or create a new lifetime after ending.
+
+    Lifetime provenance is shared, while an activity-backed page's freshness is
+    its own claim timestamp and files. No page read occurs under this lock.
+    """
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if record is None or record["ended"] is not None:
+            record = new_session(session_id, lifetime)
+            record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
+        else:
+            record = {**record, "lifetime": lifetime}
+            if not record["provider"] and record["turn_closed"] is not None:
+                record.update(
+                    turn=secrets.token_hex(8), turn_opened=now_iso(), turn_closed=None
+                )
+        return write_session(record)
+
+
+def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict | None:
+    """Publish a turn observation under the caller's session lock.
+
+    A closed provider identity never reopens. Unknown-id hosts reuse their open
+    turn and mint a new identity after its ending. Callback callers validate the
+    existing identity before calling this; only a prompt introduces a new one.
+    """
+    record = session_record(session_id)
+    if record is None:
+        record = new_session(session_id, {})
+    if record["ended"] is not None:
+        return None
+    if running:
+        provider = turn_id is not None or record["provider"]
+        if turn_id is None:
+            turn_id = record["turn"] if record["turn_closed"] is None else None
+            turn_id = turn_id or secrets.token_hex(8)
+        if turn_id == record["turn"] and record["turn_closed"] is not None:
+            return record
+        record = {
+            **record,
+            "turn": turn_id,
+            "turn_opened": now_iso(),
+            "turn_closed": None,
+            "provider": provider,
+        }
+    else:
+        if turn_id is not None and turn_id != record["turn"]:
+            return None
+        record = {**record, "turn_closed": now_iso()}
+    return write_session(record)
+
+
+def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | None:
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if record is not None and record["ended"] is not None:
+            # Only a prompt/claim starts a new lifetime, never a late receipt.
+            return None
+        return advance_turn(session_id, turn_id, running=True)
+
+
+def prompt_turn(session_id: str, turn_id: str | None = None) -> dict:
+    """A synchronous prompt starts/resumes the host's generation before claims."""
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if record is not None and record["ended"] is not None:
+            write_session(new_session(session_id, record["lifetime"]))
+        return advance_turn(session_id, turn_id, running=True)
+
+
+def close_session_turn(session_id: str, turn_id: str | None = None) -> bool:
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if record is None or record["ended"] is not None:
+            return False
+        return advance_turn(session_id, turn_id, running=False) is not None
+
+
+def end_session(session_id: str) -> None:
+    """End one generation with no page discovery or page-lock acquisition.
+
+    Claims referencing it become inactive by this one atomic write. A later
+    synchronous prompt or claim creates a new generation and cannot revive them.
+    Capability files are observations, not lifecycle authority, and retire here.
     """
     if not session_id:
         return
-
-    for path in (state_home_path() / "claims").glob("*.json"):
-        try:
-            record = json.loads(path.read_text())
-            if not isinstance(record, dict) or record.get("id") != session_id:
-                continue
-            page_name = record.get("page")
-            if not isinstance(page_name, str) or "released" not in record:
-                continue
-            page = Path(page_name).resolve()
-            if path.stem != page_key(page):
-                continue
-            with flocked(page / EVENTS_FILE):
-                current = json.loads(path.read_text())
-                if (
-                    isinstance(current, dict)
-                    and current.get("id") == session_id
-                    and current.get("page") == page_name
-                    and "released" in current
-                    and current.get("released") is None
-                ):
-                    write_json(path, {**current, "released": now_iso()})
-        except (OSError, ValueError, TypeError):
-            continue
-    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, HOOK_TURN_SUFFIX, TITLES_SUFFIX):
-        session_file(session_id, suffix).unlink(missing_ok=True)
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id) or new_session(session_id, {})
+        write_session({**record, "ended": now_iso(), "turn_closed": now_iso()})
+        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
+            session_file(session_id, suffix).unlink(missing_ok=True)
 
 
 def main() -> None:
-    """Release the session named by one host SessionEnd payload on stdin."""
     payload = json.load(sys.stdin)
     if payload.get("hook_event_name") == "SessionEnd":
         end_session(payload.get("session_id") or "")

@@ -49,7 +49,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -563,11 +563,14 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, harness="claude-code", **fields):
+def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
     `harness` is checked against Leaf's own table, so a fixture cannot record a
     name `take_claim` would never write."""
+    observed = cleanup_model.session_record(fields.get("id", "s1"))
+    if observed and not observed["provider"]:
+        observed = None
     record = {
         "page": str(page.resolve()),
         "id": "s1",
@@ -577,20 +580,33 @@ def record_claim(page, harness="claude-code", **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
-        "turn": "turn-1",
-        "turn_opened": cleanup_model.now_iso(),
-        "turn_closed": None,
+        "turn": observed["turn"] if observed else "turn-1",
+        "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
+        "turn_closed": observed["turn_closed"] if observed else None,
         **fields,
     }
-    # A lifetime is one key, the way `take_claim` spreads it: a claim naming a job
-    # record or resting on activity states no pid, and a reader that saw one there
-    # would be reading a fixture rather than a shape leaf writes.
-    if fields.keys() & {"job", "activity"}:
-        record.pop("pid", None)
+    lifetime = {key: record[key] for key in ("job", "activity") if key in record}
+    if not lifetime:
+        lifetime = {"pid": record["pid"]}
+    session = cleanup_model.ensure_session(record["id"], lifetime)
+    session = cleanup_model.write_session(
+        {
+            **session,
+            "turn": record["turn"],
+            "turn_opened": record["turn_opened"],
+            "turn_closed": record["turn_closed"],
+        }
+    )
+    record = {
+        key: value
+        for key, value in record.items()
+        if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
+    }
+    record["generation"] = session["generation"]
     path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)
-    return record
+    return service_model.page_claim(page)
 
 
 def live_versions(d):
@@ -1389,9 +1405,7 @@ print(json.dumps({"url": url}))
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
     claim = service_model.page_claim(page)
-    cleanup_model.write_json(
-        service_model.claim_path(page), {**claim, "pid": os.getpid()}
-    )
+    record_claim(page, **{**claim, "pid": os.getpid()})
     return page
 
 

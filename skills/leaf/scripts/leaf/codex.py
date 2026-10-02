@@ -34,8 +34,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
+from .state import open_session_turn, close_session_turn
 from .codex_state import (
-    advance_hook_turn,
     delivery_dir,
     delivery_lock_path,
     hook_turn,
@@ -61,13 +61,11 @@ from .leases import sessions_home
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
-    close_session_turn,
-    open_session_turn,
     owned_pages,
     restore_page_claim,
     unacknowledged,
 )
-from .session_cleanup import flocked, write_json
+from .state import advance_turn, flocked, write_json
 from .thread import (
     DeliveryReply,
     release_delivery_reply,
@@ -1367,8 +1365,8 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
                 with flocked(lock):
                     if hook_turn(session_id) != expected:
                         return None
-                    expected = advance_hook_turn(session_id, turn_id, running=True)
-                    page.open_turn(session_id, turn_id)
+                    advance_turn(session_id, turn_id, running=True)
+                    expected = hook_turn(session_id)
                     if batch := unacknowledged(page.events, page.cursor):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:

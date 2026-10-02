@@ -89,7 +89,7 @@ from .service import (
     starting_claim,
 )
 from .session import Watch, read_watch_pass
-from .session_cleanup import EVENTS_FILE, flocked
+from .state import EVENTS_FILE, flocked
 from .thread import (
     delivery_reply_reserved,
 )
@@ -726,15 +726,6 @@ def _offer_queued_delivery(
     return True
 
 
-def _has_delivery_work(session_id: str) -> bool:
-    with flocked(delivery_lock_path(session_id)):
-        return any(
-            record["state"] != "accepted"
-            or any(not batch["receipted"] for batch in record["batches"])
-            for _, record in delivery_records(session_id)
-        )
-
-
 def run_adapter(
     codex_path: str,
     handshake: Handshake | None = None,
@@ -858,13 +849,14 @@ def run_adapter(
                     reading = read_watch_pass(watch, None, deliver=capture)
                     if captured or (reading.outcome is None and reading.live):
                         continue
-                    if owned_pages(harness.session) and _has_delivery_work(
-                        harness.session
-                    ):
-                        time.sleep(1)
-                        continue
-                    retire()
-                    return reading.outcome or 0
+                    if not owned_pages(harness.session):
+                        retire()
+                        return reading.outcome or 0
+                # The route belongs to the session's ownership, not its current
+                # authored status. Idle pages deliver nothing; a later status
+                # resumes this same route. Wait outside the startup lock.
+                watch.await_news(mark, timeout=1)
+                continue
             # A second a pass, as well as each time a page moves: the queued offer
             # and receipt recovery above answer to Codex, not to the page's files.
             watch.await_news(mark, timeout=1)

@@ -33,7 +33,7 @@ from .server import (
     stop_when_service_ends,
 )
 from .service import PageTransaction, claim_is_active, page_claim, starting_claim
-from .session_cleanup import require_cross_process_locking, write_json
+from .state import require_cross_process_locking, write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 

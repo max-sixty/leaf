@@ -83,7 +83,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .session_cleanup import write_json
+from .state import write_json
 from .structure import FRAME_ANCESTORS_CSP
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without

@@ -13,7 +13,7 @@ from pathlib import Path
 from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import DATA_DIR, INTERACTIONS_FILE, SESSION_FILES, VIEWED_FILE
 from ..service import claim_path
-from ..session_cleanup import EVENTS_FILE
+from ..state import EVENTS_FILE
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
 # while a visible tab holds the news stream and `interactions.jsonl` for every request

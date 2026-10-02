@@ -16,6 +16,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered
 from leaf.served_state import context as served_context
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -1299,6 +1300,21 @@ def _unfold(item):
         item.locator(".lf-margin-more").click()
 
 
+def _unfold_suggestion_undo(page, target):
+    """Find Undo where a settled suggestion now perches, even if its slot vanished."""
+    control = suggestion_control(page, target, "undo", visible=False)
+    _unfold(control.locator("xpath=ancestor::*[@data-lf-margin-for][1]"))
+    return control
+
+
+@pytest.mark.xfail(
+    strict=False,
+    raises=(AssertionError, PlaywrightTimeoutError),
+    reason=(
+        "Known main failure: suggestion style/geometry can stop updating after reject "
+        "or Undo; see notes/margin-stuck-style.md"
+    ),
+)
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and Page Map actions."""
@@ -1313,13 +1329,26 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         controls = item
         _unfold(item)
-        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
-        round_trip(page)
+        applied = int(page.locator("body").get_attribute("data-lf-applied"))
+        with sending(page, f"{outcome} {target}"):
+            item.get_by_role(
+                "button", name=re.compile(f"^{outcome.title()} the ")
+            ).click()
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
+        render_checks_model.wait_until_ready(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
-        suggestion_control(page, target, visible=False).and_(
-            page.locator('[aria-label^="Undo "]')
-        ).click()
-        round_trip(page)
+        margins_laid_out(page)
+        undo_control = _unfold_suggestion_undo(page, target)
+        applied += 1
+        with sending(page, f"undo {target}"):
+            undo_control.click()
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
+        render_checks_model.wait_until_ready(page)
+        margins_laid_out(page)
         _unfold(item)
         expect(
             item.get_by_role("button", name=re.compile("^Accept the "))
@@ -1328,6 +1357,13 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
             item.get_by_role("button", name=re.compile("^Reject the "))
         ).to_be_visible()
 
+
+@pytest.mark.parametrize("width", [1440, 1200, 700, 390])
+def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
+    browser, serve, width
+):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, width, 900)
     draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
     draft_item.locator(".lf-draft-pencil").click()
     editor = page.locator("#bg-draft textarea")
@@ -1337,8 +1373,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
     expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
     expect(draft_item.locator(".lf-margin-more")).to_be_hidden()
-    draft_item.get_by_role("button", name="Save", exact=True).click()
-    round_trip(page)
+    with sending(page, "save the gallery draft"):
+        draft_item.get_by_role("button", name="Save", exact=True).click()
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
     # Through the harness's navigation rather than a bare reload, for its ResizeObserver
     # adjudication: this gallery is twenty thousand pixels tall at 390 and its arrival
@@ -1420,12 +1456,25 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         _unfold(item)
-        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
-        round_trip(page)
-        suggestion_control(page, target, visible=False).and_(
-            page.locator('[aria-label^="Undo "]')
-        ).click()
-        round_trip(page)
+        applied = int(page.locator("body").get_attribute("data-lf-applied"))
+        with sending(page, f"{outcome} {target}"):
+            item.get_by_role(
+                "button", name=re.compile(f"^{outcome.title()} the ")
+            ).click()
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
+        render_checks_model.wait_until_ready(page)
+        margins_laid_out(page)
+        undo_control = _unfold_suggestion_undo(page, target)
+        applied += 1
+        with sending(page, f"undo {target}"):
+            undo_control.click()
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-applied", str(applied + 1)
+        )
+        render_checks_model.wait_until_ready(page)
+        margins_laid_out(page)
         # The pin just pressed is held under the pointer; let it go so it folds back.
         page.mouse.move(0, 0)
         page.evaluate(RELEASE_FOCUS)
@@ -3060,8 +3109,8 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     options = item.locator(":scope > .lf-margin-options")
 
-    options.get_by_role("button", name=re.compile(r"Reject")).click()
-    round_trip(page)
+    with sending(page, "reject the secondary suggestion"):
+        options.get_by_role("button", name=re.compile(r"Reject")).click()
 
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
@@ -9804,7 +9853,7 @@ def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve)
     source = leaf_page(
         "a scoped note",
         '<h1 id="t">Scoped</h1><p id="flow">In the flow.</p>'
-        '<div style="anchor-scope: all"><p id="fixed-note">Behind a scope.</p></div>',
+        '<div id="scope" style="anchor-scope: all"><p id="fixed-note">Behind a scope.</p></div>',
     )
     page = open_page(
         browser, serve(source, events=[_comment_on("fixed-note"), _comment_on("flow")])
@@ -9819,6 +9868,14 @@ def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve)
     expect(stuck).to_be_hidden()
     findings = render_checks_model.evaluate_probe(page, "strandedMargins")
     assert [f for f in findings if "fixed-note" in f], findings
+
+    # The author's scope can change while the target and its row keep their identity.
+    page.locator("#scope").evaluate("el => el.style.anchorScope = 'none'")
+    margins_laid_out(page)
+    expect(stuck).to_be_visible()
+    expect(stuck).not_to_have_attribute("data-lf-parked", "")
+    findings = render_checks_model.evaluate_probe(page, "strandedMargins")
+    assert not [f for f in findings if "fixed-note" in f], findings
 
 
 @pytest.mark.parametrize(

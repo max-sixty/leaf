@@ -7302,7 +7302,8 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     assert short["cardTop"] == pytest.approx(before["cardTop"], abs=0.5), short
     send = preview.get_by_role("button", name="Send", exact=True)
     pressed = send.evaluate("button => button.getBoundingClientRect().top")
-    send.click()
+    with sending(page, "the reply"):
+        send.click()
     expect(preview).to_contain_text("Sent")
     # The send leaves the user on the element the card is about, the card still up, and
     # the card holds under the pressed Send. An answer arriving then extends it downward,
@@ -7624,14 +7625,35 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
     send = preview.locator(".lf-say .lf-compose-submit")
-    with sending(page, "the reply"):
-        if how == "key":
-            editor.press("Enter")
+    held = []
+
+    def hold_reply(route):
+        if route.request.post_data_json["kind"] == "reply":
+            held.append(route)
         else:
-            send.click()
+            route.continue_()
+
+    page.route("**/api/event", hold_reply)
+    if how == "key":
+        editor.press("Enter")
+    else:
+        send.click()
+    holding(page, held, 1, "the reply")
     expect(preview.locator(".lf-page-thread-msg").last).to_contain_text("words")
+    expect(preview.locator(".lf-page-thread-msg").last).to_have_attribute(
+        "aria-busy", "true"
+    )
     rendered(page)
     expect(page.locator("#open")).to_be_focused()
+    assert preview.evaluate(DRAFTING_CARD) == before
+
+    # Admission names the same turn; its later sizing passes still hold the pressed row.
+    held.pop().continue_()
+    round_trip(page)
+    expect(preview.locator(".lf-page-thread-msg").last).not_to_have_attribute(
+        "aria-busy", "true"
+    )
+    rendered(page)
     assert preview.evaluate(DRAFTING_CARD) == before
 
 

@@ -779,7 +779,6 @@ export function unregisterMarginRow(row) {
       row.style.removeProperty(property);
     pushes.delete(row);
     steps.delete(row);
-    parked.delete(row);
     folded.delete(row);
   }
   if (!rows.size) {
@@ -840,12 +839,6 @@ let pass = 0;
 let came = new Map();
 const steps = new Map();
 const clips = new WeakMap();
-// A row whose anchor the browser would not take — one behind an author's `anchor-scope`,
-// say — stands at its fallback off screen. The pass finds it there once and
-// withholds it for as long as it anchors to the same box, rather than finding it again on
-// every heartbeat. `data-lf-parked` says so for the render gate.
-const parked = new WeakMap();
-
 // A scroll inside anything but the document moves its rows on the compositor. What it can
 // change is which of them still have somewhere to stand, so only rows under a box that
 // scrolled are read again, once a frame, and a row that changes answer brings the whole
@@ -863,7 +856,7 @@ function scheduleScrollReading() {
     const bands = new Map();
     for (const [row, options] of rows) {
       const target = options.anchor();
-      if (!target?.isConnected || parked.has(row)) continue;
+      if (!target?.isConnected) continue;
       const anchor = anchorElement(target);
       // A box scrolled inside the anchor moves a pointed row against the box the row is
       // inset from, as it moves a target inside its host.
@@ -952,7 +945,6 @@ export function layoutMarginRows() {
       root = root.host.getRootNode()
     )
       hearScrolls(root);
-    if (parked.has(row) && parked.get(row) !== anchor) parked.delete(row);
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
@@ -968,9 +960,7 @@ export function layoutMarginRows() {
       half: size / 2,
       noted: notes.some((note) => note.top < level + size && note.bottom > level),
     });
-    const shown =
-      !parked.has(row) &&
-      targetShown(target, extent, place === "pin" ? null : { top }, bands);
+    const shown = targetShown(target, extent, place === "pin" ? null : { top }, bands);
     reads.push({
       row,
       options,
@@ -1083,12 +1073,11 @@ export function layoutMarginRows() {
         read,
       };
     });
-  for (const { key: row, stranded, read } of placed) {
+  // Anchor availability belongs to this geometry pass: the author can lift a scope or
+  // restore a name without replacing the target. Never retain a failed reading by identity.
+  for (const { key: row, stranded } of placed) {
     row.toggleAttribute("data-lf-parked", stranded);
-    if (stranded) {
-      parked.set(row, read.anchor);
-      row.classList.toggle("lf-withheld", true);
-    }
+    if (stranded) row.classList.toggle("lf-withheld", true);
   }
   const standing = placed.filter(({ stranded }) => !stranded);
   seatPins(standing, { bands, shell, pinInset });

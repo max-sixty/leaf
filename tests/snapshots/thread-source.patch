@@ -8,7 +8,7 @@ index 5ba94f6d4..68ad45ce1 100644
    "leaf-website",
 +  "pytest-image-snapshot[pixelmatch]>=0.5.3",
  ]
-
+ 
  # An install never syncs the members, but uv reads their `pyproject.toml` files to
 @@ -110,7 +111,7 @@ leaf-website = { workspace = true }
  # Two workers cap the browser load when suites overlap.
@@ -26,13 +26,13 @@ index f3e1d0fff..bfe941183 100644
 @@ -113,20 +113,23 @@ import {
    toggleBtn,
  } from "./runtime/banner.js";
-
+ 
 +import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 +
  initializeServedDocument();
  keepPageRulesOffLayer();
  holdArrivingBounds();
-
+ 
  // A published shell may bundle the entry without publishing its source modules beside
  // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
 -// checks can inspect either distribution without turning it into a package API. The two
@@ -58,9 +58,9 @@ index f3e1d0fff..bfe941183 100644
 +import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
  import { mediaViewer } from "./runtime/media.js";
  import { offer } from "./runtime/widget-elements.js";
-
+ 
 @@ -642,6 +645,7 @@ drawing = createDrawingController({
-
+ 
  layout = createChromeLayout({
    panelIsOpen,
 +  noticeIsVisible: noticeVisible,
@@ -80,7 +80,7 @@ index c83cb9d1f..fa27a938a 100644
 --- a/skills/leaf/assets/runtime/chrome-layout.js
 +++ b/skills/leaf/assets/runtime/chrome-layout.js
 @@ -66,6 +66,7 @@ const THREAD_PANEL_PROP = "--lf-thread-panel-width";
-
+ 
  export function createChromeLayout({
    panelIsOpen,
 +  noticeIsVisible,
@@ -140,7 +140,7 @@ index c83cb9d1f..fa27a938a 100644
    // reading boundary changes shape — a resize moves every rect. Re-place it against the
    // durable anchor so it cannot overhang the shell.
 @@ -230,6 +252,7 @@ export function createChromeLayout({
-
+ 
    return {
      syncLayout,
 +    syncBottomStatus,
@@ -208,7 +208,7 @@ index bdce366dc..d071674d6 100644
 -   every read. `kind` is `popover` or `modal`; the dispatcher tiers the scopes over them
 +   every read. `kind` reads the standing native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
     and makes a modal a floor.
-
+ 
     A layer may open through a prototype method or through declarative popover activation,
 @@ -55,7 +55,7 @@ function prune() {
  // top: `toggle` is queued rather than synchronous, so moving a layer on that last
@@ -232,19 +232,19 @@ index bdce366dc..d071674d6 100644
    });
 @@ -89,21 +91,23 @@ function closing(event) {
  }
-
+ 
  HTMLDialogElement.prototype.showModal = function () {
 -  if (!this.matches(":modal")) pushNativeLayer(this, "modal");
 +  if (!this.matches(":modal")) pushNativeLayer(this);
    return nativeDialogShowModal.call(this);
  };
-
+ 
  HTMLElement.prototype.showPopover = function (...args) {
 -  if (!this.matches(":popover-open")) pushNativeLayer(this, "popover");
 +  if (!this.matches(":popover-open")) pushNativeLayer(this);
    return nativePopoverShow.apply(this, args);
  };
-
+ 
  export function watchLayers(root) {
    if (watchedRoots.has(root)) return;
    watchedRoots.add(root);
@@ -264,7 +264,7 @@ index d1b242070..3b882a98b 100644
 +++ b/skills/leaf/assets/runtime/keyboard/shortcut-bar.js
 @@ -170,12 +170,15 @@ const shortcutBarTemplate = (model) =>
      }`;
-
+ 
  let bottomStatusContext = EMPTY_STATUS_CONTEXT;
 +let placeBottomStatus = null;
  const renderBottomStatus = () => {
@@ -279,7 +279,7 @@ index d1b242070..3b882a98b 100644
  renderBottomStatus();
  render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
 @@ -527,7 +530,13 @@ const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable
-
+ 
  // Boot supplies the two transient interactions More closes. The bar renderer and its
  // reference rows never import those command owners to draw their current declarations.
 -export function mountShortcutBar({ setGoToSequence, setReact }) {
@@ -384,7 +384,7 @@ index bbc5308aa..2c7452dc3 100644
  import { scrollThreadIntoView } from "./reply-landing.js";
  import { newsNotice } from "./held-news.js";
 +import { ReplyContinuity } from "./reply-continuity.js";
-
+ 
  function quoteReading(thread, anchors) {
    const placement = anchors.placedAt(thread.id);
 @@ -240,12 +241,15 @@ export class ThreadView {
@@ -392,7 +392,7 @@ index bbc5308aa..2c7452dc3 100644
    #news = newsNotice();
    #lastMessage = null;
 +  #continuity = null;
-
+ 
    constructor(surface, commands) {
      this.#commands = commands;
      this.node = document.createElement(
@@ -405,7 +405,7 @@ index bbc5308aa..2c7452dc3 100644
        this.node.tabIndex = -1;
 @@ -294,6 +298,7 @@ export class ThreadView {
    }
-
+ 
    present(model) {
 +    const bodyPlace = this.#continuity?.before();
      const prior = this.#model;
@@ -429,7 +429,7 @@ index bbc5308aa..2c7452dc3 100644
      // render took their place puts them in its reply, or on the thread itself.
 @@ -777,6 +784,7 @@ export class ThreadView {
    }
-
+ 
    dispose() {
 +    this.#continuity?.release();
      this.retire();
@@ -441,7 +441,7 @@ index b5b51c198..9ff520f3b 100644
 +++ b/skills/leaf/assets/shadow.css
 @@ -813,3 +813,9 @@ .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
  .lf-suggest-label { color: var(--muted-2); }
-
+ 
  .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
 +/* The response foot sits after flexible mechanical space in a retained flow body.
 +   Details' summary is its own disclosure outside that body. */
@@ -522,7 +522,7 @@ index 68bed525a..336f1c9a4 100644
 @@ -640,6 +642,15 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/36/54/0169bc772ec491108b62f644f8ecf1fe5d8ae5ebafde2ee2142210166903/pillow-12.3.0-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:04f01d28a6aaff387bf842a13be313df23ba0597a44f1a976c9feb3c6ff4711a", size = 7231786, upload-time = "2026-07-01T11:56:35.046Z" },
  ]
-
+ 
 +[[package]]
 +name = "pixelmatch"
 +version = "0.4.0"
@@ -538,7 +538,7 @@ index 68bed525a..336f1c9a4 100644
 @@ -760,6 +771,24 @@ wheels = [
      { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
  ]
-
+ 
 +[[package]]
 +name = "pytest-image-snapshot"
 +version = "0.5.3"

@@ -27,9 +27,8 @@ primitive must give the user something that site would not:
   Users read and answer a thread beside the passage it concerns.
 - **Drawing comments.** Freehand annotations are a core feature. Users point at
   visual details with ink as well as with text and semantic anchors.
-- **Hosted agents.** Public-site AI is a core feature. Visitors comment and
-  answer Asks in private copies of public pages, and the agent responds by
-  revising the page.
+- **Public website.** Visitors can try Leaf directly on leaf.page through
+  interactive examples. The website is a core feature.
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.

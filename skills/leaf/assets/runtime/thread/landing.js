@@ -42,7 +42,8 @@ import { SAYS_IN, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
-import { threadList } from "./state.js";
+import { allThreads, threadList } from "./state.js";
+import { threadNames } from "./model.js";
 import {
   focusedThreadTarget,
   focusThread,
@@ -336,11 +337,13 @@ export function wireThreadLanding(threadsBox) {
 // Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
 // and a destination in one is as unreachable as a destination with no node at all.
 const listNode = (id, threadsBox, preferMessage = false) => {
+  const threadId = threadNames(allThreads()).get(id)?.id ?? id;
   const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
-  const thread = `.lf-thread[data-id="${CSS.escape(id)}"]`;
-  const node = preferMessage
-    ? (threadsBox.querySelector(message) ?? threadsBox.querySelector(thread))
-    : (threadsBox.querySelector(thread) ?? threadsBox.querySelector(message));
+  const thread = `.lf-thread[data-id="${CSS.escape(threadId)}"]`;
+  const node =
+    preferMessage || id !== threadId
+      ? (threadsBox.querySelector(message) ?? threadsBox.querySelector(thread))
+      : (threadsBox.querySelector(thread) ?? threadsBox.querySelector(message));
   return node?.closest(".lf-thread[hidden]") ? null : node;
 };
 
@@ -352,27 +355,27 @@ async function showThreadNow(id, focus, revealThread, threadsBox, mayArrive) {
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
     .querySelector(
-      `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
+      `.lf-thread[data-id="${CSS.escape(threadNames(allThreads()).get(id)?.id ?? id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
     )
     ?.classList.toggle("grow", false);
-  threadsBox.revealNavigation(id);
+  threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {
     finishFold(going);
-    const revealed = revealThread(id);
+    const revealed = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
     if (!revealed) return null;
     await revealed;
     if (!mayArrive()) return null;
     node = listNode(id, threadsBox, focus === "message");
   } else if (!node) {
-    const revealed = revealThread(id);
+    const revealed = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
     if (!revealed) return null;
     await revealed;
     if (!mayArrive()) return null;
     node = listNode(id, threadsBox, focus === "message");
   }
-  threadsBox.revealNavigation(id);
+  threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
   node = listNode(id, threadsBox, focus === "message");
   if (!node || !mayArrive()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {

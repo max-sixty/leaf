@@ -815,13 +815,14 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     expect(thread).to_be_focused()
     page.keyboard.press("Tab")
     expect(news).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(news).to_have_count(0)
-    expect(thread).to_be_focused()
-    body = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-msg-body')
-    expect(body).to_be_visible()
-    assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
-    body.scroll_into_view_if_needed()
+    with sending(page, "opened diff reply read"):
+        page.keyboard.press("Enter")
+        expect(news).to_have_count(0)
+        expect(thread).to_be_focused()
+        body = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-msg-body')
+        expect(body).to_be_visible()
+        assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
+        body.scroll_into_view_if_needed()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}

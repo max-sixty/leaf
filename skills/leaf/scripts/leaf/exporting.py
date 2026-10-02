@@ -109,10 +109,11 @@ def _module_urls(
     that draws no diff carries no diff renderer.
     """
     tags = {record["tag"] for document in markup for record in document.lf_elements}
+    required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
-        f"/widgets/{tag}.js": implementation["path"]
-        for tag, implementation in artifact.implementations.items()
-        if tag in tags
+        alias: source
+        for alias, source in artifact.widget_aliases.items()
+        if alias in required
     }
     pending = [
         "/leaf.js",

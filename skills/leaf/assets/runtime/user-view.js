@@ -5,7 +5,9 @@
 import { offlineInteractive, passiveSample, pageUrl, runtime } from "./context.js";
 import { seenRect, shownWindow } from "./geometry.js";
 import { sessionIsActive } from "./layer-client.js";
+import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
+import { coarsePointer } from "./pointer.js";
 import { readingRegions } from "./reading-regions.js";
 import { watchSemantic } from "./semantic-state.js";
 
@@ -19,8 +21,6 @@ export function observeUserView() {
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
   const dark = matchMedia("(prefers-color-scheme: dark)");
-  const motion = matchMedia("(prefers-reduced-motion: reduce)");
-  const coarse = matchMedia("(pointer: coarse)");
   let sequence = 0;
   let pending = null;
   let reading = null;
@@ -54,8 +54,8 @@ export function observeUserView() {
         schemes.includes("dark") && (dark.matches || !schemes.includes("light"))
           ? "dark"
           : "light",
-      reduced_motion: motion.matches,
-      pointer: coarse.matches ? "coarse" : "fine",
+      reduced_motion: reducedMotion(),
+      pointer: coarsePointer.matches ? "coarse" : "fine",
       scroll: { x: window.scrollX, y: window.scrollY },
       visible_regions: readingRegions()
         .filter(({ body }) => seenRect(body, clips) !== null)
@@ -150,7 +150,8 @@ export function observeUserView() {
   document.addEventListener("scroll", schedule, { passive: true, capture: true });
   window.visualViewport.addEventListener("resize", schedule);
   window.visualViewport.addEventListener("scroll", schedule);
-  for (const preference of [dark, motion, coarse])
+  onMotionPreferenceChange(schedule);
+  for (const preference of [dark, coarsePointer])
     preference.addEventListener("change", schedule);
   setInterval(() => {
     if (document.visibilityState !== "hidden") report({ inspect: true });

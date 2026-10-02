@@ -27,7 +27,11 @@ export function createThreadDestinations({
   const threadTarget = (id) => placedAt(id)?.place ?? null;
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   const threadFocusTarget = (id, { focus = null } = {}) =>
-    surfaceFocusTarget(id, { focus }) ?? preview?.focusTarget(id, { focus }) ?? null;
+    focus === "message"
+      ? null
+      : (surfaceFocusTarget(id, { focus }) ??
+        preview?.focusTarget(id, { focus }) ??
+        null);
 
   async function openPageThread(
     id,
@@ -39,7 +43,7 @@ export function createThreadDestinations({
     } = {},
   ) {
     if (!intent()) return null;
-    if (!panelIsOpen()) {
+    if (!panelIsOpen() && focus !== "message") {
       const localFocus = focus ?? "reply";
       if (surfaceFocusTarget(id, { focus: localFocus })) {
         if (preview) intent.handoff(preview.close);

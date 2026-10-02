@@ -810,169 +810,20 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* Content that needs more space than the argument about it. The column above is the measure
- * prose is read at, and a board's columns or a diagram's graph are as wide as what they
- * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
- * been widened to suit its widest exhibit. Neither is a choice a page should have to
- * make, and the tradition this borrows from doesn't: Distill sets text at l-body and
- * figures at l-page, Tufte holds the column and lets a figure go fullwidth. What keeps it
- * reading as design is that the prose axis never moves and there is one wider width, so
- * wide evidence is either in the column or at --wide and never at a number of its own.
- *
- * Which widgets those are is the registry's to say (x-space) and not this file's: a rule
- * naming lf-board would work perfectly for lf-board and do nothing at all for the
- * twelfth widget, which is the failure the whole vocabulary is arranged against. The
- * runtime marks what the registry declares, so this reaches a widget nobody has written
- * yet.
- *
- * The element grows out of the column rather than widening the prose around it. That is
- * the floor for free — a margin with nothing
- * to give gives nothing, and a widget nobody has stated a room for is exactly the column,
- * which is the layout the page already had. It is what makes an estimate safe to state,
- * too: a room read short can only fail to widen an exhibit, never narrow one below the
- * measure its own page is set to.
- *
- * The growth stops at main's gutters, less what the page's own residents take in each
- * margin (`--lf-taken-l`, `--lf-taken-r`, layouts.css). The rail takes nothing, so an
- * exhibit may grow into the room it would stand in. What stands level with an exhibit in
- * the margin is decided by what put it there. A sidenote is the page's own, so the exhibit
- * clears it (`clear`, at aside.sidenote). A margin row is Leaf's, so where a block grows
- * into the rail, the row stands on it as a pin (margin-placement.js): nothing Leaf draws
- * moves the page's content, and an exhibit keeps the same width however many comments
- * arrive beside it.
- *
- * Where one side has less room than the other, the freer side takes what the other
- * lacks instead of losing half the allocation to symmetry. With both sides equally free,
- * the element keeps the prose axis.
- *
- * Screen only. Paper has no window to take room from and a printed page is the column's
- * width, so leaving the rule out of print is the whole of what paper needs. On screen,
- * `body` is the size container. No surface Leaf opens changes its inline size, since each
- * stands over the page, and `main` subtracts the page's own two margin claims from that
- * one browser reading. */
+/* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
+ * heading is never set wider than the column, however wide the box around it. Package
+ * captions may span their own frame, so this typography rule shares their base layer. */
 @media screen {
-  /* `data-lf-space` is the room an element takes: what its tag declares (x-space), or
-   * the page's own occurrence saying so (`data-width`). Delivery paints it into the
-   * served document (revision_delivery.py, `mark_declared`), so a width is in the first
-   * paint rather than a reflow once leaf.js resolves. In a message the runtime withholds
-   * the room deliberately, the document's rather than the panel's, by not painting it. */
-  [data-lf-space] {
-    /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
-     * spent evenly each way where both sides are free; otherwise the freer side takes
-     * what the other lacks. */
-    --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
-      calc(var(--lf-free-l) + var(--lf-free-r)));
-    --lf-grow-l: clamp(calc(var(--lf-surplus) - var(--lf-free-r)),
-      calc(var(--lf-surplus) / 2), var(--lf-free-l));
-    --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-    max-width: none;
-    margin-left: calc(-1 * var(--lf-grow-l));
-    margin-right: calc(-1 * var(--lf-grow-r));
-    /* The box's width is the room's and never its content's — that is the whole
-     * contract above — and this is where layout is told so. Without it the content's
-     * minimum is what every shrink-to-fit holder is floored at, and the row-form
-     * option is one: a table box hugging its label hugged a 985px graph instead,
-     * grew past the joined group's border, and the group's clip cut the exhibit off
-     * with nothing reported. Size containment zeroes the box's say in any ancestor's
-     * intrinsic width; what it holds already scrolls. */
-    contain: inline-size;
-  }
-  [data-lf-space="column"] {
-    --lf-reach: min(var(--col), var(--lf-room, 0px));
-    --lf-surplus: 0px;
-    width: min(100%, var(--col));
-    margin-inline: auto;
-  }
-  table[data-lf-space]:not([data-lf-space="column"]) {
-    width: calc(100% + var(--lf-surplus));
-  }
-  [data-lf-space="wide"] {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px));
-  }
-  [data-lf-space="available"] {
-    --lf-reach: var(--lf-room, 0px);
-  }
-  [data-lf-space] [data-lf-space] {
-    --lf-room: 100%;
-  }
-  /* A widget whose upgrade failed is showing the message and the source it choked on
-   * (failSoft), and prose is the column's. The room it declared was for the drawing it
-   * did not manage to make, so a parse error came out as a red slab across the whole
-   * window with its message set on one 1600px line — the degrade path, which is the
-   * worst place to be shouting. `.lf-error` is the layer's own word for this rather than
-   * any widget's, so the next widget to fail soft is covered by having failed.
-   *
-   * The box is the message's holder here and not a clip, so the message fills it and
-   * wraps. Both halves of that are said: a flex item is floored at its own content's
-   * minimum unless told otherwise, and the source it holds is a `pre` that never wraps,
-   * so the box came out as wide as the longest line — 854px of it in a 720px column,
-   * scrolling, on the first real diagram source anyone fed it. The `pre` scrolls inside
-   * the message instead, which is what a `pre` does everywhere else on the page. */
-  [data-lf-space]:has(> .lf-error) { --lf-room: 0px; }
-  /* A box that draws one of its own is a box a wide widget stays inside. The room is the
-   * page's to give, and inside a disclosure or a callout the page is not what holds the
-   * widget — a board that took the window from inside a <details> hung out over both
-   * edges of the frame it was filed under, which reads as a broken page rather than as a
-   * wide exhibit. Stated as no room rather than as an exception to the rule above, so the
-   * widget falls back to the floor that rule already has and fills its holder exactly.
-   *
-   * A box declares that it frames what it holds in the rule where it draws the frame
-   * (`--lf-block-frame`), and the room is the second thing the layer reads out of that one
-   * declaration: whoever draws a box gets both by saying one thing, in the layer that
-   * draws it, and a project's card is covered the day it says it. Two lists of tags said
-   * it before, one here and one in packages/default/theme.css, and a list beside a declaration is
-   * a copy of it — every tag in them declared the frame, five boxes that declared were in
-   * neither, and `figure`, which draws no box at all, was withholding the room.
-   *
-   * `--lf-room` inherits, so one rule at a box's own children reaches a widget however
-   * deep inside it sits, and `--lf-block-frame` is reset one level in (above), so no box
-   * answers for its grandparent's frame.
-   *
-   * The column declares the frame too — it is a padded box like any other and its first
-   * line wants the trim — so it hands the room straight back to what it holds. That is
-   * the whole difference between the page and a box on it, and the gate says it the same
-   * way, by walking up no further than `main`.
-   *
-   * A transparent wrapper declares nothing: a section and a page tab's panel are the page's
-   * own flow, and an exhibit breaking out through one is the point. What says so when a
-   * box that draws has not declared is `page check --render`, which measures every
-   * wide element against the nearest ancestor that draws one. It could not see through a
-   * scroll container until a diagram in a board card was drawn 332px across the next
-   * column, and four widgets letting a diagram out were found the day it could. */
-  @container style(--lf-block-frame: 1) {
-    * { --lf-room: 0px; }
-  }
-  main > * { --lf-room: inherit; }
-
-
-  /* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
-   * heading is never set wider than the column, however wide the box around it. This is
-   * typography, not layout, so it holds with or without a Layout; boxes are the page's. */
   :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
     max-inline-size: var(--col);
   }
-
-  /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
-   * occurrence), so a long log or feed never grows the page. `end` follows the newest
-   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. What
-   * sticks inside it sticks at its own top, which no chrome covers (`--lf-top`). */
+  /* A bounded block scrolls within its stated height. A widget can assign that bound to
+   * an inner reader instead, keeping its own caption outside the scroller. */
   [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     overscroll-behavior: contain;
     --lf-top: 0px;
-  }
-  /* A widget with a stated height (x-height, or data-height on an occurrence) has that
-   * box from the first paint until its module has drawn (`lf-rendered`), so the drawing
-   * lands in room the page already laid out. What the element holds before then is its
-   * source, which the box clips rather than grows around. Once drawn, the box is the
-   * drawing's: one drawn at the stated height keeps it, and one whose content has a
-   * height of its own takes that. A failure is shown whole, since the user has to read
-   * it. */
-  html[data-lf-interactive] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
-    box-sizing: border-box;
-    block-size: attr(data-lf-height px);
-    overflow: clip;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */

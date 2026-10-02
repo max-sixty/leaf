@@ -37,7 +37,7 @@ import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
-import { retainUserIntent } from "../user-intent.js";
+import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
@@ -684,11 +684,10 @@ export function createSelectionComposer({
         await refreshThread();
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
-        const shouldReveal =
-          composerEpoch === epoch &&
-          loadDraft(ctx) === null &&
-          currentIntent() &&
-          !pageSelection();
+        const revealAvailable = () =>
+          composerEpoch === epoch && loadDraft(ctx) === null && !pageSelection();
+        const mayReveal = () => revealAvailable() && currentIntent();
+        const shouldReveal = mayReveal();
         // Land where any send leaves the user (`landSent`): on the thread, or on the
         // element the margin card's thread is about, never in its reply box. A later
         // gesture may already have moved the user elsewhere while presentation was
@@ -697,11 +696,14 @@ export function createSelectionComposer({
           const destination = await openPageThread(sent.id, {
             focus: shouldReveal ? "thread" : false,
             travel: false,
-            intent: currentIntent,
+            intent: shouldReveal
+              ? restrictUserIntent(currentIntent, revealAvailable)
+              : currentIntent,
             transition,
           });
           const thread = destination && closestAcross(destination, THREAD);
-          if (shouldReveal && thread) currentIntent.handoff(() => landSent(thread));
+          if (shouldReveal && mayReveal() && thread)
+            currentIntent.handoff(() => landSent(thread));
         }
       },
     });

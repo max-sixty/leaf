@@ -158,8 +158,8 @@ import { closestAcross, inChrome } from "./passages.js";
 import { visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 
-import { threadList } from "./thread/state.js";
-import { turns } from "./thread/model.js";
+import { allThreads } from "./thread/state.js";
+import { threadNames, turns } from "./thread/model.js";
 import { whenDocumentPresented } from "./semantic-state.js";
 
 import { notice } from "./notifications.js";
@@ -2262,7 +2262,7 @@ export function createMarginProjection({
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
   function openInlineThread(id, { transition = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadList().find((t) => t.id === id));
+    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
@@ -2521,6 +2521,7 @@ export function createMarginProjection({
     return threads.length === 1 ? threads[0] : null;
   };
   const previewFocusTarget = (id, { focus = null } = {}) => {
+    id = threadNames(allThreads()).get(id)?.id ?? id;
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id,
     );

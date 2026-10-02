@@ -1297,7 +1297,10 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
         "first thread"
     )
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(pending_reply).to_be_focused()
+    expect(pending_reply).to_have_js_property(
+        "value", "Keep this draft through the refusal."
+    )
 
     expect(first_card).to_be_visible()
     focus_panel_thread(first_card)
@@ -3734,7 +3737,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)

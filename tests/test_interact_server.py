@@ -3604,6 +3604,14 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
+
+    def nested(levels):
+        """An array `levels` deep, so an event holding it is one deeper."""
+        value = []
+        for _ in range(levels - 1):
+            value = [value]
+        return value
+
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -3656,6 +3664,15 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 TOKEN,
                 server,
             ),
+            # The deepest body the door reads: the field's schema refuses it rather than
+            # recursing out of the validation.
+            (
+                "a field nested to the door's bound",
+                400,
+                {**comment, "text": nested(http_model.MAX_POSTED_DEPTH - 1)},
+                TOKEN,
+                server,
+            ),
             # The one refusal that was always in this shape, here so the loop below is
             # read against a case that could never have failed it.
             ("an unlive version", 400, {**comment, "revision": 9}, TOKEN, server),
@@ -3672,32 +3689,40 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ), (name, status, answer)
             assert answer.get("attempt") == event["attempt"], (name, answer)
             assert answer.get("error"), (name, answer)
-    # A malformed or non-object body has no attempt to read, but still earns a
-    # final refusal. Deeply nested arrays may exhaust a recursive JSON decoder or
-    # parse successfully in an iterative one; either way, they are not events.
+    # The refusals decided before the door reads the body as an event, which the parsed
+    # rows above cannot reach. These name no attempt because the door has read none,
+    # but each is safely final: it came before an append could begin, so the browser may
+    # put the gesture back. What it must still receive is a refusal: bytes that are not
+    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and a
+    # body nested a few hundred levels recurses out of the validation behind the door,
+    # which is why the door bounds nesting at all.
+    # Uncaught, either reaches the fault boundary, whose 500 withholds `final`, and the
+    # outbox re-posts it every poll for the life of the tab.
     unreadable = [
         (
             "a body that is not UTF-8",
             b'{"kind": "comment", "text": "\xff"}',
-            {"invalid JSON"},
+            "invalid JSON",
         ),
-        ("a body that is not JSON", b"{not json", {"invalid JSON"}),
-        ("a body that is not an object", b"[1, 2]", {"event must be a JSON object"}),
+        ("a body that is not JSON", b"{not json", "invalid JSON"),
+        ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
         (
-            "a deeply nested array",
-            b"[" * 100000 + b"]" * 100000,
-            {"invalid JSON", "event must be a JSON object"},
+            "a body nested past the door's bound",
+            json.dumps(
+                {**comment, "text": nested(http_model.MAX_POSTED_DEPTH)}
+            ).encode(),
+            http_model.TOO_DEEP,
         ),
     ]
-    for name, body, reasons in unreadable:
+    for name, body, refusal in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)
         answer = json.loads(answered)
-        assert (status, answer.get("ok"), answer.get("final")) == (
+        assert (status, answer.get("ok"), answer.get("final"), answer.get("error")) == (
             400,
             False,
             True,
+            refusal,
         ), (name, status, answer)
-        assert answer["error"] in reasons, (name, answer)
 
     # The fifth is the header rather than the body, and no opener will send it: a
     # Content-Length past what the door takes. The bound is declared rather than

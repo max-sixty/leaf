@@ -107,8 +107,8 @@ export function threadReading(
     visible,
     // A card the panel keeps though its view no longer admits it, and why ("news" or
     // "draft", thread-list-view.js, `keeping`), keeps the shape it stood in, so the news that changed it moves
-    // nothing: its reply box, on which an open card's room rests, and the control row
-    // above its first message, where Reopen wears Resolve's face, done.
+    // nothing: its reply box, on which an open card's room rests; the control row above
+    // its first message, where Reopen wears Resolve's face, done.
     kept,
     grow,
     folding: false,

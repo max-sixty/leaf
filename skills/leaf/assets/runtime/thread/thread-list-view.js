@@ -105,7 +105,8 @@ class ThreadListView extends RetainedFace {
   // news ("news"), and its card stays, drawn as the news left it, while its going would
   // move something the user sees: while any of it shows, since every card after it
   // would rise, and, as the card the list shows open, while the panel shows, since
-  // another card would open in its place. Out of sight it stays only for its words. Its
+  // another card would open in its place. Out of sight it stays only for its words,
+  // with the cause that first excluded it still carried. Its
   // leaving the window asks for the render that lets it go (`#watchKept`), as does its
   // closing when the user opens another card.
   keeping(thread, intent) {
@@ -117,8 +118,9 @@ class ThreadListView extends RetainedFace {
     const seen = view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));
-    if (news && seen) return "news";
-    return replyHasWords(key) ? "draft" : null;
+    const draft = replyHasWords(key);
+    if (news && (seen || draft)) return "news";
+    return draft ? "draft" : null;
   }
 
   #watchKept() {

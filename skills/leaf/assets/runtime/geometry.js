@@ -385,9 +385,9 @@ export function seenRect(item, clips) {
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
 }
-// Calls `leave` each time none of `nodes` shows in the window any longer, and returns
-// the step that stops watching. The window here is the browser's, which the chrome does
-// not cut, so a box wholly under the banner still counts as showing.
+// Calls `leave` once none of `nodes` shows in the window, and returns the step that
+// stops watching. Waiting for all of the seat to go keeps news held a little longer than
+// it needs, never shorter.
 export function whenOffScreen(nodes, leave) {
   const showing = new Set();
   const observer = new IntersectionObserver((entries) => {
@@ -399,6 +399,7 @@ export function whenOffScreen(nodes, leave) {
   for (const node of nodes) observer.observe(node);
   return () => observer.disconnect();
 }
+
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for
 // anything in flow and different for an inline that wraps, whose bounds run from the

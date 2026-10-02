@@ -954,16 +954,16 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     card away, and every card after it rose. The card stays where it stands, drawn
     resolved, with Reopen in Resolve's place and face, and the news taking the
     resolution back draws it open again; the browser fixture's shift watch fails
-    anything that moves. Its summary's status row neither comes nor goes: a thread
-    waiting on the agent says so in its message, and one that asked the user says it in
-    the summary, which comes to say Resolved. The news lands well after the user's last
+    anything that moves. Its summary says Resolved within the same title row, without
+    moving the card below it. The news lands well after the user's last
     input, past the half second in which Chrome credits a frame to that input.
 
     The card leaves the Open list once its going moves nothing the user sees. As the
     open card it stays while they scroll it away, since another card would open in its
     place. Once they have opened another card, it goes as they scroll it out of the
     window, and scrolling back does not bring it back."""
-    url = serve(LONG_PAGE, comments=30)
+    # Enough closed rows follow the open card to scroll that whole card off screen.
+    url = serve(LONG_PAGE, comments=32)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -1009,8 +1009,8 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         assert after.bounding_box() == below
     reopen = card.get_by_role("button", name="Reopen", exact=True)
     assert reopen.bounding_box() == control
-    if asked:
-        expect(status).to_have_text("Resolved")
+    expect(status).to_have_text("Resolved")
+    expect(status).to_be_visible()
 
     threads = page.locator(".lf-threads")
     threads.hover()
@@ -1035,13 +1035,83 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     expect(card).to_be_hidden()
 
 
+def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleared(
+    browser, serve
+):
+    """Going off screen with words does not turn news into the user's settlement.
+
+    The reader returns to the retained card, opens its draft, and clears it. The
+    resolved card still stands in Open while it shows, rather than disappearing
+    from under their editor when the words no longer keep it there.
+    """
+    url = serve(LONG_PAGE, comments=16)
+    first, second = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][:2]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{first}"]')
+    after = page.locator(f'.lf-threads > .lf-thread[data-id="{second}"]')
+    expect(card).to_have_attribute("open", "")
+    reply = card.locator("leaf-text")
+    words = "Keep this draft while I read the next thread."
+    write(reply, words)
+    below = after.bounding_box()
+
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": first}
+    )
+    told(page)
+    rendered(page)
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_have_js_property("value", words)
+    assert after.bounding_box() == below
+
+    threads = page.locator(".lf-threads")
+    threads.hover()
+    page.mouse.wheel(0, card.bounding_box()["height"] + 30)
+    scroll_settled(page, ".lf-threads")
+    after.locator(".lf-thread-summary").click()
+    expect(after).to_have_attribute("open", "")
+    expect(card).not_to_have_attribute("open", "")
+    page.mouse.wheel(0, 100)
+    scroll_settled(page, ".lf-threads")
+    assert card.evaluate("node => node.getBoundingClientRect().bottom") < (
+        threads.evaluate("list => list.getBoundingClientRect().top")
+    ), "the resolved card must be closed and entirely off screen"
+    rendered(page)
+
+    page.mouse.wheel(0, -4000)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == 0
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_be_visible()
+    expect(reply).to_have_js_property("value", words)
+    stood = after.bounding_box()
+    reply.click()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    rendered(page)
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "")
+    assert after.bounding_box() == stood
+
+
 def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser, serve
 ):
     """Under "Waiting on you", the user's answer from another tab takes the thread out
-    of the view. Its card, open in front of them, stays where it stands, its summary
-    with it; the browser fixture's shift watch fails anything that moves. The news
-    lands well after the user's last input."""
+    of the view. Its card, open in front of them, stays where it stands, and its
+    summary's title row stays the same size when the answered status disappears; the
+    browser fixture's shift watch fails anything that moves. The news lands well after
+    the user's last input."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Is forty enough?", author="agent")
     other = panel_comment(serve.page_dir, "A thread waiting on nobody.")

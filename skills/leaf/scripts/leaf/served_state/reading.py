@@ -2,9 +2,9 @@
 
 A served reading is the page's file stamp (`page_reading`, or a snapshot's own)
 followed by a fingerprint of who is present (`presence.presence_fingerprint`), which
-moves on its own clock. `/api/state` answers with one, the news stream says one each
-time it changes, and the browser compares them whole. `join_reading` builds the form
-and `reading_files` takes the file stamp back out; nothing else spells it.
+moves on its own clock. `/api/state` answers with one, finite `/api/news` reads name
+one without rebuilding state, and the browser compares them whole. `join_reading`
+builds that form; nothing else spells it.
 """
 
 import hashlib
@@ -16,7 +16,7 @@ from ..service import claim_path
 from ..session_cleanup import EVENTS_FILE
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
-# while a visible tab holds the news stream and `interactions.jsonl` for every request
+# when a visible tab asks for its freshness reading and `interactions.jsonl` for every request
 # it answers; counting either would make a read say it changed itself.
 UNWATCHED = frozenset({VIEWED_FILE, INTERACTIONS_FILE})
 
@@ -26,15 +26,6 @@ def join_reading(files: str, presence: str) -> str:
 
     Both halves are hex digests, so the dot is the only one in the reading."""
     return f"{files}.{presence}"
-
-
-def reading_files(reading: str) -> str:
-    """The file stamp a served reading was joined from (`join_reading`).
-
-    Two readings with the same file stamp were taken over the same page, whoever
-    was present at each."""
-    files, _, _ = reading.partition(".")
-    return files
 
 
 def page_reading(page_dir: Path) -> str:
@@ -61,7 +52,7 @@ def page_reading(page_dir: Path) -> str:
     ever at: the kernel puts the new modification time on the inode before the write
     lands, so a stat crossing an append to the log can pair that time with the size
     before it. `page_state` takes its reading inside the page transaction, under the
-    log's own lease, so a state answer never names one. The news stream stats without
+    log's own lease, so a state answer never names one. The freshness door stats without
     the lease, which is what keeps a look cheap, so its word can — and the look after
     it, naming the settled reading, is what puts the tab right.
     """

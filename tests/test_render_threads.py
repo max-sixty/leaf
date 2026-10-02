@@ -5061,7 +5061,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Shared conversation faces belong to the theme. Chrome rules only position
         # the transcript, messages, and metadata within their containing surfaces.
         "lf-msg-body",
+        # A shared message's text wrapper and the thread's reading inset are
+        # defined in shadow.css so inline and panel conversations agree.
+        "lf-msg-text",
         "lf-thread-transcript",
+        "lf-thread",
         "detached",
         "lf-thread-root-meta",
         "lf-msg",
@@ -7207,9 +7211,15 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
         reading = card.locator(":scope > .lf-thread-transcript")
         reading.evaluate("transcript => { transcript.scrollTop = 0; }")
         latest = card.locator(".lf-msg").last
+    reading_selector = (
+        ".lf-threads"
+        if view == "panel"
+        else f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] > .lf-thread-transcript'
+    )
+
     rendered(page)
     scroll_settled(page)
-    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    scroll_settled(page, reading_selector)
     assert reading.evaluate("box => box.scrollHeight > box.clientHeight")
     assert (
         latest.bounding_box()["y"]
@@ -7224,7 +7234,7 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
     expect(reply).to_be_focused()
     rendered(page)
     scroll_settled(page)
-    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    scroll_settled(page, reading_selector)
     assert [
         page.evaluate("scrollY"),
         reading.evaluate("box => box.scrollTop"),
@@ -8383,7 +8393,7 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
             document.querySelector(end).getBoundingClientRect().right,
           ];
           return {
-            message: box('.lf-thread[open] .lf-msg'),
+            message: box('.lf-thread[open] .lf-thread-transcript'),
             reply: box('.lf-thread[open] > .lf-thread-reply .lf-compose-field'),
             find: box('.lf-find-box', '.lf-thread-filter-toggle'),
             general: box('.lf-general .lf-compose-field'),
@@ -8396,6 +8406,21 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
         # boxes one transparent border inside the list's; a pixel is that border.
         assert at == pytest.approx(left, abs=1.01), (name, boxes)
         assert to == pytest.approx(right, abs=1.01), (name, boxes)
+    message_start = page.evaluate(
+        """() => {
+          const message = document.querySelector('.lf-thread[open] .lf-msg');
+          const reply = document.querySelector('.lf-thread[open] > .lf-thread-reply .lf-compose-field');
+          const field = reply.querySelector('leaf-text');
+          const style = getComputedStyle(field);
+          return {
+            message: message.getBoundingClientRect().left,
+            reply: field.getBoundingClientRect().left + parseFloat(style.paddingLeft),
+          };
+        }"""
+    )
+    assert message_start["message"] == pytest.approx(message_start["reply"], abs=1), (
+        message_start
+    )
     faces = page.evaluate(
         """() => ['.lf-thread-filter-toggle', '.lf-threads-toggle'].map((selector) => {
           const style = getComputedStyle(document.querySelector(selector));

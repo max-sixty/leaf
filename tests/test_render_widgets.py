@@ -10474,13 +10474,13 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     assert len(drawn["marks"]["bar"]) == 2, drawn
 
 
-def _bound_diff(browser, serve):
+def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     """The review the four diff tests below read, with its feed in place before the page
     loads. Bound rather than written inline because that is the form a review arrives in,
     and the only one whose rows are commentable data — `projectData` keys each by file,
     side and source line, which is the coordinate a remark on a line is recorded at."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -10658,7 +10658,13 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
 
     The unwrapped reading is the population as well as the anchor: a clean wrapped result
     means nothing unless the same reading, on the same rows, can see a cut line."""
-    page = _bound_diff(browser, serve)
+    page = _bound_diff(
+        browser,
+        serve,
+        MULTI_HUNK_PATCH + "\ndiff --git a/old.py b/new.py\nsimilarity index 100%\n"
+        "rename from old.py\nrename to new.py\n",
+    )
+    expect(page.locator("lf-diff .lf-diff-rename")).to_be_visible()
     switch = page.locator("lf-diff .lf-diff-wrap")
 
     cut = page.evaluate(DIFF_CLIPPING)
@@ -10691,7 +10697,7 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     # take back, and it drew every file's header 24px inside the file before it. The row
     # starts at its wrapper's top in both media, which is where it would with no press.
     placed = page.evaluate(DIFF_ROW_PLACEMENT)
-    assert placed["files"] == 2 and (placed["lift"], placed["drop"]) == (
+    assert placed["files"] == 3 and (placed["lift"], placed["drop"]) == (
         0,
         0,
     ), f"a file's row does not start where its wrapper does: {placed}"
@@ -10703,7 +10709,7 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     assert printed["cut"] == 0, (
         f"the switch is off and paper cannot press it, so this text is gone: {printed}"
     )
-    assert (on_paper["lift"], on_paper["drop"]) == (
+    assert on_paper["files"] == 3 and (on_paper["lift"], on_paper["drop"]) == (
         0,
         0,
     ), f"on paper a file's row is drawn above its own wrapper: {on_paper}"

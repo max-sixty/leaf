@@ -13,6 +13,7 @@ from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    PANEL_PAGE,
     SUGGESTION_PAGE,
     live_url,
     panel_comment,
@@ -938,6 +939,42 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     scroll_settled(page, ".lf-threads")
     assert threads.evaluate("list => list.scrollTop") == 0
     expect(card).to_be_hidden()
+
+
+def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
+    browser, serve
+):
+    """Under "Waiting on you", the user's answer from another tab takes the thread out
+    of the view. Its card, open in front of them, stays where it stands, and its
+    summary keeps the status row the question drew, now with nothing to say in it; the
+    browser fixture's shift watch fails anything that moves. The news lands well after
+    the user's last input."""
+    url = serve(PANEL_PAGE)
+    asked = panel_comment(serve.page_dir, "Is forty enough?", author="agent")
+    other = panel_comment(serve.page_dir, "A thread waiting on nobody.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator(".lf-needs").click()
+    card = page.locator(f'.lf-thread[data-id="{asked}"]')
+    expect(page.locator(f'.lf-thread[data-id="{other}"]')).to_be_hidden()
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    stood = card.locator(".lf-thread-summary").bounding_box()
+    page.wait_for_function(
+        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
+    )
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": asked, "token": "keep"},
+    )
+    told(page)
+    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    rendered(page)
+    expect(card).to_be_visible()
+    assert card.locator(".lf-thread-summary").bounding_box() == stood
 
 
 @pytest.mark.parametrize("width", [320, 800])

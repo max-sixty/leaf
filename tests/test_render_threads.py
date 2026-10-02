@@ -6843,7 +6843,9 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
 ):
     """A hidden card is a removal to the user standing in it.
 
-    The narrowing keeps the card, hidden, and the browser drops a focus inside a hidden
+    The user's own reply answers the question, so "Waiting on you" no longer shows the
+    card, and their turn takes it as it is sent (news would leave it in place). The
+    narrowing keeps the card, hidden, and the browser drops a focus inside a hidden
     element to body only at its next rendering step, after the reconcile has run. Read
     as still in the list, the user was left to that drop, and the next Space went to
     the page behind the panel. The disarm test in `test_render_reactions.py` covers a
@@ -6860,13 +6862,11 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     card = page.locator(f'.lf-thread[data-id="{theirs}"]')
     card.locator(".lf-thread-summary").click()
-    card.locator("leaf-text").click()
-    expect(card.locator("leaf-text")).to_be_focused()
-    # A remote reaction answers the question, so the narrowing no longer shows the card.
-    events_model.append_event(
-        d, {"kind": "reply", "author": "user", "parent": theirs, "token": "keep"}
-    )
-    told(page)
+    box = card.locator("leaf-text")
+    write(box, "Forty is enough.")
+    expect(box).to_be_focused()
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(card).to_be_hidden()
     expect(page.locator(".lf-threads")).to_be_focused()
 

@@ -138,19 +138,20 @@ export function threadReading(
   });
 }
 
-// The words a card's summary gives its status, and whether the open card folds them.
-const summaryStatus = (model) => ({
-  text: model.resolved ? "Resolved" : model.attention?.label || "",
-  folded: model.statusFolded,
-});
+// The words a card's summary gives its status, whether it draws a status at all, and
+// whether the open card folds it.
+const summaryStatus = (model) => {
+  const text = model.resolved ? "Resolved" : model.attention?.label || "";
+  return { text, drawn: Boolean(text), folded: model.statusFolded };
+};
 
-function navigationSummary(navigation, model, { text: status, folded }) {
+function navigationSummary(navigation, model, { text: status, drawn, folded }) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
   const draft = Boolean(loadDraft("reply:" + model.key));
-  const hasMeta = draft || status || model.unreadCount;
+  const hasMeta = draft || drawn || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme sweeps a highlight through them while the naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
@@ -179,7 +180,14 @@ function navigationSummary(navigation, model, { text: status, folded }) {
               }
               >${status}</span
             >`
-          : nothing
+          : drawn
+            ? html`<span
+                class="lf-thread-status"
+                data-lf-folded=${folded ? "" : nothing}
+                aria-hidden="true"
+                >${"\u00a0"}</span
+              >`
+            : nothing
       }
       ${
         model.unreadCount
@@ -321,12 +329,17 @@ export class ThreadView {
       }
     }
     this.#model = model;
-    // A kept card's summary keeps the status row it stood with: its words say what the
-    // news did, but the row neither comes nor goes, nor folds or unfolds.
+    // A kept card's summary keeps the status it stood with in its row: the words say
+    // what the news did, or nothing where it left none, but the status neither comes
+    // nor goes, nor folds or unfolds, so the row keeps its height.
     const status = summaryStatus(model);
     this.#status =
       model.kept && this.#status
-        ? { text: this.#status.text && status.text, folded: this.#status.folded }
+        ? {
+            text: this.#status.drawn ? status.text : "",
+            drawn: this.#status.drawn,
+            folded: this.#status.folded,
+          }
         : status;
     const reply = model.reply || replyHasWords(model.key);
     this.#replyShown = reply;

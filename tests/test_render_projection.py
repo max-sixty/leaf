@@ -4535,21 +4535,10 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
 
 def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
-    """The ladder unwinds from where the user is, and out on the page the innermost
-    thing they are in is the decision they are standing on. There was no rung for it: `d`
-    brought them to a decision, ringed it, and no key took them out again — the one place in
-    the runtime where a press put the user somewhere with nothing to undo it, and the
-    line said nothing about Escape at all while they stood there.
-
-    What letting go is not is the walk forgetting: the ring says where the user is and
-    the walk keeps its own place, so the next press steps on rather than handing them
-    back the decision they just put down.
-
-    The landing is `body`, and a short page is where that stopped working. Chrome makes
-    a scroll container focusable so the keyboard can scroll it, which is the whole of
-    why `body.focus()` ever moved anything here — on a page that fits the window, the
-    call did nothing and the user stayed on the control the line had just promised to
-    take them off."""
+    """Escape closes the command reference, then lets go of the Ask and focuses body.
+    The next Ask walk reads the visible page place, returning to the first Ask before
+    advancing. Letting go also works on a page with no scroll range and after a Page
+    Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
     events_model.append_event(

@@ -14,7 +14,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered
-from leaf.served_state import page as served_page
+from leaf.served_state import context as served_context
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -4338,7 +4338,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     def advanced_now():
         return advanced
 
-    for clock_owner in (served_page, events_model, service_model):
+    for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
     session_model.cmd_status(page_dir, "idle", "")
     told(page)

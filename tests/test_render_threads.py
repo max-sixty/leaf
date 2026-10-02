@@ -100,15 +100,17 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
           const center = rect => rect.top + rect.height / 2;
           return {
             panelWidth: summary.closest('.lf-thread-panel').getBoundingClientRect().width,
-            statusBelowTopic: status.top >= topic.bottom,
+            statusBesideTopic: Math.abs(center(topic) - center(status)) < 2,
             timeBesideTopic: Math.abs(center(topic) - center(trailing)) < 2,
+            statusBeforeTime: status.right <= trailing.left,
             timeAfterTopic: trailing.left >= topic.right,
           };
         }"""
     )
     assert regular["panelWidth"] > 400
-    assert regular["statusBelowTopic"]
+    assert regular["statusBesideTopic"]
     assert regular["timeBesideTopic"]
+    assert regular["statusBeforeTime"]
     assert regular["timeAfterTopic"]
     page.evaluate(
         "document.documentElement.style.setProperty('--lf-thread-panel-width', '320px')"
@@ -119,12 +121,20 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
           const status = summary.querySelector('.lf-thread-status').getBoundingClientRect();
           const trailing = summary.querySelector('.lf-thread-trailing').getBoundingClientRect();
           const row = summary.getBoundingClientRect();
-          return { topicWidth: topic.width, statusBelow: status.top >= topic.bottom,
-                   trailingInside: trailing.right <= row.right };
+          const center = rect => rect.top + rect.height / 2;
+          return {
+            topicWidth: topic.width,
+            statusBesideTopic: Math.abs(center(topic) - center(status)) < 2,
+            topicBeforeStatus: topic.right <= status.left,
+            statusBeforeTime: status.right <= trailing.left,
+            trailingInside: trailing.right <= row.right,
+          };
         }"""
     )
-    assert narrow["topicWidth"] > 150
-    assert narrow["statusBelow"]
+    assert narrow["topicWidth"] > 0
+    assert narrow["statusBesideTopic"]
+    assert narrow["topicBeforeStatus"]
+    assert narrow["statusBeforeTime"]
     assert narrow["trailingInside"]
     asked.locator(":scope > .lf-thread-summary").focus()
     asked.locator(":scope > .lf-thread-summary").press("Enter")

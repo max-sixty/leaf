@@ -8567,7 +8567,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
 def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, serve):
     """An exhibited choice is inert evidence. It cannot suppress the explicit
     request beside it in the same blocked goal."""
-    command = """<lf-command id="hub-plan" label="Quoted ask">
+    command = """<lf-command id="hub-plan" label="Quoted ask" readings="hub-readings">
       <lf-task id="goal" status="blocked" stopped-at="2026-08-21T08:00:00Z">
         <strong>Blocked goal</strong>
         <lf-sample id="sample"><lf-options id="example" choose>

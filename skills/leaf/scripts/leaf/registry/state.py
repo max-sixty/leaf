@@ -5,13 +5,12 @@ from leaf.schema import ELEMENT_ID
 from .contract import (
     RegistryError,
     deciding_outcomes,
-    deciding_verb,
     deciding_verbs,
     declares_string,
-    json_validator,
     state_specs,
     verb_writer,
 )
+from .schema import json_validator
 
 
 def validate_widget_state_relations(
@@ -378,38 +377,3 @@ def validate_answered_conditions(declarations: dict, path) -> None:
                             f"<{within}> `{attr}` at {value!r}, which its schema "
                             f"does not admit: {errors[0].message}"
                         )
-
-
-def retirement_slots(registry: dict) -> dict:
-    """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `x-retired-when` relates, the member naming the outcome and
-    `x-owners` the widgets whose decision reaches it. Read out of the merged
-    registry rather than known here, so which widgets a decision settles is a
-    fact about this page's vocabulary and never a list in the code."""
-    slots = {}
-    for tag, entry in registry.items():
-        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
-            continue
-        outcome = entry["x-retired-when"]
-        for owner in entry["x-owners"]:
-            slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
-    return slots
-
-
-def stamp_decisions(registry: dict) -> dict:
-    """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
-    x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag
-    that declares a deciding verb.
-
-    Each composition stamps it (`registry.layer.stamp_composition`), so the browser
-    reads which verb decides a widget and what its outcome takes off the page rather
-    than walking the declarations a second time. Python reads `deciding_verb` and
-    `retirement_slots` themselves, the definitions this is derived from, since
-    validation asks them of declarations that no composition has stamped yet."""
-    slots = retirement_slots(registry)
-    registry["$decisions"] = {
-        tag: {"verb": verb, "retires": slots.get(tag, {})}
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and (verb := deciding_verb(entry)) is not None
-    }
-    return registry

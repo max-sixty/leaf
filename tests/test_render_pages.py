@@ -17,6 +17,7 @@ from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
@@ -979,7 +980,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(inline.locator(".lf-page-thread-body")).to_have_text("candidate root")
+    expect(inline.locator(".lf-msg-body")).to_have_text("candidate root")
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
         expect(composer).to_have_js_property("value", words)
@@ -1007,7 +1008,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     )
     page = open_page(browser, live_url(url))
     thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
-    reply = thread.locator(":scope > .lf-say leaf-text")
+    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
     expect(reply).to_be_focused()
@@ -1600,8 +1601,9 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
     anyway put a parse error across the whole window with its message on one line."""
-    # The console carries the renderer's refusal, which is what the fixture is for.
     page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    # The page reports the renderer's refusal, which is what the fixture is for.
+    consume_browser_errors(page, '<lf-diagram id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
         const box = document.getElementById('bad').querySelector('.lf-error');
@@ -3394,6 +3396,40 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     wait_until_ready(page)
     expect(page).to_have_url(bare)
     expect(page.locator(".lf-banner")).to_be_visible()
+
+
+def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
+    """Cookie names distinguish real ports in one browser's shared cookie jar."""
+    first_url = serve(INLINE_PAGE)
+    with (
+        TemporaryPageServer(serve.page_dir, token="another-listener-key") as other,
+        browser.new_context() as context,
+    ):
+        first = open_page(browser, first_url, context=context)
+        second = open_page(browser, other.url, context=context)
+        for page in (first, second):
+            assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+            page.reload()
+            wait_until_ready(page)
+            assert "?t=" not in page.url
+            assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+        cookies = context.cookies()
+        assert len({cookie["name"] for cookie in cookies}) == 2
+        assert all(
+            cookie["httpOnly"] and cookie["sameSite"] == "Strict" for cookie in cookies
+        )
+        assert first.evaluate("document.cookie") == ""
+
+        # Native keyboard sends still use relative API requests after both arrivals.
+        first.keyboard.press("c")
+        first.keyboard.type("Both tabs remain usable")
+        with sending(first, "comment"):
+            first.keyboard.press("Control+Enter")
+        assert any(
+            event.get("text") == "Both tabs remain usable"
+            for event in events_model.read_events(serve.page_dir)
+        )
+        assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
 
 # Everything an injected control still draws once the medium has taken the press away.

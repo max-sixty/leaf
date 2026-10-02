@@ -28,7 +28,13 @@
    their own here (a reply in the thread, or a thread they start in the seat, which
    answers what came before it and so follows it), or when none of the seat shows in the
    window, where the growth moves nothing they see. Anything held in a seat is not
-   drawn, so it stays unread until it shows. */
+   drawn, so it stays unread until it shows.
+
+   `HeldReading` is the same rule for a widget's region whose rows only the log or the
+   clock decides, such as a command's lists of stopped goals and live workers: a reading
+   that would change its size waits, the region standing as it was, while its growth
+   would be seen, and a control of fixed size the widget already draws says so and
+   shows it. */
 import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
@@ -62,6 +68,20 @@ function growthAfterIsSeen(node) {
     if (!band || bottom <= band.top || bottom >= band.bottom) return false;
   }
   return true;
+}
+
+// Whether growth inside `nodes`, wherever in them it starts, would move what the user
+// sees: some of them stands inside every box that scrolls it. Growth wholly above the
+// screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
+function growthInsideIsSeen(nodes) {
+  return nodes.some((node) => {
+    const { top, bottom, height } = node.getBoundingClientRect();
+    if (!height) return false;
+    return scrollersOf(node).every((box) => {
+      const band = shownBand(box);
+      return band && bottom > band.top && top < band.bottom;
+    });
+  });
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
@@ -172,9 +192,7 @@ export class HeldNews {
     );
     const shown = this.#draw(prior, reading);
     this.#shown = read ? shown : null;
-    // Waiting for all of the seat to go keeps news held a little longer than it needs,
-    // never shorter.
-    if (this.#holding()) this.#stopWatching ??= whenOffScreen(this.#seat, this.#all);
+    if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
     else this.#stop();
     return shown;
   }
@@ -297,6 +315,70 @@ export class HeldNews {
   }
 }
 
+/** One region's reading, held while drawing it would move what the reader sees.
+ *  `region()` gives the nodes the reading draws, and `changed()` draws the widget again.
+ *  A reading is a value equal to the one drawn last exactly when it draws at the same
+ *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
+ *  `reading` where it is the first, where it equals the one drawn last, or where none
+ *  of the region shows in the window, since a row may change anywhere in it; otherwise
+ *  the reading drawn last. What it holds shows when the user opens it
+ *  (`release` or `show`), or once none of the region shows in the window. */
+export class HeldReading {
+  #region;
+  #changed;
+  #shown = null;
+  #released = false;
+  #watch = null;
+
+  constructor(region, changed) {
+    this.#region = region;
+    this.#changed = changed;
+  }
+
+  hold(reading) {
+    const nodes = this.#region();
+    if (
+      this.#released ||
+      this.#shown === null ||
+      this.#shown === reading ||
+      !growthInsideIsSeen(nodes)
+    ) {
+      this.#released = false;
+      this.#shown = reading;
+      this.#stop();
+    } else if (
+      !this.#watch ||
+      this.#watch.nodes.length !== nodes.length ||
+      this.#watch.nodes.some((node, at) => node !== nodes[at])
+    ) {
+      this.#stop();
+      this.#watch = { nodes, stop: whenOffScreen(nodes, this.show) };
+    }
+    return this.#shown;
+  }
+
+  // The next reading draws whatever it moves: the user asked, or nobody can see.
+  // `release` leaves the drawing to the caller, which may release several readings
+  // for one paint; `show` draws now.
+  release() {
+    this.#released = true;
+  }
+
+  show = () => {
+    this.release();
+    this.#changed();
+  };
+
+  #stop() {
+    this.#watch?.stop();
+    this.#watch = null;
+  }
+
+  dispose() {
+    this.#stop();
+  }
+}
+
 /** The threads one widget holds out of its flow: each thread the agent starts at a datum
  *  where the widget draws no thread, while the datum's foot is on screen. `hold` says
  *  which threads the widget is not handed to place. The margin draws each as it draws
@@ -388,7 +470,7 @@ export class HeldArrivals {
       const leave = () => {
         if (this.#lapse((held) => held.datum === datum)) this.#changed();
       };
-      this.#watching.set(datum, { node, stop: whenOffScreen(node, leave) });
+      this.#watching.set(datum, { node, stop: whenOffScreen([node], leave) });
     }
   }
 

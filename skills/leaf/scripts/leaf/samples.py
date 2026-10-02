@@ -19,10 +19,10 @@ from threading import Lock
 from .data import source_file
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
+from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
 from .session_cleanup import now_iso, write_json
 from .structure import SourceDocument
-from .thread_context import sample_events
 
 
 @dataclass
@@ -73,8 +73,14 @@ class Samples:
         )
         if template is None:
             raise ValueError(f"unknown sample template {template_id!r}")
-        selected = set(template["attrs"].get("data-sample-threads", "").split())
-        seeded = sample_events(document, events, selected)
+        seeded = initial_sample_events(
+            parent,
+            document,
+            events,
+            template,
+            artifact.registry,
+            {name: reading["contract"] for name, reading in data["sources"].items()},
+        )
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)

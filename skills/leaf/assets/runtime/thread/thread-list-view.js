@@ -136,7 +136,7 @@ class ThreadListView extends RetainedFace {
       if (!this.#leaving.has(node))
         this.#leaving.set(
           node,
-          whenOffScreen(node, () => this.#commands.repaintThread()),
+          whenOffScreen([node], () => this.#commands.repaintThread()),
         );
   }
 

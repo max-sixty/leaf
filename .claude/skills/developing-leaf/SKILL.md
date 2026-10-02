@@ -70,8 +70,12 @@ When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
 through a shipped example or fixture. A sketch without implementation is
 page-local markup derived from the current surface's controls, copy, and
-styling, shown beside that surface as the baseline, which a live `lf-sample`
-(`skills/leaf/references/page-authoring.md`) embeds operable.
+styling, shown beside that surface as the baseline. For a live Leaf interface,
+embed the baseline and candidates as `lf-sample window` children in the playground.
+The outer page carries the configuration and feedback; the children carry practice
+interactions. Start their fictional histories with `data-sample-events`, sharing
+one parent-local JSON fixture when the candidates need the same conversation
+(`skills/leaf/references/page-authoring.md`, "Live samples").
 
 ## Prove and hand off a visible change
 
@@ -120,7 +124,8 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
-`.tmp/previews/<example>-user` so the user's comments reach `leaf wait`, which
+the directory printed at startup (`.tmp/previews/<example>-user` by default;
+`--slot` chooses the directory name) so the user's comments reach the host, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -129,15 +134,15 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command. A restarted
-   preview is a new page and needs step 3 again.
-2. Call `mcp__codex_app__open_in_codex` with the fragment URL as a browser
-   target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so Leaf
-   comments return to the current task.
-4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
-   thread. Codex Annotation mode sends visual comments with their next chat
-   message; the review pane is for feedback on a source line.
+1. Start the preview with `--user` as a long-running command from the current
+   chat. It connects Leaf feedback to this Codex chat before printing the URL;
+   each restart reconnects the rebuilt page automatically.
+2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
+   block's fragment, as a browser target with `placement: "right"`.
+3. Tell the user to comment on the surrounding review page to steer this chat.
+   Comments inside a live sample are practice interactions in that child. Codex
+   Annotation mode sends visual comments with the next chat message; Leaf's text
+   selection and comment affordance send an anchored thread directly.
 
 ## Test the hosted website agent
 

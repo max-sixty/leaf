@@ -15,8 +15,8 @@
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
    failure neither rolls back accepted semantic state nor proves pending receipts were
-   shown. The window error listener, module load failures, and render gate all report
-   through the same page-level evidence. Do not catch an error merely to stamp readiness
+   shown. The window error listener, module load failures, a widget's `failSoft`, and the
+   render gate all report through the same page-level evidence. Do not catch an error merely to stamp readiness
    or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
@@ -271,7 +271,7 @@ export const uploadMedia = async (file) => {
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the user is looking.
+// failSoft, which puts the message where the user is looking and reports it here.
 const reportedErrors = new Set();
 export function reportPageError(text) {
   console.error(`leaf: ${text}`);

@@ -25,7 +25,7 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
    - `seenRect` for whether, and how much of, something is in front of the user, and
-     `whenOffScreen` to hear when it leaves the window;
+     `whenOffScreen` to hear when all of something has left the window;
    - `clippedRect` for an element's box the caller has adjusted;
    - `pagePlaneRect` for the same box drawn by paint in the document plane, which the
      window does not cut;
@@ -385,14 +385,18 @@ export function seenRect(item, clips) {
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
 }
-// Calls `leave` each time none of `node` shows in the window any longer, and returns the
-// step that stops watching. The window here is the browser's, which the chrome does not
-// cut, so a box wholly under the banner still counts as showing.
-export function whenOffScreen(node, leave) {
+// Calls `leave` each time none of `nodes` shows in the window any longer, and returns
+// the step that stops watching. The window here is the browser's, which the chrome does
+// not cut, so a box wholly under the banner still counts as showing.
+export function whenOffScreen(nodes, leave) {
+  const showing = new Set();
   const observer = new IntersectionObserver((entries) => {
-    if (!entries.at(-1).isIntersecting) leave();
+    for (const { target, isIntersecting } of entries)
+      if (isIntersecting) showing.add(target);
+      else showing.delete(target);
+    if (!showing.size) leave();
   });
-  observer.observe(node);
+  for (const node of nodes) observer.observe(node);
   return () => observer.disconnect();
 }
 // Where a member begins, as the user sees it: the first of the boxes it paints that

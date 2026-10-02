@@ -3,14 +3,16 @@
 A synchronous hook records the provider turn before the task owns any page.
 Tool hooks and carriers share this observation and its revision under the same
 per-task delivery lock, so a late callback cannot replace a newer prompt or
-close its pages. These readings import no delivery, page, or App Server code;
-only ending a matching turn reaches the claims it must close.
+close its pages. Cold observations import no delivery, page, or App Server
+code. A proven running turn reaches page activity to establish delivery
+eligibility; a pointer read reaches acceptance only after that proof, under its
+exact hook observation.
 """
 
 from pathlib import Path
 
 from .files import read_json
-from .leases import session_state_path
+from .leases import session_state_path, step_hook_ran
 from .session_cleanup import HOOK_TURN_SUFFIX, flocked, session_file, write_json
 
 
@@ -82,3 +84,52 @@ def end_hook_turn(session_id: str, turn_id: str) -> None:
                 page.close_turn(session_id)
         except FileNotFoundError:
             continue
+
+
+def step_delivery_turn(session_id: str) -> str | None:
+    """The observed provider turn a proven step hook can deliver into.
+
+    Use the same dated activity reading as the page, so an interrupted or stale
+    turn never holds the idle queue indefinitely. A page claimed during this turn
+    may still have a local turn id: the next tool hook binds it to the observed
+    provider turn. Route eligibility therefore requires a running claimant, not
+    prior binding. Read outside the delivery lock: capture takes a page transaction
+    before that lock.
+    """
+    observed = hook_turn(session_id)
+    if not step_hook_ran(session_id) or not observed or not observed["running"]:
+        return None
+    from .presence import claimant_reading
+    from .service import PageTransaction, owned_pages
+
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                present, turn = claimant_reading(page_dir, page.events)
+                if present["claim_session"] == session_id and turn.running:
+                    return observed["turn"]
+        except FileNotFoundError:
+            continue
+    return None
+
+
+def accept_codex_delivery_read(delivery_id: str) -> None:
+    """Use the owning task's pointer read as evidence of entry into its exact turn.
+
+    Reading an envelope alone authorizes no receipt. The hook observation is
+    rechecked under the acceptance lock, so queue reservation or a newer turn
+    invalidates this proof before any delivery record changes.
+    """
+    from .host import session_harness
+
+    harness = session_harness()
+    if harness is None or (turn := step_delivery_turn(harness.session)) is None:
+        return
+    observation = hook_turn(harness.session)
+    if not observation or observation["turn"] != turn or not observation["running"]:
+        return
+    from .codex import accept_codex_delivery
+
+    accept_codex_delivery(
+        harness.session, delivery_id, turn, hook_observation=observation
+    )

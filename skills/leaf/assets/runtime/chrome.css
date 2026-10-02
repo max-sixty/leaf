@@ -1133,11 +1133,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-msg.lf-unread, .lf-thread-root-meta:has(+ .lf-thread-transcript > .lf-msg.lf-unread:first-child)) {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px
       / 0 0 0 6px; }
-  /* The panel's column insets a quote and a code block less, in a message and in the
-     draft a composer here draws of one, so the insets are the theme's tokens set once
-     for the whole panel. */
-  .lf-thread-panel { --quote-inset: 10px; --pre-inset: 10px;
-    --lf-thread-inset: 12px; --lf-list-inset: 8px;
+  .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;
     --lf-panel-inset: calc(var(--lf-list-inset) + 1px + var(--lf-thread-inset)); }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
      the flex-item margins they had as the panel's own children, and so the one box the

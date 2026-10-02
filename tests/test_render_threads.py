@@ -7171,10 +7171,15 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
         expect(card).to_be_focused()
         reading = card.locator(":scope > .lf-thread-transcript")
         reading.evaluate("transcript => { transcript.scrollTop = 0; }")
-        latest = card.locator(".lf-page-thread-msg").last
+        latest = card.locator(".lf-msg").last
+    reading_selector = (
+        ".lf-threads"
+        if view == "panel"
+        else f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] > .lf-thread-transcript'
+    )
     rendered(page)
     scroll_settled(page)
-    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    scroll_settled(page, reading_selector)
     assert reading.evaluate("box => box.scrollHeight > box.clientHeight")
     assert (
         latest.bounding_box()["y"]
@@ -7189,7 +7194,7 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
     expect(reply).to_be_focused()
     rendered(page)
     scroll_settled(page)
-    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    scroll_settled(page, reading_selector)
     assert [
         page.evaluate("scrollY"),
         reading.evaluate("box => box.scrollTop"),

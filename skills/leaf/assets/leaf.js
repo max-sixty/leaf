@@ -673,6 +673,18 @@ threadPanelController = createThreadPanelController({
   closePreview: app.margin.closePreview,
   syncGeneral: panelComposer.syncGeneral,
 });
+// The sample host binds to this child's owners, rather than importing another
+// window's runtime. This capability is ready before the child presents.
+if (window.frameElement?.hasAttribute("data-lf-contained")) {
+  window.frameElement.lfShowThread = async (id, { surface, status, waiting }) => {
+    if (surface === "panel")
+      return threadPanelController.showView({ thread: id, status, waiting });
+    threadPanelController.setPanel(false);
+    return Boolean(
+      await app.margin.openPageThread(id, { focus: "thread", travel: false }),
+    );
+  };
+}
 drawers = createDrawers({
   landEdge: layout.landEdge,
   auxiliarySurfaces,

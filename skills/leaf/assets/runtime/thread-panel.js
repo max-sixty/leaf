@@ -45,6 +45,15 @@ export function createThreadPanelController({
   function setPanel(open, options) {
     if (open || panelIsOpen()) auxiliarySurfaces.select(open ? key : null, options);
   }
+  let viewRequest = 0;
+  async function showView({ status, waiting, thread } = {}) {
+    const request = ++viewRequest;
+    setPanel(true);
+    await narrowing.select({ status, waiting });
+    if (request !== viewRequest || !panelIsOpen()) return false;
+    return thread ? showThread(thread, { focus: false }) : true;
+  }
+
   function paintPanel(open, phase) {
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
@@ -64,6 +73,7 @@ export function createThreadPanelController({
       refreshThread();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) {
+      ++viewRequest;
       // Closed at once, with no slide out: the panel is a dialog that the thread list,
       // the walks and placement all read as open while it shows, so a panel still on
       // screen after the press would take the next key the user meant for the page.
@@ -157,5 +167,5 @@ export function createThreadPanelController({
     stopNarrowingRung();
     stopSurface?.();
   }
-  return { panelIsOpen, setPanel, mountThreadPanel, dispose };
+  return { panelIsOpen, setPanel, showView, mountThreadPanel, dispose };
 }

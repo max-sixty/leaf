@@ -15,7 +15,9 @@ execution:
     We are studying two thread-panel treatments in Leaf. The user says:
     "Put both in a playground in Codex so I can try replies and resolve a thread.
     Start both with the same workshop conversation: I asked whether Sunday keeps
-    the hourly service, and the agent confirmed that it does. I want Reset to bring
+    the hourly service, and the agent confirmed that it does. Let me switch each
+    conversation between its page card and the Threads panel using outer controls.
+    I want Reset to bring
     that exchange back. Comments about which design to build should reach our chat."
 
     An earlier study used `data-sample-threads` and a companion JSONL copied from
@@ -54,3 +56,11 @@ graders:
     the child templates. Fail if it relies on data-sample-threads, a companion
     JSONL or posting fixture events from JavaScript, or duplicates fixture anchor
     paragraphs outside the templates to attach fictional parent threads.
+- name: selects-live-conversation-view
+  type: llm
+  criteria: |
+    Pass only if outer controls call the lf-sample element's showThread method
+    with a fixture root id and select page versus panel with its surface option,
+    and lf-sample-ready reapplies the chosen view after Reset. Fail if controls
+    query private thread chrome, click its buttons, observe its DOM to finish
+    selecting a view, or import a child window's runtime themselves.

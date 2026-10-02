@@ -374,6 +374,14 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     return true;
   }
 
+  // An authored sample selects a complete view, rather than toggling whatever the
+  // controls happened to show. Use the same transitions as the facet controls.
+  function select({ status = "open", waiting = "all" } = {}) {
+    clearNarrowing(status);
+    intent = transition(intent, "waiting", waiting);
+    return renarrow();
+  }
+
   // A direct destination selects the lifecycle that contains the requested thread.
   function revealThread(id) {
     const thread = readThreads().find(
@@ -393,6 +401,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     listedInPageOrder,
     threadSearchActive,
     retainNarrowing,
+    select,
     revealThread,
     widen,
   });

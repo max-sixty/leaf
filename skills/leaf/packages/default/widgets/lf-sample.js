@@ -29,6 +29,7 @@ customElements.define(
     #fitting = 0;
     #ready;
     #mounting = false;
+    #viewRequest = 0;
 
     get ready() {
       return this.#ready;
@@ -153,7 +154,25 @@ customElements.define(
       return this.#ready;
     }
 
+    // Latest selection wins, including a selection waiting on a replacement child.
+    // The outer control remains the keyboard stop while the child draws its view.
+    async showThread(id, { surface = "page", status, waiting } = {}) {
+      const request = ++this.#viewRequest;
+      const ready = this.#ready;
+      await ready;
+      if (request !== this.#viewRequest || ready !== this.#ready || !this.isConnected)
+        return false;
+      const invoker = this.ownerDocument.activeElement;
+      const shown = await this.#host.showThread(id, { surface, status, waiting });
+      if (request !== this.#viewRequest || ready !== this.#ready || !this.isConnected)
+        return false;
+      if (this.ownerDocument.activeElement === this.#frame && invoker !== this.#frame)
+        invoker?.focus({ preventScroll: true });
+      return shown;
+    }
+
     async reset() {
+      ++this.#viewRequest;
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
         this.connectedCallback();

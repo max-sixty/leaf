@@ -2844,7 +2844,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     # The agent's resolution is news, so the card the user is looking at stays in
     # Open Threads, drawn resolved, rather than folding out from in front of them.
-    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("data-resolved", "true")
     expect(thread).to_be_visible()
     if read_elsewhere:

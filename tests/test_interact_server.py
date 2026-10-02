@@ -3690,15 +3690,15 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ), (name, status, answer)
             assert answer.get("attempt") == event["attempt"], (name, answer)
             assert answer.get("error"), (name, answer)
-    # The refusals decided before the door reads the body as an event, which the parsed
-    # rows above cannot reach. These name no attempt because the door has read none,
-    # but each is safely final: it came before an append could begin, so the browser may
-    # put the gesture back. What it must still receive is a refusal: bytes that are not
-    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and a
-    # body nested a few hundred levels recurses out of the validation behind the door,
-    # which is why the door bounds nesting at all.
-    # Uncaught, either reaches the fault boundary, whose 500 withholds `final`, and the
-    # outbox re-posts it every poll for the life of the tab.
+    # These refusals come before the door reads the body as an event, so none can
+    # name an attempt. Invalid bytes and syntax earn "invalid JSON"; nesting beyond
+    # either the door's bound or the parser's own stack earns the same depth refusal.
+    # All are deterministic and final, so the outbox does not retry them forever.
+    #
+    # Request threads have more C stack than the main thread: Python 3.14 on macOS
+    # parses 100,000 levels here but refuses 200,000. One million keeps valid JSON
+    # past that stack while its 2 MB body stays below the door's 10 MiB size gate.
+    nesting_depth = 1_000_000
     unreadable = [
         (
             "a body that is not UTF-8",
@@ -3714,6 +3714,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ).encode(),
             http_model.TOO_DEEP,
         ),
+        (
+            "a body nested past the parser's stack",
+            b"[" * nesting_depth + b"]" * nesting_depth,
+            http_model.TOO_DEEP,
+        ),
     ]
     for name, body, refusal in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)
@@ -3725,7 +3730,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             refusal,
         ), (name, status, answer)
 
-    # The fifth is the header rather than the body, and no opener will send it: a
+    # This refusal concerns the header rather than the body, and no opener will send it:
     # Content-Length past what the door takes. The bound is declared rather than
     # discovered, so the refusal lands before the read and this process never waits
     # on bytes it has already decided not to accept.
@@ -3753,8 +3758,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ) == (400, False, True, "event exceeds the 10 MiB limit"), answer
     assert answered.getheader("Connection") == "close"
 
-    # The sixth declares no length at all. A chunked body is the shape that reaches the
-    # read without passing the header check, so the bound belongs to the read: the door
+    # A chunked body declares no length and reaches the read without passing the
+    # header check, so the bound belongs to the read: the door
     # stops taking chunks once they pass it rather than holding the whole stream first.
     # It answers and closes while the sender is still writing, so the writes that land
     # on the closed connection are the refusal arriving early rather than a fault.

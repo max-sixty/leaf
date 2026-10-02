@@ -954,16 +954,16 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     card away, and every card after it rose. The card stays where it stands, drawn
     resolved, with Reopen in Resolve's place and face, and the news taking the
     resolution back draws it open again; the browser fixture's shift watch fails
-    anything that moves. Its summary's status row neither comes nor goes: a thread
-    waiting on the agent says so in its message, and one that asked the user says it in
-    the summary, which comes to say Resolved. The news lands well after the user's last
+    anything that moves. Its summary says Resolved within the same title row, without
+    moving the card below it. The news lands well after the user's last
     input, past the half second in which Chrome credits a frame to that input.
 
     The card leaves the Open list once its going moves nothing the user sees. As the
     open card it stays while they scroll it away, since another card would open in its
     place. Once they have opened another card, it goes as they scroll it out of the
     window, and scrolling back does not bring it back."""
-    url = serve(LONG_PAGE, comments=16)
+    # Enough closed rows follow the open card to scroll that whole card off screen.
+    url = serve(LONG_PAGE, comments=32)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -1009,8 +1009,8 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         assert after.bounding_box() == below
     reopen = card.get_by_role("button", name="Reopen", exact=True)
     assert reopen.bounding_box() == control
-    if asked:
-        expect(status).to_have_text("Resolved")
+    expect(status).to_have_text("Resolved")
+    expect(status).to_be_visible()
 
     threads = page.locator(".lf-threads")
     threads.hover()
@@ -1109,7 +1109,7 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
 ):
     """Under "Waiting on you", the user's answer from another tab takes the thread out
     of the view. Its card, open in front of them, stays where it stands, and its
-    summary keeps the status row the question drew, now with nothing to say in it; the
+    summary's title row stays the same size when the answered status disappears; the
     browser fixture's shift watch fails anything that moves. The news lands well after
     the user's last input."""
     url = serve(PANEL_PAGE)

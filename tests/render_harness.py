@@ -34,15 +34,16 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import time
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
-from known_faults import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -69,6 +70,27 @@ ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
+
+
+@cache
+def shift_watch_source():
+    """Install the sensor with the runtime's document-free control vocabulary."""
+    controls = subprocess.check_output(
+        [
+            "node",
+            "--input-type=module",
+            "--eval",
+            (
+                'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
+                "process.stdout.write(JSON.stringify(WORKS));"
+            ),
+        ],
+        cwd=ROOT,
+        text=True,
+    )
+    return f"((interactive) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({controls});"
+
+
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -1077,6 +1099,17 @@ _BROWSER_PROBLEM_LISTS = None
 _TEST = None
 
 
+def watches_shifts(test):
+    """Ordinary tests watch shifts; surveyed nightly journeys opt in explicitly.
+
+    This selection does not lift the watcher's first-presentation exemption.
+    """
+    return (
+        test.get_closest_marker("nightly") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
+
+
 @contextmanager
 def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
@@ -1084,10 +1117,8 @@ def clean_browser(test=None):
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves. The fixture hands over its `test` node, for which `known_faults` says
-    whether to watch for layout shifts (`shift_watch.js`) and which shift or lost words
-    (`words_watch.js`) are its known ones: defects waiting on their fix, which
-    `watched` drops as it hears them.
+    themselves. The fixture hands over its `test` node to select shift coverage
+    (`watches_shifts`); every problem a watch reports reaches this collector.
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1145,11 +1176,9 @@ def watched(page):
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
 
-    # A test's known shift is dropped where it is heard, so it never reaches what the
-    # test consumes.
     def console_message(message):
         problem = render_gate_model.console_problem(message)
-        if problem and not (_TEST and known(_TEST, problem)):
+        if problem:
             errors.append(problem)
 
     page.on("console", console_message)
@@ -1158,7 +1187,7 @@ def watched(page):
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     page.add_init_script(path=WORDS_WATCH_SOURCE)
     if _TEST is None or watches_shifts(_TEST):
-        page.add_init_script(path=SHIFT_WATCH_SOURCE)
+        page.add_init_script(script=shift_watch_source())
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {

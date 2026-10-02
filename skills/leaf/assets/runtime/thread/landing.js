@@ -29,7 +29,7 @@
    supplies the caller-owned return target through `landInThread`. A send from a
    thread's box leaves it the same way, onto the thread, except in the margin card,
    whose thread stands for the element it is about (`landSent`). */
-import { landingBand, shownBox } from "../geometry.js";
+import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { focusDestination, takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -468,7 +468,20 @@ export function createThreadLanding({
     // where the reader put it, including the transcript inside a margin card.
     bringBackSurfaceOf(box);
     box.focus({ preventScroll: true });
-    box.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    const shown = shownBox(box);
+    const visible = seenRect(box, new Map());
+    if (
+      !visible ||
+      visible.top > shown.top ||
+      visible.bottom < shown.bottom ||
+      visible.left > shown.left ||
+      visible.right < shown.right
+    )
+      box.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      });
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });

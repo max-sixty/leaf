@@ -20,7 +20,10 @@
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
    thread in a surface fixed over the page, the margin card, is shown by bringing that
-   surface back first (`off-flow.js`). */
+   surface back first (`off-flow.js`). These landings serve thread navigation,
+   sending, and editor growth. Merely entering a reply reveals its writing area
+   instead (`landing.js`): a visible pinned row or a separate transcript keeps
+   the turn the user was reading, even when it is not the latest one. */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";

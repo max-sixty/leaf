@@ -20,6 +20,7 @@ from interact_support import (
     comment,
     fetch,
     fragment_errors,
+    fresh_process,
     live_versions,
     page_state,
     publish,
@@ -147,8 +148,8 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
             "text": "one more on the flow",
         },
     )
-    revisioning_model._held.clear()
-    settled = revisioning_model.activate_source(page_dir)
+    with fresh_process():
+        settled = revisioning_model.activate_source(page_dir)
     assert settled.error is None and settled.revision == 2 and not settled.created
     assert check(page_dir).exit_code == 0
 

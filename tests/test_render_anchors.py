@@ -71,6 +71,7 @@ from render_harness import (
     SAID_PAGE,
     _traffic,
     compare_with,
+    consume_browser_errors,
     hold_selection,
     holding,
     leaf_page,
@@ -2457,6 +2458,11 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         }))"""
     )
     assert result == expected
+    # Each refusal reaches the author too, naming the diff that could not draw.
+    reported = consume_browser_errors(
+        page, *(f'<lf-diff id="{identifier}"> failed: ' for identifier in identifiers)
+    )
+    assert len(reported) == len(identifiers), reported
 
 
 def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
@@ -5611,7 +5617,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         """thread => {
           const style = getComputedStyle(thread);
           const outlet = getComputedStyle(thread.parentElement);
-          const reply = getComputedStyle(thread.querySelector('leaf-text'));
+          const reply = getComputedStyle(thread.querySelector('.lf-thread-reply .lf-compose-field'));
           return {
             card: style.backgroundColor,
             cardBorder: style.borderTopColor,
@@ -5721,16 +5727,15 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     # The reply is a text box in either seat, so it wears the text box's one band:
     # the ring replaces the resting border rather than standing a second edge off
-    # it. The panel's copy takes that from the chrome stylesheet, and the inline
-    # copy — inside a declared shadow tree no document rule reaches — takes it from
-    # the layer's own shadow sheet, which is why the two readings can be compared.
-    ring = """(el, compact) => { el.focus();
-      const s = getComputedStyle(compact ? el.parentElement : el); return {
+    # it. The shared field wrapper carries that band in the panel and inside the
+    # diff's declared shadow tree, so both readings measure the same painted owner.
+    ring = """el => { el.focus();
+      const s = getComputedStyle(el.parentElement); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
       border: s.borderColor, name: s.getPropertyValue('--lf-focus-ring').trim(),
     }; }"""
-    band = thread.locator("leaf-text").evaluate(ring, False)
-    assert band == panel_thread.locator("leaf-text").evaluate(ring, True)
+    band = thread.locator("leaf-text").evaluate(ring)
+    assert band == panel_thread.locator("leaf-text").evaluate(ring)
     assert band == {
         "style": "solid",
         "width": "2px",
@@ -5786,16 +5791,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(news).to_be_visible()
     news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
-        active = view.locator(
-            f'.lf-page-thread-msg[{message_attr}="{question["id"]}"] '
-            if message_attr == "data-event"
-            else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
-        sent = view.locator(
-            f'.lf-page-thread-msg[{message_attr}="{followup["id"]}"] '
-            if message_attr == "data-event"
-            else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
+        active = view.locator(f'.lf-msg[{message_attr}="{question["id"]}"] ').locator(
+            ":scope > .lf-msg-head .lf-msg-sending"
+        )
+        sent = view.locator(f'.lf-msg[{message_attr}="{followup["id"]}"] ').locator(
+            ":scope > .lf-msg-head .lf-msg-sending"
+        )
         expect(active).to_have_text("Working")
         expect(active).to_have_attribute(
             "title", "Working · checking the inline placement"
@@ -5806,9 +5807,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    strip = thread.locator(
-        f'.lf-page-thread-msg[data-event="{reply["id"]}"] .lf-react-strip'
-    )
+    strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
     trigger = strip.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
     expect(trigger).to_have_attribute("aria-label", "Add reaction")
@@ -5869,7 +5868,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     assert summary_box["position"] == "static"
     assert summary_box["paddingLeft"] == summary_box["paddingRight"]
-    expect(thread.locator(".lf-page-thread-msg").first).to_be_hidden()
+    expect(thread.locator(".lf-msg").first).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     # The status narrowing is a group of toggles, so the standing member wears its own
@@ -5880,7 +5879,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
-    expect(thread.locator(".lf-page-thread-msg").first).to_be_visible()
+    expect(thread.locator(".lf-msg").first).to_be_visible()
 
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
@@ -5890,10 +5889,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    watch_message_arrival(thread, ".lf-page-thread-msg")
+    watch_message_arrival(thread, ".lf-msg")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the inline reply")
-    pending = thread.locator('.lf-page-thread-msg[aria-busy="true"]')
+    pending = thread.locator('.lf-msg[aria-busy="true"]')
     expect(pending).to_contain_text("Confirmed from the inline thread.")
     assert page.evaluate("window.__messageArrival") == 0.5
     expect(pending).to_have_css("opacity", "0.5")
@@ -5907,7 +5906,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "Confirmed from the inline thread.",
     )
     expect(thread).to_contain_text("Confirmed from the inline thread.")
-    accepted = thread.locator(f'.lf-page-thread-msg[data-event="{sent["id"]}"]')
+    accepted = thread.locator(f'.lf-msg[data-event="{sent["id"]}"]')
     expect(accepted).not_to_have_attribute("aria-busy", "true")
     expect(accepted).to_have_css("opacity", "1")
 

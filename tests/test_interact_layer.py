@@ -1361,14 +1361,17 @@ def _without_arguments(compound, pseudos):
 
 def _has_hosts(selector):
     """Each compound a `:has()` stands on, without that `:has()`'s argument, so an element
-    it looks for is not read as the element it stands on. A `:has()` inside an `:is()` or
+    it looks for is not read as the element it stands on. A negated selector does not
+    name that host either. A `:has()` inside an `:is()` or
     `:where()` argument stands on that argument's compound, not on the outer one."""
     for compound in _split_top(selector, " >+~"):
         for _start, _end, argument in _pseudo_arguments(compound, (":is(", ":where(")):
             for arm in _split_top(argument, ","):
                 yield from _has_hosts(arm)
         if ":has(" in _without_arguments(compound, (":is(", ":where(")):
-            yield _without_arguments(compound, (":has(",))
+            yield _without_arguments(
+                _without_arguments(compound, (":has(",)), (":not(",)
+            )
 
 
 def test_no_has_rule_stands_on_a_root():
@@ -1384,7 +1387,7 @@ def test_no_has_rule_stands_on_a_root():
     is on the chrome and `data-lf-draw-mode` on `html`.
 
     The roots are `.lf-chrome`, `html`, `:root` and `body` in any sheet and, inside the
-    layer's one `@scope`, which is the chrome's, `:scope` and a top-level `&`, each also
+    chrome's `@scope`, `:scope` and a top-level `&`, each also
     inside `:is()` or `:where()`."""
     sheets = [
         *sorted(schema_model.ASSETS.glob("*.css")),
@@ -1406,7 +1409,7 @@ def test_no_has_rule_stands_on_a_root():
 
     scopes = {
         root
-        for sheet in sheets
+        for sheet in [schema_model.ASSETS / "runtime" / "chrome.css"]
         for root in scope_roots(
             tinycss2.parse_stylesheet(
                 sheet.read_text(), skip_comments=True, skip_whitespace=True
@@ -1424,7 +1427,12 @@ def test_no_has_rule_stands_on_a_root():
         for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
             read += 1
             if any(
-                roots.search(stands) or ("scope" in enclosing and scoped.search(stands))
+                roots.search(stands)
+                or (
+                    sheet == schema_model.ASSETS / "runtime" / "chrome.css"
+                    and "scope" in enclosing
+                    and scoped.search(stands)
+                )
                 for stands in _has_hosts(selector)
             ):
                 rooted.append(
@@ -1432,8 +1440,10 @@ def test_no_has_rule_stands_on_a_root():
                 )
     assert read, "no rules read from the layer's sheets — the reading is broken"
     assert list(_has_hosts(".a:has(.b:has(.c)).d")) == [".a.d"]
+    assert list(_has_hosts(".a:not(:has(.b)).c")) == [".a.c"]
     assert list(_has_hosts(":is(:scope, .x):has(.y)")) == [":is(:scope, .x)"]
     assert list(_has_hosts(":is(html lf-a:has(> b)) > c")) == ["lf-a"]
+    assert list(_has_hosts("lf-a:not(:where(.lf-chrome *)):not(:has(> b))")) == ["lf-a"]
     assert roots.search("html[data-lf-live]") and not roots.search(".lf-body")
     assert not rooted, "a :has() on a root restyles everything below it:\n" + (
         "\n".join(rooted)
@@ -1513,11 +1523,14 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    assert faces[0] == ("assets/shadow.css", ":where(:root) .lf-ui"), faces[0]
+    # Public controls and injected controls share this one default; its root boundary
+    # and class weight still protect shadow content and win over page element rules.
+    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui"}
+        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
     ]
     assert defaults == [faces[0]], defaults
 
@@ -2650,7 +2663,9 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
+    (layer / "theme.css").write_text(
+        ":scope:is(lf-new-shape) { --accent: rebeccapurple; }\n"
+    )
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -3267,25 +3282,19 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         assert "widgets/lf-unfinished.js" in result.output
 
 
-def test_package_check_refuses_a_widget_packages_rule_on_the_root(
-    tmp_path, monkeypatch
-):
-    """A package that declares widgets reaches only inside them, so a rule of its own on
-    `:root`, `html` or `body` could never apply: composition says so rather than
-    vendoring a rule that matches nothing."""
+def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatch):
+    """Composition preserves CSS; native scope makes outside subjects inert."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
     (tmp_path / ".leaf" / "theme.css").write_text(
-        "lf-toned-note { color: teal; }\n:root { --toned: teal; }\n"
+        ":scope { color: teal; }\n:root { --toned: teal; }\n"
     )
 
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "`:root` styles `:root`, which no widget contains" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -3917,10 +3926,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.
-    assert (
-        "lf-callout:where(lf-callout, :is(lf-callout) *) {"
-        in (page / "theme.css").read_text()
-    )
+    assert "@scope (:is(lf-callout)) {" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices."
@@ -4207,7 +4213,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
+    (widget_package / "theme.css").write_text(
+        ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
+    )
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -4253,9 +4261,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     theme = (page / "theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
     # theme, and its rules reach the page as written.
-    assert theme.index(
-        "lf-solo:where(lf-solo, :is(lf-solo) *) { --lf-block-frame: 1; }"
-    ) < theme.index(":root { --solo-night: 1; }")
+    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+        ":root { --solo-night: 1; }"
+    )
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"

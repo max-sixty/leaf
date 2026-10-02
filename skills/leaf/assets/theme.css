@@ -153,7 +153,6 @@
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-surface: 8900;           /* a standing drawer or thread panel */
-  --lf-z-thread-transition: 8910; /* a thread moving between the card and the panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
@@ -749,22 +748,22 @@ body {
   border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
-/* A single-line field or select a widget offers wears the text box's frame at a
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
    button's height, so a row of them beside .lf-btn reads as one set of controls. With
    no face the browser drew its own: a 2px inset border and square corners, 21px tall
    beside 30px buttons. At a class's weight, so a component rule naming its own field
    still wins by standing later. */
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
   padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 6px;
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui:focus-visible {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field):focus-visible {
   outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
+:is(input, textarea):is(.lf-ui, .field)::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--focus-ring);
   --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
@@ -1676,7 +1675,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
 /* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
-   through marginEntry(); this declaration owns every visual and interactive
+   through contributionEntry(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family.
 
    In the theme rather than in chrome.css, where it was, because a margin entry stands

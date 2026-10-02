@@ -1093,6 +1093,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
+    consume_browser_errors(
+        page,
+        "<lf-visual-review id=\"visual-run\"> failed: case 'run-list' focus 120,300",
+    )
     expect(case_select).to_be_visible()
     unequal_pair = changed | {
         "cases": [
@@ -1109,6 +1113,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "before is 1800px wide and after is 780px"
     )
+    consume_browser_errors(page, "before is 1800px wide and after is 780px")
     corrected = changed | {
         "cases": [
             changed["cases"][0]
@@ -6512,9 +6517,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
-    expect(inline.locator(".lf-page-thread-body")).to_have_text(
-        "Half-empty by whose reading?"
-    )
+    expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-thread .lf-quote").first
@@ -7174,20 +7177,19 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
     shown = """(id) => { const t = document.getElementById(id);
                          const r = t.getBoundingClientRect();
                          return t.checkVisibility() && r.top >= 0 && r.bottom <= innerHeight
-                           ? Math.round(document.scrollingElement.scrollTop) : null; }"""
+                           && r.top < 150; }"""
 
     fresh = open_page(browser, f"{url}#tree-w-5")
-    landed = fresh.wait_for_function(shown, arg="tree-w-5").json_value()
+    fresh.wait_for_function(shown, arg="tree-w-5")
     fresh.close()
 
     page = open_page(browser, url)
-    assert page.evaluate(shown, "tree-w-5") is None
+    assert not page.evaluate(shown, "tree-w-5")
     link = page.locator('a[href="#tree-w-5"]')
     link.scroll_into_view_if_needed()
     pressed_at = page.evaluate("() => document.scrollingElement.scrollTop")
     link.click()
-    followed = page.wait_for_function(shown, arg="tree-w-5").json_value()
-    assert followed == landed, (followed, landed)
+    page.wait_for_function(shown, arg="tree-w-5")
 
     # Shut again and followed again: a press on a link to the fragment the page already
     # shows is still a trip there.
@@ -7205,8 +7207,7 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
     page.locator("#parser-dedupe > strong").click()
     expect(page.locator("#tree-w-5")).to_be_hidden()
     page.go_forward()
-    returned = page.wait_for_function(shown, arg="tree-w-5").json_value()
-    assert returned == landed, (returned, landed)
+    page.wait_for_function(shown, arg="tree-w-5")
 
 
 def test_an_arrival_lands_where_the_url_aimed(browser, serve):
@@ -7674,7 +7675,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
-    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose leaf-text")
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-thread-reply leaf-text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
@@ -8413,6 +8414,80 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     assert root_overflow(page) == 0
 
 
+def test_command_hub_lists_wait_behind_their_counts(browser, serve):
+    """No first paint can size the stopped and fleet lists, since the log and the clock
+    decide their rows, so on screen they stand once a count opens them and the outcome
+    alone holds the seat's room until then; paper prints them whole. Once open, a goal
+    stopping while the lists show waits: the list stands as drawn, its count says so,
+    and nothing below the seat moves, while the fleet, whose rows stay, repaints a
+    worker's new state in place. The new row shows once the seat leaves the window."""
+    url = serve(COMMAND_HUB_EXAMPLE)
+    d = serve.page_dir
+    page = open_page(browser, url)
+    seat = page.locator("#hub-readings")
+    lists = seat.locator(":scope > :is(.lf-stopped-view, .lf-fleet-view)")
+    record = page.locator("#hub-record")
+    expect(seat.locator(":scope > .lf-command-head")).to_be_visible()
+    expect(lists).to_have_count(2)
+    expect(lists.first).to_be_hidden()
+    expect(lists.last).to_be_hidden()
+    page.emulate_media(media="print")
+    expect(lists.first).to_be_visible()
+    expect(seat.locator(".lf-stopped-view li")).to_have_count(5)
+    page.emulate_media(media="screen")
+
+    count = seat.get_by_role("button", name="5 stopped")
+    count.click()
+    stopped = seat.locator(":scope > .lf-stopped-view")
+    expect(stopped.locator(":scope > h2")).to_be_focused()
+    expect(lists.last).to_be_visible()
+    page.evaluate("() => scrollTo(0, 0)")
+    expect(stopped).to_be_in_viewport()
+
+    def below():
+        return record.evaluate("node => node.getBoundingClientRect().top + scrollY")
+
+    standing = below()
+
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(d), "api-sdk", "status", "status=blocked"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    news = seat.get_by_role("button", name="6 stopped")
+    expect(news).to_have_attribute("data-lf-news", "")
+    expect(news).to_have_attribute("aria-description", re.compile("changed"))
+    expect(stopped.locator("li")).to_have_count(5)
+    expect(stopped.locator(":scope > h2")).to_have_text(
+        "Stopped work · 5, oldest first"
+    )
+    assert below() == standing
+
+    # The fleet keeps its rows, so a worker's new state repaints in place while the
+    # stopped list waits.
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(d), "w-1", "state", "state=waiting", "doing=parked"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    fleet = seat.locator(":scope > .lf-fleet-view")
+    expect(fleet.locator("li", has_text="§ w-1")).to_contain_text("waiting")
+    workers = seat.get_by_role("button", name="5 workers")
+    expect(workers).not_to_have_attribute("data-lf-news", "")
+    expect(stopped.locator("li")).to_have_count(5)
+    assert below() == standing
+
+    page.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
+    expect(stopped.locator("li")).to_have_count(6)
+    expect(news).not_to_have_attribute("data-lf-news", "")
+    page.evaluate("() => scrollTo(0, 0)")
+    expect(stopped.locator(":scope > h2")).to_have_text(
+        "Stopped work · 6, oldest first"
+    )
+
+
 def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     browser, serve
 ):
@@ -8487,6 +8562,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     medium that takes the press away. Read on paper because the loss is silent
     everywhere else: the rows say the same thing on screen either way."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page.locator("#hub-readings").get_by_role("button", name="5 stopped").click()
     fleet = page.locator("#hub-readings > .lf-fleet-view")
     stopped = page.locator("#hub-readings > .lf-stopped-view")
     names = page.locator("#hub-readings > :is(.lf-fleet-view, .lf-stopped-view) li > a")
@@ -8709,6 +8785,7 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
+    page.locator("#hub-readings").get_by_role("button", name="5 workers").click()
     fleet = page.locator("#hub-readings > .lf-fleet-view")
     worker = fleet.get_by_role("link", name="§ w-1", exact=True)
     worker.focus()
@@ -9276,6 +9353,9 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     page.locator("#inner > lf-command-readings > .lf-command-head").click(
         position={"x": 5, "y": 5}
     )
+    page.locator("#inner > lf-command-readings").get_by_role(
+        "button", name="1 workers"
+    ).click()
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
 

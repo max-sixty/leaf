@@ -28,10 +28,11 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // caller would acquire that owner's initialization graph. image-difference.js reaches
 // nothing because `leaf-dev stills` loads it into a blank page on its own.
 const exactClosures = {
+  "control-selectors.js": [],
   "image-difference.js": [],
-  "margin-entry-model.js": [],
-  "margin-model.js": ["margin-entry-model.js"],
-  "margin-map-model.js": ["margin-entry-model.js"],
+  "contribution-model.js": [],
+  "margin-model.js": ["contribution-model.js"],
+  "margin-map-model.js": ["contribution-model.js"],
   "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js"],
   "thread/model.js": [
@@ -47,6 +48,7 @@ const exactClosures = {
     "context.js",
     "semantic-state.js",
     "focus.js",
+    "control-selectors.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
     "keyboard/register.js",
@@ -143,6 +145,28 @@ export default {
       severity: "error",
       from: { path: `^${runtime}`, pathNot: isModule("keyboard/page.js") },
       to: { path: isModule("keyboard/page.js") },
+    },
+    {
+      name: "contributions-independent-of-annotation-layout",
+      comment:
+        "Shared contribution records, activation and controls do not choose annotation geometry.",
+      severity: "error",
+      from: { path: isOneOf(["contributions.js", "contribution-controls.js"]) },
+      to: {
+        reachable: true,
+        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
+      },
+    },
+    {
+      name: "content-layout-independent-of-annotation-layout",
+      comment:
+        "Authored residents share one content geometry owner without loading annotation geometry.",
+      severity: "error",
+      from: { path: isModule("content-layout.js") },
+      to: {
+        reachable: true,
+        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
+      },
     },
     {
       name: "no-cycle",

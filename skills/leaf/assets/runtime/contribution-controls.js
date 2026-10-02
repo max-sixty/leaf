@@ -1,55 +1,23 @@
-/* The immutable public grammar and registry for controls contributed to a page target's
-   margin.
-
-   Contributors publish one complete frozen reading. Margin and Page Map independently
-   render that reading; neither inspects, moves, or activates contributor-owned DOM. A
-   registration owns the sole activation capability for its entries, so package commands
-   and both projections invoke the same current action. Updating replaces the whole
-   reading and stable identity is the registration plus entry key.
-
-   Behavior, tone, rank, and interaction state are independent contributor axes. User
-   selection, agent workflow, and whose turn a reading waits on are independent
-   presentation fields, written by the projection rather than declared. Ordering follows
-   interaction state, then rank, contribution key, and entry key. Registration and DOM
-   order never decide which unrelated action becomes primary.
-
-   The changes one script makes reach the projections once, when its synchronous work is
-   done: a publication that updates several contributions, or a widget moved from one
-   parent to another, would otherwise paint every state it passes through. A render the
-   task asked for anyway takes the change (`presentingMarginContributions`) and leaves
-   nothing owed, and a registration asked for a control to reach (its focus, its layout) settles
-   first. Asked whether it holds a node, it answers from what stands: the node the caller
-   holds is in the controls presented now. */
-
+/* Shared contribution controls. Records carry no browser capabilities; this owner
+   retains their command scopes and presented controls, independently of the renderer
+   that seats them. Every projection uses this directory for control, focus and
+   containment, so a producer updates one registration whichever surface shows it. */
 import { html, render } from "../vendor/browser-runtime.js";
-import { layoutMarginRows } from "./margin-layout.js";
-import { afterScript } from "./rendering.js";
 import { iconElement } from "./icons.js";
 import { offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { reducedMotion } from "./motion.js";
-import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
-
+import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
-  isMarginEntry,
-  marginEntry as normalizeMarginEntry,
-  normalizeMarginReading,
-  visibleMarginEntryLabel,
-} from "./margin-entry-model.js";
-export {
-  MARGIN_ENTRY_SCHEMA,
-  compareMarginContributions,
-  compareMarginEntryRecords,
-  marginContributionState,
-  marginEntryStateRank,
-  visibleMarginEntryLabel,
-} from "./margin-entry-model.js";
-
-const text = (value) => String(value ?? "").trim();
+  isContributionEntry,
+  contributionEntry as normalizeContributionEntry,
+  normalizeContributionReading,
+  visibleContributionEntryLabel,
+} from "./contribution-model.js";
 // Scopes belong to the browser declaration, not the immutable model record.
 const commandScopes = new WeakMap();
 // The key this module projects an entry's scope onto its control under.
-const MARGIN_ENTRY = Symbol("margin entry");
+const CONTRIBUTION_ENTRY = Symbol("contribution entry");
 function bindScope(record, declared) {
   const scope = commandScopes.get(declared) ?? declared.scope;
   if (scope != null) {
@@ -60,79 +28,42 @@ function bindScope(record, declared) {
   return record;
 }
 
-export function marginEntry(offered) {
-  return bindScope(normalizeMarginEntry(offered), offered);
+export function contributionEntry(offered) {
+  return bindScope(normalizeContributionEntry(offered), offered);
 }
 
-function normalizeReading(reading, owner) {
-  const normalized = normalizeMarginReading(reading, owner);
+export function normalizeReading(reading, owner) {
+  const normalized = normalizeContributionReading(reading, owner);
   normalized.entries.forEach((entry, index) =>
     bindScope(entry, reading.entries[index]),
   );
   return normalized;
 }
 
-// A registration publishes its data once per update. Both projections use those
-// same records; only this registry resolves their live activation capability.
-const contributionSources = new WeakMap();
-export const marginContributionSource = (model) => contributionSources.get(model);
-function publishReading(offered) {
-  offered.reading = normalizeReading(offered.read(), offered.key);
-  const { readings, ...reading } = offered.reading;
-  offered.model = Object.freeze({
-    key: offered.key,
-    reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
-  });
-  contributionSources.set(offered.model, offered);
-}
-
-const contributions = new Set();
-const listeners = new Set();
 const presented = new WeakMap();
 const records = new WeakMap();
 const controlContributions = new WeakMap();
 const iconNodes = new WeakMap();
 const contributorClasses = new WeakMap();
 
-let owed = false;
-const changed = () => {
-  owed = true;
-  afterScript(settle);
-};
-function settle() {
-  if (!owed) return;
-  owed = false;
-  for (const listener of listeners) listener();
-}
-
-export const marginContributionEntries = () => contributions.values();
-// A render that reads every contribution presents whatever change was owed.
-export function presentingMarginContributions() {
-  owed = false;
-}
-export function watchMarginContributions(listener) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
 /** Create the native host for one generated margin entry reading. */
-export function createMarginEntryControl(record, className = "") {
+export function createContributionControl(record, className = "") {
   return offer(record.behavior === "status" ? "span" : "button", className);
 }
 
-export const marginEntryControlMatches = (control, record) =>
+export const contributionControlMatches = (control, record) =>
   record.behavior === "status"
     ? control instanceof HTMLSpanElement
     : control instanceof HTMLButtonElement;
 
-export function marginEntryRecord(control) {
+export function contributionEntryRecord(control) {
   const record = records.get(control);
   if (!record)
     throw new TypeError("A presented margin control needs a margin entry record");
   return record;
 }
 
-export function marginEntrySource(control) {
+export function contributionEntrySource(control) {
   const offered = controlContributions.get(control);
   if (!offered) return null;
   return typeof offered.source === "function" ? offered.source() : offered.source;
@@ -219,7 +150,7 @@ function syncAgentDescriptionBase(control, description, title) {
   paintAgentDescription(control);
 }
 
-export function syncMarginAgentWorkflow(control, receipt) {
+export function syncContributionAgentWorkflow(control, receipt) {
   const workflowStage = receipt?.stage ?? null;
   const stage = workflowStage === "replying" ? "working" : workflowStage;
   const paintedStage =
@@ -240,7 +171,7 @@ export function syncMarginAgentWorkflow(control, receipt) {
   paintAgentDescription(control);
 }
 
-export function syncMarginEntrySelection(control, selected) {
+export function syncContributionSelection(control, selected) {
   control.toggleAttribute("data-lf-target-selected", Boolean(selected));
 }
 
@@ -249,13 +180,13 @@ export function syncMarginEntrySelection(control, selected) {
 // carrier that stops waiting loses it rather than keeping a stale colour. Only the
 // user's turn is named, because that is the one a page has to point at; a thread with
 // the agent already says so through pickup and work.
-export function syncMarginTurn(control, awaitsUser) {
+export function syncContributionTurn(control, awaitsUser) {
   keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
 }
 
 // Whether a reading carries agent content the user has not taken in: the same
 // Thread `unread` the panel and banner paint, as one attribute both surfaces share.
-export function syncMarginUnread(control, count) {
+export function syncContributionUnread(control, count) {
   control.toggleAttribute("data-lf-unread", Boolean(count));
 }
 
@@ -269,7 +200,7 @@ function iconFor(control, icon) {
   return node;
 }
 
-export function presentMarginEntryHost(
+export function presentContributionHost(
   control,
   offered,
   {
@@ -281,7 +212,7 @@ export function presentMarginEntryHost(
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin presentation needs an Element control");
-  const record = isMarginEntry(offered) ? offered : marginEntry(offered);
+  const record = isContributionEntry(offered) ? offered : contributionEntry(offered);
   if (control instanceof HTMLButtonElement && record.behavior === "status")
     throw new TypeError("A status margin entry needs a stable span host");
   records.set(control, record);
@@ -333,15 +264,16 @@ export function presentMarginEntryHost(
   }
   keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
   syncAgentDescriptionBase(control, record.description || null, record.title || null);
-  projectCommandScope(control, MARGIN_ENTRY, commandScopes.get(record));
+  projectCommandScope(control, CONTRIBUTION_ENTRY, commandScopes.get(record));
   return record;
 }
 
-export function presentMarginEntry(control, offered, options = {}) {
-  const record = presentMarginEntryHost(control, offered, options);
+export function presentContributionEntry(control, offered, options = {}) {
+  const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
-    syncMarginEntrySelection(control, options.selected);
-  if (Object.hasOwn(options, "awaitsUser")) syncMarginTurn(control, options.awaitsUser);
+    syncContributionSelection(control, options.selected);
+  if (Object.hasOwn(options, "awaitsUser"))
+    syncContributionTurn(control, options.awaitsUser);
   control.classList.toggle("lf-margin-entry", true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
@@ -349,7 +281,7 @@ export function presentMarginEntry(control, offered, options = {}) {
     if (!nextClasses.includes(name)) control.classList.toggle(name, false);
   for (const name of nextClasses) control.classList.toggle(name, true);
   contributorClasses.set(control, nextClasses);
-  const visibleLabel = visibleMarginEntryLabel(record);
+  const visibleLabel = visibleContributionEntryLabel(record);
   const glyph = record.icon
     ? iconFor(control, record.icon)
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
@@ -373,11 +305,11 @@ export function presentMarginEntry(control, offered, options = {}) {
     control,
   );
   if (record.workflowReceipt !== undefined)
-    syncMarginAgentWorkflow(control, record.workflowReceipt);
+    syncContributionAgentWorkflow(control, record.workflowReceipt);
   return control;
 }
 
-export function trackMarginEntryControl(offered, surface, key, control) {
+export function trackContributionControl(offered, surface, key, control) {
   controlContributions.set(control, offered);
   let surfaces = presented.get(offered);
   if (!surfaces) {
@@ -392,115 +324,35 @@ export function trackMarginEntryControl(offered, surface, key, control) {
   controls.set(key, control);
 }
 
-export function clearMarginEntryControls(offered, surface, liveKeys) {
+export function clearContributionControls(offered, surface, liveKeys) {
   const controls = presented.get(offered)?.get(surface);
   if (!controls) return;
   for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
 }
 
-export function registerMarginContribution({
-  key,
-  target,
-  source = target,
-  read,
-  activate,
-}) {
-  const owner = text(key);
-  if (!owner) throw new TypeError("A margin contribution needs a key");
-  if (typeof read !== "function")
-    throw new TypeError("A margin contribution needs a read function");
-  if (typeof activate !== "function")
-    throw new TypeError("A margin contribution needs an activate function");
-  const offered = { key: owner, target, source, read, activate, reading: null };
-  publishReading(offered);
-  contributions.add(offered);
-  changed();
+export function contributionControl(
+  offered,
+  entryKey,
+  surface = null,
+  visible = false,
+) {
+  const surfaces = presented.get(offered);
+  for (const name of surface ? [surface] : ["margin", "map", "inline"]) {
+    const control = surfaces?.get(name)?.get(entryKey);
+    if (control?.isConnected && (!visible || control.checkVisibility())) return control;
+  }
+  return null;
+}
 
-  const entry = (entryKey) =>
-    offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
-  const control = (entryKey, surface = null, visible = false) => {
-    settle();
-    const surfaces = presented.get(offered);
-    const preferred = surface ? [surface] : ["margin", "map", "inline"];
-    for (const name of preferred) {
-      const candidate = surfaces?.get(name)?.get(entryKey);
-      if (candidate?.isConnected && (!visible || candidate.checkVisibility()))
-        return candidate;
-    }
-    return null;
-  };
-  let owedFocus = null;
-  const landFocus = () => {
-    const key = owedFocus;
-    owedFocus = null;
-    if (key != null) registration.focus(key);
-  };
-  const registration = Object.freeze({
-    entry(entryKey) {
-      return entry(text(entryKey));
-    },
-    control,
-    contains(node) {
-      if (!(node instanceof Node)) return false;
-      const surfaces = presented.get(offered);
-      return [...(surfaces?.values() ?? [])].some((controls) =>
-        [...controls.values()].some(
-          (candidate) => candidate === node || candidate.contains(node),
-        ),
-      );
-    },
-    activate(entryKey, context = {}) {
-      const current = entry(text(entryKey));
-      if (
-        !current ||
-        !current.visible ||
-        current.disabled ||
-        current.behavior === "status"
-      )
-        return false;
-      const originOwnsFocus = context.origin == null || context.origin === focused();
-      const focusCurrentSurface =
-        context.focus ??
-        ((key) => {
-          const destination = control(key, context.surface ?? null, true);
-          if (!destination) return false;
-          destination.focus({ preventScroll: true });
-          return true;
-        });
-      offered.activate(current.activation, {
-        ...context,
-        entry: current,
-        focus: originOwnsFocus ? focusCurrentSurface : () => false,
-      });
-      return true;
-    },
-    focus(entryKey, surface = null) {
-      const destination = control(text(entryKey), surface, true);
-      if (!destination) return false;
-      destination.focus({ preventScroll: true });
-      return true;
-    },
-    // A focus asked for with an update lands when the script's render does, on the
-    // control that render leaves: two updates in one script (an undo shown pending, then
-    // its publication) render once rather than painting the step between them.
-    update({ immediate = false, focus = null } = {}) {
-      publishReading(offered);
-      changed();
-      if (immediate) {
-        settle();
-        layoutMarginRows();
-      }
-      if (focus != null) {
-        owedFocus = focus;
-        afterScript(landFocus);
-      }
-    },
-    unregister() {
-      if (!contributions.delete(offered)) return;
-      presented.delete(offered);
-      changed();
-    },
-  });
-  offered.registration = registration;
-  return registration;
+export function contributionContains(offered, node) {
+  if (!(node instanceof Node)) return false;
+  return [...(presented.get(offered)?.values() ?? [])].some((controls) =>
+    [...controls.values()].some(
+      (control) => control === node || control.contains(node),
+    ),
+  );
+}
+
+export function forgetContributionControls(offered) {
+  presented.delete(offered);
 }

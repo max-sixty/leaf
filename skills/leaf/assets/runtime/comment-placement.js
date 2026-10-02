@@ -54,6 +54,11 @@
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
 
+   Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
+   frame's side and inline start where the boundary still matches, and returns its
+   block offsets for the card to hold. The attachment is then the card's current one:
+   scrolling retains it, while a boundary or target-width change chooses afresh.
+
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
@@ -111,10 +116,10 @@ export function reachableRoom(side, extent, boundary, scroller) {
 
 // Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
-// and the least room a surface stands in cannot show together, no scroll makes that
-// room, and the surface stands over what it is about where it is.
+// and this surface cannot show together, no scroll makes that room. The boundary
+// then holds the surface over its subject instead of scrolling the subject away.
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  if (extent.height + COMMENT_GAP + LEAST_HEIGHT > boundary.height) return false;
+  if (extent.height + COMMENT_GAP + height > boundary.height) return false;
   const overflow =
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
@@ -170,31 +175,64 @@ export const cardMeasure = () => rootLength("--thread-card");
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
    across the scroll the surface itself asked for (`makeRoom`).
 
+   `capture` is an opaque reading carried inside the editor's frame, whose `box` is a
+   client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
+   returns its initial `{ top, foot }` as `hold` until `landed` confirms a position.
+   A superseded computation retains that hold. The placement owns its carried inline
+   offset; `hold` supplied to `options` names only a block edge.
+
    `fit({ side, width, scale })` sizes the surface for the room its side gives: the width
    of its lane, in its positioning space, with the scale that space has. */
 export function commentPlacement() {
   let side = null;
   let inline = null;
   let input = null;
+  let pending = null;
+  let carriedInline = null;
+  let initialHold = null;
   // Whether `clear` has stood in the boundary since the side was chosen.
   let seen = false;
+  const forget = () => {
+    side = null;
+    inline = null;
+    input = null;
+    pending = null;
+    carriedInline = null;
+    initialHold = null;
+    seen = false;
+  };
+  const line = (clear, row) =>
+    side === "bottom"
+      ? (clear?.bottom ?? row)
+      : side === "top"
+        ? (clear?.top ?? row)
+        : row;
   return {
     get side() {
       return side;
     },
-    forget() {
-      side = null;
-      inline = null;
-      input = null;
-      seen = false;
+    // Mechanical handoff between the editor's transparent frame and its sent card.
+    capture() {
+      return { side, inline, input: input?.slice() ?? null, seen };
     },
+    adopt(frame) {
+      forget();
+      pending = frame;
+    },
+    forget,
     scrolled() {
       input = null;
     },
-    line(clear, row) {
-      return side === "bottom" ? clear.bottom : side === "top" ? clear.top : row;
-    },
-    choose({ clear, extent = clear, boundary, minimum, scroller, coarse }) {
+    line,
+    choose({
+      clear,
+      extent = clear,
+      boundary,
+      row = clear?.top ?? boundary.top,
+      minimum,
+      scroller,
+      coarse,
+    }) {
       // No visible attachment puts the editor in the window. The authored subject
       // remains its semantic anchor; no rectangle here pretends to represent it.
       const unanchored = !clear;
@@ -208,9 +246,30 @@ export function commentPlacement() {
         extent.left,
         extent.right,
       ];
-      if (input && key.some((value, index) => Math.abs(value - input[index]) > 0.5)) {
+      const frame = pending;
+      pending = null;
+      const adopted =
+        frame?.placement.input &&
+        key
+          .slice(1, 5)
+          .every(
+            (value, index) => Math.abs(value - frame.placement.input[index + 1]) <= 0.5,
+          );
+      if (adopted) {
+        // A draft can have lost its visible attachment before Send. Its card still
+        // starts at that frame, then follows the card's attachment from this choice.
+        ({ side, inline, seen } = frame.placement);
+        carriedInline = frame.box.left - (clear?.left ?? boundary.left);
+        const top = frame.box.top - line(clear, row);
+        initialHold = { top, foot: top + frame.box.height };
+      } else if (
+        input &&
+        key.some((value, index) => Math.abs(value - input[index]) > 0.5)
+      ) {
         side = null;
         inline = null;
+        carriedInline = null;
+        initialHold = null;
         seen = false;
       }
       input = key;
@@ -225,7 +284,11 @@ export function commentPlacement() {
             scroller,
             coarse,
           });
-      return { side, fresh };
+      return {
+        side,
+        fresh,
+        ...(initialHold ? { hold: initialHold } : {}),
+      };
     },
     options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
       const across = vertical(side);
@@ -277,26 +340,41 @@ export function commentPlacement() {
         },
       };
       const measure = (state) => state.middlewareData.scaled;
-      const holding = hold && {
+      const holding = ((!across && hold) || carriedInline !== null) && {
         name: "hold",
         fn(state) {
-          const edge = hold();
-          if (!edge) return {};
+          const edge = !across && hold?.();
+          if (!edge && carriedInline === null) return {};
           const { line, scale } = measure(state);
-          return {
-            y:
+          const position = {};
+          if (carriedInline !== null)
+            position.x = state.rects.reference.x + carriedInline / scale.x;
+          if (edge)
+            position.y =
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
-                : line + edge.top / scale.y,
-          };
+                : line + edge.top / scale.y;
+          return position;
         },
       };
       const middleware = [
         scaled,
         ui.offset((state) => {
           const { scale } = measure(state);
+          const edge = across && hold?.();
+          // Declare the held separation to offset itself, so the attachment limiter
+          // follows the same edge instead of pulling a shorter card toward its target.
+          const top =
+            edge &&
+            ("foot" in edge
+              ? edge.foot / scale.y - state.rects.floating.height
+              : edge.top / scale.y);
           return {
-            mainAxis: COMMENT_GAP / (across ? scale.y : scale.x),
+            mainAxis: edge
+              ? side === "top"
+                ? -top - state.rects.floating.height
+                : top
+              : COMMENT_GAP / (across ? scale.y : scale.x),
             crossAxis: across
               ? state.rects.reference.width + (inline ?? -minimum.width / scale.x)
               : (row - COMMENT_GAP - box.top) / scale.y,
@@ -308,12 +386,14 @@ export function commentPlacement() {
           apply(state) {
             const { scale } = measure(state);
             const lane =
-              side === "right"
-                ? boundary.right - box.right - COMMENT_GAP
-                : side === "left"
-                  ? clear.left - boundary.left - COMMENT_GAP
-                  : boundary.right -
-                    (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
+              carriedInline !== null
+                ? boundary.right - clear.left - carriedInline
+                : side === "right"
+                  ? boundary.right - box.right - COMMENT_GAP
+                  : side === "left"
+                    ? clear.left - boundary.left - COMMENT_GAP
+                    : boundary.right -
+                      (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
             fit({
               side,
               width: Math.max(0, Math.min(state.availableWidth, lane / scale.x)),
@@ -359,6 +439,7 @@ export function commentPlacement() {
       };
     },
     landed({ x, y, middlewareData }) {
+      initialHold = null;
       const { scale, reference, line } = middlewareData.scaled;
       if (vertical(side)) inline ??= x - (reference.x + reference.width);
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;

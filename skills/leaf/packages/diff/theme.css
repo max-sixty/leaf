@@ -7,7 +7,7 @@
  * integrated theme's code tokens set the density, and the authored body inside the
  * widget is a <pre> that gives up the document's dressing and inherits from here, so
  * this is the size such a page is set in until the module runs. */
-lf-diff { display: block; margin: 14px 0;
+:scope:is(lf-diff) { display: block; margin: 14px 0;
           font-family: var(--mono); font-size: var(--code-size);
           line-height: var(--code-line); font-variant-ligatures: none;
           color: var(--code-muted); overflow-x: auto;
@@ -15,13 +15,13 @@ lf-diff { display: block; margin: 14px 0;
           contain: inline-size; }
 /* The diff renders its evidence inside a shadow tree, so its host keeps the code scale
  * above while giving up only the pre-upgrade colour and overflow. */
-lf-diff.lf-rendered { color: inherit; overflow: visible; }
+:scope:is(lf-diff).lf-rendered { color: inherit; overflow: visible; }
 /* The authored body, before the module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    that dresses a <pre> as evidence the page is showing — a box, a rule, a mono face, an
    inset. This <pre> is not that: it is the widget's own content, about to be rendered,
    inside an element that has already said how it looks and how far it stands off. The
    rendered <pre> the module builds is evidence again, and keeps the dressing. */
-lf-diff:not(.lf-rendered) > pre {
+:scope:is(lf-diff):not(.lf-rendered) > pre {
           background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
           font: inherit; line-height: inherit; overflow: visible; }

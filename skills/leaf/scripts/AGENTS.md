@@ -15,6 +15,8 @@ subpackage's initializer is only a marker, never a second API.
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
+- `page_memory`: how long a process keeps what it read of a page: while the page is
+  among the eight it read most recently;
 - `page`: vendored page instructions;
 - `event_log`: append-only JSONL storage and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through;
@@ -65,7 +67,8 @@ subpackage's initializer is only a marker, never a second API.
 - `media`, `publishing`, `live_shell`: page-bound media, public version stamps, and
   the static files a host serves beside Leaf's API.
 
-Within `registry/`, `contract` owns shared schema helpers, `kernel` the fixed
+Within `registry/`, `contract` owns vocabulary readings and derived declarations,
+`schema` the offline JSON Schema engine, and `kernel` the fixed
 kernel event contract, `layer`, `widgets`, and `state` own their vocabulary
 contracts, `validation` composes those gates, `page` composes page-owned
 declarations and provenance, `storage` owns the vendored-file cache, and
@@ -79,7 +82,7 @@ the served response, `reading` names filesystem changes for the news stream, and
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
-the run of a page's own code, `preview` owns ephemeral servers, `browser` owns the
+the run plain `page check` and message markup take, `preview` owns ephemeral servers, `browser` owns the
 browser launch, `screens` owns the screens a passing check saves for the author, and
 `command` owns the CLI boundary, and `widget_quality` owns the report `package check
 --render` gives a widget's author, which refuses nothing.

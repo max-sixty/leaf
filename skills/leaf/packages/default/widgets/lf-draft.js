@@ -87,7 +87,7 @@ import {
   paintKeys,
   quoted,
   revisionLabel,
-  registerMarginContribution,
+  registerContribution,
   sendDraft,
   submitBindings,
   submitLabel,
@@ -96,7 +96,7 @@ import {
   commands,
   saveDraft,
   loadDraft,
-  marginEntry,
+  contributionEntry,
   clearDraft,
   watchDraft,
   alignText,
@@ -284,7 +284,7 @@ customElements.define(
     #offer() {
       if (quoted(this) || this.#margin) return;
       this.#ensureCommands();
-      this.#margin = registerMarginContribution({
+      this.#margin = registerContribution({
         key: `draft:${this.id}`,
         target: () => this,
         read: () => this.#readMargin(),
@@ -363,7 +363,7 @@ customElements.define(
       const available = this.#available();
       if (!this.#ta)
         return [
-          marginEntry({
+          contributionEntry({
             key: "edit",
             icon: "edit",
             label: "Edit",
@@ -378,7 +378,7 @@ customElements.define(
           }),
         ];
       return [
-        marginEntry({
+        contributionEntry({
           key: this.#saveKey(),
           icon: this.#failed ? "retry" : "check",
           label: this.#failed ? "Retry" : "Save",
@@ -389,7 +389,7 @@ customElements.define(
           activation: "commit",
           scope: this.#commandScope,
         }),
-        marginEntry({
+        contributionEntry({
           key: "cancel",
           icon: "cross",
           label: "Cancel",

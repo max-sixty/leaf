@@ -1263,6 +1263,8 @@ def live_leaf(tmp_path, monkeypatch):
             id=f"s-{name}",
             cwd=str(tmp_path / f"{name}-work"),
         )
+        # Served under the machine's key, which the URL its neighbours link to
+        # carries (`server.running_server`), as a real server is.
         httpd = hosting_model.LeafHTTPServer(
             ("127.0.0.1", 0), http_model.page_endpoint(d, server_model.host_key())
         )
@@ -1383,7 +1385,19 @@ def serious_axe_violations(page):
         },
         "resultTypes": ["violations"],
     }
-    results = [(frame.url, Axe().run(frame, options=options)) for frame in page.frames]
+
+    # A hidden iframe can still have an about:blank document. Inspect only
+    # documents the reader can reach, including through visible parent frames.
+    def visible(frame):
+        return frame == page.main_frame or (
+            frame.frame_element().is_visible() and visible(frame.parent_frame)
+        )
+
+    results = [
+        (frame.url, Axe().run(frame, options=options))
+        for frame in page.frames
+        if visible(frame)
+    ]
     violations = [
         {**violation, "document": url}
         for url, result in results

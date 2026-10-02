@@ -11,12 +11,23 @@
  * a seat tells its command when it connects or disconnects. A command that disconnects
  * takes its panels with it, so a seat never holds a departed command's readings beside
  * its replacement's. The seat is looked up in the command's own authored document, so
- * a command quoted in a message does not take the page's seat. */
+ * a command quoted in a message does not take the page's seat.
+ *
+ * The outcome stands at one size whatever the log says, and the theme holds its room in
+ * the seat from the first paint. Which goals are stopped and which workers live is the
+ * log's and the clock's to say, so no first paint can size the two lists under it, and
+ * they would push down whatever follows the seat, the plan itself at the command's head.
+ * So on screen they stand once the reader opens one through its count in the outcome
+ * (paper, which nothing moves on, prints them whole), and from then on a reading that
+ * changes their rows waits, the lists standing as they were, while that growth would
+ * be seen; the count whose list waits says so (`HeldReading`, assets/AGENTS.md,
+ * "Stability"). */
 import {
   PRESS,
   threadBox,
   declarationFor,
   addressableWord,
+  HeldReading,
   holdFocus,
   authoredScope,
   commands,
@@ -78,20 +89,13 @@ function draw(plan, cls, box) {
   drawn.get(plan).set(cls, box);
 }
 
-// The seat a command draws at its own head when the page places none. Which goals are
-// stopped and which workers live or have gone quiet is the log's and the clock's to say,
-// so no first paint knows the readings' size: the theme holds every seat at one fixed
-// height from the first paint, scrolling inside it, so readings arriving move nothing
-// (assets/AGENTS.md, "Stability"). The scrolling is the layer's bound, which the tag
-// declares (x-bound): delivery paints it on a seat the page places, and the command
-// paints it here on the one it makes.
+// The seat a command draws at its own head when the page places none.
 const bands = new WeakMap();
 
 function band(plan) {
   if (!bands.has(plan)) {
     const box = document.createElement("lf-command-readings");
     box.dataset.lfGen = "1";
-    keeps(box, "data-lf-bound", declarationFor(box, "x-bound"));
     bands.set(plan, box);
   }
   return bands.get(plan);
@@ -111,6 +115,7 @@ function home(plan) {
 // moved, so a paint that changes nothing about the seat moves nothing.
 function seat(plan, at = home(plan)) {
   const own = band(plan);
+  keeps(at, "data-lf-open", opened.has(plan) ? "" : null);
   if (at !== own) own.remove();
   else if (plan.firstChild !== own) plan.prepend(own);
   let cursor = at.firstChild;
@@ -118,6 +123,58 @@ function seat(plan, at = home(plan)) {
     const box = view(plan, cls);
     if (box === cursor) cursor = cursor.nextSibling;
     else at.insertBefore(box, cursor);
+  }
+}
+
+// The commands whose lists a count has opened on screen, and the hold on each list from
+// then on. A list's reading is which rows it draws, so one with the same rows draws at
+// the same size and repaints in place, while the other list waits. Rows that change in
+// the stopped list move the fleet list under it as well.
+const opened = new WeakSet();
+const holders = new WeakMap();
+
+function holds(plan) {
+  if (!holders.has(plan)) {
+    const lists =
+      (...names) =>
+      () =>
+        names.map((cls) => view(plan, cls));
+    const changed = () => render(plan);
+    holders.set(plan, {
+      stopped: new HeldReading(lists("lf-stopped-view", "lf-fleet-view"), changed),
+      fleet: new HeldReading(lists("lf-fleet-view"), changed),
+    });
+  }
+  return holders.get(plan);
+}
+
+const FLEET_TILE = { all: "workers", running: "running", quiet: "quiet" };
+
+function listRows(snapshot) {
+  const mode = fleetModes.get(snapshot.plan) ?? "all";
+  return {
+    stopped: snapshot.stopped.map((goal) => goal.element.id).join(" "),
+    fleet: [mode, ...fleetWorkers(snapshot).map((worker) => worker.element.id)].join(
+      " ",
+    ),
+  };
+}
+
+// A count whose list holds news says so: a mark the theme paints on its tile, and the
+// same said to a listener.
+function markNews(plan, shown, rows) {
+  const news = new Set();
+  if (shown.stopped !== rows.stopped) news.add("stopped");
+  if (shown.fleet !== rows.fleet) news.add(FLEET_TILE[fleetModes.get(plan) ?? "all"]);
+  const head = view(plan, "lf-command-head");
+  for (const tile of head.querySelectorAll("[data-lf-view]")) {
+    const held = news.has(tile.dataset.lfView);
+    keeps(tile, "data-lf-news", held ? "" : null);
+    keeps(
+      tile,
+      "aria-description",
+      held ? "Its list has changed; press to show it" : null,
+    );
   }
 }
 
@@ -250,13 +307,22 @@ function showView(box) {
   box.scrollIntoView({ block: "nearest" });
 }
 
+// A count opens its list: the lists show as they stand now, whatever they move, since
+// the user asked, in one paint.
+function openLists(plan) {
+  opened.add(plan);
+  for (const held of Object.values(holds(plan))) held.release();
+  render(plan);
+}
+
 function openStopped(plan) {
+  openLists(plan);
   showView(view(plan, "lf-stopped-view"));
 }
 
 function openFleet(plan, mode) {
   fleetModes.set(plan, mode);
-  render(plan);
+  openLists(plan);
   showView(view(plan, "lf-fleet-view"));
 }
 
@@ -390,6 +456,8 @@ function renderHeader(snapshot) {
   );
   const facts = document.createElement("div");
   facts.className = "lf-command-facts";
+  // Every count stands whatever it says, so the clock making a worker quiet tints a tile
+  // rather than adding one the row would have to find room for.
   facts.append(
     countTile(snapshot.running.length, "running", "running", () =>
       openFleet(plan, "running"),
@@ -397,18 +465,13 @@ function renderHeader(snapshot) {
     countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
       openFleet(plan, "all"),
     ),
-  );
-  if (snapshot.quiet.length)
-    facts.append(
-      countTile(
-        snapshot.quiet.length,
-        "quiet",
-        "quiet",
-        () => openFleet(plan, "quiet"),
-        "warn",
-      ),
-    );
-  facts.append(
+    countTile(
+      snapshot.quiet.length,
+      "quiet",
+      "quiet",
+      () => openFleet(plan, "quiet"),
+      snapshot.quiet.length ? "warn" : "",
+    ),
     countTile(
       snapshot.stopped.length,
       "stopped",
@@ -500,15 +563,19 @@ function renderStopped(snapshot) {
   return true;
 }
 
+function fleetWorkers(snapshot) {
+  const mode = fleetModes.get(snapshot.plan) ?? "all";
+  return mode === "running"
+    ? snapshot.running
+    : mode === "quiet"
+      ? snapshot.quiet
+      : snapshot.liveWorkers;
+}
+
 function renderFleet(snapshot) {
   const { plan } = snapshot;
   const mode = fleetModes.get(plan) ?? "all";
-  const workers =
-    mode === "running"
-      ? snapshot.running
-      : mode === "quiet"
-        ? snapshot.quiet
-        : snapshot.liveWorkers;
+  const workers = fleetWorkers(snapshot);
   const old = view(plan, "lf-fleet-view");
   const signature = JSON.stringify([
     mode,
@@ -564,14 +631,23 @@ function renderFleet(snapshot) {
 
 const render = (plan) => paint(plan);
 
+// Unopened lists draw every reading, which only paper shows.
 function paint(plan) {
   const restoreFocus = projectionFocus(plan);
   const snapshot = commandSnapshot(plan);
   for (const goal of snapshot.goals) renderGoal(goal);
   renderHeader(snapshot);
-  renderStopped(snapshot);
-  renderFleet(snapshot);
+  const rows = listRows(snapshot);
+  const shown = opened.has(plan)
+    ? {
+        stopped: holds(plan).stopped.hold(rows.stopped),
+        fleet: holds(plan).fleet.hold(rows.fleet),
+      }
+    : rows;
+  if (shown.stopped === rows.stopped) renderStopped(snapshot);
+  if (shown.fleet === rows.fleet) renderFleet(snapshot);
   seat(plan);
+  markNews(plan, shown, rows);
   restoreFocus?.();
 }
 
@@ -590,6 +666,7 @@ customElements.define(
     disconnectedCallback() {
       this.#stop?.();
       this.#stop = null;
+      for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
       if (drawn.has(this)) seat(this, band(this));
     }
 

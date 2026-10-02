@@ -1,7 +1,7 @@
 /* The gallery lays the runtime's own margin entry anatomy out for comparison. The package
  * owns only the sample labels and grid; margin-projection.js and chrome.css remain the
  * sole owners of each margin entry's circle, icon, tone, rank, and workflow paint. */
-lf-margin-entry-gallery {
+:scope:is(lf-margin-entry-gallery) {
   display: block;
   margin-block: var(--sp-4);
   /* The sample rows stack from the room the gallery has. A gallery in a narrow
@@ -74,10 +74,10 @@ lf-margin-entry-gallery {
  * the same thing over the next cell. The two live discovery samples opt back into
  * that label. Suppress only the rest without changing the canonical label and accessible
  * name the margin entry factory gives each control. */
-lf-margin-entry-gallery
+:scope:is(lf-margin-entry-gallery)
   .margin-entry-gallery-item
   .lf-margin-entry:not([data-margin-entry-label-live])
-  > .lf-margin-entry-label {
+> .lf-margin-entry-label {
   display: none;
 }
 

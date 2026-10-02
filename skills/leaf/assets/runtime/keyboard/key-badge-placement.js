@@ -20,7 +20,7 @@
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
-import { PRESSES } from "../widget-elements.js";
+import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import {
   bannerFoot,

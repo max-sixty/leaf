@@ -34,9 +34,9 @@
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
  * each playground's presets. */
-:where(:root) .lf-ui { font-family: var(--sans); font-size: var(--t-5);
+:where(:root) :is(.lf-ui, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
@@ -233,7 +233,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
@@ -281,9 +281,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-3); }
-.lf-page-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say leaf-text { flex: 1; min-width: 0; }
-.lf-page-thread > .lf-say { flex-direction: column; align-items: stretch; }
 .lf-page-thread-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-thread-seat > .lf-say { margin-top: 0; }
@@ -291,16 +289,29 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread + .lf-page-thread::before { content: "";
           position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
           border-top: 1px solid var(--rule); pointer-events: none; }
-.lf-page-thread-msg { margin: var(--sp-3) 0; }
-.lf-page-thread-msg.agent { position: relative; }
-.lf-page-thread-head { display: flex; align-items: baseline; gap: var(--sp-2);
+/* Every conversation shares its reading edge, including a floating draft. The
+   field subtracts its border; messages and metadata take the full inset. */
+:root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px; }
+.lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
+/* A semantic separator draws its boundary without sizing the transcript. */
+.lf-read-boundary { height: 0; }
+.lf-msg { margin: 16px 0 0; }
+.lf-thread-transcript > .lf-msg:first-child { margin-top: 0; }
+.lf-msg.agent { position: relative; }
+.lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-thread-root-meta { display: flex; align-items: baseline; gap: var(--sp-2);
+.lf-thread-root-meta { display: flex; align-items: center; gap: var(--sp-2);
+          min-height: max(28px, var(--aim-floor));
+          padding-inline: var(--lf-thread-text-inset) 0;
           font-size: var(--t-6); }
-.lf-thread-root-meta > .lf-page-thread-head { display: contents; }
-.lf-thread-root-meta + .lf-page-thread-msg { margin-top: 0; }
-.lf-thread-root-meta b { font-size: 13px; font-weight: 600; color: var(--ink); }
-.lf-page-thread-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
+/* Metadata may shrink, but spare room belongs to the action group: a growing news
+   label keeps its leading edge and stays reachable beside an overlapping panel. */
+.lf-thread-root-meta > .lf-msg-head { display: flex; flex: 0 1 auto; min-width: 0;
+          overflow: hidden; white-space: nowrap; }
+.lf-thread-root-meta .lf-msg-meta { flex: 1; overflow: hidden; }
+.lf-thread-root-meta .lf-msg-sending { min-width: 0; overflow: hidden;
+          text-overflow: ellipsis; }
+.lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
@@ -313,13 +324,26 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-news { flex: none; align-self: center; }
 .lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
-.lf-page-thread-head time { color: var(--muted-2); }
-.lf-page-thread-head .lf-edited { color: var(--muted-2); }
+.lf-msg-head time { color: var(--muted-2); }
+.lf-msg-head .lf-edited { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
-.lf-page-thread-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
-.lf-page-thread-body { margin-top: 4px; line-height: 1.5; }
-.lf-page-thread-body > :first-child { margin-top: 0; }
-.lf-page-thread-body > :last-child { margin-bottom: 0; }
+.lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
+/* Messages share their reading hierarchy and compact Markdown on every surface,
+   including a thread seated inside a widget's shadow tree. */
+  .lf-msg-body { --quote-inset: 10px; --pre-inset: 10px; min-width: 0; font-size: var(--t-5); margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
+  .lf-msg-text { display: contents; }
+  .lf-msg-text > :first-child { margin-top: 0; }
+  .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
+  .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
+  /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
+     no wrap can help. A table is the one block in a reply with somewhere else to
+     put the width — the theme makes it scroll inside itself — so breaking its
+     cells to save that room spends the alignment the table was written for:
+     "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
+  .lf-msg-body :is(th, td) { overflow-wrap: normal; }
+  .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px; font-size: var(--t-5); }
+  .lf-msg-body li { margin: 2px 0; }
+  .lf-msg-body pre { padding-block: 8px; }
 .lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
           font: 500 var(--t-6)/1.35 var(--sans); }
 .lf-page-thread-open { margin-top: var(--sp-2); }
@@ -330,28 +354,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           border-bottom: 1px solid var(--rule); }
 .lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
 .lf-page-thread .lf-btn { font: inherit; }
-.lf-page-thread leaf-text { box-sizing: border-box; padding: 8px 10px;
-          border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
-          color: inherit; font: inherit; max-height: 50vh; overflow-y: auto; }
 .lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
           outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
-/* The reply is a text box and wears the text box's band: the ring replaces the resting
-   border in place rather than standing a second edge off it. The chrome stylesheet
-   states that for every text box in the document and reaches this one too, but only
-   while the thread is seated in light DOM — a thread an x-thread-surface widget seats
-   inside its own shadow tree is out of that rule's reach, and read only the rules above
-   it kept its resting border under the ring, which is the accented border plus outline
-   the text box rule exists to remove. Repeated here on the terms the chrome rule sets,
-   so the reply field wears one band wherever the thread is seated, the way
-   .lf-outline-chip repeats its own face through this boundary. */
-.lf-page-thread leaf-text:is(:focus, .lf-focus) {
-          outline: var(--focus-ring); outline-offset: 0; border-color: transparent;
-          --lf-focus-ring: text-box; }
 @media print {
   .lf-page-thread,
-  .lf-page-thread :is(.lf-page-thread-msg, .lf-page-thread-resolved) {
+  .lf-page-thread :is(.lf-msg, .lf-page-thread-resolved) {
           display: block !important; }
-  .lf-page-thread :is(.lf-say, button, .lf-msg-sending) {
+  .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
           display: none !important; }
 }
 /* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
@@ -442,11 +451,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
-.lf-page-thread-msg.agent:is(:hover, :focus-within)
+.lf-msg.agent:is(:hover, :focus-within)
           > .lf-react-strip > .lf-react-trigger,
 .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
           opacity: 1; }
-.lf-page-thread-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
+.lf-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
 .lf-react-strip.lf-react-open > .lf-react-palette {
           position: absolute; z-index: 3;
           inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
@@ -465,11 +474,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    can hold. Hung there at the floor's size it covered the last words of the reply's
    first line at 360px, so the head row it stands beside holds its height and the
    trigger stands in that row. The head's words keep their shared baseline and are
-   centred on the trigger by padding, since the panel's head states its alignment in
-   chrome.css, which this layer does not outrank. */
+   centred on the trigger by padding. */
 @media (pointer: coarse), (hover: none) {
   .lf-react-strip > .lf-react-trigger { inset-block-start: 0; }
-  :is(.lf-msg, .lf-page-thread-msg).agent > :is(.lf-msg-head, .lf-page-thread-head) {
+  .lf-msg.agent > .lf-msg-head {
           --lf-react-row: max(26px, var(--aim-floor));
           box-sizing: border-box; min-height: var(--lf-react-row);
           padding-block-start: max(0px, (var(--lf-react-row) - 1lh) / 2);
@@ -479,7 +487,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
           color: var(--muted-2); }
-:is(.lf-msg-head, .lf-page-thread-head) > b,
+.lf-msg-head > b,
 .lf-msg-meta > time { flex: none; }
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
  * for what escaped such a box and why the mark is read from the composed page rather
@@ -578,24 +586,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   details > summary::-webkit-details-marker { display: none; }
 }
 /* Ordinary action buttons share their face across document and shadow trees.
+ * Authored .button controls use the same face as runtime-owned .lf-btn controls.
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
-.lf-btn { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
-.lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
-.lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
+:is(.lf-btn, .button) { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+:is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
+:is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
-   softened accent hairline, with the tint rising on hover. .lf-btn.on below is its
+   softened accent hairline, with the tint rising on hover. The selected face below is its
    neighbour — a full accent border on the chip ground — so a toggle and a commitment
    never read as one. */
-.lf-btn.primary { color: var(--accent);
+:is(.lf-btn, .button).primary { color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); }
-.lf-btn.primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }
+:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }
 /* Two selectors, two mechanisms, one look: the platform's own on the banner's real
    buttons, and the attribute wireInput sets, which is the only one a span press can
    wear. */
-.lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-.lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
+:is(.lf-btn, .button):disabled, :is(.lf-btn, .button)[aria-disabled="true"] { opacity: .55; cursor: default; }
+:is(.lf-btn, .button).primary:is(:disabled, [aria-disabled="true"]) {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); }
 /* Standing on a press, in the band everything else the user stands on is drawn in
@@ -612,7 +621,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-.lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+:is(.lf-btn, .button):is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
           --lf-focus-ring: btn; outline-offset: 2px; }
 /* An icon action's hit box, and the height of an empty composer field, which stands
    that action inside it with 6px of room either side. Stated at the root, where a widget
@@ -732,7 +741,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
-.lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+:is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    this file because document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
@@ -785,3 +794,28 @@ pre:hover + .lf-code-copy,
 @media print {
   .lf-code-copy { display: none; }
 }
+
+/* A thread's reply is one field on every surface; its container decides where it stands.
+   The wrapper wears the border and focus band around the editor and its Send action. */
+.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
+.lf-thread-reply .lf-compose-field {
+          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+          border: 1px solid var(--border-2);
+          border-radius: 6px; background: var(--card); }
+.lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+          outline: var(--focus-ring); --lf-focus-ring: text-box;
+          outline-offset: 0; border-color: transparent; }
+.lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
+          padding: 8px var(--lf-compose-pad-inline-start);
+          padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
+          border: 0; border-radius: 0; background: transparent;
+          color: var(--ink); font: var(--t-5)/1.5 var(--sans);
+          max-height: 50vh; overflow-y: auto; }
+.lf-thread-reply .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+
+.lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
+.lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+
+.lf-suggest-label { color: var(--muted-2); }
+
+.lf-react-said { font-family: var(--sans); color: var(--mark-ink); }

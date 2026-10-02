@@ -13,7 +13,7 @@ from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    HOLD_MOTION,
+    PANEL_PAGE,
     SUGGESTION_PAGE,
     live_url,
     panel_comment,
@@ -215,7 +215,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads")
-    editor = page.locator(".lf-thread[open] .lf-compose leaf-text")
+    editor = page.locator(".lf-thread[open] .lf-thread-reply leaf-text")
     write(editor, "A short follow-up.")
     assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
@@ -302,7 +302,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
 # Where an open card's reply box stands, the field the caret is drawn in, and the
 # caret itself: the field holding focus and the selection in it; and the list's scroll.
 REPLY_BOX = """card => {
-  const box = card.querySelector(':scope > .lf-compose');
+  const box = card.querySelector(':scope > .lf-thread-reply');
   const field = box.querySelector('leaf-text');
   const at = (el) => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; };
   return {
@@ -370,7 +370,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     if card.get_attribute("open") is None:
         card.locator(".lf-thread-summary").click()
     expect(card).to_have_attribute("open", "")
-    card.locator(".lf-compose leaf-text").click()
+    card.locator(".lf-thread-reply leaf-text").click()
     page.keyboard.type("My reply")
     # This contract starts while reading the latest turn. Entry into a visible reply
     # preserves whatever older reading preceded it; choosing the end is explicit.
@@ -456,11 +456,11 @@ def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, ser
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).to_have_attribute("open", "")
-    card.locator(".lf-compose leaf-text").click()
+    card.locator(".lf-thread-reply leaf-text").click()
     rendered(page)
     reading = """card => ({
       scroll: card.parentElement.scrollTop,
-      box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-compose')
+      box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-thread-reply')
         .getBoundingClientRect()),
       words: [...card.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect().top,
     })"""
@@ -498,7 +498,7 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
     panel_settled(page)
     threads = page.locator(".lf-threads")
     card = page.locator(f'.lf-thread[data-id="{root}"]')
-    write(card.locator(".lf-compose leaf-text"), ("A draft line.\n" * 8).strip())
+    write(card.locator(".lf-thread-reply leaf-text"), ("A draft line.\n" * 8).strip())
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     before = threads.evaluate("el => el.scrollTop")
     prior = card.locator(".lf-msg").last
@@ -830,6 +830,100 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
+    browser, serve, scheme
+):
+    """One conversation has the same typography and reply field in both places.
+
+    A short opening and a long Markdown answer exercise both message roles. Compare
+    the rendered faces instead of pinning a font size: changing the shared theme is
+    allowed, shrinking only the panel's face is not. Both reply routes append to the
+    same conversation.
+    """
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which detail should we keep?", {"section": "p0"}
+    )
+    answer = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "**Keep the evidence.** "
+            + "Explain how the result was measured. " * 40,
+        },
+    )
+    page = open_page(browser, url, color_scheme=scheme)
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    margin = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+
+    def faces(thread):
+        return thread.evaluate(
+            """thread => {
+              const styles = (node, properties) => {
+                const style = getComputedStyle(node);
+                return Object.fromEntries(properties.map(p => [p, style.getPropertyValue(p)]));
+              };
+              const type = ['font-family', 'font-size', 'font-weight', 'line-height', 'color'];
+              const field = thread.querySelector('.lf-thread-reply leaf-text');
+              return {
+                messages: [...thread.querySelectorAll('.lf-msg')].map(message => ({
+                  body: styles(message.querySelector('.lf-msg-body'), type),
+                  author: styles(message === thread.querySelector('.lf-msg')
+                    ? thread.querySelector('.lf-thread-root-meta b')
+                    : message.querySelector('.lf-msg-head b'), type),
+                })),
+                metadata: styles(thread.querySelector('.lf-thread-root-meta .lf-msg-meta'), type),
+                field: styles(field, [...type, 'padding-top', 'padding-right', 'padding-bottom',
+                  'padding-left', 'min-height']),
+                surround: styles(thread.querySelector('.lf-thread-reply .lf-compose-field'),
+                  ['border-radius', 'border-top-width', 'border-top-color', 'background-color']),
+              };
+            }"""
+        )
+
+    anchored = faces(margin)
+    assert len(anchored["messages"]) == 2
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if panel.get_attribute("open") is None:
+        panel.locator(".lf-thread-summary").click()
+    expect(panel.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+    assert faces(panel) == anchored, scheme
+    expect(panel.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_contain_text(
+        "Keep the evidence."
+    )
+    write(panel.get_by_role("textbox", name="Reply", exact=True), "Sent from Threads.")
+    with sending(page, "the panel follow-up"):
+        panel.get_by_role("button", name="Send", exact=True).click()
+    expect(panel.locator(".lf-msg").last).to_contain_text("Sent from Threads.")
+
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, False)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    write(
+        margin.get_by_role("textbox", name="Reply", exact=True), "Sent beside the page."
+    )
+    with sending(page, "the anchored follow-up"):
+        margin.get_by_role("button", name="Send", exact=True).click()
+    expect(margin.locator(".lf-msg").last).to_contain_text("Sent beside the page.")
+    sent = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply" and event["author"] == "user"
+    ]
+    assert [(event["parent"], event["text"]) for event in sent] == [
+        (root, "Sent from Threads."),
+        (root, "Sent beside the page."),
+    ]
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme):
     """The reply surround stays continuous as focus enters and leaves the thread.
 
@@ -843,7 +937,7 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
     thread = preview.locator(".lf-page-thread")
-    surround = thread.locator(".lf-say")
+    surround = thread.locator(".lf-thread-reply")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
 
@@ -866,40 +960,198 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
         expect(surround).to_have_css("background-color", surface["color"])
 
 
-def test_news_that_settles_the_last_thread_and_takes_it_back_moves_nothing(
-    browser, serve
+@pytest.mark.parametrize("asked", [False, True], ids=["waiting", "asked"])
+def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
+    browser, serve, asked
 ):
-    """The browser fixture's shift watch is this test's assertion: nothing here is
-    the user's input, so any shift fails it at teardown.
+    """Under Open, the agent resolving the thread the user is reading used to fold its
+    card away, and every card after it rose. The card stays where it stands, drawn
+    resolved, with Reopen in Resolve's place and face, and the news taking the
+    resolution back draws it open again; the browser fixture's shift watch fails
+    anything that moves. Its summary says Resolved within the same title row, without
+    moving the card below it. The news lands well after the user's last
+    input, past the half second in which Chrome credits a frame to that input.
 
-    Settled by news, the one open thread folds from the box it stood in: the list
-    says it has no open threads only once that room is given back, so the words
-    never stand above the folding card, and the card's actions stay on their row
-    as it folds and as it comes back. The held fold keeps the card on screen for
-    both."""
-    page = open_page(browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    [root] = [
+    The card leaves the Open list once its going moves nothing the user sees. As the
+    open card it stays while they scroll it away, since another card would open in its
+    place. Once they have opened another card, it goes as they scroll it out of the
+    window, and scrolling back does not bring it back."""
+    # Enough closed rows follow the open card to scroll that whole card off screen.
+    url = serve(LONG_PAGE, comments=32)
+    first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
-    ]
-    going = page.locator(f'.lf-threads > .lf-going[data-id="{root}"]')
+    ][:2]
+    if asked:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": first,
+                "text": "Which of the two should stay?",
+                "awaits": True,
+            },
+        )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{first}"]')
+    after = page.locator(f'.lf-threads > .lf-thread[data-id="{second}"]')
+    expect(card).to_have_attribute("open", "")
+    control = card.get_by_role("button", name="Resolve thread").bounding_box()
+    below = after.bounding_box()
+    status = card.locator(".lf-thread-status")
+    if asked:
+        expect(status).to_be_visible()
+    else:
+        expect(status).to_be_hidden()
+    page.wait_for_function(
+        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
+    )
+
+    for kind in ["resolve", "unresolve", "resolve"]:
+        events_model.append_event(
+            serve.page_dir, {"kind": kind, "author": "agent", "parent": first}
+        )
+        told(page)
+        rendered(page)
+        expect(card).to_have_attribute("data-resolved", str(kind == "resolve").lower())
+        expect(card).to_have_attribute("open", "")
+        assert after.bounding_box() == below
+    reopen = card.get_by_role("button", name="Reopen", exact=True)
+    assert reopen.bounding_box() == control
+    expect(status).to_have_text("Resolved")
+    expect(status).to_be_visible()
+
+    threads = page.locator(".lf-threads")
+    threads.hover()
+    page.mouse.wheel(0, card.bounding_box()["height"] + 30)
+    scroll_settled(page, ".lf-threads")
+    assert card.evaluate("node => node.getBoundingClientRect().bottom") < (
+        threads.evaluate("list => list.getBoundingClientRect().top")
+    ), "the scroll left the resolved card in view, so it tests nothing"
+    rendered(page)
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("open", "")
+
+    after.locator(".lf-thread-summary").click()
+    expect(after).to_have_attribute("open", "")
+    # Opening a card lands it below a sliver of the closed one, which still shows.
+    page.mouse.wheel(0, 100)
+    expect(card).to_be_hidden()
+    scroll_settled(page, ".lf-threads")
+    page.mouse.wheel(0, -4000)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == 0
+    expect(card).to_be_hidden()
+
+
+def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleared(
+    browser, serve
+):
+    """Going off screen with words does not turn news into the user's settlement.
+
+    The reader returns to the retained card, opens its draft, and clears it. The
+    resolved card still stands in Open while it shows, rather than disappearing
+    from under their editor when the words no longer keep it there.
+    """
+    url = serve(LONG_PAGE, comments=16)
+    first, second = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][:2]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{first}"]')
+    after = page.locator(f'.lf-threads > .lf-thread[data-id="{second}"]')
+    expect(card).to_have_attribute("open", "")
+    reply = card.locator("leaf-text")
+    words = "Keep this draft while I read the next thread."
+    write(reply, words)
+    below = after.bounding_box()
 
     events_model.append_event(
-        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": first}
     )
     told(page)
-    expect(going).to_have_count(1)
+    rendered(page)
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_have_js_property("value", words)
+    assert after.bounding_box() == below
+
+    threads = page.locator(".lf-threads")
+    threads.hover()
+    page.mouse.wheel(0, card.bounding_box()["height"] + 30)
+    scroll_settled(page, ".lf-threads")
+    after.locator(".lf-thread-summary").click()
+    expect(after).to_have_attribute("open", "")
+    expect(card).not_to_have_attribute("open", "")
+    page.mouse.wheel(0, 100)
+    scroll_settled(page, ".lf-threads")
+    assert card.evaluate("node => node.getBoundingClientRect().bottom") < (
+        threads.evaluate("list => list.getBoundingClientRect().top")
+    ), "the resolved card must be closed and entirely off screen"
     rendered(page)
 
+    page.mouse.wheel(0, -4000)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == 0
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_be_visible()
+    expect(reply).to_have_js_property("value", words)
+    stood = after.bounding_box()
+    reply.click()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    rendered(page)
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "")
+    assert after.bounding_box() == stood
+
+
+def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
+    browser, serve
+):
+    """Under "Waiting on you", the user's answer from another tab takes the thread out
+    of the view. Its card, open in front of them, stays where it stands, and its
+    summary's title row stays the same size when the answered status disappears; the
+    browser fixture's shift watch fails anything that moves. The news lands well after
+    the user's last input."""
+    url = serve(PANEL_PAGE)
+    asked = panel_comment(serve.page_dir, "Is forty enough?", author="agent")
+    other = panel_comment(serve.page_dir, "A thread waiting on nobody.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator(".lf-needs").click()
+    card = page.locator(f'.lf-thread[data-id="{asked}"]')
+    expect(page.locator(f'.lf-thread[data-id="{other}"]')).to_be_hidden()
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    stood = card.locator(".lf-thread-summary").bounding_box()
+    page.wait_for_function(
+        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
+    )
+
     events_model.append_event(
-        serve.page_dir, {"kind": "unresolve", "author": "agent", "parent": root}
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": asked, "token": "keep"},
     )
     told(page)
-    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_be_visible()
-    expect(going).to_have_count(0)
+    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    rendered(page)
+    expect(card).to_be_visible()
+    assert card.locator(".lf-thread-summary").bounding_box() == stood
 
 
 @pytest.mark.parametrize("width", [320, 800])
@@ -910,8 +1162,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
-    stands on the messages' column, and its draft words start as far inside it as the
-    page composer's do, leaving room for Submit in the same row.
+    puts its words on the messages' reading edge, and keeps their inset as the
+    field grows and scrolls, leaving room for Submit in the same row.
     Resolve aligns with the root author and time instead of the quoted target. The
     same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
@@ -924,7 +1176,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
     thread.locator(".lf-thread-summary").click()
-    compose = thread.locator(".lf-compose")
+    compose = thread.locator(".lf-thread-reply")
     field_box = compose.locator("leaf-text")
     send = thread.get_by_role("button", name="Send", exact=True)
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
@@ -959,8 +1211,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                       : thread.querySelector(selector), pseudo).borderRadius;
                   return {thread: {x: own.x, y: own.y, width: own.width,
                                    height: own.height, right: own.right, bottom: own.bottom},
-                          compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
-                          field_box: rect('.lf-compose leaf-text'),
+                          compose: rect('.lf-thread-reply'), field: rect('.lf-compose-field'),
+                          field_box: rect('.lf-thread-reply leaf-text'),
                           metadata: rect('.lf-thread-root-meta'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
@@ -978,22 +1230,13 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
                           message: rect('.lf-msg-body'),
+                          author: rect('.lf-thread-root-meta b'),
                           messageFont: messageStyle.font,
                           inputFont: inputStyle.font,
-                          textStart: rect('.lf-compose leaf-text').x +
+                          textStart: rect('.lf-thread-reply leaf-text').x +
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
-                          // How far the page composer's words start inside its field.
-                          generalInset: (() => {
-                            const field = document.querySelector('.lf-general .lf-compose-field');
-                            const text = field.querySelector('leaf-text');
-                            const style = getComputedStyle(text);
-                            return text.getBoundingClientRect().x +
-                              parseFloat(style.borderInlineStartWidth) +
-                              parseFloat(style.paddingInlineStart) -
-                              field.getBoundingClientRect().x;
-                          })(),
-                          textEnd: rect('.lf-compose leaf-text').right -
+                          textEnd: rect('.lf-thread-reply leaf-text').right -
                             parseFloat(inputStyle.borderInlineEndWidth) - padding,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
@@ -1001,7 +1244,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         )
 
     short = geometry()
-    assert short["field"]["x"] == pytest.approx(short["message"]["x"], abs=1)
+    text_inset = short["textStart"] - short["field"]["x"]
+    assert short["textStart"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
         short["thread"]["right"] - short["field"]["right"], abs=1
@@ -1019,7 +1263,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert short["resolve"]["right"] == pytest.approx(
         short["metadataActions"]["right"], abs=1
     )
-    assert short["metadata"]["x"] == pytest.approx(short["message"]["x"], abs=1)
+    assert short["author"]["x"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["resolve"]["bottom"] <= short["metadata"]["bottom"] + 1
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
@@ -1035,9 +1279,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     write(field_box, "First line.\nSecond line.\nThird line.\nFourth line.")
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
-    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(
-        grown["generalInset"], abs=1
-    )
+    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(text_inset, abs=1)
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
     assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
@@ -1055,7 +1297,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         scrolling = geometry()
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
-            scrolling["generalInset"], abs=1
+            text_inset, abs=1
         )
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
@@ -1097,9 +1339,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
               };
               return {
                 nav: middle('.lf-margin-preview-nav'),
-                author: middle('.lf-page-thread-head > b'),
+                author: middle('.lf-msg-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
-                authorRight: meta.querySelector('.lf-page-thread-head')
+                authorRight: meta.querySelector('.lf-msg-head')
                   .getBoundingClientRect().right,
                 navLeft: meta.querySelector('.lf-margin-preview-nav')
                   .getBoundingClientRect().left,
@@ -1957,11 +2199,11 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     resized(page, 1280, 600)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const contribute = (key, target, label) => registerMarginContribution({
+          const contribute = (key, target, label) => registerContribution({
             key, target,
-            read: () => ({entries: [marginEntry({key: 'action', icon: 'dot', label})]}),
+            read: () => ({entries: [contributionEntry({key: 'action', icon: 'dot', label})]}),
             activate: () => {},
           });
           for (let index = 0; index < 29; index++)

@@ -3267,25 +3267,19 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         assert "widgets/lf-unfinished.js" in result.output
 
 
-def test_package_check_refuses_a_widget_packages_rule_on_the_root(
-    tmp_path, monkeypatch
-):
-    """A package that declares widgets reaches only inside them, so a rule of its own on
-    `:root`, `html` or `body` could never apply: composition says so rather than
-    vendoring a rule that matches nothing."""
+def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatch):
+    """Composition preserves CSS; native scope makes outside subjects inert."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
     (tmp_path / ".leaf" / "theme.css").write_text(
-        "lf-toned-note { color: teal; }\n:root { --toned: teal; }\n"
+        ":scope { color: teal; }\n:root { --toned: teal; }\n"
     )
 
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "`:root` styles `:root`, which no widget contains" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -3917,10 +3911,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.
-    assert (
-        "lf-callout:where(lf-callout, :is(lf-callout) *) {"
-        in (page / "theme.css").read_text()
-    )
+    assert "@scope (:is(lf-callout)) {" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices."

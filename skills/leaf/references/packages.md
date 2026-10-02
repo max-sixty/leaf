@@ -100,20 +100,20 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
-beats the kernel's by specificity and order as it would unlayered, while the Layouts
-and the page's own stylesheet rank above every package rule whatever its specificity.
-A package that declares widgets styles only those widgets: composition narrows each
-rule in its `theme.css` and `shadow.css` to elements that are one of its widgets or
-stand inside one, and in the shadow sheet every declared tree receives, to trees one of
-its widgets hosts. A rule for `p` dresses the paragraphs in its widgets and no other,
-and a rule for the box that holds a widget matches nothing. Composition refuses a rule
-whose subject is `:root`, `html` or `body`, which no widget contains; state a widget's
-tokens on its own element. What several packages' widgets share, such as the pane role
-or a chip row, is the kernel's, and a package without widgets is a theme that reaches
-the whole page as the kernel's does. A widget module's adopted sheet joins the same
-layer. Shadow files concatenate too: a
-declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
+needs. Theme files concatenate into one cascade layer, `lf-base`; specificity,
+native scope proximity, then source order decide between its rules. Layouts and the
+page's own stylesheet rank above every package rule whatever its specificity.
+Composition wraps each widget package's sheets in native `@scope`: the document
+roots are its declared widget tags, and shadow roots are their `:host`. Matching
+stays inside those roots automatically. Ordinary selectors name descendants;
+`:scope` names a root, with `:scope:is(lf-tag)` selecting one kind in a package.
+In shadow CSS, `:scope:host(.state)` reads the host's state. Outside conditions
+belong in nested scopes, such as `@scope (html[data-lf-interactive] :scope)`.
+A rule for `p` styles only paragraphs inside the package's widgets. A rule for
+`html`, `body`, or a widget's containing box matches nothing. Put shared page
+vocabulary in the kernel; a package without widgets is an unscoped page theme.
+A widget module's adopted sheet joins the same layer. Shadow files concatenate:
+a declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
 in layer order, and the document reads each package's `shadow.css` just ahead of its
 `theme.css`. Runtime, icon, widget,
 and vendor files replace by path. A later package replaces a tag's complete element

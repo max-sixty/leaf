@@ -4830,7 +4830,7 @@ def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path
     (package / "theme.css").write_text(
         "p { color: rgb(0, 128, 0); }\n"
         "em { @media screen { color: rgb(0, 128, 0); } }\n"
-        "lf-shelf { display: block; border: 3px solid rgb(0, 128, 0); }\n"
+        ":scope:is(lf-shelf) { display: block; border: 3px solid rgb(0, 128, 0); }\n"
     )
     url = serve(
         leaf_page(
@@ -4934,18 +4934,17 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         browser,
         serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
     )
-    surface = page.evaluate("""() => {
-        // The chrome's sheet is adopted, not linked (runtime/chrome.css).
-        const sheet = [...document.styleSheets, ...document.adoptedStyleSheets].find(
-            s => { try { return [...s.cssRules].some(r => r instanceof CSSScopeRule); }
-                   catch { return false; } });
+    surface = page.evaluate("""async () => {
+        const {chromeSheet: sheet} = await window.__lfRuntimeImport('/runtime/stylesheets.js');
         const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
         const scoped = new Set(), global_ = new Set();
-        const collect = (rules, into) => { for (const r of rules) {
-            if (r instanceof CSSScopeRule) collect(r.cssRules, scoped);
+        const collect = (rules, into, privateRules = null) => { for (const r of rules) {
+            if (r instanceof CSSScopeRule) {
+                if (privateRules) collect(r.cssRules, privateRules, privateRules);
+            }
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
-            else if (r.cssRules) collect(r.cssRules, into); } };
-        collect(sheet.cssRules, global_);
+            else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
+        collect(sheet.cssRules, global_, scoped);
         // A shared class may take its document face from the authored theme rather than
         // from the runtime sheet. It is still outside this collision probe: any movement
         // it causes in the page is that deliberate global rule, not a leaked scoped one.

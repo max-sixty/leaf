@@ -1397,7 +1397,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             )
             + '<pre id="plain" tabindex="0"><code>'
             + escape(plain_source)
-            + '</code></pre><lf-code id="numbered" language="python" hi="2"><pre>'
+            + '</code></pre><a id="after-copy" href="#title">After code</a>'
+            + '<lf-code id="numbered" language="python" hi="2"><pre>'
             + escape(widget)
             + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
             + '<lf-draft id="draft"><pre>Non-code data has no copy control.</pre></lf-draft>',
@@ -1500,6 +1501,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # Make this block itself scrollable, so Tab has a known native starting stop.
     resized(page, 360, 900)
     copy("#plain", document_controls.nth(1), plain, keyboard=True)
+    page.keyboard.press("Tab")
+    expect(page.locator("#after-copy")).to_be_focused()
     copy("#numbered > pre", page.locator("#numbered > .lf-code-copy"), widget)
 
     pre = page.locator("#colored")

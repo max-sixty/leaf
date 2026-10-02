@@ -64,6 +64,15 @@ export function watchCodeBlocks() {
         const events = new AbortController();
         wired.set(pre, events);
         const options = { signal: events.signal };
+        // Let the browser continue Tab from the source's document position,
+        // rather than from this control's later position in chrome.
+        copy.addEventListener(
+          "keydown",
+          (event) => {
+            if (event.key === "Tab") focusDestination(pre);
+          },
+          options,
+        );
         pre.addEventListener(
           "keydown",
           (event) => {

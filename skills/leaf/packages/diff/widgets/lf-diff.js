@@ -2,8 +2,9 @@
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
- * connected. Unchanged parsed files keep their rendering; changed files reconcile
- * unchanged lines by their datum coordinate, retaining selection and line threads.
+ * connected. A changed file kind replaces only its inner presentation and hands
+ * focus to that same file. Unchanged parsed files keep their rendering; changed files
+ * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
  * Manifest evidence commits together after open files load, and a closed file shows
  * none of the previous revision while it loads current evidence. */
 import {
@@ -303,6 +304,18 @@ function rowSpan(node) {
   if (!Number.isInteger(count))
     throw new Error("Pierre returned a diff grid without a finite row span");
   return count;
+}
+
+// A file's datum owns its controls even when its evidence changes kind. Only the
+// inner presentation changes; a focus that no longer has a line or disclosure lands
+// on that same file, while surviving controls keep their own native focus.
+function replaceFileRendering(entry, rendered) {
+  const restore = holdFocus(entry.node);
+  setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
+  entry.details = rendered.node.matches("details") ? rendered.node : null;
+  entry.lines = rendered.lines;
+  entry.renderKey = null;
+  return () => restore?.(entry.details?.firstElementChild, entry.node);
 }
 
 function replaceFileContent(entry, rendered, pairs) {
@@ -837,7 +850,7 @@ customElements.define(
         const fresh = [];
         const entries = prepared.map(({ file, renderKey, previous, rendered }) => {
           let entry = previous;
-          if (!entry || Boolean(entry.details) !== (file.type !== "rename-pure")) {
+          if (!entry) {
             entry = {
               ...rendered,
               node: fileRow(rendered.node),
@@ -846,10 +859,10 @@ customElements.define(
               filtered: false,
             };
             fresh.push(entry);
-          } else if (rendered && entry.details) {
+          } else if (rendered && entry.details && file.type !== "rename-pure") {
             restores.push(replaceFileContent(entry, rendered, this.threadPairs));
           } else if (rendered) {
-            setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
+            restores.push(replaceFileRendering(entry, rendered));
           }
           entry.record = {
             path: file.name,
@@ -870,6 +883,7 @@ customElements.define(
           this.diffTools ??= diffTools(this, this.reviewing());
           for (const entry of fresh)
             this.attachEntryControls(entry, { commentable: bound });
+          for (const entry of entries) this.attachDisclosure(entry);
           if (bound) for (const entry of entries) this.attachLineComments(entry);
           this.manifestBody ??= diffBody([]);
           setChildren(this.manifestBody, [
@@ -923,6 +937,7 @@ customElements.define(
         (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
       );
       const fresh = [];
+      const restores = [];
       const paths = new Set();
       const open = !this.hasAttribute("collapsed");
       for (const record of source.files) {
@@ -949,17 +964,26 @@ customElements.define(
             entries.push(previous);
             continue;
           }
-          entries.push({
-            record,
-            node: fileRow(
-              renameNode({ prevName: record.previousPath, name: record.path }),
-            ),
+          const rendered = {
+            node: renameNode({ prevName: record.previousPath, name: record.path }),
             lines: [],
-            loaded: true,
-            reviewed: false,
-            filtered: false,
-          });
-          fresh.push(entries.at(-1));
+          };
+          if (previous) {
+            restores.push(replaceFileRendering(previous, rendered));
+            previous.record = record;
+            previous.loaded = true;
+            entries.push(previous);
+          } else {
+            entries.push({
+              record,
+              node: fileRow(rendered.node),
+              lines: [],
+              loaded: true,
+              reviewed: false,
+              filtered: false,
+            });
+            fresh.push(entries.at(-1));
+          }
           continue;
         }
         if (previous?.details) {
@@ -989,19 +1013,24 @@ customElements.define(
           },
           open,
         );
-        const entry = {
-          record,
+        const entry = previous ?? {
           node: fileRow(details),
+          reviewed: false,
+          filtered: false,
+        };
+        if (previous)
+          restores.push(replaceFileRendering(entry, { node: details, lines: [] }));
+        else fresh.push(entry);
+        Object.assign(entry, {
+          record,
           details,
           lines: [],
           loaded: false,
           failed: false,
           loading: null,
-          reviewed: false,
-          filtered: false,
-        };
+          prepared: null,
+        });
         entries.push(entry);
-        fresh.push(entry);
       }
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) keeps(node, "data-lf-gen", "1");
@@ -1015,6 +1044,7 @@ customElements.define(
         this.diffTools ??= diffTools(this, this.reviewing());
         for (const entry of fresh)
           this.attachEntryControls(entry, { commentable: true });
+        for (const entry of entries) this.attachDisclosure(entry);
         this.manifestBody ??= diffBody([]);
         setChildren(this.manifestBody, [
           this.diffTools.node,
@@ -1025,6 +1055,7 @@ customElements.define(
         this.projectManifest();
         this.classList.toggle("lf-rendered", true);
         this.filterFiles(this.diffTools.search.value);
+        for (const restore of restores) restore();
       } finally {
         resume();
       }
@@ -1328,16 +1359,21 @@ customElements.define(
       return this.loadManifestEntry(entry);
     }
 
+    attachDisclosure(entry) {
+      if (entry.disclosureNode === entry.details) return;
+      entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
+      entry.disclosureNode = entry.details;
+      if (!entry.details) return;
+      entry.disclose ??= () => {
+        this.threadSurface?.update();
+        if (!entry.details.open || !this.manifestEntries?.includes(entry)) return;
+        entry.failed = false;
+        this.present(this.loadManifestEntry(entry));
+      };
+      entry.details.addEventListener("toggle", entry.disclose);
+    }
+
     attachReview(entry) {
-      if (entry.details && !entry.disclose) {
-        entry.disclose = () => {
-          this.threadSurface?.update();
-          if (!entry.details.open || !this.manifestEntries?.includes(entry)) return;
-          entry.failed = false;
-          this.present(this.loadManifestEntry(entry));
-        };
-        entry.details.addEventListener("toggle", entry.disclose);
-      }
       if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
         if (!this.controller.read().actions.review.available) return;
@@ -1376,8 +1412,8 @@ customElements.define(
 
     attachLineComments(entry) {
       for (const line of entry.lines) {
-        if (line.comment?.isConnected) continue;
         const { gutterRow } = this.threadPair(line.node);
+        if (line.comment?.parentElement === gutterRow) continue;
         line.comment = commentButton(
           lineLabel(line),
           () => this.threadSurface?.open(line.node, { origin: line.comment }),

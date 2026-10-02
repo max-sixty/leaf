@@ -39,7 +39,7 @@ export { focusDestination, holdFocus } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
-export { setChildren } from "./dom-children.js";
+export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {

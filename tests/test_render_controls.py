@@ -81,6 +81,7 @@ from render_harness import (
     any_suggestion_control,
     consume_browser_errors,
     expect_comment_notes,
+    held_frames,
     holding,
     leaf_page,
     nudge,
@@ -7062,7 +7063,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
         '<div style="height:1200px"></div>',
     )
     url = serve(source)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "id": "standing-reaction",
@@ -7101,3 +7102,49 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
         "undo",
         "standing-reaction",
     )
+
+
+@pytest.mark.parametrize(
+    "newer_control", [False, True], ids=["arrival", "newer-control"]
+)
+def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
+    browser, serve, newer_control
+):
+    """Modal close and command dispatch share one gesture, before another input arrives."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reference arrival",
+                '<h1>Review</h1><div style="height:1200px"></div>'
+                '<button id="origin">Original control</button>'
+                '<button id="later">Later control</button><div style="height:1000px"></div>',
+            )
+        ),
+    )
+    page.locator("#origin").click()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    search = page.get_by_role("combobox", name="Search commands")
+    search.fill("Comment on the control")
+    command = page.get_by_role("button", name="Comment on the control", exact=True)
+    expect(command).to_be_visible()
+    expect(command).to_have_attribute("data-lf-available", "true")
+    with held_frames(page):
+        box = command.bounding_box()
+        assert box is not None
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        expect(page.locator(".lf-command-reference")).to_be_hidden()
+        if newer_control:
+            box = page.locator("#later").bounding_box()
+            assert box is not None
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            expect(page.locator("#later")).to_be_focused()
+        before = page.evaluate("scrollY")
+    rendered(page)
+    if newer_control:
+        expect(page.locator("#later")).to_be_focused()
+    else:
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+    assert page.evaluate("scrollY") == before

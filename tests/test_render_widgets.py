@@ -10613,6 +10613,7 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
           label: gutterRow.querySelector('[data-line-number-content]').textContent,
           expected: number,
           lineTypeMatches: gutterRow.dataset.lineType === line.node.dataset.lineType,
+          commentCount: gutterRow.querySelectorAll('.lf-diff-line-comment').length,
         };
       });
     }""")
@@ -10621,6 +10622,7 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
         and gutter["column"] == gutter["expected"]
         and gutter["label"] == gutter["expected"]
         and gutter["lineTypeMatches"]
+        and gutter["commentCount"] == 1
         for gutter in gutters
     ), gutters
 
@@ -10670,6 +10672,109 @@ def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve)
     expect(
         page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
     ).to_contain_text("new first")
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("starts_as_rename", [False, True])
+def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
+    browser, serve, manifest, starts_as_rename
+):
+    """A path keeps its file controls; replaced presentation hands focus to that file."""
+    rename = (
+        "diff --git a/old.py b/app/handlers.py\n"
+        "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
+    )
+    regular = MULTI_HUNK_PATCH
+    value = patch_manifest if manifest else lambda patch: patch
+    initial, other = (rename, regular) if starts_as_rename else (regular, rename)
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(initial))
+    page = open_page(browser, url)
+    owner = page.locator("lf-diff .lf-diff-file").first.element_handle()
+    comment = page.locator("lf-diff .lf-diff-file-comment").first.element_handle()
+    if starts_as_rename:
+        page.locator("lf-diff .lf-diff-file-comment").first.click()
+        page.keyboard.press("Escape")
+    else:
+        page.locator("lf-diff summary").first.click()
+        page.keyboard.press("ArrowRight")
+    scroll_settled(page)
+    before = page.evaluate("() => scrollY")
+    for patch in (other, initial):
+        data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+        told(page)
+        rendered(page)
+        assert owner.evaluate("node => node.isConnected")
+        assert comment.evaluate("node => node.isConnected")
+        assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
+        assert page.evaluate("() => scrollY") == before
+        if patch == regular:
+            expect(
+                page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+            ).to_contain_text("new first")
+    if starts_as_rename:
+        assert comment.evaluate("node => node === node.getRootNode().activeElement")
+        data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
+        told(page)
+        rendered(page)
+    summary = page.locator("lf-diff summary").first
+    summary.click()
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        value(regular.replace("new first", "new beginning")),
+    )
+    told(page)
+    rendered(page)
+    summary.click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+    ).to_contain_text("new beginning")
+
+
+@pytest.mark.parametrize("language", [None, "python"])
+def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
+    browser, serve, language
+):
+    """Changing evidence beside a selected passage keeps its native selection."""
+    tag = '<lf-text-document id="document" source="document-text"'
+    if language:
+        tag += f' language="{language}"'
+    tag += "></lf-text-document>"
+    source = LONG_LINE_DIFF_PAGE.replace(
+        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>', tag
+    )
+    url = serve(source)
+    data_model.cmd_data_set(
+        serve.page_dir, "document-text", 'first = "old"\nsecond = "selected"\n'
+    )
+    page = open_page(browser, url)
+    code = page.locator("lf-text-document code")
+    code.scroll_into_view_if_needed()
+    ends = code.evaluate("""row => {
+      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const start = node.textContent.indexOf('selected');
+        if (start < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, start); range.setEnd(node, start + 'selected'.length);
+        const box = range.getBoundingClientRect();
+        return [[box.left, box.top + box.height / 2], [box.right, box.top + box.height / 2]];
+      }
+    }""")
+    select(page, *ends)
+    reading = "() => ({selection: getSelection().toString(), scroll: scrollY})"
+    before = page.evaluate(reading)
+    assert before["selection"] == "selected"
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "document-text",
+        'first = "new beginning"\nsecond = "selected"\n',
+    )
+    told(page)
+    rendered(page)
+    expect(code).to_contain_text('first = "new beginning"')
+    assert page.evaluate(reading) == before
 
 
 WEB_AWESOME_SHEET = """sheets => sheets.some(

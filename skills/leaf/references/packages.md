@@ -1128,7 +1128,11 @@ rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them, and the module orders each container with
 `setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
-in a node it moves. Add `labelOf(record, index)` when a thread
+in a node it moves. For a subtree whose entire contents and descendant attributes
+belong to the renderer, use `setRenderedChildren(parent, nodes)`: it matches unchanged
+nodes and edits only changed text, preserving native selections in text the source kept.
+Keep independently stateful controls outside that subtree. Add `labelOf(record, index)`
+when a thread
 should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection

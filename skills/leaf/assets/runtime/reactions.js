@@ -287,7 +287,6 @@ export function createReactionController({
       };
       if (designModeActive()) event.about = "design";
       sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
-
     }
     hideComposer();
     showFab(null, { returnFocus: "none" });

@@ -102,7 +102,7 @@ What should we do next?</lf-task></lf-command>
             + "</div>"
         )
     url = serve(leaf_page("Reply reading", content))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

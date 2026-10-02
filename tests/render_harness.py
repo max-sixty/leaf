@@ -797,6 +797,34 @@ def holding(page, held, count, what):
         page.wait_for_timeout(20)
 
 
+@contextmanager
+def held_frames(page):
+    """Keep frame-dependent handoffs pending while real input supplies a newer intent."""
+    page.evaluate(
+        """() => {
+          const frame = requestAnimationFrame.bind(window);
+          const cancel = cancelAnimationFrame.bind(window);
+          const held = new Map();
+          let handle = 1e6;
+          window.requestAnimationFrame = callback => {
+            held.set(++handle, callback);
+            return handle;
+          };
+          window.cancelAnimationFrame = handle => held.delete(handle);
+          window.leafReleaseFrames = () => {
+            window.requestAnimationFrame = frame;
+            window.cancelAnimationFrame = cancel;
+            for (const callback of held.values()) frame(callback);
+            held.clear();
+          };
+        }"""
+    )
+    try:
+        yield
+    finally:
+        page.evaluate("leafReleaseFrames()")
+
+
 _NOTES_OF = """(holder) => {
     const root = document.querySelector(holder);
     const named = root ? [root, ...root.querySelectorAll('*')] : [];

@@ -7044,3 +7044,59 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
         assert page.evaluate(
             "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
         ), f"{step}: the next Tab did not carry on from the block being read"
+
+
+@pytest.mark.parametrize("new_composer", [False, True], ids=["control", "composer"])
+def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
+    browser, serve, new_composer
+):
+    """Taking a reaction back ends its response gesture before the log answers it."""
+    source = leaf_page(
+        "A later response",
+        '<h1>Review</h1><section id="first"><h2>First passage</h2>'
+        '<button id="first-control">First control</button></section>'
+        '<div style="height:1500px"></div>'
+        '<section id="later"><h2>Later passage</h2>'
+        '<button id="later-control">Later control</button></section>'
+        '<div style="height:1200px"></div>',
+    )
+    url = serve(source)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "id": "standing-reaction",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "first-control"},
+        },
+    )
+    page = open_page(browser, url)
+    page.locator("#first-control").click()
+    page.keyboard.press("e")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("1")
+    holding(page, held, 1, "the reaction withdrawal")
+    page.locator("#later-control").click()
+    current = page.locator("#later-control")
+    if new_composer:
+        page.keyboard.press("c")
+        current = page.locator(".lf-fab-input")
+        write(current, "Keep this newer draft")
+    expect(current).to_be_focused()
+    before = page.evaluate("scrollY")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(current).to_be_visible()
+    expect(current).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    if new_composer:
+        expect(current).to_have_js_property("value", "Keep this newer draft")
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
+    assert (withdrawn["kind"], withdrawn["undoes"]) == (
+        "undo",
+        "standing-reaction",
+    )

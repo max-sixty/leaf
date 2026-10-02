@@ -1,6 +1,11 @@
 /* lf-diff uses Pierre's static renderer rather than hydrating Pierre's custom
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
- * rendered lines support selection anchors. */
+ * rendered lines support selection anchors. A source revision updates evidence
+ * under stable file owners: reader controls, disclosure and code scrollports stay
+ * connected. Unchanged parsed files keep their rendering; changed files reconcile
+ * unchanged lines by their datum coordinate, retaining selection and line threads.
+ * Manifest evidence commits together after open files load, and a closed file shows
+ * none of the previous revision while it loads current evidence. */
 import {
   DISCLOSE,
   announce,
@@ -8,6 +13,8 @@ import {
   dataBody,
   failSoft,
   focusDestination,
+  focused,
+  holdFocus,
   inChrome,
   commands,
   keeps,
@@ -24,6 +31,7 @@ import {
   retainUserIntent,
   scrollBehavior,
   scrollIntoReadingBand,
+  setChildren,
   shadowStage,
   notice,
   widgetController,
@@ -284,6 +292,116 @@ function diffBody(nodes) {
   return body;
 }
 
+// File and listing controls are browser-owned inspection state. Updating the evidence
+// keeps their owners connected; only changed rendered content is replaced. A line's
+// existing datum coordinate supplies its focus counterpart when that content changes.
+function rowSpan(node) {
+  const value = node.style.gridRow || getComputedStyle(node).gridRow;
+  const matches = [...value.matchAll(/span\s+(\d+)/g)];
+  const count = Number(matches.at(-1)?.[1]);
+  if (!Number.isInteger(count))
+    throw new Error("Pierre returned a diff grid without a finite row span");
+  return count;
+}
+
+function replaceFileContent(entry, rendered, pairs) {
+  const held = focused();
+  const line = entry.lines.find(
+    ({ node, comment }) => node.contains(held) || comment === held,
+  );
+  const restore = holdFocus(entry.node);
+  const details = entry.details;
+  const pre = details.querySelector("pre");
+  const nextPre = rendered.node.querySelector("pre");
+  const prior = new Map(entry.lines.map((record) => [lineKey(record), record]));
+  const retained = new Map();
+  const gutters = new Map();
+  for (const next of rendered.lines) {
+    const previous = prior.get(lineKey(next));
+    if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
+    retained.set(next.node, previous.node);
+    const nextGutter = nextPre.querySelector(
+      `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
+    );
+    const gutter = pre.querySelector(
+      `[data-gutter] [data-line-index="${previous.node.dataset.lineIndex}"]`,
+    );
+    gutters.set(nextGutter, gutter);
+    keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
+    keeps(gutter, "data-line-index", next.node.dataset.lineIndex);
+    next.node = previous.node;
+    next.comment = previous.comment;
+  }
+  if (pre && nextPre) {
+    for (const { name } of [...pre.attributes])
+      if (!nextPre.hasAttribute(name)) pre.removeAttribute(name);
+    for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
+    setChildren(
+      pre,
+      [...nextPre.childNodes].map((next) => {
+        if (!next.matches?.("code[data-code]")) return next;
+        const code = pre.querySelector("code[data-code]");
+        if (!code) return next;
+        code.style.gridRow = next.style.gridRow;
+        setChildren(
+          code,
+          [...next.childNodes].map((column) => {
+            const kind = column.hasAttribute?.("data-content")
+              ? "content"
+              : column.hasAttribute?.("data-gutter")
+                ? "gutter"
+                : null;
+            if (!kind) return column;
+            const current = code.querySelector(`[data-${kind}]`);
+            if (!current) return column;
+            const content = code.querySelector("[data-content]");
+            const pair = pairs?.get(content);
+            if (pair) {
+              pair[`${kind}Rows`] = rowSpan(column);
+              pair[`${kind}GridRow`] = column.style.gridRow;
+            }
+            current.style.gridRow = column.style.gridRow;
+            const kept = kind === "content" ? retained : gutters;
+            const children = [...column.childNodes].flatMap((child) => {
+              const previous = kept.get(child);
+              if (!previous) return [child];
+              const outlets = [];
+              for (
+                let sibling = previous.nextElementSibling;
+                sibling?.matches(".lf-diff-thread-outlet, .lf-diff-thread-gutter");
+                sibling = sibling.nextElementSibling
+              )
+                outlets.push(sibling);
+              return [previous, ...outlets];
+            });
+            setChildren(current, children);
+            return current;
+          }),
+        );
+        return code;
+      }),
+    );
+  }
+  keepsText(
+    details.querySelector(".lf-diff-stat"),
+    rendered.node.querySelector(".lf-diff-stat").textContent,
+  );
+  setChildren(details, [
+    details.firstElementChild,
+    ...[...rendered.node.children]
+      .slice(1)
+      .map((node) => (node === nextPre && pre ? pre : node)),
+  ]);
+  entry.lines = rendered.lines;
+  const counterpart =
+    line && entry.lines.find((next) => lineKey(next) === lineKey(line));
+  return () =>
+    restore?.(
+      counterpart && (held === line.comment ? counterpart.comment : counterpart.node),
+      details.firstElementChild,
+    );
+}
+
 // The checkbox is the complete wrap state.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
@@ -306,6 +424,7 @@ function diffTools(host, reviewing) {
   search.label = "Filter diff files";
   search.name = "diff-search";
   search.placeholder = "Filter files";
+  search.value = "";
   search.setAttribute("aria-label", "Filter diff files");
   search.addEventListener("input", () => host.filterFiles(search.value));
   label.append(search);
@@ -655,7 +774,6 @@ customElements.define(
       this.stopWatching = null;
       this.manifestEntries = null;
       this.manifestSnapshot = null;
-      this.sharedStyles = null;
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;
@@ -669,9 +787,11 @@ customElements.define(
       try {
         if (source === null) {
           this.manifestEntries = null;
+          this.manifestRendering = null;
           this.fileEntries = null;
           this.sharedStyles = null;
           this.diffTools = null;
+          this.manifestBody = null;
           this.replaceChildren();
           shadowStage(this, []);
           projectData(
@@ -690,44 +810,71 @@ customElements.define(
         }
         if (typeof source !== "string")
           throw new Error("diff data must be unified patch text or a file manifest");
-        this.manifestEntries = null;
-        this.sharedStyles = null;
         // Strict parsing keeps a malformed hunk from becoming incomplete evidence.
         const files = await parsedFiles(source);
-        const sharedStyles = new Map();
-        const rendered = [];
+        const sharedStyles = this.sharedStyles ?? new Map();
+        const prior = new Map(
+          (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
+        );
+        const prepared = [];
         const open = !this.hasAttribute("collapsed");
-        for (const file of files)
-          rendered.push(
-            file.type === "rename-pure"
-              ? { node: renameNode(file), lines: [] }
-              : await renderFile(file, sharedStyles, open),
-          );
+        for (const file of files) {
+          const renderKey = JSON.stringify(file);
+          const previous = prior.get(file.name);
+          const rendered =
+            previous?.renderKey === renderKey
+              ? null
+              : file.type === "rename-pure"
+                ? { node: renameNode(file), lines: [] }
+                : await renderFile(file, sharedStyles, previous?.details?.open ?? open);
+          prepared.push({ file, renderKey, previous, rendered });
+        }
         if (rendering !== this.rendering || !this.isConnected) return;
-        const entries = rendered.map((renderedFile, index) => ({
-          ...renderedFile,
-          record: {
-            path: files[index].name,
-            ...(files[index].prevName ? { previousPath: files[index].prevName } : {}),
-          },
-          node: fileRow(renderedFile.node),
-          details: renderedFile.node.matches("details") ? renderedFile.node : null,
-          loaded: true,
-          reviewed: false,
-          filtered: false,
-        }));
-        if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
+        const restores = [];
+        const fresh = [];
+        const entries = prepared.map(({ file, renderKey, previous, rendered }) => {
+          let entry = previous;
+          if (!entry || Boolean(entry.details) !== (file.type !== "rename-pure")) {
+            entry = {
+              ...rendered,
+              node: fileRow(rendered.node),
+              details: rendered.node.matches("details") ? rendered.node : null,
+              reviewed: false,
+              filtered: false,
+            };
+            fresh.push(entry);
+          } else if (rendered && entry.details) {
+            restores.push(replaceFileContent(entry, rendered, this.threadPairs));
+          } else if (rendered) {
+            setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
+          }
+          entry.record = {
+            path: file.name,
+            ...(file.prevName ? { previousPath: file.prevName } : {}),
+          };
+          entry.renderKey = renderKey;
+          entry.loaded = true;
+          entry.details?.querySelector("pre")?.toggleAttribute("hidden", false);
+          return entry;
+        });
+        if (bound) for (const { node } of entries) keeps(node, "data-lf-gen", "1");
         const resume = this.controller.defer();
         try {
           this.fileEntries = entries;
-          this.diffTools = diffTools(this, this.reviewing());
-          for (const entry of entries)
+          this.manifestEntries = null;
+          this.manifestRendering = null;
+          this.sharedStyles = sharedStyles;
+          this.diffTools ??= diffTools(this, this.reviewing());
+          for (const entry of fresh)
             this.attachEntryControls(entry, { commentable: bound });
-          this.replaceChildren();
-          shadowStage(this, [
-            ...sharedStyles.values(),
-            diffBody([this.diffTools.node, ...entries.map(({ node }) => node)]),
+          if (bound) for (const entry of entries) this.attachLineComments(entry);
+          this.manifestBody ??= diffBody([]);
+          setChildren(this.manifestBody, [
+            this.diffTools.node,
+            ...entries.map(({ node }) => node),
           ]);
+          this.replaceChildren();
+          shadowStage(this, [...sharedStyles.values(), this.manifestBody]);
           if (bound)
             projectData(
               this,
@@ -737,15 +884,19 @@ customElements.define(
               { nested: true, labelOf: datumLabel, snapshot },
             );
           this.classList.toggle("lf-rendered", true);
+          this.filterFiles(this.diffTools.search.value);
+          for (const restore of restores) restore();
         } finally {
           resume();
         }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
         this.manifestEntries = null;
+        this.manifestRendering = null;
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;
+        this.manifestBody = null;
         this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
@@ -765,6 +916,10 @@ customElements.define(
       if (!Array.isArray(source.files) || !source.files.length)
         throw new Error("empty diff manifest");
       const entries = [];
+      const prior = new Map(
+        (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
+      );
+      const fresh = [];
       const paths = new Set();
       const open = !this.hasAttribute("collapsed");
       for (const record of source.files) {
@@ -778,9 +933,19 @@ customElements.define(
         )
           throw new Error("diff manifest needs one unique path-keyed record per file");
         paths.add(record.path);
+        const previous = prior.get(record.path);
         if (record.kind === "rename") {
           if (typeof record.previousPath !== "string" || !record.previousPath)
             throw new Error(`rename ${record.path} needs its previous path`);
+          if (
+            previous &&
+            !previous.details &&
+            previous.record.previousPath === record.previousPath
+          ) {
+            previous.record = record;
+            entries.push(previous);
+            continue;
+          }
           entries.push({
             record,
             node: fileRow(
@@ -791,6 +956,26 @@ customElements.define(
             reviewed: false,
             filtered: false,
           });
+          fresh.push(entries.at(-1));
+          continue;
+        }
+        if (previous?.details) {
+          previous.record = record;
+          previous.loaded = false;
+          previous.failed = false;
+          previous.loading = null;
+          previous.prepared = null;
+          const pre = previous.details.querySelector("pre");
+          if (!previous.details.open && pre) pre.toggleAttribute("hidden", true);
+          const { adds, dels } = changeCounts({
+            additions: record.additions,
+            deletions: record.deletions,
+          });
+          keepsText(
+            previous.details.querySelector(".lf-diff-stat"),
+            `+${adds} −${dels}`,
+          );
+          entries.push(previous);
           continue;
         }
         const details = summaryNode(
@@ -812,25 +997,23 @@ customElements.define(
           reviewed: false,
           filtered: false,
         };
-        details.addEventListener("toggle", () => {
-          if (!details.open) return;
-          entry.failed = false;
-          this.present(this.loadManifestEntry(entry));
-        });
         entries.push(entry);
+        fresh.push(entry);
       }
       if (rendering !== this.rendering || !this.isConnected) return;
-      for (const { node } of entries) node.dataset.lfGen = "1";
+      for (const { node } of entries) keeps(node, "data-lf-gen", "1");
       const resume = this.controller.defer();
       try {
         this.manifestEntries = entries;
+        this.manifestRendering = rendering;
         this.manifestSnapshot = snapshot;
         this.fileEntries = entries;
-        this.sharedStyles = new Map();
-        this.diffTools = diffTools(this, this.reviewing());
-        for (const entry of entries)
+        this.sharedStyles ??= new Map();
+        this.diffTools ??= diffTools(this, this.reviewing());
+        for (const entry of fresh)
           this.attachEntryControls(entry, { commentable: true });
-        this.manifestBody = diffBody([
+        this.manifestBody ??= diffBody([]);
+        setChildren(this.manifestBody, [
           this.diffTools.node,
           ...entries.map(({ node }) => node),
         ]);
@@ -838,11 +1021,20 @@ customElements.define(
         this.stageManifest();
         this.projectManifest();
         this.classList.toggle("lf-rendered", true);
+        this.filterFiles(this.diffTools.search.value);
       } finally {
         resume();
       }
-      if (open)
-        await Promise.all(entries.map((entry) => this.loadManifestEntry(entry)));
+      await Promise.all(
+        entries
+          .filter((entry) => entry.details?.open)
+          .map((entry) => this.loadManifestEntry(entry)),
+      );
+      if (rendering !== this.rendering || !this.isConnected) return;
+      for (const entry of entries) if (entry.prepared) this.applyManifestEntry(entry);
+      this.manifestRendering = null;
+      this.stageManifest();
+      this.projectManifest();
     }
 
     stageManifest() {
@@ -851,6 +1043,7 @@ customElements.define(
     }
 
     projectManifest() {
+      if (this.manifestRendering !== null) return;
       projectData(
         this,
         (this.manifestEntries ?? []).flatMap((entry, index) => [
@@ -858,7 +1051,7 @@ customElements.define(
             ...this.manifestSnapshot.origin,
             path: ["files", index, "path"],
           }),
-          ...entry.lines.map((line) => ({
+          ...(entry.loaded ? entry.lines : []).map((line) => ({
             ...line,
             origin: {
               ...this.manifestSnapshot.origin,
@@ -908,19 +1101,11 @@ customElements.define(
         throw new Error("Pierre returned a diff line without its paired gutter row");
       let pair = this.threadPairs.get(content);
       if (!pair) {
-        const span = (node) => {
-          const value = node.style.gridRow || getComputedStyle(node).gridRow;
-          const matches = [...value.matchAll(/span\s+(\d+)/g)];
-          const count = Number(matches.at(-1)?.[1]);
-          if (!Number.isInteger(count))
-            throw new Error("Pierre returned a diff grid without a finite row span");
-          return count;
-        };
         pair = {
           content,
           gutter,
-          contentRows: span(content),
-          gutterRows: span(gutter),
+          contentRows: rowSpan(content),
+          gutterRows: rowSpan(gutter),
           contentGridRow: content.style.gridRow,
           gutterGridRow: gutter.style.gridRow,
         };
@@ -1013,7 +1198,7 @@ customElements.define(
     }
 
     async loadManifestEntry(entry) {
-      if (entry.loaded) return;
+      if (entry.loaded || entry.prepared) return;
       if (entry.loading) return entry.loading;
       const rendering = this.rendering;
       entry.loading = (async () => {
@@ -1027,26 +1212,48 @@ customElements.define(
             throw new Error(
               `the deferred patch for ${entry.record.path} does not contain that one file`,
             );
-          const rendered = await renderFile(files[0], this.sharedStyles, true);
+          const renderKey = JSON.stringify(files[0]);
+          const rendered =
+            entry.renderKey === renderKey
+              ? null
+              : await renderFile(files[0], this.sharedStyles, true);
           if (rendering !== this.rendering || !this.isConnected) return;
-          entry.details.replaceChildren(
-            entry.details.firstElementChild,
-            ...[...rendered.node.children].slice(1),
-          );
-          entry.lines = rendered.lines;
-          entry.loaded = true;
-          this.attachLineComments(entry);
-          this.stageManifest();
-          this.projectManifest();
+          entry.prepared = { renderKey, rendered };
         } catch (error) {
           if (rendering !== this.rendering || !this.isConnected) return;
-          entry.failed = true;
-          deferredError(entry.details, error);
+          entry.prepared = { error };
         } finally {
-          entry.loading = null;
+          if (rendering === this.rendering) entry.loading = null;
         }
+        if (
+          rendering !== this.rendering ||
+          !this.isConnected ||
+          this.manifestRendering !== null
+        )
+          return;
+        this.applyManifestEntry(entry);
+        this.stageManifest();
+        this.projectManifest();
       })();
       return entry.loading;
+    }
+
+    applyManifestEntry(entry) {
+      const { error, renderKey, rendered } = entry.prepared;
+      entry.prepared = null;
+      if (error) {
+        entry.failed = true;
+        entry.lines = [];
+        entry.renderKey = null;
+        deferredError(entry.details, error);
+        return;
+      }
+      const restore = rendered && replaceFileContent(entry, rendered, this.threadPairs);
+      entry.renderKey = renderKey;
+      entry.loaded = true;
+      entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
+      this.attachLineComments(entry);
+      restore?.();
     }
 
     fileEntryForDatum(key) {
@@ -1119,9 +1326,14 @@ customElements.define(
     }
 
     attachReview(entry) {
-      if (entry.details && !entry.threadSurfaceToggle) {
-        entry.threadSurfaceToggle = () => this.threadSurface?.update();
-        entry.details.addEventListener("toggle", entry.threadSurfaceToggle);
+      if (entry.details && !entry.disclose) {
+        entry.disclose = () => {
+          this.threadSurface?.update();
+          if (!entry.details.open || !this.manifestEntries?.includes(entry)) return;
+          entry.failed = false;
+          this.present(this.loadManifestEntry(entry));
+        };
+        entry.details.addEventListener("toggle", entry.disclose);
       }
       if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
@@ -1173,10 +1385,10 @@ customElements.define(
         // the conventional pointer affordance in the line-number gutter.
         line.comment.tabIndex = -1;
         line.node.addEventListener("pointerenter", () =>
-          gutterRow.classList.add("lf-diff-line-hover"),
+          gutterRow.classList.toggle("lf-diff-line-hover", true),
         );
         line.node.addEventListener("pointerleave", () =>
-          gutterRow.classList.remove("lf-diff-line-hover"),
+          gutterRow.classList.toggle("lf-diff-line-hover", false),
         );
         gutterRow.append(line.comment);
       }

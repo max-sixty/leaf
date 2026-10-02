@@ -84,6 +84,73 @@ from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLAR
 from test_render_threads import hold_visible_thread_presentation
 
 
+@pytest.mark.parametrize("bounded", [False, True])
+def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
+    browser, serve, bounded
+):
+    """Keeping a reply's controls visible does not reveal its already-scrolled-past turns."""
+    content = """
+<div style="height:900px"></div>
+<lf-command id="hub" label="Tasks"><lf-task id="jobs" status="active" talk>
+What should we do next?</lf-task></lf-command>
+<div style="height:900px"></div>
+"""
+    if bounded:
+        content = (
+            '<div id="reader" data-bound="start" style="height:480px">'
+            + content
+            + "</div>"
+        )
+    url = serve(leaf_page("Reply reading", content))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "text": "A short question the reader has already passed.",
+            "anchor": {"section": "jobs"},
+        },
+    )
+    page = open_page(browser, url)
+    thread = page.locator("#jobs .lf-page-thread")
+    reply = thread.locator("leaf-text")
+    reply.click()
+    reply.evaluate(
+        """(input, bounded) => {
+      const scroller = bounded ? document.querySelector('#reader') : document.scrollingElement;
+      const top = bounded ? scroller.getBoundingClientRect().top : 0;
+      scroller.scrollBy(0, input.getBoundingClientRect().top - top - 55);
+    }""",
+        bounded,
+    )
+    scroll_settled(page)
+    before = page.evaluate(
+        """bounded => ({
+      scroll: (bounded ? document.querySelector('#reader') : document.scrollingElement).scrollTop,
+      reply: document.querySelector('#jobs leaf-text').getBoundingClientRect().top,
+      thread: document.querySelector('#jobs .lf-page-thread').getBoundingClientRect().top,
+    })""",
+        bounded,
+    )
+    assert before["thread"] < (
+        page.locator("#reader").bounding_box()["y"] if bounded else 0
+    ), before
+    expect(reply).to_be_focused()
+    page.keyboard.type("A")
+    round_trip(page)
+    after = page.evaluate(
+        """bounded => ({
+      scroll: (bounded ? document.querySelector('#reader') : document.scrollingElement).scrollTop,
+      reply: document.querySelector('#jobs leaf-text').getBoundingClientRect().top,
+    })""",
+        bounded,
+    )
+    assert after["scroll"] == pytest.approx(before["scroll"], abs=1), (before, after)
+    assert after["reply"] == pytest.approx(before["reply"], abs=1), (before, after)
+
+
 @pytest.mark.parametrize("installation", ["in-place", "fresh"])
 def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
     browser, serve, installation

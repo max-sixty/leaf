@@ -31,6 +31,7 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
+    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -2062,40 +2063,20 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[data-id="S"]')
-    page.evaluate(
-        """() => {
-          const frame = window.requestAnimationFrame.bind(window);
-          const cancel = window.cancelAnimationFrame.bind(window);
-          const held = new Map();
-          let handle = 1e6;
-          window.requestAnimationFrame = (callback) => {
-            held.set((handle += 1), callback);
-            return handle;
-          };
-          window.cancelAnimationFrame = (given) => { held.delete(given); };
-          window.leafReleaseFrames = () => {
-            window.requestAnimationFrame = frame;
-            window.cancelAnimationFrame = cancel;
-            for (const callback of held.values()) frame(callback);
-            held.clear();
-          };
-        }"""
-    )
-    control.focus()
-    page.keyboard.press("Enter")
-
-    page.evaluate(
-        """() => {
-          document.activeElement.blur();
-          const text = document.querySelector('h1').firstChild;
-          const range = document.createRange();
-          range.selectNodeContents(text);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }"""
-    )
-    page.evaluate("() => window.leafReleaseFrames()")
+    with held_frames(page):
+        control.focus()
+        page.keyboard.press("Enter")
+        page.evaluate(
+            """() => {
+              document.activeElement.blur();
+              const text = document.querySelector('h1').firstChild;
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              const selection = getSelection();
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }"""
+        )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
     expect(bar).to_be_visible()

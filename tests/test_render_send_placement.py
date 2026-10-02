@@ -41,6 +41,8 @@ from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
+    COMMENT_WORD_RECTS,
+    RECORD_EDITOR_ROOTS,
     judge_watches,
     open_page,
     pane_posture,
@@ -597,15 +599,7 @@ def test_send_grows_thread_around_the_words(
         browser,
         serve(PAGE),
         context=context,
-        init_script="""
-      window.editorRoots = new WeakMap();
-      const attach = Element.prototype.attachShadow;
-      Element.prototype.attachShadow = function(options) {
-        const root = attach.call(this, options);
-        if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
-        return root;
-      };
-    """,
+        init_script=RECORD_EDITOR_ROOTS,
     )
     resized(page, *size)
     page.emulate_media(reduced_motion=motion)
@@ -649,36 +643,11 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
-    page.evaluate("""() => {
+    page.evaluate(
+        "() => { const rects = "
+        + COMMENT_WORD_RECTS
+        + """;
       const input = document.querySelector('.lf-fab-input');
-      const blockRects = node => {
-        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-        const nodes = [];
-        while (walker.nextNode()) nodes.push(walker.currentNode);
-        const text = nodes.map(n => n.textContent).join('');
-        const boxes = [];
-        let at = 0, i = 0;
-        for (const word of text.matchAll(/\\S+/g)) {
-          while (at + nodes[i].length <= word.index) at += nodes[i++].length;
-          const range = document.createRange();
-          // CodeMirror splits long text into nodes. A split inside a ligature
-          // changes Chrome's single-character range without moving its paint;
-          // measure the complete word across those nodes instead.
-          range.setStart(nodes[i], word.index - at);
-          let j = i, endAt = at;
-          const end = word.index + word[0].length;
-          while (endAt + nodes[j].length < end) endAt += nodes[j++].length;
-          range.setEnd(nodes[j], end - endAt);
-          const r = range.getBoundingClientRect();
-          boxes.push([r.x,r.y,r.width,r.height]);
-        }
-        return boxes;
-      };
-      const rects = node => {
-        const blocks = node.matches('.cm-content') ? [...node.querySelectorAll('.cm-line')]
-          : [...node.children];
-        return blocks.flatMap(blockRects);
-      };
       const editor = window.editorRoots.get(input).querySelector('.cm-content');
       window.beforeWords = rects(editor);
       window.beforeScroll = input.scrollTop;
@@ -694,7 +663,8 @@ def test_send_grows_thread_around_the_words(
         window.sampling = requestAnimationFrame(sample);
       };
       window.sampling = requestAnimationFrame(sample);
-    }""")
+    }"""
+    )
     with sending(page, "comment"):
         if touch:
             page.locator(".lf-fab-bar").get_by_role(

@@ -66,8 +66,10 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
+    COMMENT_WORD_RECTS,
     EXAMPLES,
     LONG_PAGE,
+    RECORD_EDITOR_ROOTS,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
@@ -187,32 +189,32 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
-    """The in-place field and the thread are two sizes of one writing surface.
+    """Rebuilding margin entries during Send preserves the real words and their face.
 
-    The field keeps the small footprint that leaves the passage readable, but uses the
-    thread UI's type instead of a smaller caption face. On send, its last rectangle is
-    carried to the inline thread while the real card fades through it; the card must not
-    simply replace the field in one frame.
+    Hold the decoration motion and compare the first word inside the closed editor
+    with the sent message, then again after the frame finishes growing.
     """
-    page = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
+    page = open_page(
+        browser,
+        serve(LONG_PAGE),
+        init_script=HOLD_MOTION + RECORD_EDITOR_ROOTS,
+    )
     resized(page, 1440, 900)
     target = page.locator("#p10")
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
-    compact = field.evaluate(
-        """node => {
-          const style = getComputedStyle(node), box = node.getBoundingClientRect();
-          return { x: box.x, y: box.y, width: box.width, height: box.height,
-                   family: style.fontFamily, size: style.fontSize };
-        }"""
-    )
-    assert compact["height"] == 32
     write(field, "Carry this comment into its thread.")
-    source = field.bounding_box()
-    # Keep a margin render pending across the accepted comment and its next frame.
-    # Rendering rebuilds entry records, so the scheduled carry must recognize the same
-    # destination by its durable key rather than by the old record's object identity.
+    rendered(page)
+    compact = field.evaluate(
+        """node => ({family: getComputedStyle(node).fontFamily,
+                    size: getComputedStyle(node).fontSize})"""
+    )
+    source = field.evaluate(
+        f"""node => ({COMMENT_WORD_RECTS})(
+          window.editorRoots.get(node).querySelector('.cm-content'))[0]"""
+    )
+    # Rebuilt entry records must still recognize the destination by its durable key.
     page.evaluate(
         """() => {
           window.__lfForceMarginRender = true;
@@ -226,72 +228,40 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-
-    ghost = page.locator(".lf-thread-transition")
-    expect(ghost).to_have_count(1)
-    page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    reply = preview.locator("leaf-text")
-    # The send leaves the user on the target, the card up beside it.
+    page.wait_for_function(
+        """() => window.__lfHeld.some(motion =>
+          motion.effect.target === document.querySelector('.lf-margin-preview'))"""
+    )
+    page.evaluate("() => (window.__lfForceMarginRender = false)")
+    body = preview.locator(".lf-msg-body").first
+    expect(body).to_have_text("Carry this comment into its thread.")
     expect(target).to_be_focused()
-    full = reply.evaluate(
-        "node => ({ family: getComputedStyle(node).fontFamily, "
-        "size: getComputedStyle(node).fontSize })"
+    full = body.evaluate(
+        """node => ({family: getComputedStyle(node).fontFamily,
+                    size: getComputedStyle(node).fontSize})"""
     )
-    assert (compact["family"], compact["size"]) == (
-        full["family"],
-        full["size"],
-    )
-
-    # Hold the first frame: the field's submitted box still stands exactly where the
-    # user left it, and the full card is transparent underneath. Three motions share
-    # the one duration — shell, card, and words — so reduced motion can settle all three
-    # through the same primitive.
-    assert page.evaluate("() => window.__lfHeld.length") == 3
-    carried = ghost.bounding_box()
-    for dimension in ("x", "y", "width", "height"):
-        assert carried[dimension] == pytest.approx(source[dimension], abs=1)
-    expect(preview).to_have_css("opacity", "0")
-    destination = page.evaluate(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          const card = preview.getBoundingClientRect();
-          const motion = window.__lfHeld.find((played) =>
-            played.effect.target.classList.contains('lf-thread-transition'));
-          const end = motion.effect.getKeyframes().at(-1);
-          return {
-            card: {
-              // Where layout stands it, whichever edges hold it (floating.js), before
-              // the reveal's own motion.
-              x: preview.offsetLeft, y: preview.offsetTop,
-              width: card.width, height: card.height,
-            },
-            end: {
-              x: parseFloat(end.left), y: parseFloat(end.top),
-              width: parseFloat(end.width), height: parseFloat(end.height),
-            },
-          };
-        }"""
-    )
-    for dimension in ("x", "y", "width", "height"):
-        assert destination["end"][dimension] == pytest.approx(
-            destination["card"][dimension], abs=1
-        ), destination
-    page.evaluate(
-        """() => {
-          const words = window.__lfHeld.find((played) =>
-            played.effect.target.classList.contains('lf-thread-transition-text')
-          );
-          words.currentTime = words.effect.getComputedTiming().duration / 2;
-        }"""
-    )
-    expect(ghost.locator(".lf-thread-transition-text")).to_have_css("opacity", "0")
-
-    page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
-    expect(ghost).to_have_count(0)
-    expect(preview).to_have_css("opacity", "1")
-    expect(target).to_be_focused()
+    assert compact == full
+    for phase in ("start", "middle", "finished"):
+        if phase == "middle":
+            page.evaluate(
+                """() => {
+                  const motion = window.__lfHeld.find(motion =>
+                    motion.effect.target === document.querySelector('.lf-margin-preview'));
+                  motion.currentTime = motion.effect.getComputedTiming().duration / 2;
+                }"""
+            )
+        if phase == "finished":
+            page.evaluate(
+                "() => [...window.__lfHeld].forEach(motion => motion.finish())"
+            )
+            rendered(page)
+        assert body.evaluate(
+            f"node => ({COMMENT_WORD_RECTS})(node)[0]"
+        ) == pytest.approx(source, abs=0.75), phase
+        expect(preview).to_have_css("opacity", "1")
+        expect(target).to_be_focused()
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
@@ -1603,9 +1573,17 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     )
     over = bar.get_attribute("data-lf-placement") == "top-start"
 
-    # Moved toward the side it stands on, the paragraph leaves more room on the other.
+    # Keep the whole attachment visible. Moving it off screen changes the editor to
+    # its window posture rather than choosing another side of an invisible target.
     target.evaluate(
-        "(node, up) => { node.style.transform = `translateY(${up ? -300 : 300}px)`; }",
+        """async (node, up) => {
+          const {commentBoundary, COMMENT_GAP} =
+            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+          const boundary = commentBoundary(), box = node.getBoundingClientRect();
+          const top = up ? boundary.top + COMMENT_GAP
+            : boundary.bottom - box.height - COMMENT_GAP;
+          node.style.transform = `translateY(${top - box.top}px)`;
+        }""",
         over,
     )
     resized(page, 700, 601)

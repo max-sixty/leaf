@@ -1796,6 +1796,46 @@ SHELL_BOX = """(() => {
 # browser's own rendering frames.
 SCROLL_STILL_FRAMES = 3
 
+# Record closed editor roots without changing their browser-visible mode. Geometry
+# probes below read their words; they never replace the editor or write its state.
+RECORD_EDITOR_ROOTS = """
+window.editorRoots = new WeakMap();
+const attach = Element.prototype.attachShadow;
+Element.prototype.attachShadow = function(options) {
+  const root = attach.call(this, options);
+  if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+  return root;
+};
+"""
+
+# Complete words cross CodeMirror's text-node boundaries, so a split inside a ligature
+# does not change the measured range while the painted words remain still.
+COMMENT_WORD_RECTS = r"""node => {
+  const blockRects = block => {
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    const text = nodes.map(n => n.textContent).join('');
+    const boxes = [];
+    let at = 0, i = 0;
+    for (const word of text.matchAll(/\S+/g)) {
+      while (at + nodes[i].length <= word.index) at += nodes[i++].length;
+      const range = document.createRange();
+      range.setStart(nodes[i], word.index - at);
+      let j = i, endAt = at;
+      const end = word.index + word[0].length;
+      while (endAt + nodes[j].length < end) endAt += nodes[j++].length;
+      range.setEnd(nodes[j], end - endAt);
+      const r = range.getBoundingClientRect();
+      boxes.push([r.x, r.y, r.width, r.height]);
+    }
+    return boxes;
+  };
+  const blocks = node.matches('.cm-content')
+    ? [...node.querySelectorAll('.cm-line')] : [...node.children];
+  return blocks.flatMap(blockRects);
+}"""
+
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.

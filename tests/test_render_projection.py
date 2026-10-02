@@ -60,6 +60,7 @@ from render_cases_interaction import (
     ROSTER_PAGE,
     SEATED_ASK_ENTRY,
     SEATED_ASK_MODULE,
+    SEATED_QUESTION_PAGE,
     STANDING_ACTIONS,
     STANDING_PAGE,
     SUGGESTION_PAGE,
@@ -1934,6 +1935,161 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
+def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, width):
+    """Growing inline news waits without moving the user's simultaneous places.
+
+    The following passage and editor are visible below the reply's insertion point.
+    Status paints immediately, a reply paints its fixed-row notice, and the revision
+    paints its offer while composition holds the current document. Opening the tall
+    reply proves this was growth the user would have seen without the hold.
+    """
+    source = SEATED_QUESTION_PAGE.replace(
+        "</main>",
+        '<p id="reading">The next passage remains where I am reading.</p>'
+        + "<p>Further context. "
+        + "Context. " * 300
+        + "</p></main>",
+    )
+    url = serve(source)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job comes first?",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, width, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    editor = thread.locator("leaf-text")
+    words = "  Keep the middle of this unsent thought.  "
+    write(editor, words)
+    editor.evaluate("box => box.setSelectionRange(7, 17, 'backward')")
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    reading = page.locator("#reading")
+    expect(reading).to_be_in_viewport()
+    target = resolve.bounding_box()
+    assert target
+    point = {
+        "x": target["x"] + target["width"] / 2,
+        "y": target["y"] + target["height"] / 2,
+    }
+    page.mouse.move(**point)
+    rendered(page)
+    # Keep Chrome's native clock and deliver news after its 500 ms input grace period.
+    page.wait_for_timeout(600)
+    place = reading.bounding_box()
+    box = editor.bounding_box()
+    assert place and box
+
+    def kept():
+        expect(editor).to_be_focused()
+        assert editor.evaluate(
+            "box => [box.value, box.selectionStart, box.selectionEnd, box.selectionDirection]"
+        ) == [words, 7, 17, "backward"]
+        assert reading.bounding_box() == pytest.approx(place, abs=0.5)
+        assert editor.bounding_box() == pytest.approx(box, abs=0.5)
+        assert resolve.bounding_box() == pytest.approx(target, abs=0.5)
+        assert resolve.evaluate(
+            "(node, p) => node.contains(document.elementFromPoint(p.x, p.y))", point
+        ), "arriving news took the resting pointer off Resolve"
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status(
+            "working",
+            "Checking the order of these jobs",
+            work={
+                "subject": {"kind": "thread", "id": root["id"]},
+                "after": root["seq"],
+            },
+        )
+    told(page)
+    expect(page.locator(".lf-status-detail")).to_contain_text("Checking the order")
+    rendered(page)
+    kept()
+
+    reply = "\n\n".join(["The first job needs a careful explanation."] * 12)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "revision": 1,
+            "text": reply,
+        },
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    expect(thread.locator(".lf-msg")).to_have_count(1)
+    rendered(page)
+    kept()
+
+    (serve.page_dir / "index.html").write_text(
+        source.replace(
+            "<title>seated question</title>", "<title>Jobs updated</title>"
+        ).replace('<h1 id="h">', '<p id="new-context">New context.</p><h1 id="h">')
+    )
+    told(page)
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page).to_have_title("seated question")
+    expect(page.locator("#new-context")).to_have_count(0)
+    rendered(page)
+    kept()
+
+    # A press releases genuine growth; all preceding observations were made at rest.
+    notice.click()
+    expect(thread.locator(".lf-msg")).to_have_count(2)
+    expect(thread.locator(".lf-msg").last).to_contain_text(
+        "The first job needs a careful explanation."
+    )
+    rendered(page)
+    assert reading.bounding_box()["y"] > place["y"] + 100
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
+def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, width):
+    """A content revision keeps the reader on a page that still asks for approval.
+
+    Native scroll anchoring is disabled by this page's layout, so it cannot conceal
+    a broken semantic carry when five paragraphs arrive above the reader.
+    """
+    anchoring = "<style>html { overflow-anchor: none; }</style>"
+    first = LIVE_V1.replace(
+        "</head>",
+        '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
+    )
+    second = LIVE_V2.replace("</head>", anchoring + "</head>")
+    page = open_page(browser, live_url(serve(first)))
+    resized(page, width, 900)
+    reading = page.locator("#live-reading")
+    reading.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => document.scrollingElement.scrollBy({
+          top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
+          behavior: 'instant'
+        })"""
+    )
+    scroll_settled(page)
+    expect(reading).to_be_in_viewport()
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    page.wait_for_timeout(600)
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live second")
+    expect(page.locator("#live-new-4")).to_contain_text("New finding 4")
+    rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=4), (before, after)
 
 
 def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser, serve):

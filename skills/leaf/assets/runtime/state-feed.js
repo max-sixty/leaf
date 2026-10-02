@@ -393,8 +393,8 @@ export function createStateFeed({
 const TICK_MS = 2000;
 
 // Visible pages check a cheap reading four times per second. Each finite response
-// leaves the origin's HTTP slots free; changed state still arrives within a user's
-// subsecond feedback window without rebuilding quiet pages on this clock.
+// leaves the origin's HTTP slots free. Discovery adds up to 250 ms plus request
+// round-trip time; quiet checks do not rebuild the page.
 const LOOK_MS = 250;
 
 // How long the page waits on its first read before presenting without one. Presentation

@@ -1843,6 +1843,16 @@
         frameOpener.disabled = true;
       });
 
+      document
+        .querySelector("#bg-read-user-view")
+        .addEventListener("click", async () => {
+          const response = await fetch(new URL("api/user-view", pageRoot));
+          if (!response.ok) throw new Error(`User view: HTTP ${response.status}`);
+          const output = document.querySelector("#bg-user-view-reading");
+          output.textContent = JSON.stringify(await response.json(), null, 2);
+          output.hidden = false;
+        });
+
       await customElements.whenDefined("lf-sample");
 
       const sample = document.querySelector("#bg-panel-sample");
@@ -6915,6 +6925,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-tab>
 
         <lf-tab id="bg-view-page" label="Page & layout">
+          <section id="bg-user-view">
+            <h2><strong>The user's observed view</strong></h2>
+            <p id="bg-user-view-guide">
+              Resize this window, change its color scheme, or open another tab. Read the
+              observations to inspect each document's viewport, visible reading regions,
+              revision, freshness, and passive geometry checks. The authoring agent gets
+              this context under <code>user_views</code> in
+              <code>leaf page state</code>. The measurements leave the layout decision
+              with the author. On the public site, make a decision or comment first to
+              activate your private page, then return here.
+            </p>
+            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <pre id="bg-user-view-reading" hidden></pre>
+          </section>
+
           <section id="bg-widths" data-width="wide">
             <p class="eyebrow">data-width</p>
             <h2><strong>Responsive block widths</strong></h2>

@@ -10254,8 +10254,8 @@ UNDER_THE_LINE = """(id) => {
   const more = document.querySelector('.lf-shortcut-more').getBoundingClientRect();
   const el = document.getElementById(id);
   const box = el.getBoundingClientRect();
-  const left = Math.max(more.right, box.left);
-  const right = Math.min(line.right, box.right);
+  const left = Math.max(line.left, box.left);
+  const right = Math.min(more.left, box.right);
   const x = (left + right) / 2;
   const y = line.top + line.height / 2;
   const at = document.elementFromPoint(x, y);

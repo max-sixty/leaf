@@ -303,6 +303,35 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(model.presentation.userAvailable, true);
 });
 
+test("a pending narrowing reset gives way to a newer reading gesture", async () => {
+  const view = {
+    configure(controls) {
+      this.controls = controls;
+    },
+  };
+  const listRoot = document.createElement("div");
+  document.body.append(listRoot);
+  let finish;
+  const presented = new Promise((resolve) => (finish = resolve));
+  const narrowing = createThreadNarrowing({
+    view,
+    listRoot,
+    readThreads: () => [],
+    ready: () => true,
+    repaint: () => presented,
+  });
+  narrowing.mount();
+  const pending = view.controls.chooseFacet("status", "resolved");
+
+  globalThis.dispatchEvent(new Event("wheel"));
+  listRoot.scrollTop = 230;
+  finish();
+  await pending;
+
+  assert.equal(listRoot.scrollTop, 230);
+  listRoot.remove();
+});
+
 test("panel narrowing controllers keep independent intent over shared threads", async () => {
   const open = { ...recentThread("open", "2026-03-01T00:00:00Z"), resolved: null };
   const resolved = {

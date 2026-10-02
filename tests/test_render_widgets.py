@@ -10838,6 +10838,33 @@ _RING_WITHIN = """(el, frame) => {
 }"""
 
 
+@pytest.mark.parametrize("left", [0, 150])
+def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
+    browser, serve, left
+):
+    """A hunk step moves vertically without travelling sideways through its host."""
+    source = leaf_page(
+        "Sideways patch",
+        '<h1>Review</h1><div id="sideways">'
+        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
+        "</div>",
+        head="<style>#sideways { width: 500px; overflow: auto; }"
+        "#patch { width: 1000px; }</style>",
+    )
+    url = serve(source)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.keyboard.press("Tab")
+    page.locator("#patch summary").first.focus()
+    page.locator("#sideways").evaluate("(el, left) => { el.scrollLeft = left; }", left)
+    before = page.locator("#sideways").evaluate("el => el.scrollLeft")
+    assert before == left
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
+    scroll_settled(page)
+    assert page.locator("#sideways").evaluate("el => el.scrollLeft") == before
+
+
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):

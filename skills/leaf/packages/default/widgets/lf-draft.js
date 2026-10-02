@@ -623,7 +623,10 @@ customElements.define(
       commands(ta, this.#commandScope);
       this.#body.after(ta);
       this.#refreshMargin();
-      if (arrive) ta.focus();
+      // A pointer is already on visible words. Opening their editor preserves that
+      // place before handing the clicked caret across; the pencil instead reveals
+      // the initial caret at the start of the text. A padding press carries null.
+      if (arrive) ta.focus({ preventScroll: at !== undefined });
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
       // in the body's text, so it names a word only in a box holding that text — a

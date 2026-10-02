@@ -3644,6 +3644,53 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
 
 
+def test_a_removed_leaf_hands_focus_on_without_revealing_the_old_reading(
+    browser, serve, other_leaf
+):
+    """A disappearing focused row preserves the later rows reached with the wheel."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.evaluate(
+        "document.querySelector('.lf-others-panel').getAnimations().forEach(a => a.finish())"
+    )
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          const row = list.model.rows.find(row => !row.self);
+          window.auditLeaves = Array.from({length: 30}, (_,index) => ({
+            ...row, key: `audit-${index}`, href: `${row.href}&audit=${index}`,
+            title: `Live leaf ${index}`,
+          }));
+          await list.present({...list.model, rows: window.auditLeaves});
+        }"""
+    )
+    page.keyboard.press("Home")
+    rows = page.locator("a.lf-others-row")
+    expect(rows.first).to_be_focused()
+    box = page.locator("lf-leaves-list")
+    area = box.bounding_box()
+    assert area is not None
+    page.mouse.move(area["x"] + 50, area["y"] + 100)
+    page.mouse.wheel(0, 700)
+    page.wait_for_function("document.querySelector('lf-leaves-list').scrollTop > 500")
+    scroll_settled(page, "lf-leaves-list")
+    expect(rows.first).to_be_focused()
+    reading = rows.nth(15).bounding_box()
+    assert reading is not None
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          await list.present({...list.model, rows: window.auditLeaves.slice(1)});
+        }"""
+    )
+    expect(rows.first).to_be_focused()
+    after = rows.nth(14).bounding_box()
+    assert after is not None
+    assert abs(after["y"] - reading["y"]) <= 1
+
+
 def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     browser, serve, other_leaf
 ):

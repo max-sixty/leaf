@@ -19,6 +19,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
+from leaf import server as server_model
 from leaf import session_cleanup as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
@@ -31,7 +32,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     SHELL_BOX,
-    TOKEN,
     banner_control,
     leaf_page,
     stamp_page,
@@ -1264,7 +1264,7 @@ def live_leaf(tmp_path, monkeypatch):
             cwd=str(tmp_path / f"{name}-work"),
         )
         httpd = hosting_model.LeafHTTPServer(
-            ("127.0.0.1", 0), http_model.page_endpoint(d, TOKEN)
+            ("127.0.0.1", 0), http_model.page_endpoint(d, server_model.host_key())
         )
         servers.enter_context(running_http_server(httpd))
         port = httpd.server_address[1]

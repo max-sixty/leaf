@@ -88,6 +88,7 @@ export {
   differenceKind,
 } from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
+export { scrollIntoReadingBand } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";

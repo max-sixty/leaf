@@ -1692,21 +1692,17 @@ export function createVersionController({
     }
   }
 
-  // A region handed to another scroller keeps the place recorded before the handover.
+  // A region handed to another scroller keeps the reading recorded before the handover.
+  // Focus can remain on a control the user has since scrolled past, so a posture change
+  // restores that reading without making the focused control a navigation destination.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted) {
+  function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
-    const currentIntent = retainUserIntent();
     if (!currentIntent()) return;
     const candidates = shifted
       .map(({ region }) => region)
       .filter((region) => shownRegionBounds(region));
     restoreRegions(candidates, currentIntent);
-    // A control the user is standing on is where they are, more exactly than any
-    // passage near it: keep it in view in whichever box scrolls it now.
-    const held = focused();
-    if (held && candidates.some(({ host }) => under(held, host)))
-      held.scrollIntoView({ block: "nearest", inline: "nearest" });
     recordRegions();
   }
 
@@ -1721,7 +1717,8 @@ export function createVersionController({
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
-      nextRender(() => restoreShifted(shifted));
+      const currentIntent = retainUserIntent();
+      nextRender(() => restoreShifted(shifted, currentIntent));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

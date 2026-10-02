@@ -44,7 +44,8 @@ import {
 import { scrollBehavior } from "./motion.js";
 import { scrollersOf } from "./reading-regions.js";
 import { pushEntry, replaceEntry } from "./history.js";
-import { moveScrollerBy, pageScroller, reachable } from "./scrolling.js";
+import { pageScroller } from "./scrolling.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -282,62 +283,10 @@ export function createAnchorTravel({
     return arrived;
   }
 
-  // Where in its scroller's landing band a destination's top stands. An element keeps
-  // the room its own `scroll-margin-top` asks for, which is the browser's rule for every
-  // native landing: a destination wearing the ring outside itself asks for the ring's
-  // room, and a landing flush with the band's edge cut the ring off there.
-  function centreBy(where, block = "center", box = pageScroller) {
-    const rect =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    const band = landingBand(box);
-    const room = band.bottom - band.top;
-    const margin =
-      where instanceof Range
-        ? 0
-        : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
-    const place =
-      where instanceof Range
-        ? (room - rect.height) / 2
-        : block === "start"
-          ? margin
-          : Math.max((room - rect.height) / 2, margin);
-    return rect.top - band.top - place;
-  }
-
   // Reading-region membership also covers fixed chrome, but its viewport position does
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
   const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
-
-  // Centre a destination in the box that scrolls it, then bring it into each box around
-  // that one only as far as it must: a bounded block the page shows leaves the page
-  // still, and one scrolled out of the window comes back with the destination in it.
-  // Each move is reckoned from where the moves inside it leave the destination, so a
-  // glide in the inner box composes with the one around it.
-  function centreThrough(where, holder, block, behavior) {
-    const [box, ...around] = scrollersOf(holder);
-    if (!box) return;
-    const rect =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    let { top, bottom } = rect;
-    const centre = centreBy(where, block, box);
-    let moved = reachable(box, centre);
-    moveScrollerBy(box, centre, behavior);
-    for (const outer of around) {
-      top -= moved;
-      bottom -= moved;
-      const band = landingBand(outer);
-      if (!band) return;
-      const by =
-        top < band.top
-          ? top - band.top
-          : bottom > band.bottom
-            ? Math.min(bottom - band.bottom, top - band.top)
-            : 0;
-      moved = reachable(outer, by);
-      if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
-    }
-  }
 
   function scrollRevealedElement(
     element,
@@ -352,7 +301,7 @@ export function createAnchorTravel({
     if (block === "nearest") return;
     // The document and nested reading regions share this path. Only the scroller that
     // actually owns the element receives the centring move.
-    centreThrough(element, element, block, behavior);
+    scrollIntoReadingBand(element, element, block, behavior);
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
@@ -421,7 +370,7 @@ export function createAnchorTravel({
         byY = destination.bottom - bottom;
       if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
     }
-    centreThrough(where, holder, "center", behavior);
+    scrollIntoReadingBand(where, holder, "center", behavior);
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {

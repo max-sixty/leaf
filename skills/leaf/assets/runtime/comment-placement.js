@@ -339,7 +339,6 @@ export function commentPlacement() {
           return {
             data: {
               scale,
-              reference: rects.reference,
               column: rects.reference.x + (inlineStart - box.left) / scale.x,
               line:
                 side === "bottom"

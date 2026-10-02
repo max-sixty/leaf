@@ -1,33 +1,20 @@
-/* Synchronous anchor paint and its readonly placement record.
+/* Decoration of the canonical current anchor reading.
  *
- * One pass resolves every thread and draft, writes every anchor highlight/outline, and
- * records exactly what it drew. Consumers ask this instance for marks and placement;
- * they never re-resolve a thread independently. Controls, commands, thread state,
- * and frame invalidation are supplied above this module.
+ * Anchor placement resolves conversations and composition before this optional paint.
+ * This instance owns highlights, outlines and pointer hit testing; its marks never
+ * supply target existence, surface admission, drawing placement or travel.
  */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import {
-  anchoringIsReady,
-  annotationAt,
-  resolveAnchor,
-  sectionOf,
-} from "./anchor-resolution.js";
+import { annotationAt, sectionOf } from "./anchor-resolution.js";
 import {
   targetElement,
   targetParts,
   targetSegments,
   targetSurface,
 } from "./resolved-target.js";
-import {
-  elementFromPointAcross,
-  inChrome,
-  pageText,
-  pageWords,
-  rangeOf,
-} from "./passages.js";
-import { bareReaction, threadKey } from "./thread/model.js";
-import { placePoints } from "./pointed-place.js";
+import { elementFromPointAcross, inChrome, pageWords, rangeOf } from "./passages.js";
+import { bareReaction } from "./thread/model.js";
 import { shadowHost, under } from "./shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
@@ -45,9 +32,7 @@ export function createAnchorPaint({
   panelThreadForId,
 }) {
   const marked = new Map();
-  const placed = new Map();
   const visualTargets = new Map();
-  let pendingPlaced = null;
   let pendingMarks = [];
   let pendingOutline = [];
   let actionOutline = [];
@@ -224,51 +209,19 @@ export function createAnchorPaint({
     });
   }
 
-  function paint({ threads, draft, actionAnchor }) {
-    // A refused pass is distinct from a ready pass that resolved nothing. The caller must
-    // not build durable controls from an empty-looking result before presentation has made
-    // the page's anchor reading authoritative.
-    if (!anchoringIsReady()) return null;
-
+  function paint({ readings, draft, action }) {
     const before = outlined();
     marked.clear();
-    placed.clear();
     pendingOutline = [];
     actionOutline = [];
     visualTargets.clear();
 
-    const text = pageText();
     const posted = [];
     const reactions = [];
     const reactionSeats = new Map();
     const notes = new Map();
 
-    const pointable = [];
-    for (const thread of threads) {
-      if (!thread.anchor) continue;
-      const found = resolveAnchor(thread.anchor, text);
-      if (!found) continue;
-      // Placement includes resolved threads and remains distinct from paint. The panel
-      // orders from this record instead of resolving the same coordinate again. A
-      // pointed thread's record also carries the row it stands by (`point`), the key of
-      // the margin row it shares with others pointed there (`pointRow`), and the row's
-      // words as the page reads them (`pointWords`), below.
-      const target = targetElement(found) ?? found.place;
-      placed.set(thread.id, {
-        datumElement: null,
-        exact: true,
-        status: "exact",
-        ...found,
-        target,
-        element: found.place,
-        point: null,
-        pointRow: null,
-        pointWords: null,
-      });
-      // A drawing's part names where on the picture it is; a point is for a target that
-      // names no place inside itself.
-      if (!thread.resolved && !thread.anchor.quote && !thread.anchor.visual && target)
-        pointable.push({ id: thread.id, key: threadKey(thread), target });
+    for (const { thread, placement: found } of readings) {
       if (found.status === "outdated" || thread.resolved) continue;
 
       if (bareReaction(thread)) {
@@ -314,29 +267,7 @@ export function createAnchorPaint({
         if (holder && !inChrome(holder))
           notes.set(holder, [...(notes.get(holder) ?? []), thread.id]);
     }
-    // Where each open thread a pointing gesture stood at a row inside its target stands
-    // in this reading (pointed-place.js), found with the anchors it lies inside. Every
-    // thread the log holds, settled ones too, keeps its point.
-    const pointed = placePoints(pointable, new Set(threads.map(threadKey)), text);
-    for (const { id, key } of pointable) {
-      const point = pointed.get(key);
-      if (point)
-        Object.assign(placed.get(id), {
-          point: point.element,
-          pointRow: point.row,
-          pointWords: point.words,
-        });
-    }
-
-    const resolvedDraft =
-      draft.open && draft.anchor ? resolveAnchor(draft.anchor, text) : null;
-    pendingPlaced = resolvedDraft
-      ? {
-          ...resolvedDraft,
-          target: targetElement(resolvedDraft) ?? resolvedDraft.place,
-          element: resolvedDraft.place,
-        }
-      : null;
+    const resolvedDraft = draft.resolved;
     const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
     pendingMarks =
       draftMarked && !draft.drawing
@@ -349,8 +280,6 @@ export function createAnchorPaint({
     if (targetElement(resolvedDraft)) pendingOutline = pendingMarks;
     if (targetSegments(resolvedDraft).length) pending.push(...pendingMarks);
 
-    const active = draft.open ? null : actionAnchor;
-    const action = active && !active.quote ? resolveAnchor(active, text) : null;
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);
     paintOutlines(before);
@@ -402,8 +331,6 @@ export function createAnchorPaint({
     hoverThread?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     targetPaint.setTargets([]);
-    placed.clear();
-    pendingPlaced = null;
     pendingMarks = [];
     visualTargets.clear();
     hovering = null;
@@ -421,8 +348,5 @@ export function createAnchorPaint({
     refreshHover,
     markAt,
     marksFor,
-    isMarked: (id) => marked.has(id),
-    pendingAt: () => pendingPlaced,
-    placedAt: (id) => placed.get(id),
   };
 }

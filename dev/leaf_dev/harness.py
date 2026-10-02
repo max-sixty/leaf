@@ -257,7 +257,10 @@ def claude_child(
     if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
         (home / "Library").mkdir(parents=True, exist_ok=True)
         (home / "Library/Keychains").symlink_to(keychains)
-    credentials = Path.home() / ".claude/.credentials.json"
+    credentials = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        / ".credentials.json"
+    )
     if credentials.is_file():
         (home / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, home / ".claude/.credentials.json")

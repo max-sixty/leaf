@@ -268,18 +268,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   App Server's behavior before changing delivery policy; the
   [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
 
-- **Wake the agent only for input that changes what it owes.** `leaf wait` ends
-  on every event `requires_agent_attention` admits, so input that asks nothing
-  still costs the agent a turn. Comments, replies and a move that finishes an Ask
-  owe an answer; `done`, `report` and `error` owe work; a move that answers no Ask
-  owes nothing but carries a receipt that reads Sent until it is picked up. Only
-  `resolve`, `unresolve` and `undo` owe nothing and carry no receipt, and each can
-  still change what the agent owes: a resolve withdraws a pending answer and the
-  work begun on it, an unresolve can reopen an unanswered message, and an undo can
-  withdraw a Done or a pick the agent is acting on. So the test is whether the
-  event changes the page's obligations or claims, not its kind. In this machine's
-  page logs from the last 30 days, 40 of 204 deliveries held only resolves, and
-  32 of those resolves closed a thread whose last word was already the agent's.
 - **Take every render-check reading at every width the check renders.** The check
   lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
   (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
@@ -292,7 +280,9 @@ height and where a switch lands wait on the workspace decision under Layout.
   controls and resulting evidence below the first pane screen, as the arrangement
   eval exposed. The readings stay advice: which
   widths a page answers for is the author's call.
-- **Read the render checks after handover.** `page check --render` blocks the
+- **Read the full render gate after handover.** Actual user views now supply passive
+  geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
+  broader headless gate still runs on request. `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
@@ -309,11 +299,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
   at different widths and keep that limitation explicit.
-- **Record the user's view beside `viewed`.** Add the window size, colour scheme
-  and revision a visible tab reports to the presence reading, and document them.
-  **Unconfirmed:** in the first agent-usability baseline the missing view caused no
-  failure: asked which tab the user had open, every agent said the page files don't
-  record it. Build this when a task needs the user's view.
 - **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner

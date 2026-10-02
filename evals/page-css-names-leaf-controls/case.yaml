@@ -1,11 +1,13 @@
 # Added with page CSS narrowed off Leaf's controls (#1278): 0 of 3 on main, 3 of 3
 # on the change.
-schema_version: '1.0'
-name: page-css-names-leaf-controls
-description: "Restyling Leaf's controls: a page rule reaches the controls a widget builds only when it names the widget or Leaf's class, so a request about those controls is answered by naming them, not with a bare element rule."
-tags:
-- theme
-execution:
+description: page-css-names-leaf-controls
+metadata:
+  purpose: 'Restyling Leaf''s controls: a page rule reaches the controls a widget builds only when it
+    names the widget or Leaf''s class, so a request about those controls is answered by naming them, not
+    with a bare element rule.'
+  tags:
+  - theme
+vars:
   prompt: |
     You are revising a Leaf page for the user. It has a triage board
     (`<lf-board id="triage">` with three columns of cards) and, below it, an Ask whose
@@ -18,18 +20,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete `<style>`
     element the page needs, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the CSS. Pass only if every rule meant to enlarge the board's and the options'
     controls selects them through the widget or Leaf's own vocabulary: its selector
     names `lf-board`, `lf-options`, `lf-option`, or a Leaf class such as `.lf-btn` or

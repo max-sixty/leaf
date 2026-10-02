@@ -3,12 +3,13 @@
 # kept in view is a document, a sidebar page whose aside sticks, and not a workspace.
 # Scored 5 of 5 on both the base (67f6dd75d) and the change: it guards the choice
 # rather than separating the two wordings.
-schema_version: '1.0'
-name: long-read-beside-a-panel-is-a-document
-description: "A long read beside a panel the reader keeps in view is a `layout-sidebar` page whose aside sticks, not a workspace: a workspace is a screen moved through rather than scrolled."
-tags:
-- layout
-execution:
+description: long-read-beside-a-panel-is-a-document
+metadata:
+  purpose: 'A long read beside a panel the reader keeps in view is a `layout-sidebar` page whose aside
+    sticks, not a workspace: a workspace is a screen moved through rather than scrolled.'
+  tags:
+  - layout
+vars:
   prompt: |
     Write a Leaf page for the user to review the design document for a new rate limiter
     before Thursday's meeting. The document runs to eight sections (Goals, Non-goals,
@@ -20,21 +21,23 @@ execution:
     Write each section's paragraphs as placeholders of a few sentences. The page
     directory is not reachable from here, so reply with the complete `index.html`,
     rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: sidebar-page
-  type: regex
-  pattern: <main[^>]*class="[^"]*\blayout-sidebar\b
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: regex
+  metric: sidebar-page
+  value: <main[^>]*class="[^"]*\blayout-sidebar\b
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if all of these hold. `main` is a `layout-sidebar` page, not
     a `layout-workspace`, and the eight sections are its body, read in the page's own
     scroll rather than in a pane or other box that scrolls on its own. The verdict, the

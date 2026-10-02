@@ -40,7 +40,13 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
-from .schema import BROWSER_DIRS, DECLARED_MARKS, MEDIA_DIR, VENDORED_FILES
+from .schema import (
+    BROWSER_DIRS,
+    DECLARED_MARKS,
+    MEDIA_DIR,
+    RENDER_CHECKS_DIR,
+    VENDORED_FILES,
+)
 from .structure import (
     DELIVERY_ENCODING_META,
     UTF8_BOM,
@@ -349,7 +355,14 @@ def layer_import_map(asset_root: str) -> dict:
     render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
     """
     root = asset_root.rstrip("/")
-    return {"imports": {f"/{name}/": f"{root}/{name}/" for name in BROWSER_DIRS}}
+    # Server-owned passive checks must read this document's runtime instance too.
+    # Their source is server-owned; their captured bytes belong to this revision.
+    return {
+        "imports": {
+            f"/{name}/": f"{root}/{name}/"
+            for name in (*BROWSER_DIRS, RENDER_CHECKS_DIR)
+        }
+    }
 
 
 def deliver_resource(resource: Resource, logical_path: str, address: Address) -> bytes:

@@ -33,6 +33,11 @@ import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
+import { createAnnotationInventory } from "./annotation-inventory.js";
+import { createInlineContributions } from "./inline-contributions.js";
+import { presentingContributions, watchContributions } from "./contributions.js";
+import { watchProjection } from "./projection-watch.js";
+import { clocked } from "./presence.js";
 import { createThreadActions } from "./thread/actions.js";
 import { registerMirrorConsumer } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
@@ -43,6 +48,7 @@ import { isThreadEvent } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
+  consumePageThreads as registerPageConsumer,
   renderSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
@@ -304,8 +310,7 @@ export function mountApplication(dependencies) {
     reaction: reactionView,
     read,
     anchors: {
-      isMarked: dependencies.anchorPaint.isMarked,
-      placedAt: dependencies.anchorPaint.placedAt,
+      placedAt: dependencies.anchorPlacement.placedAt,
     },
     travel: {
       focusSurface,
@@ -317,28 +322,61 @@ export function mountApplication(dependencies) {
     composition: dependencies.compositionSurface,
   };
 
+  const annotations = createAnnotationInventory({
+    openAsks,
+    comparisonBase: dependencies.margin.comparisonBase,
+    comparisonChanges: dependencies.margin.comparisonChanges,
+    inlineComparison: dependencies.margin.inlineComparison,
+    toggleInlineComparison: dependencies.margin.toggleInlineComparison,
+    placedAt: dependencies.anchorPlacement.placedAt,
+    showThread: dependencies.showThread,
+    goToAsk: dependencies.margin.goToAsk,
+    scrollToElement: dependencies.anchorTravel.scrollToElement,
+  });
+  const inlineContributions = createInlineContributions(annotations);
+  // Print hides contributed controls and cannot supply their visibility reading.
+  // Refuse the annotation pass whole until the document returns to screen media.
+  const onPaper = matchMedia("print");
+  function refreshAnnotationInventory() {
+    if (onPaper.matches) return annotations.read();
+    presentingContributions();
+    inlineContributions.present();
+    const entries = annotations.collect();
+    dependencies.margin.renderPageMapDialog(entries);
+    return entries;
+  }
+  const renderAnnotations = clocked(document.body, () => {
+    if (!onPaper.matches) margin.paint(refreshAnnotationInventory());
+  });
+  const mountAnnotations = () => {
+    watchProjection(document.body, renderAnnotations);
+    document.addEventListener("lf-comparison", renderAnnotations);
+    onPaper.addEventListener("change", () => {
+      if (!onPaper.matches) renderAnnotations.refresh();
+    });
+    watchContributions(({ immediate }) => {
+      renderAnnotations();
+      if (immediate) margin.flushLayout();
+    });
+  };
   const margin = dependencies.createMarginProjection({
+    inventory: annotations,
+    refreshInventory: refreshAnnotationInventory,
+    renderAnnotations,
+    showThread: dependencies.showThread,
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
     accompanyThread: dependencies.accompanyThread,
     designModeActive: dependencies.margin.designModeActive,
     pointerModeActive: dependencies.margin.pointerModeActive,
-    comparisonBase: dependencies.margin.comparisonBase,
-    comparisonChanges: dependencies.margin.comparisonChanges,
-    inlineComparison: dependencies.margin.inlineComparison,
-    toggleInlineComparison: dependencies.margin.toggleInlineComparison,
     leavePageMap: dependencies.margin.leavePageMap,
     openPageMap: dependencies.margin.openPageMap,
     pageMapDialogContains: dependencies.margin.pageMapDialogContains,
-    renderPageMapDialog: dependencies.margin.renderPageMapDialog,
-    openAsks,
     scrollThreadIntoView: dependencies.margin.scrollThreadIntoView,
-    goToAsk: dependencies.margin.goToAsk,
     renderMarginThread: (host, thread, controls) =>
       renderMarginThread(host, thread, inlineView, controls),
-    placedAt: dependencies.anchorPaint.placedAt,
-    showThread: dependencies.showThread,
+    placedAt: dependencies.anchorPlacement.placedAt,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
   });
@@ -347,17 +385,19 @@ export function mountApplication(dependencies) {
     available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
+    anchorPlacement: dependencies.anchorPlacement,
     anchorPaint: dependencies.anchorPaint,
     anchorControls: dependencies.anchorControls,
     drawingPaint: dependencies.drawingPaint,
     pageGeometry: dependencies.pageGeometry,
     readDraft: dependencies.readThreadDraft,
     activeActionAnchor: dependencies.activeActionAnchor,
-    renderMargin: margin.renderMargin,
+    renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the panel.
-    openThread: (id) => margin.openPageThread(id, { travel: false }),
+    openThread: (id, options) =>
+      margin.openPageThread(id, { ...options, travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
@@ -374,8 +414,7 @@ export function mountApplication(dependencies) {
           showThread: view.travel.showThread,
           travel: { ...cardView.travel, ...view.travel },
         },
-        isMarked: dependencies.anchorPaint.isMarked,
-        placedAt: dependencies.anchorPaint.placedAt,
+        placedAt: dependencies.anchorPlacement.placedAt,
         repaintThread: required ? refreshThread : () => registration.update(),
       },
     });
@@ -458,12 +497,15 @@ export function mountApplication(dependencies) {
       onDraftChanged: invalidateDom,
       wireInput: dependencies.wireInput,
     });
+  const threadSurfaceCommands = {
+    invalidate: invalidateDom,
+    composition: dependencies.compositionSurface,
+    reveal: dependencies.showThread,
+  };
   const consumeThreads = (owner, render) =>
-    registerConsumer(owner, render, {
-      invalidate: invalidateDom,
-      composition: dependencies.compositionSurface,
-      reveal: dependencies.showThread,
-    });
+    registerConsumer(owner, render, threadSurfaceCommands);
+  const consumePageThreads = (owner, render) =>
+    registerPageConsumer(owner, render, threadSurfaceCommands);
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
@@ -480,6 +522,10 @@ export function mountApplication(dependencies) {
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
+    annotations,
+    refreshAnnotationInventory,
+    renderAnnotations,
+    mountAnnotations,
     margin,
     read,
     mountThread: threadPresenter.mount,
@@ -496,6 +542,7 @@ export function mountApplication(dependencies) {
     refreshThread,
     presentThread,
     consumeThreads,
+    consumePageThreads,
     mountThreadViews,
     registerThreadPanel,
     forgetAuthoredOwners: projection.forgetAuthoredOwners,
@@ -532,6 +579,7 @@ export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
 export const consumeThreads = (...args) => app().consumeThreads(...args);
+export const consumePageThreads = (...args) => app().consumePageThreads(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({

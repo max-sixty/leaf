@@ -7,6 +7,7 @@ import time
 from urllib.parse import urljoin
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
@@ -59,13 +60,13 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     url = serve(leaf_page("Reply arrivals", "<h1>Reply arrivals</h1>"))
     directory = serve.page_dir
     drafting, a, b = (
-        events_model.append_event(
+        append_carried_log_record(
             directory,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
         for text in ("Draft here", "A", "B")
     )
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "reply",
@@ -99,7 +100,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
           }).observe(document.querySelector('.lf-live'), {childList: true, subtree: true});
         }"""
     )
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "reply",
@@ -118,7 +119,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(draft).to_have_js_property("value", "Keep this draft")
 
     reads = CutOff().hold(page)
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "reply",
@@ -128,7 +129,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
             "text": "More for A",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "reply",
@@ -149,7 +150,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
         "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(10000)"
     )
     for parent in (a["id"], b["id"]):
-        events_model.append_event(
+        append_carried_log_record(
             directory,
             {
                 "kind": "reply",
@@ -203,7 +204,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Start this thread.")
     for index in range(14):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -225,7 +226,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     near_end = threads.evaluate("el => el.scrollTop")
     editor_top = editor.evaluate("el => el.getBoundingClientRect().top")
 
-    newest = events_model.append_event(
+    newest = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -261,7 +262,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
 
     for length in (20, 40, 120):
         before_growth = threads.evaluate("el => el.scrollTop")
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "edit",
@@ -285,7 +286,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
 
     threads.evaluate("el => el.scrollTop -= 160")
     earlier_place = threads.evaluate("el => el.scrollTop")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -352,7 +353,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
         panel_comment(serve.page_dir, f"An earlier thread {index}.")
     root = panel_comment(serve.page_dir, "The thread I am answering.")
     for index in range(answers):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -374,6 +375,20 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-thread-reply leaf-text").click()
     page.keyboard.type("My reply")
+    # This contract starts while reading the latest turn. Entry into a visible reply
+    # preserves whatever older reading preceded it; choosing the end is explicit.
+    if answers > 1:
+        reply_box = card.locator(".lf-thread-reply").bounding_box()
+        latest = card.locator(".lf-msg").last.bounding_box()
+        assert reply_box is not None and latest is not None
+        before = page.locator(".lf-threads").evaluate("el => el.scrollTop")
+        page.mouse.move(reply_box["x"] + 20, reply_box["y"] - 20)
+        page.mouse.wheel(0, latest["y"] + latest["height"] - reply_box["y"])
+        page.wait_for_function(
+            "before => document.querySelector('.lf-threads').scrollTop > before",
+            arg=before,
+        )
+        scroll_settled(page, ".lf-threads")
     if back_to_top:
         # Back up to the card above, which puts the open card's end below the fold.
         page.mouse.wheel(0, -200)
@@ -391,7 +406,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
 
     for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
-        newest = events_model.append_event(
+        newest = append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -426,7 +441,7 @@ def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, ser
     for as though it covered the words would move them."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "The thread I am answering.")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -470,7 +485,7 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "A thread with a draft.")
     for index in range(14):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -498,7 +513,7 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
         "el => el.getBoundingClientRect().top"
     )
 
-    newest = events_model.append_event(
+    newest = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -527,7 +542,7 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
     other = panel_comment(serve.page_dir, "An earlier thread.")
     selected = panel_comment(serve.page_dir, "The selected thread.")
     for index in range(14):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -552,7 +567,7 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
     last_selected = card.locator(".lf-msg").last
     before = last_selected.evaluate("el => el.getBoundingClientRect().top")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -578,7 +593,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     url = serve(LONG_PAGE)
     selected = panel_comment(serve.page_dir, "The thread I am reading.")
     for index in range(14):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -609,7 +624,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     )
     end = card.evaluate("el => el.getBoundingClientRect().bottom")
 
-    newest = events_model.append_event(
+    newest = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -640,7 +655,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     # selected thread into the room scrolled past, and move nothing after them.
     later = page.locator(f'.lf-thread[data-id="{selected}"] + .lf-thread')
     reading_later = later.evaluate("el => el.getBoundingClientRect().top")
-    also_visible = events_model.append_event(
+    also_visible = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -672,7 +687,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
         ) < threads.evaluate(
             "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom) - 80"
         )
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -695,7 +710,7 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
     url = serve(LONG_PAGE)
     selected = panel_comment(serve.page_dir, "The thread above.")
     for index in range(14):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -734,7 +749,7 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
         later_card.locator(".lf-thread-summary").hover()
     later_top = later_card.evaluate("el => el.getBoundingClientRect().top")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -832,7 +847,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     root = panel_comment(
         serve.page_dir, "Which detail should we keep?", {"section": "p0"}
     )
-    answer = events_model.append_event(
+    answer = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -972,7 +987,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         if event["kind"] == "comment"
     ][:2]
     if asked:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -1001,7 +1016,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     )
 
     for kind in ["resolve", "unresolve", "resolve"]:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir, {"kind": kind, "author": "agent", "parent": first}
         )
         told(page)
@@ -1063,7 +1078,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     write(reply, words)
     below = after.bounding_box()
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": first}
     )
     told(page)
@@ -1131,7 +1146,7 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
         "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": asked, "token": "keep"},
     )

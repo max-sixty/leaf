@@ -50,6 +50,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
@@ -546,7 +547,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         if preview is not None:
-            files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,
@@ -728,6 +729,26 @@ def sending(page, what):
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
     round_trip(page)
+
+
+def watch_message_arrival(root, selector):
+    """Record delivery paint on insertion within a document or declared shadow root."""
+    root.evaluate(
+        """(node, selector) => {
+          const root = node.shadowRoot ?? node;
+          window.__messageArrival = null;
+          const observer = new MutationObserver(() => {
+            const message = root.querySelector(
+              `${selector}[data-attempt][aria-busy="true"]`
+            );
+            if (!message) return;
+            window.__messageArrival = Number(getComputedStyle(message).opacity);
+            observer.disconnect();
+          });
+          observer.observe(root, {childList: true, subtree: true});
+        }""",
+        selector,
+    )
 
 
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
@@ -2072,11 +2093,18 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Wait until the page has finished arriving: rendered, with any notice it opened
-    with gone and the pointer off its controls, so nothing the arrival started is still
-    changing it when a test begins its own reading."""
+    """Prepare a still_page for its reading: rendered, arrival notices retired, and
+    the pointer off its controls. Advance its controlled timer clock through every
+    callback while Date.now stays fixed; the following test keeps real-time timers.
+    """
     rendered(page)
-    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    notice = page.locator(".lf-notice.show")
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while notice.count():
+        assert time.monotonic() < deadline, "the arrival notice never retired"
+        # still_page fixes Date.now but its timer clock otherwise runs in real time.
+        # Run every callback until the notice retires; fast_forward would skip ticks.
+        page.clock.run_for(100)
     page.mouse.move(2, 300)
     rendered(page)
 
@@ -2116,9 +2144,9 @@ def at_rest(page):
     each frame it asks for, each time it moves the focus, and each animation it runs
     without end, in its own document and each one it frames, such as a live sample.
 
-    It starts once the page is `left_alone` and watches for `REST_SECONDS`. Frames are
-    counted where they are asked for, so a loop that writes nothing but still wakes the
-    page every frame is named too."""
+    It starts once the still_page is `left_alone` and watches in real time for
+    `REST_SECONDS`. Frames are counted where they are asked for, so a loop that writes
+    nothing but still wakes the page every frame is named too."""
     left_alone(page)
     frames = page.frames
     for frame in frames:

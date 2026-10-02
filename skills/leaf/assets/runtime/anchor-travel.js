@@ -44,10 +44,10 @@ import { scrollersOf } from "./reading-regions.js";
 import { pushEntry, replaceEntry } from "./history.js";
 import { moveScrollerBy, pageScroller, reachable } from "./scrolling.js";
 import { renderedParent } from "./shadow.js";
-import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
 import { standingPoint } from "./pointed-place.js";
+import { focusDestination } from "./focus.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
@@ -55,7 +55,7 @@ import { standingPoint } from "./pointed-place.js";
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
 }
 
 export function createAnchorTravel({
@@ -153,9 +153,10 @@ export function createAnchorTravel({
   // scrolling behind it, the link's own thread still in front), and reveal what holds
   // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
-  // then lands by the browser's own fragment rule (`land`, history.js), which moves
-  // `:target` and the sequential focus starting point with it, so the arrival at a
-  // fresh load (version.js, `aimArrival`) and one in session reveal and land alike. A
+  // then lands by the browser's own fragment rule (`land`, history.js) and puts focus
+  // at the destination. Scrolling alone can leave the source link's caret as the
+  // user's standing place, so subsequent commands would still act from the source.
+  // Every activation route shares this arrival rather than supplying its own focus. A
   // fragment naming nothing here is not claimed, and the browser keeps it.
   //
   // Firefox's `scroll()` on an intercepted push moves nothing (measured in 156: the
@@ -168,6 +169,7 @@ export function createAnchorTravel({
       fragmentTrip(where, () => {
         land();
         scrollToFragment(where);
+        focusDestination(where);
       })
     );
   }
@@ -243,8 +245,7 @@ export function createAnchorTravel({
       if (missing) announce(missing);
       return false;
     }
-    const disclosure = closestAcross(destination, "details");
-    disclosure?.querySelector(":scope > summary")?.focus({ preventScroll: true });
+    focusDestination(destination);
     if (moving) scrollRevealedElement(destination);
     if (success) announce(success);
     return true;

@@ -11,17 +11,19 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_gate import browser as browser_model
+from leaf_dev import LEAF_COMMAND
 from playwright.sync_api import sync_playwright
+
+__all__ = ["LEAF_COMMAND"]
 
 # The canonical subprocess command. Tests of the installed host boundary invoke
 # that payload's `bin/leaf`; every other process test runs the checkout directly.
-LEAF_COMMAND = [sys.executable, "-m", "leaf"]
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
 # survives both Python startup and `exec`, so everything the run spawns ignores
@@ -213,8 +215,8 @@ def initialized_page(_page_pool):
         lent.append((name, page))
         status_path = page / "status.json"
         status = files_model.read_json(status_path)
-        status["ts"] = events_model.now_iso()
-        files_model.write_json(status_path, status)
+        status["ts"] = cleanup_model.now_iso()
+        cleanup_model.write_json(status_path, status)
         return page
 
     yield lend
@@ -252,7 +254,7 @@ def pytest_collection_modifyitems(config, items):
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the nightly tests whose own lines the change touches
-    (`--nightly-changed-since`): those run before it lands, and CI's `nightly` job runs
+    (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
     the rest on main after."""
     selected = (
         config.getoption("keyword")

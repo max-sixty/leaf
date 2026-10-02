@@ -1,10 +1,38 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+from datetime import datetime, timedelta
+from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
-from render_harness import consume_browser_errors, judge_watches
+from known_faults import known
+from playwright.sync_api import expect
+from render_cases_interaction import ASK_PAGE
+from render_harness import (
+    consume_browser_errors,
+    judge_watches,
+    open_page,
+    panel_settled,
+    resized,
+    ticked,
+)
+
+
+def test_known_thread_fold_classifies_each_source_of_the_same_shift():
+    test = SimpleNamespace(
+        path=Path("test_website_server.py"),
+        originalname="test_a_website_turn_posts_its_answer_when_the_move_is_settled_first",
+    )
+    assert known(
+        test,
+        "span.lf-thread-topic moved without input by (8, 0)px; "
+        "the same frame moved details.lf-thread-compact.flash.lf-thread, "
+        "span.lf-thread-trailing",
+    )
+    assert not known(test, "span.lf-thread-topic moved without input by (8, 0)px")
+
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -46,11 +74,169 @@ def test_typing_may_grow_its_field(browser):
     judge_watches()
 
 
-def test_a_shift_without_input_fails(browser):
+@pytest.mark.parametrize("distance", [6, 40])
+def test_a_shift_without_input_fails(browser, distance):
     page = field_page(browser)
+    page.evaluate(
+        "distance => { document.getElementById('above').style.height = distance + 'px'; }",
+        distance,
+    )
+    judge_watches()
+    consume_browser_errors(
+        page, f"textarea#field moved without input by (0, {distance})px"
+    )
+
+
+METADATA = """<!doctype html><body style="margin:0; font:12px monospace">
+<div id="row" style="display:flex; align-items:baseline; width:360px; line-height:24px">
+  <div id="header" style="display:contents">
+    <b>You</b><span class="lf-msg-meta" style="display:flex; gap:8px; margin-left:8px">
+      <time id="age">just now</time><span id="receipt">Sent</span>
+    </span>
+  </div>
+</div>
+<p id="reading">Read this paragraph.</p>
+<textarea id="field" rows="1"></textarea>
+</body>"""
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("adjacent_control", "button#action"),
+        ("contained_control", "button#action"),
+        ("growing_header", "p#reading"),
+        ("escaping_label", "span#receipt"),
+    ],
+)
+def test_metadata_motion_is_confined_to_a_passive_header(browser, fault, protected):
+    """A real label shift passes; a moved control, reading line or escaped label fails."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(METADATA))
+    if fault in {"adjacent_control", "contained_control"}:
+        page.evaluate(
+            """fault => {
+              const button = document.createElement('button');
+              button.id = 'action';
+              button.textContent = 'Act';
+              document.querySelector(fault === 'contained_control' ? '.lf-msg-meta' : '#row')
+                .append(button);
+            }""",
+            fault,
+        )
+    page.evaluate(PAINTED)
+    receipt = page.locator("#receipt")
+    before = receipt.bounding_box()
+    page.evaluate(
+        """fault => {
+          document.getElementById('age').textContent = '1m ago';
+          const metadata = document.querySelector('.lf-msg-meta');
+          if (fault === 'growing_header') metadata.style.paddingBlockStart = '20px';
+          if (fault === 'escaping_label') metadata.style.paddingInlineStart = '420px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    assert receipt.bounding_box()["x"] != before["x"]
+    if protected:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
+
+
+@pytest.mark.parametrize(
+    "motion",
+    ["", "control", "resize", "hidden", "clipped", "scroll", "sticky", "visible_child"],
+)
+def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
+    """Five receipt sources pass only when an omitted control also holds still."""
+    rows = "".join(
+        f'<div style="display:flex;width:360px;height:30px;align-items:baseline">'
+        '<b>You</b><span class="lf-msg-meta" style="display:flex;gap:8px;margin-left:8px">'
+        f'<time>just now</time><span id="receipt{n}" style="width:150px">Sent</span>'
+        "</span></div>"
+        for n in range(6)
+    )
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    button = (
+        '<button id="action" style="font-size:8px;padding:0;width:40px;height:12px;'
+        + ("visibility:hidden;" if motion == "hidden" else "")
+        + ("margin-top:40px;" if motion == "clipped" else "")
+        + ("position:sticky;top:0;" if motion == "sticky" else "")
+        + ("visibility:visible;" if motion == "visible_child" else "")
+        + '">Act</button>'
+    )
+    if motion == "clipped":
+        button = '<div style="height:10px;overflow:hidden">' + button + "</div>"
+    if motion == "visible_child":
+        button = '<div style="visibility:hidden">' + button + "</div>"
+    if motion in {"scroll", "sticky"}:
+        rows = (
+            '<div id="scroller" style="height:200px;overflow:auto">'
+            + (button if motion == "sticky" else "")
+            + rows
+            + '<div style="height:400px"></div></div>'
+        )
+        if motion == "sticky":
+            button = ""
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:12px monospace">'
+            + rows
+            + button
+            + "</body>"
+        )
+    )
+    if motion == "sticky":
+        page.evaluate("document.getElementById('scroller').scrollTop = 30")
+    page.evaluate(PAINTED)
+    page.evaluate(
+        """motion => {
+          window.sources = [];
+          new PerformanceObserver(list => {
+            for (const entry of list.getEntries())
+              window.sources.push(entry.sources.map(source => source.node?.id));
+          }).observe({type: 'layout-shift'});
+          for (const age of document.querySelectorAll('time')) age.textContent = '1m ago';
+          const button = document.getElementById('action');
+          if (['control', 'hidden', 'clipped', 'visible_child'].includes(motion))
+            button.style.marginTop = motion === 'clipped' ? '46px' : '6px';
+          if (motion === 'resize') {
+            button.style.marginLeft = '6px'; button.style.width = '34px';
+          }
+          if (motion === 'scroll') document.getElementById('scroller').scrollTop = 6;
+          if (motion === 'sticky') document.getElementById('scroller').scrollTop = 36;
+        }""",
+        motion,
+    )
+    judge_watches()
+    sources = page.evaluate("window.sources")
+    assert len(sources) == 1 and len(sources[0]) == 5, sources
+    assert all(source.startswith("receipt") for source in sources[0]), sources
+    if motion in {"control", "resize", "visible_child"}:
+        consume_browser_errors(page, "moved without input")
+
+
+@pytest.mark.nightly
+@pytest.mark.watch_shifts
+def test_a_nightly_page_watches_typing_and_unasked_shifts(browser):
+    """Nightly opt-in uses the same sensor: growing a field is allowed, carrying it
+    without input is reported, and typing that carries it is reported too."""
+    page = field_page(browser, "grow")
+    page.locator("#field").fill("a")
+    judge_watches()
+    assert page.lf_errors == []
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+    consume_browser_errors(page, "textarea#field moved without input")
+
+    carried = field_page(browser, "carry")
+    carried.locator("#field").fill("a")
+    judge_watches()
+    consume_browser_errors(carried, "typing in textarea#field moved textarea#field")
 
 
 # A composer pinned to the viewport's foot, standing partly past its right edge and
@@ -214,3 +400,57 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
     )
     page.locator("#grow").click()
     judge_watches()
+
+
+@pytest.mark.parametrize("surface", ["card", "panel"])
+def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
+    browser, serve, surface
+):
+    """Age and receipt may rearrange; the thread and its controls stay put."""
+    page = open_page(
+        browser,
+        serve(
+            ASK_PAGE,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Check whether these jobs can share one visit.",
+                    "anchor": {"section": "bracket"},
+                }
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    if surface == "card":
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        surface_root = page.locator(".lf-margin-preview")
+        header = surface_root.locator(".lf-page-thread-head").first
+    else:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        surface_root = page.locator(".lf-thread[open]")
+        header = surface_root.locator(".lf-msg-head").first
+    receipt = header.locator(".lf-msg-sending")
+    timestamp = header.locator("time")
+    expect(receipt).to_have_text("Sent")
+    expect(timestamp).to_have_text("just now")
+    protected = surface_root.locator(
+        "b, button, leaf-text, .lf-msg-body, .lf-page-thread-body"
+    )
+    boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
+    before = protected.evaluate_all(boxes)
+    assert before
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    now = datetime.now().astimezone()
+    for delta, age in [
+        (timedelta(minutes=1), "1m ago"),
+        (timedelta(minutes=10), "10m ago"),
+        (timedelta(hours=3), "3h ago"),
+    ]:
+        page.clock.set_fixed_time(now + delta)
+        ticked(page)
+        expect(timestamp).to_have_text(age)
+        assert protected.evaluate_all(boxes) == before

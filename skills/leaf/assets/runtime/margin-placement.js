@@ -107,8 +107,8 @@ const inSeatingOrder = (rows) =>
 // Where every pin stands, in seating order, so a pin seated first is one the next keeps
 // off (`pinSpot`). A held pin keeps the rect it holds: unfolding its options widens it,
 // and a seat taken again at that width could move the control the user is pressing. It is
-// seated first, so no other pin takes its room. A pin with no `parts` to read around,
-// such as one inside a shadow tree, stands at its home.
+// seated first, so no other pin takes its room. A pin with no `parts` to read around
+// stands at its home.
 //
 // A pin that finds no room for its resting face stands folded where it can fold: one
 // control, its options' toggle, seated as any pin is at that size, so it takes room the

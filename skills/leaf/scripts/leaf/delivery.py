@@ -32,8 +32,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .event_contracts import append_admitted
-from .event_log import flocked
-from .files import read_json, write_json
+from .files import read_json
 from .gesture_words import GestureWords, revisions_on_disk
 from .host import claim_harness, session_harness
 from .machine import state_home
@@ -51,6 +50,7 @@ from .service import (
     requires_agent_attention,
     unacknowledged,
 )
+from .session_cleanup import flocked, write_json
 from .thread_context import (
     batch_threads,
     thread_memberships,
@@ -351,7 +351,11 @@ def read_delivery(delivery_id: str) -> dict:
 
 
 def cmd_delivery_read(delivery_id: str) -> None:
-    print(json.dumps(read_delivery(delivery_id), indent=2, ensure_ascii=False))
+    from .codex import accept_codex_delivery_read
+
+    payload = read_delivery(delivery_id)
+    accept_codex_delivery_read(delivery_id)
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
 def record_pickup(

@@ -240,11 +240,9 @@
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. It takes the room right of the words it is
-     about down to the minimum, covering its margin cluster where it must; with less
-     than that it stands under or over the cluster at the minimum, its right edge on the
-     visible edge, so it crosses the column by only what that room lacks. Its height is
-     never cut to spare the cluster (thread-card-geometry.js). */
+     their width, down to the minimum. The minimum is what the room beside the words,
+     or past the margin cluster, must hold for the card, and the comment box before it,
+     to stand there (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
@@ -1288,8 +1286,10 @@ dd { margin: 0 0 8px 0; }
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
         margin: 0 0 10px; }
-/* Riding in a line of prose is all this adds to the chip above. */
-.tag { vertical-align: middle; }
+/* Riding in a line is all this adds to the chip above: in the middle of a line of prose,
+ * and of a row a page lays out as flex or grid, at its own height. Stretched, it took
+ * the height of a link a size up beside it, its text at the top of a tall box. */
+.tag { vertical-align: middle; align-self: center; }
 /* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
    page's own prose at the page's own size, so the tint is the whole of the marking and
    this says nothing about size at all. It held 16px once, a pixel under the body around it
@@ -1638,6 +1638,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
+/* Keep a new row measurable, but unpainted until layout gives it a posture. */
+.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {

@@ -16,7 +16,7 @@ normal handoff, while retaining an explicit command for recovery and diagnostics
 Check the claim path and task-wide lease handling before making startup
 automatic. The terminal remains the interactive client for approvals and input.
 
-## Expose typed Leaf operations
+## Typed operations
 
 Provide model tools for reading page state, replying, declaring work, and
 validating authored changes. MCP tools or App Server dynamic tools could call the
@@ -27,14 +27,14 @@ First test a complete feedback turn with the smallest useful tool set. Compare
 it with the CLI path for target-selection errors and unnecessary model work.
 The model still decides whether feedback calls for a reply, a revision, or both.
 
-## Decide how additional input joins a running turn
+## Delivery-start race
 
-Leaf currently gives each delivery slice its own turn. Before adding steering,
+Leaf starts a delivery turn after checking that the task is idle. Before adding steering,
 define what a user should see when their message joins a turn already answering
 other input: which message the final answer settles, where that answer appears,
 and what remains outstanding if the turn fails.
 
-There is also a start race to resolve. `codex_adapter.start_delivery_turn` checks
+The start race is unconfirmed. `codex_adapter.start_delivery_turn` checks
 that the task is idle before starting, but another client can start a turn between
 those requests. Test that race and interruption/reconnect behavior against the
 installed App Server before changing delivery policy. Generate its current schema

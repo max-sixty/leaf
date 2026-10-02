@@ -1,6 +1,5 @@
-"""The faults the browser fixture's watches report that tests' pages still make, each a
-defect waiting on its fix (`render_harness.clean_browser`): shifts without input
-(`shift_watch.js`) and typed words lost without a key or press (`words_watch.js`).
+"""Layout shifts the browser fixture reports that tests' pages still make, each a
+defect waiting on its fix (`render_harness.clean_browser`, `shift_watch.js`).
 
 `KNOWN_UNASKED` names each test by file and function, whatever its parameters, with a
 pattern for the region its known shift moves. A report from that test that names a node
@@ -19,15 +18,10 @@ KNOWN_UNASKED = {
         "test_a_repaint_unsettles_the_rendering_until_it_lands": r"lf-shortcut",
     },
     "test_render_read_state.py": {
-        # The margin marker an arriving thread or a reopening brings, which the margin
-        # projection inserts unplaced and the layout places a frame later. On Linux's
-        # headless shell the unplaced row stands at the window's origin, and its move
-        # into the rail reads as a shift. In the second, also the shortcut line's More as
-        # its hints change, where the test focuses the notice by script after a reading
-        # landed.
-        "test_a_reopening_in_a_page_seat_waits_where_reopen_stood": r"lf-margin-",
+        # The shortcut line's More as its hints change, where the test focuses the
+        # notice by script after a reading landed.
         "test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_follow": (
-            r"lf-margin-|lf-shortcut"
+            r"lf-shortcut"
         ),
     },
     "test_render_application_boundary.py": {
@@ -67,6 +61,11 @@ KNOWN_UNASKED = {
             r"lf-margin-cluster"
         ),
     },
+    "test_render_send_placement.py": {
+        # The shortcut line's More as its hints change when the answer to the send lands,
+        # where load puts that answer past the press's own frames.
+        "test_where_a_comment_stands_before_and_after_send": r"lf-shortcut",
+    },
     "test_website_server.py": {
         # The panel's later cards rising, and what they hold coming into view, as a card
         # whose thread news resolved folds away under the Open filter: the user's next
@@ -79,44 +78,25 @@ KNOWN_UNASKED = {
 }
 
 
-# Typed words a page still takes off the screen without the user putting them away, by
-# test, with a pattern for the words. A thread another actor settles takes its reply box,
-# words and all, though the draft is kept: the box should stay with the words in it until
-# the user sends or discards them.
-KNOWN_LOSSES = {
-    "test_render_pages.py": {
-        "test_a_failed_resolution_restores_a_focused_inline_reply": (
-            r"keep this inline reply"
-        ),
-    },
-    "test_render_threads.py": {
-        "test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it": (
-            r"Half a thought"
-        ),
-        "test_an_external_resolution_leaves_the_user_on_the_thread_list": (
-            r"This draft survives the other actor settling its thread"
-        ),
-    },
-}
-
-
 def watches_shifts(test):
     """Whether a pytest node `test`'s pages watch for shifts at all.
 
-    The nightly-marked tests do not yet: their pages make hundreds of shifts, most of
-    them widgets that upgrade after the authored document has painted and move what
-    follows them after presentation, and a nightly run on Linux finds more than a run
-    here does. They watch again, with the entries a fresh survey finds, once that
-    upgrade is fixed."""
-    return test.get_closest_marker("nightly") is None
+    Ordinary tests watch by default. A surveyed nightly test opts in with
+    `watch_shifts`, independently of when it runs. The remaining nightly tests await
+    a fresh survey after the widget prepaint fixes; the earlier survey found hundreds
+    of shifts and more failures on Linux than on macOS. This selection does not lift
+    the watcher's separate first-presentation exemption (`shift_watch.js`)."""
+    return (
+        test.get_closest_marker("nightly") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
 
 
 def known(test, problem):
-    """Whether a browser `problem` from a pytest node `test` is its known shift or loss."""
+    """Whether a browser `problem` from a pytest node `test` is its known shift."""
     region = KNOWN_UNASKED.get(test.path.name, {}).get(test.originalname)
     moved, unasked, _ = problem.partition(" moved without input")
-    if region and unasked and re.search(region, moved):
-        return True
-    words = KNOWN_LOSSES.get(test.path.name, {}).get(test.originalname)
-    _, lost, what = problem.partition("typed words left the screen")
-    return bool(words and lost and re.search(words, what))
+    # Chrome can report a card and its children as separate sources of one layout
+    # shift. The child report still names the card among that frame's sources.
+    frame = problem.partition("; the same frame moved ")[2]
+    return bool(region and unasked and re.search(region, f"{moved}, {frame}"))

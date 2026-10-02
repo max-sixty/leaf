@@ -13,9 +13,9 @@ which the worker guide's commands use:
 - `TASK`: its `lf-task` id
 
 Add the required outcome and constraints, and the instruction to read
-`"$LEAF" page guidance "$PAGE" worker` before its first Leaf command.
+`"$LEAF" page instructions "$PAGE" worker` before its first Leaf command.
 
-Workers write only the reports and routed replies their guidance gives them; the
+Workers write only the reports and routed replies their instructions give them; the
 rest of the page stays with you, as `references/conversation-loop.md`, "Long-running
 work", describes. That includes recording `done` after accepting or landing the work.
 

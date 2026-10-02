@@ -1,18 +1,17 @@
 """Assemble browser state from requested documents and the standing log."""
 
-from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
 from ..document_reading import DocumentReading
 from ..events import UndoReading, build_threads, taken_back
-from ..files import list_revisions, stamped_version
-from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
+from ..files import stamped_version
+from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..revision_artifact import read_revision
 from ..workflows import canonical_workflows
+from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
 
@@ -285,52 +284,32 @@ def browser_state(
 
 
 def project_browser_state(
-    page_dir: Path,
-    events: list,
-    view_revision: int | None,
-    active: dict | None,
-    present: dict,
-    now: str,
+    context: PageRead,
+    view_revision: int | None = None,
     *,
-    readings_override: dict[int, SourceReading] | None = None,
     include_active_view: bool = True,
-    live_stream: dict | None = None,
 ) -> tuple[dict, BrowserReading] | None:
     """Project only the documents one browser reading can consume.
 
-    A normal state needs the revision the tab is showing and the active revision it
-    may activate next. Older comparison bases are projected on demand at the tab's
-    exact log boundary, rather than making every state poll parse every immutable
-    revision the page has ever had.
+    A normal state needs the shown and active revisions. Comparison bases and
+    historical gesture words use the same context at the requested log boundary.
     """
+    active = context.active
     if active is None:
         return None
     active_revision = active["revision"]
     requested_revision = view_revision or active_revision
-    revisions = (
-        set(readings_override)
-        if readings_override is not None
-        else set(list_revisions(page_dir))
-    )
-    if requested_revision not in revisions:
+    if requested_revision not in context.revisions:
         raise ValueError(f"unknown view revision r{requested_revision}")
     wanted = {requested_revision, active_revision}
-    readings = {
-        revision: (
-            readings_override[revision]
-            if readings_override is not None
-            else read_revision(page_dir, revision)
-        )
-        for revision in sorted(wanted)
-    }
     return browser_state(
-        readings,
-        events,
+        {revision: context.revision(revision) for revision in sorted(wanted)},
+        context.events,
         active_revision,
-        present,
+        context.presence,
         active,
         wanted if include_active_view else {requested_revision},
-        now,
-        live_stream,
-        revisions_on_disk(page_dir),
+        context.now,
+        context.live_stream,
+        context.revision,
     )

@@ -16,9 +16,9 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
-    GUIDANCE_DIR,
-    GUIDANCE_FILE,
     HTML_NAME,
+    INSTRUCTIONS_DIR,
+    INSTRUCTIONS_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
@@ -105,11 +105,11 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
                 continue
             if not directory.is_dir():
                 sys.exit(f"{directory} must be a directory")
-            if sub == GUIDANCE_DIR:
+            if sub == INSTRUCTIONS_DIR:
                 for path in directory.iterdir():
                     if not path.is_file():
                         sys.exit(f"{path} must be a file")
-                    if not GUIDANCE_FILE.fullmatch(path.name):
+                    if not INSTRUCTIONS_FILE.fullmatch(path.name):
                         sys.exit(f"{path} must be named <audience>.md")
                 continue
             for path in directory.rglob("*"):
@@ -138,7 +138,9 @@ def input_paths(inputs: list[Path]) -> list[Path]:
             paths.append(directory.resolve())
             if directory.is_dir():
                 entries = (
-                    directory.iterdir() if sub == GUIDANCE_DIR else directory.rglob("*")
+                    directory.iterdir()
+                    if sub == INSTRUCTIONS_DIR
+                    else directory.rglob("*")
                 )
                 paths.extend(path.resolve() for path in entries)
     return paths
@@ -264,8 +266,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     }
 
 
-def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
-    """Package guidance joined by audience in layer precedence order.
+def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
+    """Package instructions joined by audience in layer precedence order.
 
     Each package's passage opens under a heading naming its package, so a guide
     file starts with its first rule rather than a title of its own, and one
@@ -273,19 +275,19 @@ def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
     """
     parts: dict[str, list[str]] = {}
     for root in inputs:
-        directory = root / GUIDANCE_DIR
+        directory = root / INSTRUCTIONS_DIR
         if not directory.is_dir():
             continue
         for path in sorted(directory.iterdir()):
             if not path.is_file():
                 continue
             try:
-                guidance = path.read_text(encoding="utf-8")
+                instructions = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 sys.exit(f"{path} must be UTF-8")
-            if guidance.strip():
+            if instructions.strip():
                 parts.setdefault(path.name, []).append(
-                    f"# Package `{root.name}`\n\n{guidance.strip()}\n"
+                    f"# Package `{root.name}`\n\n{instructions.strip()}\n"
                 )
     return {name: "\n".join(passages).encode() for name, passages in parts.items()}
 
@@ -523,5 +525,5 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
             "the incoming runtime/layer-client.js must contain exactly one "
             "layer-generation placeholder"
         )
-    directory_files[GUIDANCE_DIR] = composed_guidance(roots)
+    directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
     return LayerComposition(incoming, top_files, directory_files)

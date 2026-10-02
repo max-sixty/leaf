@@ -27,6 +27,16 @@ export const targetSegments = (resolved) =>
 
 export const targetPlace = (resolved) => resolved?.place ?? null;
 
+// The box a passage's words take, from its first segment's start to its last's end.
+export function passageBox(resolved) {
+  const segments = targetSegments(resolved);
+  if (!segments.length) return null;
+  const range = document.createRange();
+  range.setStart(segments[0].node, segments[0].start);
+  range.setEnd(segments.at(-1).node, segments.at(-1).end);
+  return range.getBoundingClientRect();
+}
+
 export const targetSurface = (resolved) =>
   resolved?.kind === "element" ? resolved.surface : null;
 

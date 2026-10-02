@@ -6,7 +6,7 @@ from itertools import pairwise
 
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1205,10 +1205,11 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     browser, serve
 ):
     """One widget owns distinct render and preparation regions across its lifetime."""
+    # The owner is removed and reattached by script below. Keep it after the page's
+    # content so that neither operation moves text the reader did not ask to move.
     source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
+        "</main>",
+        '<lf-local id="page-local" choice="idle"></lf-local></main>',
     )
     page = open_page(
         browser,
@@ -1358,6 +1359,10 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     # A removed owner retires both regions. Reconnecting the same instance reattaches
     # its still-pending preparation at the same semantic epoch, so an already resolved
     # readiness call cannot be reused as proof for the replacement renderer.
+    # Leave the widget by a real gesture before probing its lifetime: removing a
+    # focused control would also change shortcut context without user input.
+    page.locator("#live-title").click()
+    rendered(page)
     page.evaluate(
         """() => {
           window.pageLocal = document.querySelector('#page-local');
@@ -2042,10 +2047,9 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     with sending(page, "a package resolution"):
         actions.get_by_role("button", name="Resolve").click()
     expect(actions).to_have_attribute("data-resolved", "true")
-    actions.get_by_role("button", name="Reply").click()
-    expect(actions).to_have_attribute("data-accepted", "false")
-    with sending(page, "a package reopen"):
-        actions.get_by_role("button", name="Reopen").click()
+    with sending(page, "a package reply that reopens the thread"):
+        actions.get_by_role("button", name="Reply").click()
+    expect(actions).to_have_attribute("data-accepted", "true")
     expect(actions).to_have_attribute("data-resolved", "false")
 
     with sending(page, "a package reaction"):
@@ -2070,4 +2074,4 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("author") == "user" and event["kind"] != "comment"
-    ] == ["reply", "resolve", "unresolve", "reply", "undo"]
+    ] == ["reply", "resolve", "reply", "reply", "undo"]

@@ -10,10 +10,10 @@ from interact_support import (
 )
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -2626,7 +2626,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
         edge_control = page.locator(edge_selector)
         edge_control.evaluate("edge => edge.blur()")
-        for _ in range(80):
+        # Every thread title Tab reaches opens its thread, so the walk crosses each
+        # thread's own controls on the way to the grip.
+        for _ in range(400):
             page.keyboard.press("Tab")
             if edge_control.evaluate("edge => document.activeElement === edge"):
                 break
@@ -3286,12 +3288,12 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
     told(page)
@@ -3301,9 +3303,9 @@ def test_a_panel_row_follows_its_pages_status_live(
     # user reading both surfaces has to work out whether they mean the same thing.
     # Its own watcher has to be live for that, which is what the neighbour's held lease
     # proves — judged from the same evidence its banner judges itself on.
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": events_model.now_iso()},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     with live_watcher(other_dir, page):
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
@@ -3315,12 +3317,12 @@ def test_a_panel_row_follows_its_pages_status_live(
         # winning where two overlap: a title on the line would answer the hover most
         # likely to be asking for the rest, a user pointing at the words that ran out
         # of room, with the one part of the account they can already read.
-        files_model.write_json(
+        cleanup_model.write_json(
             other_dir / "status.json",
             {
                 "state": "waiting",
                 "detail": "pick a storage engine",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
             },
         )
         told(page)
@@ -3426,17 +3428,17 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     held = page.evaluate(
@@ -3505,9 +3507,9 @@ def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(0)
@@ -3549,9 +3551,9 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(2)
@@ -3667,9 +3669,9 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     page.wait_for_function(
@@ -4136,10 +4138,8 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
     reading_place()
 
-    # The card releases to whole-panel selection, and the press after that closes the
-    # sheet.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # A panel thread has no release of its own: Escape from it is the panel's, and with
+    # nothing narrowed that closes the sheet.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
@@ -4783,13 +4783,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `g T` lands the user; `c` there
-    # enters its page comment box.
+    # The panel, and then the thread its list shows open — which is where `g T` lands
+    # the user; `c` there enters that thread's reply box. The page comment box below the
+    # list is the panel's other box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    sweep("standing on the comment list")
+    shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    expect(shown.locator(":scope > .lf-thread-summary")).to_be_focused()
+    sweep("standing on the open thread")
     page.keyboard.press("c")
+    expect(shown.locator("leaf-text")).to_be_focused()
+    sweep("standing in a reply box")
+    page.locator(".lf-general leaf-text").focus()
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     sweep("standing in the general box")
     page.keyboard.press("Escape")
@@ -5776,6 +5781,7 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
+            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
@@ -5810,7 +5816,13 @@ RING_CASES = (
         (),
         {"pr-walkthrough": (("leaf-text.lf-fab-input", "inline-response"),)},
     ),
-    ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    # The list holds focus itself only while it shows no thread, so the sample finds
+    # nothing and backs out of the find box onto the emptied list.
+    (
+        "the thread list",
+        ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
+        {"corpus": ((None, "thread-list"),)},
+    ),
     (
         "a thread title",
         (),
@@ -6164,8 +6176,10 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     # The thread list's ring is a later-painted pseudo-element because its scrolling
     # contents can cover an outline on the list itself. Prove that paint is part of the
     # reading, then take it away without moving focus and require the list to be reported.
-    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
-    page.evaluate("() => document.activeElement?.blur()")
+    # The list keeps focus itself only while it shows no thread, so this half stands on
+    # a page with none.
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(RING_FOCUS_START)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -6277,6 +6291,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        if name == "wt-merge":
+            # Its pane body earns a keyboard stop only while it has content to scroll.
+            resized(page, 1200, 700)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(

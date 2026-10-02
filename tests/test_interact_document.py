@@ -60,10 +60,12 @@ from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
+from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source import check_source
@@ -711,7 +713,9 @@ def folded(page_dir, board="b1"):
     """Each column of `board` in the order the page draws it: the position fold over
     the revision `page state` activates."""
     revision = state_json(page_dir)["active"]["revision"]
-    _, reading, _ = read_served_page(page_dir, events_model.read_events(page_dir))
+    _, reading, _ = read_served_page(
+        read_page(page_dir, events_model.read_events(page_dir))
+    )
     document = reading.documents[revision]
     registry = require_registry(page_dir)
     return projection_model.folded_positions(
@@ -4489,10 +4493,10 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None
     source.write_text(draft)
-    documents = data_contracts_model.page_data_documents(
-        page_dir, events_model.read_events(page_dir)
+    documents = data_contracts_model.page_data_document_readings(
+        page_dir, events_model.read_events(page_dir), registry
     )
-    immutable, errors = data_contracts_model.merge_data_bindings(documents, registry)
+    immutable, errors = data_contracts_model.merge_data_document_readings(documents)
     assert errors == [] and "project-feed" not in immutable
     events_model.append_event(
         page_dir,
@@ -4740,7 +4744,7 @@ def test_a_reader_that_closes_the_pipe_ends_page_events_quietly(page_dir):
     0 and prints nothing past what the reader took. The log outgrows a pipe's buffer,
     or the write that finds the reader gone never happens."""
     record = {"kind": "comment", "author": "user", "text": "x" * 200}
-    (page_dir / schema_model.EVENTS_FILE).write_text(
+    (page_dir / cleanup_model.EVENTS_FILE).write_text(
         "".join(json.dumps({**record, "id": f"e{n}"}) + "\n" for n in range(2000))
     )
     for follow in ([], ["--follow"]):
@@ -5513,10 +5517,10 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
         return native(*args, **kwargs)
 
     monkeypatch.setattr(passages_model, "page_passages", counted)
-    read_served_page(page_dir, events_model.read_events(page_dir))
+    read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
     assert walks
     walks.clear()
-    read_served_page(page_dir, events_model.read_events(page_dir))
+    read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
     assert walks == []
 
 

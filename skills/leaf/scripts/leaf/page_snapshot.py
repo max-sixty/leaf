@@ -6,8 +6,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .data import browser_data_from, read_data
-from .event_log import now_iso
+from .data import read_data
 from .files import (
     list_revisions,
     revision_label,
@@ -24,8 +23,10 @@ from .revision_artifact import (
     read_artifact,
     read_revision,
 )
+from .served_state.context import PageRead
 from .served_state.reading import join_reading
 from .service import PageTransaction
+from .session_cleanup import now_iso
 from .structure import SourceDocument
 
 
@@ -37,23 +38,10 @@ class PageSnapshot:
     document and registry in hand, so a later request reads nothing from the page
     directory for them."""
 
-    document: SourceDocument
-    active: dict
-    events: tuple[dict, ...]
-    registry: dict
-    layer: dict
-    data: dict
-    browser_data: dict
-    versions: tuple[dict, ...]
+    context: PageRead
     artifacts: dict[int, RevisionArtifact]
-    # Each revision's document under the registry its artifact captured.
-    readings: dict[int, SourceReading]
     revision_names: dict[int, str]
-    presence: dict
-    live_stream: dict | None
     others: tuple[dict, ...]
-    now: str
-    taken: float
     reading: str
 
 
@@ -125,7 +113,6 @@ def capture_page_snapshot(
         # revision's.
         snapshot_active["executable"] = artifacts[active["revision"]].executable
         taken = time.time()
-    browser_data = browser_data_from(data, registry)
     files_reading = hashlib.sha256(
         repr(
             (
@@ -139,21 +126,22 @@ def capture_page_snapshot(
     ).hexdigest()[:16]
     reading = join_reading(files_reading, presence_fingerprint(present, list(others)))
     return PageSnapshot(
-        document=document,
-        active=snapshot_active,
-        events=events,
-        registry=registry,
-        layer=layer,
-        data=data,
-        browser_data=browser_data,
-        versions=versions,
+        context=PageRead(
+            active=snapshot_active,
+            events=list(events),
+            revisions=frozenset(readings),
+            revision=readings.__getitem__,
+            registry=registry,
+            layer=layer,
+            stored_data=lambda: data,
+            versions=versions,
+            presence=copy.deepcopy(present),
+            live_stream=copy.deepcopy(live_stream),
+            now=observed_at,
+            taken=taken,
+        ),
         artifacts=artifacts,
-        readings=readings,
         revision_names=revision_names,
-        presence=copy.deepcopy(present),
-        live_stream=copy.deepcopy(live_stream),
         others=others,
-        now=observed_at,
-        taken=taken,
         reading=reading,
     )

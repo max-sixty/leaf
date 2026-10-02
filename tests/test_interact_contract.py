@@ -63,6 +63,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import data as data_model
+from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -1996,8 +1997,8 @@ def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
             "must be a canonical data source string",
         ),
         (
-            lambda entry: entry.update({"x-guidance": {"author": ""}}),
-            "should be non-empty",
+            lambda entry: entry.update({"x-instructions": ""}),
+            "registry extensions are invalid",
         ),
     ],
 )
@@ -2201,11 +2202,18 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
-def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
+@pytest.mark.parametrize("change", ["schema", "records"])
+def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
+    page_dir, change
+):
     """A same-named contract cannot redirect old readers to a different field."""
     authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
+    contract = declarations["$data"]["contracts"]["local-files"]
+    if change == "records":
+        contract["records"]["deferred"] = "body"
+    else:
+        contract["schema"]["properties"]["files"]["minItems"] = 1
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
@@ -2219,6 +2227,84 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
     assert "schema or record declaration" in revendored.output
+
+
+def test_data_history_is_held_across_the_incoming_layer_interpretation(
+    page_dir, monkeypatch, tmp_path
+):
+    """Re-vendoring reads each historical artifact once, retaining the registry
+    that makes frozen markup meaningful while judging incoming bindings separately.
+    """
+    authored = _page_owned_deferred_source(page_dir)
+    declarations = json.loads(authored.read_text())
+    inputs = declarations["lf-local-data"]["x-data"]
+    inputs["renamed"] = inputs.pop("document")
+    authored.write_text(json.dumps(declarations))
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace("</main>", "<p>Next version.</p></main>")
+    )
+    activation = revisioning_model.activate_source(page_dir)
+    assert activation.error is None and activation.created
+    registry = registry_storage.require_registry(page_dir)
+    events = [
+        {
+            "id": "frozen-feed",
+            "revision": 1,
+            "markup": '<lf-local-data id="reply-data" source="reply-feed"></lf-local-data>',
+        }
+    ]
+    reads = []
+    read_revision = data_contracts_model.read_revision
+
+    def capture_revision(directory, revision):
+        reads.append(revision)
+        return read_revision(directory, revision)
+
+    monkeypatch.setattr(data_contracts_model, "read_revision", capture_revision)
+    vendoring_model._refuse_data_contract_drift(page_dir, events, registry)
+    assert reads == files_model.list_revisions(page_dir)
+
+    inventory = data_contracts_model.page_data_binding_inventory(
+        page_dir, registry, events
+    )
+    assert inventory["reply-feed"]["consumers"] == [
+        {
+            "widget": "reply-data",
+            "input": "document",
+            "document": "event 'frozen-feed' markup",
+        }
+    ]
+
+    # Seeded markup on an unstamped page uses its initial registry.
+    bootstrap = data_contracts_model.page_data_binding_inventory(
+        tmp_path / "bootstrap", registry, [{**events[0], "revision": None}]
+    )
+    assert bootstrap == {
+        "reply-feed": {
+            "contract": "local-files",
+            "consumers": [
+                {
+                    "widget": "reply-data",
+                    "input": "renamed",
+                    "document": "event 'frozen-feed' markup",
+                }
+            ],
+        }
+    }
+
+    incoming = deepcopy(registry)
+    incoming["lf-local-data"]["x-data"] = {}
+    reads.clear()
+    with pytest.raises(SystemExit) as refused:
+        vendoring_model._refuse_data_contract_drift(page_dir, events, incoming)
+    assert reads == files_model.list_revisions(page_dir)
+    assert str(refused.value) == (
+        "this page's immutable documents do not keep one meaning for each data source:\n"
+        "  - source 'files' loses its contract 'local-files'\n"
+        "  - source 'reply-feed' loses its contract 'local-files'\n"
+        "preserve those bindings in the incoming registry before re-vendoring."
+    )
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):

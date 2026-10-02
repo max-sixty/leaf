@@ -313,7 +313,10 @@ export function createResponseSurface({
 
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    let restoreFocus;
     if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
+      // Stopping the floating position hides the bar before moveFab can hold focus.
+      restoreFocus = holdFocus(fabBar);
       stopFabPositioning({ reset: true, repositioning: true });
       fabInlineOutlet = outlet;
       fabFloating = false;
@@ -324,6 +327,7 @@ export function createResponseSurface({
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
     stoodAgain();
+    restoreFocus?.();
     return true;
   }
 

@@ -24,8 +24,6 @@ from .schema import (
     PLUGIN_ROOT,
     VENDORED_FILES,
 )
-from .styles import confined, css_syntax_errors
-from .validation.compatibility import incoming_registry
 
 
 def named_package(name: str) -> Path | None:
@@ -188,6 +186,8 @@ CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
 
 
 def _sheet(source: Path) -> str:
+    from .styles import css_syntax_errors
+
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -240,6 +240,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     declares none is a theme, and reaches the page and every tree the way the kernel's
     own sheets do.
     """
+    from .styles import confined
+
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
     theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
@@ -486,6 +488,8 @@ def provenance_label(provenance: dict) -> str:
 
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
+    from .validation.compatibility import incoming_registry
+
     incoming = incoming_registry(roots)
     directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(

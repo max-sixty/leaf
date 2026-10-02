@@ -320,6 +320,23 @@
         }
       }
     </style>
+    <script id="bg-window-history" type="application/json">
+      [
+        {
+          "id": "bg-window-question",
+          "kind": "comment",
+          "author": "user",
+          "anchor": { "section": "bg-window-sample-copy" },
+          "text": "Does Sunday keep this timetable?"
+        },
+        {
+          "kind": "reply",
+          "author": "agent",
+          "parent": "bg-window-question",
+          "text": "Yes, both weekend days use the same hourly service."
+        }
+      ]
+    </script>
     <script type="module">
       await customElements.whenDefined("lf-sample");
 
@@ -402,9 +419,8 @@
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
         button.addEventListener("click", () => selectPanelView(button.dataset.view));
       }
-      sample.addEventListener("click", (event) => {
-        if (!selected || !event.target.closest(".lf-sample-controls button")) return;
-        queueMicrotask(() => selectPanelView(selected, sample.ready));
+      sample.addEventListener("lf-sample-ready", () => {
+        if (selected) selectPanelView(selected);
       });
     </script>
   </head>
@@ -471,8 +487,8 @@
               ><span class="bg-feature-detail">: proposed text changes</span>
             </h2>
             <p id="bg-changes-guide">
-              Accept applies the proposed text; Reject keeps the original. Undo reverses
-              either decision.
+              “Accept” applies the proposed text; “Reject” keeps the original. “Undo”
+              reverses either decision.
             </p>
             <p id="bg-change-forms">
               <span id="bg-replace-line"
@@ -496,7 +512,7 @@
             </p>
             <h3>Undo a proposal while keeping its choice</h3>
             <p id="bg-nested-change-guide">
-              Pick a route inside the proposal, accept the proposal, then use its Undo
+              Pick a route inside the proposal, accept the proposal, then use its “Undo”
               control. The proposal becomes undecided again; your route remains chosen.
               Reload to check that both decisions survive.
             </p>
@@ -522,8 +538,8 @@
               ><span class="bg-feature-detail">: editable passages and history</span>
             </h2>
             <p id="bg-editing-guide">
-              Edit opens a draft. Save records the new text; Cancel closes the editor.
-              Changes lists saved versions, and Restore reapplies one.
+              “Edit” opens a draft. “Save” records the new text; “Cancel” closes the
+              editor. “Changes” lists saved versions, and “Restore” reapplies one.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -546,12 +562,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               ><span class="bg-feature-detail">: short verdicts on a passage</span>
             </h2>
             <p id="bg-reactions-guide">
-              Select words and press E, or hover an agent reply and use its corner
-              control. The picker is feedback for the agent, not chat decoration. Press
-              and hold a reaction to read its word; slide to another to read that one,
-              and let go on the one you mean, or off the picker to choose none. A saved
-              passage reaction leaves only its emoji; press it to reveal the separate
-              Remove control, then press that control to take the reaction back.
+              Select words and press <kbd>E</kbd>, or hover an agent reply and use its
+              corner control. The picker is feedback for the agent, not chat decoration.
+              Press and hold a reaction to read its word; slide to another to read that
+              one, and let go on the one you mean, or off the picker to choose none. A
+              saved passage reaction leaves only its emoji; press it to reveal the
+              separate “Remove” control, then press that control to take the reaction
+              back.
             </p>
             <p id="bg-react-ok">
               <strong>1 · 👍 · keep.</strong> The spare key is with reception.
@@ -608,8 +625,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               <p id="bg-signoff-guide">
                 This gallery deliberately leaves sample Asks unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
-                it records approval for the current version; <kbd>z</kbd>, or Undo in
-                More page controls on a touch screen, takes that approval back.
+                it records approval for the current version; <kbd>z</kbd>, or “Undo” in
+                “More page controls” on a touch screen, takes that approval back.
               </p>
             </section>
 
@@ -622,8 +639,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens a
                 comment about <code>lf-option · bg-choice-street</code> without choosing
                 the option. Press <kbd>Escape</kbd> to leave design mode. On a touch
-                screen, choose Design mode in More page controls, tap Street map, and
-                tap Exit Design mode on the banner to leave.
+                screen, choose “Design mode” in “More page controls”, tap “Street map”,
+                and tap “Exit Design mode” on the banner to leave.
               </p>
             </section>
 
@@ -641,8 +658,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 with its strokes kept, and the next stroke brings it back; a second
                 <kbd>Escape</kbd> leaves Draw mode. Press <kbd>w</kbd> again and start
                 over this guide: the stroke joins the kept drawing rather than replacing
-                it. On a touch screen, Draw mode is in More page controls, and Exit Draw
-                mode stands on the banner while the mode holds.
+                it. On a touch screen, “Draw mode” is in “More page controls”, and “Exit
+                Draw mode” stands on the banner while the mode holds.
               </p>
             </section>
 
@@ -673,7 +690,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               <p id="bg-visible-draft-guide">
                 Keep a comment open and scroll its passage out of view: the field
                 remains in the window with its words and focus. Scroll back to see it
-                reattach. On a wide window, Tab to a contents link and press
+                reattach. On a wide window, <kbd>Tab</kbd> to a contents link and press
                 <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
                 disappears; the field remains available, and widening reattaches it.
               </p>
@@ -729,14 +746,15 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </h2>
             <p id="bg-threads-guide">
               With Threads closed, a Thread control or marked passage opens the thread
-              inline; t moves to the next inline card and T to the previous one. Open
-              Threads while one is focused, including with g T, and the same thread
-              stays focused in the panel. Under View, filters narrow the list to Open,
-              On you, On agent, or Resolved, and combine Page or Anchored with Content
-              or Layer. Order switches the list from the page's order to Recent, which
-              puts the thread spoken in last first under its day. Collapsed titles
-              retain their message count, last message activity, and current status; On
-              you also names the action owed. Each thread has a short title chosen by
+              inline; <kbd>t</kbd> moves to the next inline card and <kbd>T</kbd> to the
+              previous one. Open Threads while one is focused, including with
+              <kbd>g</kbd> then <kbd>T</kbd>, and the same thread stays focused in the
+              panel. Under “View”, filters narrow the list to “Open”, “On you”, “On
+              agent”, or “Resolved”, and combine “Page” or “Anchored” with “Content” or
+              “Layer”. “Order” switches the list from the page's order to “Recent”,
+              which puts the thread spoken in last first under its day. Collapsed titles
+              retain their message count, last message activity, and current status; “On
+              you” also names the action owed. Each thread has a short title chosen by
               the agent; open one to read the full messages beneath it.
             </p>
             <p id="bg-thread-notices">
@@ -748,18 +766,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               notice.
             </p>
             <p id="bg-new-thread">
-              <strong>A clean passage.</strong> Select some of these words, or Alt-click
-              this paragraph, to start a comment. On a touch screen, select words and
-              tap Comment on selection in the banner. The field opens after the native
-              selection menu closes. To comment on the whole paragraph, open More page
-              controls, choose Select element, then tap it. Cancel selection leaves the
-              page unchanged. Type into the floating field and send it. The thread opens
-              with your words already in it, before the server has answered, and becomes
-              another Thread control at this passage. In Threads, three dots pulse in
-              its collapsed row until the agent names it. A send slow enough to notice
-              goes quiet until the log takes it. One the server refuses leaves the words
-              on this passage, where opening the composer again finds them; the general
-              box in Threads gets them back in place.
+              <strong>A clean passage.</strong> Select some of these words, or
+              <kbd>Alt</kbd>-click this paragraph, to start a comment. On a touch
+              screen, select words and tap “Comment on selection” in the banner. The
+              field opens after the native selection menu closes. To comment on the
+              whole paragraph, open “More page controls”, choose “Select element”, then
+              tap it. “Cancel selection” leaves the page unchanged. Type into the
+              floating field and send it. The thread opens with your words already in
+              it, before the server has answered, and becomes another Thread control at
+              this passage. In Threads, its collapsed row reads
+              <code>Generating title</code> until the agent names it. A send slow enough
+              to notice goes quiet until the log takes it. One the server refuses leaves
+              the words on this passage, where opening the composer again finds them;
+              the general box in Threads gets them back in place.
             </p>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
@@ -768,9 +787,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               <code>~~struck~~</code> or <code>[a link](https://leaf.page)</code>, or
               begin a line with <code>#</code> or <code>&gt;</code>: the words take
               their style and the syntax steps aside until the caret enters it, so every
-              character stays in reach. Shift+Enter starts a line and continues a list
-              or quote, and Mod+Z undoes only what you typed. The message sends exactly
-              what you typed.
+              character stays in reach. <kbd>Shift+Enter</kbd> starts a line and
+              continues a list or quote, and <kbd>Mod+Z</kbd> undoes only what you
+              typed. The message sends exactly what you typed.
             </p>
           </section>
 
@@ -795,22 +814,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                     <strong>An untitled thread.</strong> The workshop schedule leaves
                     lunch open. Open Threads to view it. The agent asked without naming
                     the thread, so its row reads the question itself. A thread you open
-                    reads Generating title, muted with a highlight sweeping through the
-                    words, while the agent works on it and until the agent gives it a
-                    short name.
+                    reads <code>Generating title</code> in muted text until the agent
+                    gives it a short name.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">
                   <p class="eyebrow">After · title assigned</p>
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
-                    one more topic. Its speech-bubble control carries a blue interior
-                    and a blue glyph, and hovering it shows On you under the label. The
-                    image question still needs an answer even though the agent added a
-                    later progress update. In Threads, On you still says to answer the
-                    question. Open the control and reply: the colour goes as the thread
-                    comes back to the agent. The same reading fills the panel’s On you
-                    filter and this target’s Page Map row.
+                    one more topic. Its speech-bubble control is green, and hovering it
+                    shows “On you” under the label. The image question still needs an
+                    answer even though the agent added a later progress update. In
+                    Threads, “On you” still says to answer the question. Open the
+                    control and reply: the control turns blue as the thread comes back
+                    to the agent. The same reading fills the panel’s “On you” filter and
+                    this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
                     <strong>Pasted images.</strong> That thread includes an image
@@ -827,7 +845,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
                 earlier question is resolved. Open Threads in the banner, select
-                Resolved, and try Reopen to bring its Thread control back to the page.
+                “Resolved”, and try “Reopen” to bring its Thread control back to the
+                page.
               </p>
             </section>
             <section id="bg-thread-state-summary">
@@ -841,16 +860,16 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
-                Open Threads and use Next unread, or press u there, to reveal the
-                earliest unread reply, including one covered by a summary. A fully
-                exposed short reply leaves the count; scroll through a long reply to
-                read all of it. The blue rail marks each unread message without shifting
-                the transcript, and a collapsed summary counts its unread originals
-                until you expand them. Interactive replies clear when their visible body
-                has been shown too; replying, answering, or resolving also marks the
-                thread's current messages read. A margin control whose thread holds
-                unread replies carries the same dot as Threads. On you to answer still
-                identifies an outstanding question after it is read.
+                Open Threads and use “Next unread”, or press <kbd>u</kbd> there, to
+                reveal the earliest unread reply, including one covered by a summary. A
+                fully exposed short reply leaves the count; scroll through a long reply
+                to read all of it. The blue rail marks each unread message without
+                shifting the transcript, and a collapsed summary counts its unread
+                originals until you expand them. Interactive replies clear when their
+                visible body has been shown too; replying, answering, or resolving also
+                marks the thread's current messages read. A margin control whose thread
+                holds unread replies carries the same dot as Threads. “On you to answer”
+                still identifies an outstanding question after it is read.
               </p>
             </section>
           </section>
@@ -894,9 +913,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. The first item's row counts the Ask
-              inside it until you answer; narrow the window below the set's 36rem and
-              the list becomes a row above the item.
+              Walk it with the up and down arrows. Open an item to answer its Ask;
+              narrow the window below the set's 36rem and the list becomes a row above
+              the item.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -954,24 +973,26 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               entry is runtime-owned chrome whose shared code name is
               <code>lf-margin-entry</code>, rather than an authored element type. Rank
               and behavior cover every action, disclosure, status, tone, and ordering
-              rank. Message workflow follows one user move: Sent records admission,
-              Queued means a later turn will handle it, Picked up means a turn accepted
-              it, and Working or Replying reports progress on its answer. Turn ended and
-              Update stale keep uncertainty visible without claiming an interruption.
-              Pickup and work decorate the existing semantic control; a status face
-              carries the same workflow when no control survives. Face anatomy shows the
-              icon-or-glyph choice, a related-reading count, and the transient label
-              with its quieter context. User interaction compares rest, hover or
-              keyboard focus, an open disclosure, and a selected page reading. Hover and
-              Tab onto the live samples to exercise their real feedback. The projection
-              sample stands at this exhibit's margin; open Page Map to see that same
-              contributed control as a full labeled row. Reload to see the one-time
-              pulse as Working arrives. A control dims only while its user action is
-              waiting for the log to confirm it. Open a thread and shorten the window:
-              its messages scroll between the header and reply field, and the scrollbar
-              spans those messages alone. Scroll the page to give a short conversation
-              more room; the card expands once all its messages fit. The reply field
-              keeps the same inset at both sides and below it.
+              rank. Message workflow follows one user move: “Sent” records admission,
+              “Queued” means a later turn will handle it, “Picked up” means a turn
+              accepted it, and “Working” or “Replying” reports progress on its answer.
+              “Turn ended” and “Update stale” keep uncertainty visible without claiming
+              an interruption. Green marks a thread that needs an answer from you; other
+              threads stay blue. Pickup and work use status words on the existing
+              control; a status face carries the same workflow when no control survives.
+              Face anatomy shows the icon-or-glyph choice, a related-reading count, and
+              the transient label with its quieter context. User interaction compares
+              rest, hover or keyboard focus, an open disclosure, and a selected page
+              reading. Hover and <kbd>Tab</kbd> onto the live samples to exercise their
+              real feedback. The projection sample stands at this exhibit's margin; open
+              Page Map to see that same contributed control as a full labeled row.
+              Reload to see the one-time pulse as “Working” arrives. A control dims only
+              while its user action is waiting for the log to confirm it. Open a thread
+              and shorten the window: its messages scroll between the header and reply
+              field, and the scrollbar spans those messages alone. Scroll the page to
+              give a short conversation more room; the card expands once all its
+              messages fit. The reply field keeps the same inset at both sides and below
+              it.
             </p>
             <lf-margin-entry-gallery
               id="bg-margin-controls-samples"
@@ -981,12 +1002,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
             </h3>
             <p id="bg-margin-control-workflow-guide">
-              <strong>Act, fail, and settle.</strong> Accept or Reject starts as an
-              action. The content changes immediately, and Undo dims while the event
-              travels. A refused send restores the suggestion and puts Failed in words
-              beside Retry and Cancel. Success leaves the changed content and an Undo
-              control alone in the cluster. The same Agent workflow reports the decision
-              until the result settles it.
+              <strong>Act, fail, and settle.</strong> “Accept” or “Reject” starts as an
+              action. The content changes immediately, and “Undo” dims while the event
+              travels. A refused send restores the suggestion and puts “Failed” in words
+              beside “Retry” and “Cancel”. Success leaves the changed content and an
+              “Undo” control alone in the cluster. The same Agent workflow reports the
+              decision until the result settles it.
             </p>
             <p id="bg-margin-control-workflow-line">
               The practice route uses
@@ -1004,10 +1025,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >
             </p>
             <p id="bg-button-status-guide">
-              <strong>Edit and hand off.</strong> Opening the draft above replaces Edit
-              with Save and Cancel controls; Save dims while it sends. Delivery and
-              agent work share one workflow reading. Pickup decorates the draft's Edit
-              control; current work fills its interior with one arrival pulse. An
+              <strong>Edit and hand off.</strong> Opening the draft above replaces
+              “Edit” with “Save” and “Cancel” controls; “Save” dims while it sends.
+              Delivery and agent work share one workflow reading. Pickup adds its status
+              to the draft's “Edit” control; current work adds one arrival pulse. An
               uncertain or ended turn loses the active treatment. Hover for the
               control's action and current work description.
             </p>
@@ -1017,10 +1038,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 ><lf-old>courtyard</lf-old
                 ><lf-new>covered terrace</lf-new></lf-suggestion
               >
-              for the practice session. Accept and Reject act immediately; Thread and ⋯
-              disclose more; a reaction mark stands only while its reaction does.
-              Delivery statuses below report what already happened without offering
-              another press.
+              for the practice session. “Accept” and “Reject” act immediately; “Thread”
+              and “⋯” disclose more; a reaction mark stands only while its reaction
+              does. Delivery statuses below report what already happened without
+              offering another press.
             </p>
             <h3>
               <strong>Rail and pins</strong
@@ -1036,8 +1057,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               no longer holds the rail, about 960px, and every marker becomes a pin.
               Press <kbd>o</kbd> to hide what is drawn over the page, the pins and the
               passage marks; the rail stays, and nothing on the page moves. Press it
-              again to bring them back. On a touch screen, open More page controls and
-              choose Hide annotations, then Show annotations.
+              again to bring them back. On a touch screen, open “More page controls” and
+              choose “Hide annotations”, then “Show annotations”.
             </p>
             <figure id="bg-margin-layer-figure" data-width="available">
               <table id="bg-margin-layer-table">
@@ -1256,9 +1277,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   >walking skeleton</lf-gloss
                 >. Code adds line numbers and Notes, and quotes an excerpt under its
                 file's own numbers with an elided row where it skips; Tree shows file
-                structure. Use Copy code on the right of either block below, or Tab to
-                it and press Enter. The clipboard keeps the code's whitespace and leaves
-                out line numbers and Notes.
+                structure. Use “Copy code” on the right of either block below, or
+                <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
+                code's whitespace and leaves out line numbers and Notes.
               </p>
               <pre id="bg-plain-code"><code>leaf page check ./proposal
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
@@ -1423,8 +1444,8 @@ gallery/
               <p id="bg-activity-guide">
                 The feed reads this page's own log: the seeded threads, reactions, user
                 actions, and published versions. The board move near the end was taken
-                back, so its row stays struck through and marked undone. Press a thread
-                row to open its thread, or a widget row to travel to the widget.
+                back, so its row stays struck through and marked “undone”. Press a
+                thread row to open its thread, or a widget row to travel to the widget.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -1588,8 +1609,8 @@ gallery/
                 <p id="bg-live-sample-guide">
                   Enter the practice page, accept its suggestion, and add a comment. Its
                   decisions and Threads belong to that page alone. Close any open
-                  controls and press Escape to return here; Reset clears the practice
-                  page.
+                  controls and press <kbd>Escape</kbd> to return here; “Reset” clears
+                  the practice page.
                 </p>
                 <lf-sample id="bg-live-sample" label="practice release note">
                   <template id="bg-live-sample-page" data-sample>
@@ -1613,14 +1634,19 @@ gallery/
                   its bottom bar holds its shortcuts, and the frame keeps a window's
                   height however short the page is. Press its
                   <strong>Open threads</strong>
-                  button to see the Threads panel at that height.
+                  button to see its authored conversation. Add a reply, then Reset: the
+                  original conversation returns, and this gallery gets no thread.
                 </p>
                 <lf-sample
                   id="bg-window-sample"
                   label="practice release note, windowed"
                   window
                 >
-                  <template id="bg-window-sample-page" data-sample>
+                  <template
+                    id="bg-window-sample-page"
+                    data-sample
+                    data-sample-events="bg-window-history"
+                  >
                     <p class="eyebrow">practice page</p>
                     <h1>Weekend train service</h1>
                     <p id="bg-window-sample-copy">
@@ -1633,8 +1659,8 @@ gallery/
                 </lf-sample>
               </section>
               <p id="bg-shot-guide">
-                Sample labels invented content. Choose Before or After above the image,
-                or press the Shot control or image to flip. This pair carries
+                Sample labels invented content. Choose “Before” or “After” above the
+                image, or press the Shot control or image to flip. This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>
@@ -1657,7 +1683,7 @@ gallery/
               ></lf-shot>
               <p id="bg-shot-same-guide">
                 This pair is one picture twice. With or without <code>outlines</code>,
-                the rail reads identical.
+                the rail reads “identical”.
               </p>
               <lf-shot
                 id="bg-shot-same"
@@ -1815,8 +1841,9 @@ switch --readers checkout-api,orders-api</code></pre>
               ><span class="bg-feature-detail">: comparison evidence</span>
             </h2>
             <p id="bg-version-guide">
-              Open the versions menu and press Compare beside v1. The Change control
-              appears by the edited passage and opens its text diff inline.
+              Open the versions menu and press “Compare” beside <code>v1</code>. The
+              “Change” control appears by the edited passage and opens its text diff
+              inline.
             </p>
             <p id="bg-change">The sample walk follows the river to the footbridge.</p>
           </section>
@@ -1828,9 +1855,10 @@ switch --readers checkout-api,orders-api</code></pre>
               ><span class="bg-feature-detail">: work and workflow state</span>
             </h2>
             <p id="bg-delivery-guide">
-              Drag the card to Tried, use its grip with Enter and the arrows, or tap a
-              destination on a phone. Sent, Picked up, and Working report the agent
-              workflow. A refused send offers Retry and Cancel.
+              Drag the card to “Tried”, use its grip with <kbd>Enter</kbd> and the
+              arrows, or tap a destination on a phone. “Sent”, “Picked up”, and
+              “Working” report the agent workflow. A refused send offers “Retry” and
+              “Cancel”.
             </p>
             <p id="bg-cut-guide">
               This board carries more columns than the page has room for, so it scrolls
@@ -1901,8 +1929,8 @@ switch --readers checkout-api,orders-api</code></pre>
               Selecting a tab starts its focused sequence against Leaf’s production
               component and transition code. Each replay runs in a Leaf page inside the
               preview box, so page-wide controls keep their real margin placement while
-              the gallery stays still. Viewport compares the same page at 1×, 2×, or 4×
-              its displayed size. Pause, replay, or loop the sequence; none writes to
+              the gallery stays still. “Viewport” compares the same page at 1×, 2×, or
+              4× its displayed size. Pause, replay, or loop the sequence; none writes to
               the page’s event log.
             </p>
 
@@ -2008,11 +2036,11 @@ switch --readers checkout-api,orders-api</code></pre>
                     <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
-                    Leaf’s real response field submits with Enter, then becomes the real
-                    inline thread, whose controls grow around the words in their
-                    original place. Placement fits that frame before typing. A seeded
-                    comment lets the gallery replay that accepted-send transition
-                    without posting another one.
+                    Leaf’s real response field submits with <kbd>Enter</kbd>, then
+                    becomes the real inline thread, whose controls grow around the words
+                    in their original place. Placement fits that frame before typing.
+                    A seeded comment lets the gallery replay that accepted-send
+                    transition without posting another one.
                   </figcaption>
                 </figure>
               </lf-tab>

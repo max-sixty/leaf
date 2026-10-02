@@ -253,6 +253,82 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     ).to_have_attribute("open", "")
 
 
+def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
+    browser, serve
+):
+    """Shared authored history starts independent windows before host controls run."""
+    source = leaf_page(
+        "History study",
+        """
+        <h1>History study</h1><output id="arrivals">0</output>
+        <lf-sample id="first-history" label="first treatment" window>
+          <template id="first-history-page" data-sample data-sample-events="history">
+            <h1>Weekend service</h1><p id="timetable">Trains run hourly.</p>
+          </template>
+        </lf-sample>
+        <lf-sample id="second-history" label="second treatment" window>
+          <template id="second-history-page" data-sample data-sample-events="history">
+            <h1>Weekend service</h1><p id="timetable">Trains run hourly.</p>
+          </template>
+        </lf-sample>
+        """,
+        head="""
+        <script id="history" type="application/json">
+          [{"id":"question","kind":"comment","anchor":{"section":"timetable"},
+            "text":"Does Sunday keep this timetable?"},
+           {"kind":"reply","author":"agent","parent":"question",
+            "text":"Yes, both weekend days use the same hourly service."}]
+        </script>
+        <script type="module">
+          let arrivals = 0;
+          document.addEventListener('lf-sample-ready', event => {
+            const child = event.detail.document;
+            const row = child.querySelector('.lf-thread[data-id="question"]');
+            if (!row || !row.textContent.includes('both weekend days'))
+              throw new Error('sample announced before fixture presentation');
+            child.querySelector('.lf-threads-toggle').click();
+            document.querySelector('#arrivals').textContent = String(++arrivals);
+          });
+        </script>
+        """,
+    )
+    page = open_page(browser, serve(source))
+    expect(page.locator("#arrivals")).to_have_text("2")
+    parent_before = events_model.read_events(serve.page_dir)
+    first = page.frame_locator("#first-history iframe")
+    other = page.frame_locator("#second-history iframe")
+    expect(first.locator(".lf-thread")).to_have_count(1)
+    expect(other.locator(".lf-thread")).to_have_count(1)
+    expect(first.locator(".lf-thread-panel")).to_be_visible()
+    first.locator('.lf-thread[data-id="question"] .lf-thread-summary').click()
+    first.locator('.lf-thread[data-id="question"] .lf-resolve').click()
+    expect(first.locator('.lf-thread[data-id="question"]')).to_have_attribute(
+        "data-resolved", "true"
+    )
+    other_events = page.request.get(
+        other.locator("body").evaluate("location.href") + "api/state"
+    ).json()["events"]
+    assert [event["kind"] for event in other_events if event["kind"] != "read"] == [
+        "comment",
+        "reply",
+    ]
+    assert events_model.read_events(serve.page_dir) == parent_before
+    page.locator("#first-history").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(page.locator("#arrivals")).to_have_text("3")
+    expect(first.locator(".lf-thread-panel")).to_be_visible()
+    state = page.request.get(
+        first.locator("body").evaluate("location.href") + "api/state"
+    ).json()
+    assert [event["kind"] for event in state["events"] if event["kind"] != "read"] == [
+        "comment",
+        "reply",
+    ]
+    assert state["events"][1]["parent"] == "question"
+    assert events_model.read_events(serve.page_dir) == parent_before
+
+
 def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
     """A sample is a full page: its choices and comments reach only its own log."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
@@ -6291,6 +6367,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        if name == "wt-merge":
+            # Its pane body earns a keyboard stop only while it has content to scroll.
+            resized(page, 1200, 700)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(

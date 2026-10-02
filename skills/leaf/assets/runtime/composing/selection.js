@@ -160,7 +160,11 @@ export function createSelectionComposer({
   const closeReactions = () => setReact(false);
   const openInlineThread = (id, options) => {
     const local = focusSurface(id, { focus: "thread" });
-    return local?.closest(".lf-page-thread") ?? marginOpenInlineThread(id, options);
+    return (
+      local?.closest(".lf-page-thread") ??
+      marginOpenInlineThread(id, options)?.thread ??
+      null
+    );
   };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so

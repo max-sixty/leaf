@@ -18,26 +18,30 @@ import json
 import os
 import subprocess
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
 from leaf.delivery import take_input
-from leaf.event_log import read_events
 from leaf.host import session_harness
+from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
-from leaf.registry.storage import require_registry
+from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import served
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
+from leaf.service import PageTransaction
+from leaf.session import cmd_status
+from leaf.thread import cmd_reply
+from leaf.vendoring import cmd_init
 from PIL import Image
 from playwright.sync_api import Page
 
-from leaf_dev import ROOT
+from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import chrome, tab
 from leaf_dev.leaf_assets import publish, stage
 
-LEAF = ROOT / "bin" / "leaf"
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
 STILL_SIZE = (1280, 953)
@@ -85,20 +89,21 @@ def board_markup(board: dict[str, list[str]]) -> str:
 def folded_board(page_dir: Path) -> dict[str, list[str]]:
     """The board with the user's move folded in, as the page draws it: the order an
     agent writes into its next version."""
-    state = json.loads(run_leaf("page", "state", str(page_dir)))
-    _, reading, _ = read_served_page(read_page(page_dir, read_events(page_dir)))
-    document = reading.documents[state["active"]["revision"]]
-    registry = require_registry(page_dir)
-    order = folded_positions(
-        "punch-list",
-        "move",
-        registry["lf-board"]["x-state"]["move"]["record"],
-        document.document.by_id,
-        document.spoken,
-        registry,
-        document.projection,
-    )
-    return {column: order[column] for column, _label in COLUMNS}
+    with PageTransaction(page_dir) as page:
+        context = read_page(page_dir, page.events)
+        state, reading, _ = read_served_page(context)
+        document = reading.documents[state["active"]["revision"]]
+        registry = context.registry
+        order = folded_positions(
+            "punch-list",
+            "move",
+            registry["lf-board"]["x-state"]["move"]["record"],
+            document.document.by_id,
+            document.spoken,
+            registry,
+            document.projection,
+        )
+        return {column: order[column] for column, _label in COLUMNS}
 
 
 def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
@@ -183,19 +188,6 @@ new version as the checks finish.</p>
 """
 
 
-def run_leaf(*args: str) -> str:
-    """A leaf command's own stdout, or a failure carrying what it said."""
-    done = subprocess.run(
-        [str(LEAF), *args], text=True, capture_output=True, check=False
-    )
-    if done.returncode:
-        raise RuntimeError(
-            f"leaf {' '.join(args)} exited {done.returncode}\n"
-            f"{done.stdout}{done.stderr}".rstrip()
-        )
-    return done.stdout.strip()
-
-
 def select_text(page: Page, selector: str, text: str) -> None:
     selected = page.evaluate(
         """([selector, text]) => {
@@ -227,7 +219,7 @@ class DemoWaiter:
 
     def __init__(self, page_dir: Path) -> None:
         self.process = subprocess.Popen(
-            [str(LEAF), "wait", str(page_dir)],
+            [*LEAF_COMMAND, "wait", str(page_dir)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -252,7 +244,7 @@ class DemoWaiter:
                 f"of user events\n{stderr}".rstrip()
             )
         self.process = subprocess.Popen(
-            [str(LEAF), "wait", *([] if hooked else ["--ack", payload["id"]])],
+            [*LEAF_COMMAND, "wait", *([] if hooked else ["--ack", payload["id"]])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -307,35 +299,23 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    run_leaf(
-        "status",
-        str(page_dir),
-        "working",
-        "answering the backfill question",
-    )
+    cmd_status(page_dir, "working", "answering the backfill question")
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
     shot(900)
 
-    run_leaf(
-        "thread",
-        "reply",
-        str(page_dir),
-        "--for",
-        comment_id,
-        "--text",
+    cmd_reply(
+        page_dir,
+        None,
         "Yes. The fixed rate limit keeps the backfill online.",
+        None,
+        for_event=comment_id,
+        validate_source=True,
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
-    run_leaf(
-        "page",
-        "stamp",
-        str(page_dir),
-        "--text",
-        "Backfill stays online; rehearsal progress is now 3 of 4",
-    )
-    run_leaf("status", str(page_dir), "waiting")
+    cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
+    cmd_status(page_dir, "waiting", "")
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -383,14 +363,8 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     (page_dir / "index.html").write_text(
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
-    run_leaf(
-        "page",
-        "stamp",
-        str(page_dir),
-        "--text",
-        "On-call staffing moved into During, as the board now reads",
-    )
-    run_leaf("status", str(page_dir), "waiting")
+    cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
+    cmd_status(page_dir, "waiting", "")
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
@@ -445,17 +419,12 @@ def record_demo(output: Path | None) -> None:
         # name shows only under a host session, which the recording keeps.
         os.environ["XDG_STATE_HOME"] = f"{scratch}/state"
         os.environ["LEAF_AGENT"] = "Claude"
-        run_leaf("page", "init", str(page_dir))
+        with redirect_stdout(io.StringIO()):
+            cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
-        run_leaf(
-            "page",
-            "stamp",
-            str(page_dir),
-            "--text",
-            "Migration rehearsal started; 2 of 4 checks complete",
-        )
-        run_leaf("status", str(page_dir), "waiting")
-        url = json.loads(run_leaf("server", "start", str(page_dir)))["url"]
+        cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
+        cmd_status(page_dir, "waiting", "")
+        url, _note = claim_and_start(page_dir)
         waiter = DemoWaiter(page_dir)
         try:
             with chrome() as browser, tab(browser, GIF_SIZE) as page:
@@ -465,11 +434,7 @@ def record_demo(output: Path | None) -> None:
                 shoot_stills(browser, url, page_dir, recording)
         finally:
             waiter.stop()
-            subprocess.run(
-                [str(LEAF), "server", "stop", str(page_dir)],
-                capture_output=True,
-                check=False,
-            )
+            cmd_stop(page_dir)
         files = {path.name: path.read_bytes() for path in recording.iterdir()}
     if output is not None:
         output.mkdir(parents=True, exist_ok=True)

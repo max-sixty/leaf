@@ -83,8 +83,8 @@ directory explicitly; export or copy anything that must outlive the page directo
    "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
-From the first hand-over on, every chat message repeats the page's exact URL,
-interim updates and questions included.
+From the first hand-over on, include the page's exact URL in each turn's final
+response. Intermediate progress updates do not repeat it.
 
 ## Page contract
 

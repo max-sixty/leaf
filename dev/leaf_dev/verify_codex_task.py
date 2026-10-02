@@ -67,15 +67,12 @@ from leaf_dev.harness import (
     run_leaf,
 )
 from leaf_dev.preview import preview_lease
+from leaf_dev.review_scenario import REQUEST, prepare
 
 # How long one step may take, and how long it has to stay settled before its
 # checks count: a second reply lands after the turn that wrote the first.
 STEP_LIMIT = 300
 QUIET = 10
-PROMPT = (
-    "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
-    "and handle the comments I leave on it."
-)
 USER_TURN = (
     "Run `sleep 20` in the shell. Then, in a separate tool call, run "
     "`printf 'verified\\n'`. Then reply with the single word done."
@@ -353,7 +350,7 @@ def journey(
         )
     else:
         task.say(
-            f"{PROMPT} This isolated test has a dedicated Codex executable. "
+            f"{REQUEST} This isolated test has a dedicated Codex executable. "
             f"Connect the page with `{isolated_adapter}`."
         )
     task.settle(
@@ -548,18 +545,7 @@ def verify_transport(codex: str, transport: str, *, preview: bool = False) -> No
         if preview:
             shutil.copy(ROOT / "examples" / "triage-board.html", work / "source.html")
         else:
-            run_leaf(ROOT, state, "page", "init", str(page), check=True)
-            shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-            run_leaf(
-                ROOT,
-                state,
-                "page",
-                "stamp",
-                str(page),
-                "--text",
-                "Release triage for review.",
-                check=True,
-            )
+            prepare(ROOT, state, page)
         with private_app_server(executable) as endpoint:
             task = Task(endpoint)
             try:

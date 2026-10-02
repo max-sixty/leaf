@@ -5577,7 +5577,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator("leaf-text")).to_be_visible()
     # The root message's own workflow line, which each surface holds beside its head.
     inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
-    panel_status = panel_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    panel_status = panel_thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+    )
     expect(inline_status).to_have_text("Sent")
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")

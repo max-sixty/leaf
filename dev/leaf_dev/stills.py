@@ -99,6 +99,18 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def panel_by_keyboard(page: Page) -> None:
+    """The Threads panel with keyboard focus on its current title."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-thread-panel')?.checkVisibility()"
+    )
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-thread-summary')"
+    )
+
+
 def panel_reply_sent(page: Page) -> None:
     """A reply sent from the Threads panel's open thread, its stage on the message
     and the thread's attention on the other rows."""
@@ -192,6 +204,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_sent,
         card_reply_large,
         threads_panel,
+        panel_by_keyboard,
         panel_reply_sent,
         composer,
         card_grabbed,
@@ -231,6 +244,10 @@ STATES = (
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
+    State(
+        "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
+    ),
+    State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),

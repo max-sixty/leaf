@@ -1212,7 +1212,8 @@ examples of the widgets the package's own `registry.json` declares, in the brows
 `page check --render` uses, and prints one line per finding: the widget, the check,
 and what the check measured. A finding is advice for the widget's author: it refuses
 nothing, and the exit status ignores it. The command fails only where the package
-check does, no browser launches, or the examples cannot be drawn. Examples share a
+check does or the examples cannot be drawn; where no browser launches, it says the
+examples were not drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
 and a blank image stands in for any media an example names. The checks:
 

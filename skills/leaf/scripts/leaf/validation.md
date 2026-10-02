@@ -54,10 +54,11 @@ module can read. Message markup that places a data or page widget is run the sam
 as a page of its own, before the thread command that carries it takes the log: the log
 freezes it, and a chart in a shut thread has no room to draw in any later run. A run
 serves the page's log, so what earlier messages place runs in it too; the post-time run
-is what keeps those clean. Where the host has no browser, both runs are skipped with
-a note rather than refused: the page posts the same `error` events whenever a browser
-draws it, so a browserless host such as leaf.page's container loses the early reading,
-not the report. `--render`, which the author asks for, fails there instead.
+is what keeps those clean. Leaf runs without a browser, so where the host has none,
+every browser gate (these runs, `--render`, and `package check --render`) is skipped
+with a note and leaves the status alone: the page posts the same `error` events
+whenever a browser draws it, so a browserless host such as leaf.page's container loses
+the early reading, not the report.
 `render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,

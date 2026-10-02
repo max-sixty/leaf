@@ -331,7 +331,8 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         check=False,
         env=named,
     )
-    assert checked.returncode == 1, checked.stdout + checked.stderr
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+    assert "· render check: not run, no browser launched: " in checked.stderr
     assert (
         "LEAF_BROWSER_EXECUTABLE" in checked.stderr and str(missing) in checked.stderr
     )
@@ -345,7 +346,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
             check=False,
             env=unnamed_browser() | {variable: str(missing)},
         )
-        assert answered.returncode == 1, answered.stdout + answered.stderr
+        assert answered.returncode == 0, answered.stdout + answered.stderr
         assert variable in answered.stderr and str(missing) in answered.stderr
         assert "LEAF_BROWSER_EXECUTABLE" not in answered.stderr
 
@@ -382,7 +383,10 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
     missing = tmp_path / "no-node-here"
 
     def answered(result, node, reason):
-        assert result.returncode == 1, result.stdout + result.stderr
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "· render check: not run, Playwright's driver did not start: " in (
+            result.stderr
+        )
         assert browser_model.DRIVER_VARIABLE in result.stderr
         assert str(node) in result.stderr
         assert reason in result.stderr

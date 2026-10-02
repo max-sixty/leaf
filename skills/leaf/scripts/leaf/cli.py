@@ -281,6 +281,7 @@ def check(dir: str, render: bool) -> None:
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+    A host with no browser gets a note in place of each browser check.
     """
     from leaf.validation.command import cmd_check
 

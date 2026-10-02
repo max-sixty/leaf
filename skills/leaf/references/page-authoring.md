@@ -660,7 +660,6 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
-run `leaf page check <page>` for the markup and report the render check as
-unfinished; for a page with code of its own, that check needs the browser too, so
-report the run of its code as unfinished as well. A text reading does not establish
+it says so and goes on: report the render check as unfinished, and, where it also
+says the page's code was not run, that run as well. A text reading does not establish
 layout or interaction quality.

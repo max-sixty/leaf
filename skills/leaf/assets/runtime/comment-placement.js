@@ -184,8 +184,8 @@ export const cardMeasure = () => rootLength("--thread-card");
    offset; `hold` supplied to `options` names only a block edge.
 
    `fit({ side, width, scale })` sizes the surface for the room its side gives, in its
-   positioning space. Floating UI shifts the frame before that room is measured; its
-   declared minimum is limited only by the boundary, never by its passage's column.
+   positioning space. Its declared minimum is limited only by the boundary, never by
+   its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it; a landed adjustment then keeps that start as typing widens the field. */
 export function commentPlacement() {
@@ -393,6 +393,28 @@ export function commentPlacement() {
           };
         }),
         holding,
+        ui.size({
+          ...overflow,
+          apply(state) {
+            const { scale } = measure(state);
+            const lane =
+              carriedInline !== null
+                ? boundary.right - clear.left - carriedInline
+                : across
+                  ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
+                  : side === "right"
+                    ? boundary.right - box.right - COMMENT_GAP
+                    : clear.left - boundary.left - COMMENT_GAP;
+            fit({
+              side,
+              width: Math.max(
+                Math.min(minimum.width, boundary.width) / scale.x,
+                Math.min(state.availableWidth, lane / scale.x),
+              ),
+              scale,
+            });
+          },
+        }),
         ui.shift({
           ...overflow,
           mainAxis: true,
@@ -419,28 +441,6 @@ export function commentPlacement() {
               heldIn = Math.abs(limited.y - state.y) < 0.5;
               return limited;
             },
-          },
-        }),
-        ui.size({
-          ...overflow,
-          apply(state) {
-            const { scale } = measure(state);
-            const lane =
-              carriedInline !== null
-                ? boundary.right - clear.left - carriedInline
-                : across
-                  ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
-                  : side === "right"
-                    ? boundary.right - box.right - COMMENT_GAP
-                    : clear.left - boundary.left - COMMENT_GAP;
-            fit({
-              side,
-              width: Math.max(
-                Math.min(minimum.width, boundary.width) / scale.x,
-                Math.min(state.availableWidth, lane / scale.x),
-              ),
-              scale,
-            });
           },
         }),
       ].filter(Boolean);

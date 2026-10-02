@@ -126,7 +126,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
         )
         field = page.locator(".lf-fab-input")
         expect(field).to_be_visible()
-        field.click()
+        focus_field(page, field)
         page.keyboard.insert_text("Keep this check beside the changed line.")
         page.keyboard.press("Enter")
         thread = page.locator("#journey-patch .lf-page-thread")
@@ -143,6 +143,12 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
     raise ValueError(f"unknown message surface: {surface}")
 
 
+def focus_field(page: Page, field: Locator) -> None:
+    """Focus through the real gesture, then park the pointer for keyboard editing."""
+    field.click()
+    page.mouse.move(0, 0)
+
+
 def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     """Draft → pending → refused → pending → accepted, with the POST ordered.
 
@@ -155,7 +161,12 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     intent = shown.intent()
     expect(field).to_be_visible()
     before = messages.count()
-    field.click()
+    rendered(page)
+    wait_for_probe(page, "pageSettled")
+    # Seeded agent news is initial feedback, not part of this send journey. Let
+    # its actual notice expire before drafting rather than racing its timer.
+    expect(page.locator(".lf-notice")).to_be_hidden(timeout=6_000)
+    focus_field(page, field)
     page.keyboard.insert_text(WORDS)
     observations = {}
 
@@ -213,7 +224,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
 
         def send():
             watch_message_arrival(shown.arrival_root, shown.arrival_selector)
-            field.click()
+            focus_field(page, field)
             with page.expect_request(
                 lambda request: (
                     request.url.endswith("/api/event")
@@ -259,7 +270,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             # name is adopted, so focus/caret proof covers that card's lifetime.
             field = page.locator(".lf-threads > .lf-thread").last.locator("leaf-text")
             expect(field).to_be_visible()
-        field.click()
+        focus_field(page, field)
         page.keyboard.insert_text(NEXT_WORDS)
         page.keyboard.press("ArrowLeft")
         page.keyboard.press("ArrowLeft")

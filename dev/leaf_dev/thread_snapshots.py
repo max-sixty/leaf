@@ -17,8 +17,9 @@ while detecting the measured seventeen-level ink change. There is
 no whole-image allowance for mismatched pixels. Capture the
 thread's region and its independently compared viewport geometry, so a translated
 crop cannot hide bad placement. Refusal feedback is checked by visible words and
-captured where it stands inside the thread region. The real notice must expire
-before manual retry, so later checkpoints do not depend on capture speed. First insertion runs with normal
+captured where it stands inside the thread region. Initial seeded-agent feedback
+expires before drafting, and the real refusal notice expires before manual retry,
+so later checkpoints do not depend on capture speed. First insertion runs with normal
 motion and its own observer; stable screenshots use the dependency's animation
 settling, after that proof. They do not claim to capture the insertion instant.
 

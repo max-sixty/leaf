@@ -629,7 +629,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
-    root_meta = card.locator(":scope > .lf-thread-root-meta")
+    root_meta = card.locator(":scope > .lf-thread-content > .lf-thread-root-meta")
     expect(root_meta).to_contain_text("You")
     assert root_meta.evaluate("node => !node.closest('.lf-summary-originals')"), (
         "root metadata and thread actions entered the collapsible originals"
@@ -1297,7 +1297,10 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
         "first thread"
     )
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(pending_reply).to_be_focused()
+    expect(pending_reply).to_have_js_property(
+        "value", "Keep this draft through the refusal."
+    )
 
     expect(first_card).to_be_visible()
     focus_panel_thread(first_card)
@@ -2304,7 +2307,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             `.lf-thread[data-id="${id}"]`
           );
           window.committedMessage = committedThread.querySelector(
-            `:scope > .lf-msg[data-mid="${id}"]`
+            `.lf-msg[data-mid="${id}"]`
           );
           window.committedEditor = committedThread.querySelector(
             ':scope > .lf-compose leaf-text'
@@ -2340,7 +2343,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
           const thread = document.querySelector(`.lf-thread[data-id="${id}"]`);
           return {
             thread: thread === window.committedThread,
-            message: thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage,
+            message: thread.querySelector(`.lf-msg[data-mid="${id}"]`) === window.committedMessage,
             editor: thread.querySelector(':scope > .lf-compose leaf-text') === window.committedEditor,
             resolve: thread.querySelector(':scope .lf-thread-meta-actions > .lf-resolve') === window.committedResolve,
           };
@@ -3060,7 +3063,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     assert reading > 2000
     entries = page.evaluate("history.length")
 
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
     scroll_settled(page)
     landed = page.evaluate("document.scrollingElement.scrollTop")
@@ -3070,7 +3073,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     first = page.evaluate(
         "document.activeElement.closest('[data-thread]').dataset.thread"
     )
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     page.wait_for_function(
         "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
         " !== first",
@@ -3078,7 +3081,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     )
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
-    assert walked > landed + 1000
+    assert walked < landed - 1000
     assert page.evaluate("history.length") == entries + 1
 
     page.go_back()
@@ -3734,7 +3737,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -4428,9 +4432,11 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     )
 
 
-def test_an_external_resolution_leaves_the_user_on_the_thread_list(browser, serve):
-    """A reply box becomes inert before its externally resolved card folds away. The
-    list takes focus in that first frame instead of letting the deferred blur reach body."""
+@pytest.mark.parametrize("finish", ["send", "clear", "filter", "refused"])
+def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
+    browser, serve, finish
+):
+    """Settlement changes the thread, not the visible draft or its editing lifetime."""
     page = open_page(browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -4439,9 +4445,11 @@ def test_an_external_resolution_leaves_the_user_on_the_thread_list(browser, serv
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    focus_panel_thread(page.locator(f'.lf-thread[data-id="{root["id"]}"]'))
-    reply = page.locator(f'.lf-thread[data-id="{root["id"]}"] leaf-text')
-    write(reply, "This draft survives the other actor settling its thread.")
+    card = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    focus_panel_thread(card)
+    reply = card.locator("leaf-text")
+    words = "This draft survives the other actor settling its thread."
+    write(reply, words)
     reply.evaluate("ta => ta.setSelectionRange(8, 8)")
     expect(reply).to_be_focused()
 
@@ -4450,18 +4458,57 @@ def test_an_external_resolution_leaves_the_user_on_the_thread_list(browser, serv
         {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
     told(page)
-    going = page.locator(f'.lf-going[data-id="{root["id"]}"]')
-    expect(going).to_have_attribute("inert", "")
-    assert page.evaluate("() => window.__lfHeld.length") == 1, (
-        "the thread left without exercising the animated inert path"
-    )
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(going.locator("leaf-text")).to_have_js_property(
-        "value", "This draft survives the other actor settling its thread."
-    )
+    rendered(page)
+    expect(card).to_have_attribute("data-resolved", "true")
+    expect(card).not_to_have_attribute("inert", "")
+    expect(card).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
+    assert reply.evaluate("ta => [ta.selectionStart, ta.selectionEnd]") == [8, 8]
+    assert page.evaluate("() => window.__lfHeld.length") == 0
 
-    page.evaluate("() => window.__lfHeld.forEach((motion) => motion.finish())")
-    expect(going).to_have_count(0)
+    if finish == "clear":
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        rendered(page)
+        expect(card).to_be_hidden()
+        expect(card.locator("leaf-text")).to_have_count(0)
+        return
+    if finish == "filter":
+        find = page.get_by_role("searchbox", name="Find in threads")
+        find.click()
+        find.fill("No such discussion")
+        rendered(page)
+        expect(card).to_be_hidden()
+        return
+
+    page.keyboard.type(" still")
+    sent_words = "This dra stillft survives the other actor settling its thread."
+    expect(reply).to_have_js_property("value", sent_words)
+    if finish == "refused":
+        held = []
+        page.route("**/api/event", lambda route: held.append(route))
+        page.keyboard.press("Control+Enter")
+        holding(page, held, 1, "the refused reply")
+        expect(card).to_have_attribute("data-resolved", "false")
+        held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+        page.unroute("**/api/event")
+        round_trip(page)
+        rendered(page)
+        expect(card).to_have_attribute("data-resolved", "true")
+        expect(card).to_be_visible()
+        expect(reply).to_have_js_property("value", sent_words)
+        return
+    with sending(page, "the reply"):
+        page.keyboard.press("Control+Enter")
+    told(page)
+    expect(card).to_have_attribute("data-resolved", "false")
+    expect(card.locator(".lf-msg", has_text=sent_words)).to_be_visible()
+    expect(reply).to_have_js_property("value", "")
+    assert any(
+        event["kind"] == "reply" and event.get("text") == sent_words
+        for event in events_model.read_events(serve.page_dir)
+    )
 
 
 def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
@@ -5793,9 +5840,9 @@ THREAD_STANDING = """() => {
   const list = card.closest('.lf-threads');
   const peer = [...list.querySelectorAll(':scope > .lf-thread:not([hidden])')]
     .find(other => other !== card && !other.matches(':focus-within'));
-  const paint = getComputedStyle(card);
+  const paint = getComputedStyle(card.querySelector(".lf-thread-summary"));
   const focusPaint = getComputedStyle(active);
-  const resting = peer && getComputedStyle(peer);
+  const resting = peer && getComputedStyle(peer.querySelector(".lf-thread-summary"));
   const box = card.getBoundingClientRect();
   const viewport = list.getBoundingClientRect();
   return {
@@ -7703,8 +7750,9 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
 
 
+@pytest.mark.parametrize("resolved", [False, True])
 def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
-    browser, serve
+    browser, serve, resolved
 ):
     """A new patch takes each thread off the diff to the margin, since its anchor
     names the patch it was written on, and the reply box the user was typing in went
@@ -7718,6 +7766,13 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
     box.evaluate("box => box.setSelectionRange(4, 4)")
+    if resolved:
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+        )
+        told(page)
+        expect(box).to_be_focused()
     # Whether the page, at any task after the box leaves, holds the user nowhere: a
     # key arriving then would run as a page command.
     page.evaluate(
@@ -7745,27 +7800,78 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     expect(reply).to_be_focused()
 
 
+@pytest.mark.parametrize(
+    ("kind", "finish"),
+    [
+        ("task", "send"),
+        ("diff", "send"),
+        ("bounded", "send"),
+        ("bounded-short", "send"),
+        ("margin", "send"),
+        ("diff", "clear"),
+        ("margin", "clear"),
+        ("margin", "reload"),
+    ],
+)
 def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
-    browser, serve
+    browser, serve, kind, finish
 ):
-    """A resolved thread has no reply box, and its card lands the user on it. Carrying
-    the box on from there opened Threads to look for one and took the user into the
-    panel: the card's own landing is the newer word, and a thread with nowhere to reply
-    is put up nowhere."""
-    url, root = seated_thread(serve, "task", 2)
+    """A page seat retains its native editor, words and caret through settlement."""
+    if kind == "margin":
+        url = serve(ASK_PAGE)
+        root = panel_comment(serve.page_dir, "Keep discussing", {"section": "bracket"})
+    else:
+        url, root = seated_thread(serve, kind, 2)
     page = open_page(browser, url)
+    if kind == "margin":
+        resized(page, 1440, 900)
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
     box = thread.locator(":scope > .lf-say leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
     events_model.append_event(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
     )
     told(page)
     rendered(page)
-    expect(thread).to_be_focused()
+    expect(box).to_be_visible()
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Half a thought")
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    if finish == "reload":
+        page.reload()
+        wait_until_ready(page)
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        expect(box).to_be_visible()
+        expect(box).to_have_js_property("value", "Half a thought")
+        expect(thread).to_have_attribute("data-resolved", "true")
+        return
+    if finish == "clear":
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        rendered(page)
+        expect(thread.locator(":scope > .lf-say leaf-text")).to_have_count(0)
+        if kind == "margin":
+            expect(page.locator(".lf-margin-preview")).to_be_hidden()
+            expect(
+                page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+            ).to_have_count(0)
+        else:
+            expect(thread).not_to_have_attribute("open", "")
+        return
+    page.keyboard.type(" tr")
+    expect(box).to_have_js_property("value", "Half tr a thought")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    with sending(page, "the reply"):
+        thread.get_by_role("button", name="Send", exact=True).click()
+    told(page)
+    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(
+        thread.locator(".lf-page-thread-msg", has_text="Half tr a thought")
+    ).to_be_visible()
 
 
 def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch(
@@ -8124,6 +8230,47 @@ def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serv
     page.locator("#body").click()
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_unused_panel_space_is_neutral_but_keeps_the_thread_context(
+    browser, serve, color_scheme
+):
+    """Thread paint follows its content; spare panel room still navigates that thread."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "A short discussion.", {"section": "lede"})
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme=color_scheme
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-thread[open]")
+    reply = thread.locator("leaf-text")
+    write(reply, "Keep my draft.")
+    geometry = thread.evaluate(
+        """el => {
+          const content = el.querySelector('.lf-thread-content').getBoundingClientRect();
+          const reply = el.querySelector('.lf-compose').getBoundingClientRect();
+          const box = el.getBoundingClientRect();
+          return {x: Math.floor(box.left + box.width / 2),
+                  y: Math.floor((content.bottom + reply.top) / 2),
+                  surfaceY: Math.floor(content.top + 4),
+                  freeHeight: reply.top - content.bottom};
+        }"""
+    )
+    assert geometry["freeHeight"] > 20, geometry
+    # Read actual pixels: both the wrapper and a focus-within ancestor can paint it.
+    shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+    x, y = geometry["x"], geometry["y"]
+    assert shot.getpixel((x, y)) != shot.getpixel((x, geometry["surfaceY"])), (
+        "unused panel space wears the thread's content surface"
+    )
+    page.mouse.click(x, y)
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    assert reply.evaluate("el => el.value") == "Keep my draft."
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+
+
 def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
     """Every bordered box in the Threads panel stands on one column: the find box, an
     open thread's messages and its reply box, and the page composer at the foot. The
@@ -8145,7 +8292,7 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
             document.querySelector(end).getBoundingClientRect().right,
           ];
           return {
-            message: box('.lf-thread[open] > .lf-msg'),
+            message: box('.lf-thread[open] .lf-msg'),
             reply: box('.lf-thread[open] > .lf-compose .lf-compose-field'),
             find: box('.lf-find-box', '.lf-thread-filter-toggle'),
             general: box('.lf-general .lf-compose-field'),

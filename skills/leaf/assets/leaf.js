@@ -49,7 +49,7 @@ import {
   targetPickerHintLayer,
   pageSearchSurface,
 } from "./runtime/composing/target-picker.js";
-import { createStandingElement } from "./runtime/composing/standing.js";
+import { createStandingTarget } from "./runtime/composing/standing.js";
 import {
   createReactionController,
   reactionTokens,
@@ -322,6 +322,8 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
+  focusForNavigation: (target) => app.margin.focusForNavigation(target),
+  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
@@ -349,8 +351,6 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  landedAt: (...args) => asks.landedAt(...args),
-  setLanded: (...args) => asks.setLanded(...args),
   forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
@@ -496,18 +496,17 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
-  scrollToElement: anchorTravel.scrollToElement,
+  arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
   announce,
   repaint,
 });
 
-const standingElement = createStandingElement({
+const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
 });
@@ -560,7 +559,7 @@ responseSurface = createResponseSurface({
   threadHere: () => app.margin.threadHere(),
   threadTarget: (thread) =>
     app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
-  standingElement,
+  standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
@@ -569,6 +568,7 @@ responseSurface = createResponseSurface({
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
+  carryComposerToReply: selectionComposer.carryComposerToReply,
   resetResponseOptions: selectionComposer.resetResponseOptions,
   responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
   setResponseOptions: selectionComposer.setResponseOptions,
@@ -606,7 +606,7 @@ reactions = createReactionController({
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
   standingThread,
-  standingElement,
+  standingTarget,
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,

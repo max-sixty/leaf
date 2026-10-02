@@ -7,7 +7,7 @@ import { pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
 import { effectiveScroller, userReadingRegion } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
-import { standingPlace } from "./standing-target.js";
+import { walkOrigin } from "./standing-target.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
@@ -43,16 +43,19 @@ const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
 // steps off it. A general or detached thread has no target, and is reached from the
 // list's ends, as every thread is in the panel's Recent order.
 function threadFrom(threads, place, dir, threadTarget) {
-  if (!place) return clampedRow(threads, null, dir);
+  const placed = threads
+    .map((thread) => ({ thread, target: threadTarget(thread.dataset.id) }))
+    .filter(({ target }) => target);
+  if (!place || !placed.length) return clampedRow(threads, null, dir);
   const side =
     dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
-  const reach = threads.filter((thread) => {
-    const target = threadTarget(thread.dataset.id);
-    if (!target) return false;
+  const reach = placed.filter(({ target }) => {
     const rel = place.compareDocumentPosition(target);
     return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
   });
-  return dir > 0 ? (reach[0] ?? threads.at(-1)) : (reach.at(-1) ?? threads[0]);
+  return dir > 0
+    ? (reach[0]?.thread ?? threads.at(-1))
+    : (reach.at(-1)?.thread ?? threads[0]);
 }
 
 // t/T walk open threads. A closed panel walks them in page order, at each thread's
@@ -69,7 +72,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
     ? clampedRow(threads, current, dir)
     : threadFrom(
         threads,
-        !panelIsOpen() || narrowing.listedInPageOrder() ? standingPlace() : null,
+        !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
         dir,
         threadTarget,
       );
@@ -88,7 +91,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   // thread the user already stands on, moves no focus and gives the list nothing to
   // land: the press lands that thread itself. The page half travels either way, and
   // keeps the panel the walk is in: it moves the page only where moving it shows the
-  // passage better beside the panel (anchor-travel.js, `arrived`).
+  // passage better beside the panel (anchor-travel.js, `arrive`).
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });

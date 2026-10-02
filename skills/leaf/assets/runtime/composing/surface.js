@@ -109,6 +109,7 @@ import {
 
 import { paintReactionStanding } from "../reaction-standing.js";
 import { threadInput, standingThread } from "../thread/landing.js";
+import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import {
   coveringAuxiliarySurface,
@@ -161,7 +162,7 @@ export function createResponseSurface({
   setPanel,
   threadHere,
   threadTarget,
-  standingElement,
+  standingTarget,
   composerHolds,
   responseOptionsAreOpen,
   markAt,
@@ -170,6 +171,7 @@ export function createResponseSurface({
   visualActionAnchor,
   hideComposer,
   openComposer,
+  carryComposerToReply,
   resetResponseOptions,
   responseOptionsAvailable,
   setResponseOptions,
@@ -301,7 +303,10 @@ export function createResponseSurface({
 
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    let restoreFocus;
     if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
+      // Stopping the floating position hides the bar before moveFab can hold focus.
+      restoreFocus = holdFocus(fabBar);
       stopFabPositioning({ reset: true, repositioning: true });
       fabInlineOutlet = outlet;
       fabFloating = false;
@@ -312,6 +317,7 @@ export function createResponseSurface({
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
     stoodAgain();
+    restoreFocus?.();
     return true;
   }
 
@@ -834,10 +840,6 @@ export function createResponseSurface({
     // place a response box against. `nearest` reveals it while leaving a target already
     // in front of the user exactly where it is.
     scrollRevealedElement(addressable, "instant", "nearest");
-  }
-
-  function commentOnAddressable(addressable) {
-    commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
@@ -1405,8 +1407,10 @@ export function createResponseSurface({
   // already crosses there. A page key that takes the user somewhere owes them an answer
   // once they are standing there.
   //
-  // One aim and then one climb, rather than four cases. The pointer's aim outranks
-  // position, being the more recent thing the user said; below it the answer walks
+  // One live aim and then one climb, rather than four cases. A selection outranks
+  // position; a captured target does too until the user stands elsewhere. The draft
+  // keeps its words independently of which target the next press names. Below the
+  // aim, the answer walks
   // outward from where they are standing — the nearest thread's box, then the nearest
   // addressable element, then the page, which is what is left when they are standing
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
@@ -1423,8 +1427,36 @@ export function createResponseSurface({
         box: selectionComment,
         go: commentOnTouchSelection,
       };
+    const here = standingTarget();
     const anchor = fabAnchorAt();
-    if (anchor)
+    // The thread the user is at continues where it is about what they stand on: they
+    // are in it, or its target lies within the element they stand at — the Ask holding
+    // focus, answered or not, else the element itself — as an Ask's options group does
+    // when the user holds one of its marks. A card showing an enclosing block's thread is
+    // about that block, so an element inside it, such as an Ask in a commented task,
+    // takes a thread of its own, and a selection still starts one on its words.
+
+    const inline = threadHere();
+    const target = inline && threadTarget(inline);
+    const inlineBox =
+      inline &&
+      (!here ||
+        inline.contains(focused()) ||
+        (target && under(target, heldAsk() ?? here.element))) &&
+      threadInput(inline);
+    const said =
+      standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    // A captured passage outranks the focus it preceded, but a kept draft is not a
+    // standing target. Read both page and thread standing before choosing the aim.
+    // After the user lands elsewhere, Comment names that new place;
+    // commentOnTarget carries the old words without replacing a destination's
+    // independent draft.
+    if (
+      anchor &&
+      (pageSelection() ||
+        fabHoldsCapturedPassage() ||
+        (!said && (!here || here.element === fabTargetAt())))
+    )
       return {
         ...commenting(
           anchor.quote
@@ -1434,34 +1466,20 @@ export function createResponseSurface({
         box: fabInput,
         go: focusFabComment,
       };
-    // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the Ask holding
-    // focus, answered or not, else the element itself — as an Ask's options group does
-    // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an Ask in a commented task,
-    // takes a thread of its own, and a selection still starts one on its words.
-    const here = standingElement();
-    const inline = threadHere();
-    const target = inline && threadTarget(inline);
-    const inlineBox =
-      inline &&
-      (!here ||
-        inline.contains(focused()) ||
-        (target && under(target, heldAsk() ?? here))) &&
-      threadInput(inline);
-    const said =
-      standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     if (said)
       return {
         ...commenting("thread"),
         box: said.box,
-        go: () => landIn(said),
+        go: () => {
+          carryComposerToReply(replyDraftContext(said.box));
+          landIn(said);
+        },
       };
     if (here)
       return {
-        ...commenting(addressableWord(here)),
+        ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
-        go: () => commentOnAddressable(here),
+        go: () => commentOnTarget(here),
       };
     return {
       ...commenting("page"),
@@ -1491,9 +1509,8 @@ export function createResponseSurface({
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
-  // Standing outranks the page and not the pointer: a user who has just selected words or
-  // raised the 💬 on something has said what they mean more recently than the focus they
-  // left behind, which is the order the destination reading above uses.
+  // Standing outranks the page; a live selection or a newly captured target outranks
+  // standing. The draft stored on an earlier target supplies words, not that priority.
   pageCommand({
     id: "comment.create",
     touch: false,
@@ -1580,7 +1597,6 @@ export function createResponseSurface({
     fabTargetAt,
     fabReturnTo,
     bringForward,
-    commentOnAddressable,
     commentOnTarget,
     focusFabComment,
     fabOptionsAvailable,

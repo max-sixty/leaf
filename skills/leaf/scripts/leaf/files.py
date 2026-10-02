@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import sys
 import time
 from collections.abc import Callable, Collection
@@ -15,6 +14,7 @@ from typing import TypeVar
 
 from .locations import path_location
 from .schema import REVISION_NAME, VERSION_NAME
+from .session_cleanup import replace_bytes
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
@@ -302,24 +302,8 @@ def read_json(path: Path):
         return None
 
 
-def fsync_parents(paths) -> None:
-    """Make these files' directory entries durable, not just their contents.
-
-    A create or a rename is a directory write, and it survives a crash only once
-    the directory itself is synced, so every writer that adds or replaces a page
-    or package member ends with this.
-    """
-    for parent in {path.parent for path in paths}:
-        fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-
-
 def replace_files(files: list) -> None:
     """Durably stage every write before replacing its target."""
-    staged = []
     targets = [
         path.resolve() if follow_symlink and path.is_symlink() else path
         for path, _, follow_symlink in files
@@ -331,49 +315,9 @@ def replace_files(files: list) -> None:
         for right in located_targets[index + 1 :]
     ):
         sys.exit("two staged files resolve to the same target")
-    try:
-        for (path, data, follow_symlink), target in zip(files, targets, strict=True):
-            for _ in range(100):
-                tmp = target.with_name(f".{secrets.token_hex(8)}.tmp")
-                try:
-                    fd = os.open(
-                        tmp,
-                        os.O_WRONLY
-                        | os.O_CREAT
-                        | os.O_EXCL
-                        | getattr(os, "O_BINARY", 0),
-                        0o666,
-                    )
-                    break
-                except FileExistsError:
-                    continue
-            else:  # pragma: no cover - 64 random bits collided 100 times
-                raise FileExistsError(f"could not reserve a temp file beside {target}")
-            staged.append((tmp, target))
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(data)
-                if follow_symlink or not path.is_symlink():
-                    try:
-                        os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
-                    except FileNotFoundError:
-                        pass  # no target to preserve a mode from
-                stream.flush()
-                os.fsync(stream.fileno())
-        for tmp, target in staged:
-            os.replace(tmp, target)
-        fsync_parents(targets)
-    finally:
-        for tmp, _ in staged:
-            tmp.unlink(missing_ok=True)
-
-
-def json_bytes(obj, *, indent=None) -> bytes:
-    return (json.dumps(obj, ensure_ascii=False, indent=indent) + "\n").encode()
-
-
-def write_json(path: Path, obj) -> None:
-    # Atomic: the serve process reads these files while the CLI commands write them;
-    # a torn cursor or status would make the page report false state. Each writer
-    # stages through an exclusively created name so simultaneous writers cannot
-    # replace one another's temp file.
-    replace_files([(path, json_bytes(obj), False)])
+    replace_bytes(
+        [
+            (target, data, follow_symlink or not path.is_symlink())
+            for (path, data, follow_symlink), target in zip(files, targets, strict=True)
+        ]
+    )

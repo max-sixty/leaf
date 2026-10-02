@@ -1,6 +1,6 @@
 ---
 name: running-tend
-description: Project-specific guidance loaded by tend workflows alongside AGENTS.md.
+description: Project-specific instructions loaded by tend workflows alongside AGENTS.md.
 ---
 
 # Running tend — leaf

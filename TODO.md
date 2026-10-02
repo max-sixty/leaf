@@ -38,18 +38,6 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **Keep a reply's words on screen when another actor settles its thread.** An agent
-  resolving a thread while the user types a reply takes the reply box away, words and
-  all; the draft is kept but gone from view, against "Words stay where they were
-  typed" (`skills/leaf/assets/AGENTS.md`). Three tests carry it in
-  `tests/known_faults.py` (`KNOWN_LOSSES`). Likely shape: the box stays while it holds
-  words, and sending it reopens the thread.
-- **Decide where `c` goes once the user has left a withheld comment box.** A comment
-  box whose target a pane has scrolled past waits hidden, and `c` brings it back even
-  after the user has walked to another item, where before the box had closed and `c`
-  commented where they stood. Likely shape: after a focus placement since the
-  withhold, `c` comments at the standing item and the draft follows it
-  (`commentOnTarget`).
 - **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
   Follow one task through reading, panes, comments, and Threads.
 
@@ -59,7 +47,7 @@ has tried; settle that before building it.
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
   shared data source, and calls for no new interface. Compare authoring and a feedback
-  cycle with plain HTML before improving Leaf's authoring guidance;
+  cycle with plain HTML before improving Leaf's authoring instructions;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
@@ -82,7 +70,7 @@ has tried; settle that before building it.
 ### Prose
 
 - **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** The maintainer
-  rewrite is written and awaits independent review and landing. Agent guidance is
+  rewrite is written and awaits independent review and landing. Agent instructions are
   the next phase, scored with `evals/`. Site structure, UI vocabulary and example
   selection wait on the five decisions in the note. Judge each rewrite by reader
   usefulness and preserved behavior; word counts describe the cut, not its quality.
@@ -408,6 +396,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   rather than one region, a border that changed length draws a thin outline, and a
   changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which
   a worker would take off it.
+- **Reduce plugin-update downloads by cleaning Git history.** Remove historical
+  images and obsolete large JavaScript bundles while preserving current files.
+  A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
+  across remote refs and local worktrees, retaining the commit mapping and testing
+  that updates preserve active work without restoring the removed history.
 - **Consider dragging thread cards and comment boxes.** Once both share placement,
   try temporary, passage-relative movement from a handle. Keep it only if scrolling,
   typing, and resizing stay predictable and the implementation stays simple.
@@ -427,15 +420,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
-- **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  and the host waits for it. In a session holding no page it costs about 50ms
-  warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
-  uv adds about 15ms, Python startup about 10ms, and importing the CLI about
-  15ms. A session holding a page adds about 0.1s to import page reading and
-  read each page's state, so its prompt and Stop hooks cost about 0.15s. That
-  cost limits what else hooks can carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
-  can answer more events itself. Rewriting the hook path in a compiled language
-  is the further step if that is not enough.
+- **Leaf hook cost with owned pages:** Stop, prompt, and Codex tool-result
+  hooks discover ownership before page reading and without importing the CLI.
+  A session holding a page still imports page reading and reads each page's
+  state before answering. Measure that cost before expanding tool observation;
+  a compiled hook path is a further step if import cleanup is insufficient.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

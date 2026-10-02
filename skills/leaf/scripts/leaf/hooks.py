@@ -14,12 +14,12 @@ page no tool hook has yet bound; a newer prompt protects its own claims.
 
 Hooks with no owned page avoid page reading. Page-owning prompt and Stop hooks
 reach `hook_carrier`; Codex's tool hook reaches the delivery records in `codex`;
-and a second Claude Code Stop hook watches between turns (`cmd_watch`)."""
+and a second Claude Code Stop hook watches between turns (`cmd_watch`). The
+application entry routes `leaf hook` here before loading the CLI."""
 
-from .host import session_harness
 from .leases import mark_hooks, mark_step_hook
 from .service import owned_pages
-from .state_paths import end_session
+from .session_cleanup import end_session
 
 
 def cmd_hook(payload: dict) -> None:
@@ -33,12 +33,12 @@ def cmd_hook(payload: dict) -> None:
         return
     turn_id = payload.get("turn_id")
     if event == "UserPromptSubmit" and turn_id:
-        from .codex import start_hook_turn
+        from .codex_state import start_hook_turn
 
         start_hook_turn(sid, turn_id)
     if event == "Interrupt":
         if turn_id:
-            from .codex import end_hook_turn
+            from .codex_state import end_hook_turn
 
             end_hook_turn(sid, turn_id)
         return
@@ -71,7 +71,7 @@ def cmd_hook(payload: dict) -> None:
     # carry, and nothing owed, so its prompt and Stop hooks end here.
     if not owned_pages(sid):
         if event == "Stop" and turn_id:
-            from .codex import end_hook_turn
+            from .codex_state import end_hook_turn
 
             end_hook_turn(sid, turn_id)
         return
@@ -80,7 +80,7 @@ def cmd_hook(payload: dict) -> None:
 
     ended = carry_turn(event, sid, payload)
     if ended and turn_id:
-        from .codex import end_hook_turn
+        from .codex_state import end_hook_turn
 
         end_hook_turn(sid, turn_id)
 
@@ -93,14 +93,36 @@ def cmd_watch(payload: dict) -> str | None:
     It watches only where this process is the session the hook names and its
     harness watches between turns, and only while the session holds a page."""
     sid = payload.get("session_id") or ""
+    if not owned_pages(sid):
+        return None
+    from .host import session_harness
+
     harness = session_harness()
-    if (
-        harness is None
-        or harness.session != sid
-        or not harness.watches_between_turns()
-        or not owned_pages(sid)
-    ):
+    if harness is None or harness.session != sid or not harness.watches_between_turns():
         return None
     from .session import watch_between_turns
 
     return watch_between_turns(harness)
+
+
+def main(*, watch: bool = False) -> None:
+    """Read one host payload and dispatch it, without importing the CLI.
+
+    Both the application entry and the Click command enter here.
+    A watch owns leases, so it releases them when the host terminates it.
+    """
+    import json
+    import sys
+
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as error:
+        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
+    if watch:
+        from .leases import release_on_termination
+
+        release_on_termination()
+        if woke := cmd_watch(payload):
+            print(woke, flush=True)
+        return
+    cmd_hook(payload)

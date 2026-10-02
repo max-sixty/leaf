@@ -50,6 +50,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
@@ -546,7 +547,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         if preview is not None:
-            files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,

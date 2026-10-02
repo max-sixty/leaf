@@ -3,7 +3,7 @@
 # the author's own research question and chips that resolve only from the reports; the
 # author's own glance at the screens passed it. This case checks that an author with a
 # clean render check hands the reading to a reader without its notes. Measured when
-# added: the reader grader passed 0 of 3 on the guidance before the change (the one run
+# added: the reader grader passed 0 of 3 on the instructions before the change (the one run
 # that read page-authoring.md read the screens itself) and 3 of 3 after; one run after
 # answered without reading page-authoring.md and so failed the case.
 schema_version: '1.0'

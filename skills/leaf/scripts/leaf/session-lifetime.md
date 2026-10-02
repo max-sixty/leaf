@@ -205,12 +205,22 @@ pointer, while the transition gives the browser and the next Stop their shared
 handling fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were. Absent the harness the environment implies, nothing is
-claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
-run, leaves the active-claim decision to this command. For a cold SessionEnd it
-releases records still naming that session directly under each page's transaction
-lock, without starting `uv`; the CLI uses the same release path. Other hooks run
-the command and stay silent when it cannot get an answer, so a leaf bug costs a
-turn nothing.
+claimed and the hooks stand down. Turn hooks call `bin/leaf hook`; that shell
+launcher runs the application through `uv`, which supplies the supported
+interpreter and dependencies. The application entry routes the hook to its
+lightweight owner before importing the CLI or page reading. It marks the session
+and records Codex provider turns even before a page is acquired. It reads active
+ownership through `service.owned_pages`; a session holding no page avoids the
+delivery and page-reading stacks.
+
+SessionEnd calls the launcher's `session-end` entry, which runs its standalone
+stdlib cleanup program directly. That program supports Python 3.9 and releases
+records still naming the ended session under each page's transaction lock,
+including claims made by another checkout when this plugin has no uv environment.
+Managed Leaf delegates SessionEnd to the same owner. Registrations suppress errors
+and return success when the application cannot answer. The host owns their
+deadlines. `hooks/scripts/loop-guard.py` supervises the background watch, calling
+the launcher and converting its successful result into Claude Code's exit-2 wake.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`

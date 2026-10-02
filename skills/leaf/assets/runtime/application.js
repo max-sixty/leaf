@@ -357,7 +357,8 @@ export function mountApplication(dependencies) {
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the panel.
-    openThread: (id) => margin.openPageThread(id, { travel: false }),
+    openThread: (id, options) =>
+      margin.openPageThread(id, { ...options, travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {

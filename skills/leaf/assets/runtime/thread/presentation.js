@@ -6,7 +6,10 @@
    region and the pass paints it, after the projection whose provenance words its
    passages resolve over. Its presentation ticket commits the thread surfaces
    together with preparation for frozen widgets newly joined to the panel. A mechanical
-   repaint — a draft, a hover, a narrowing — claims the same region through `present`. */
+   repaint — a draft, a hover, a narrowing — claims the same region through `present`.
+   Reply continuity begins after commit and runs independently: its selected route may
+   itself need this renderer to finish. Its caret follows the actual returned editor;
+   its failures reach the page's existing asynchronous error channel. */
 import { clocked } from "../presence.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
@@ -190,9 +193,9 @@ export function createThreadPresentation({
       for (const candidate of candidates) candidate?.commit();
       commitThreadSeats(batch);
       pageGeometry.pageShifted();
-      restoreReply?.();
       finishListRecovery(candidates);
       read.present();
+      restoreReply?.();
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;

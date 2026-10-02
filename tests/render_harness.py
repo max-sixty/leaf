@@ -883,7 +883,7 @@ def plant_quiet_word(page, selector, holding):
 # So ask the page whether it has caught up with what the server holds: its readiness
 # reading answers that against an `/api/state` answer, and names no transport.
 # Counting answered requests said the same thing only while a fixed interval made them
-# the same thing: the page now asks when its news stream says the page has moved, so a
+# the same thing: the page now asks when its freshness reading says the page has moved, so a
 # count of asks started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page):
@@ -905,8 +905,8 @@ def told(page):
 def nudge(page_dir):
     """Give the page a reason to ask, changing nothing it shows.
 
-    The page asks for state when its news stream says the page has moved, and the
-    stream reads file stamps. A test that wants the page's next ask — to park it, or to
+    The page asks for state when its freshness reading says the page has moved, and the
+    reading names file stamps. A test that wants the page's next ask — to park it, or to
     watch it refused — used to wait for the poll's timer; now it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
@@ -970,8 +970,8 @@ def refuse(route):
 # went out, so a refusal registered on a live page leaves whatever is outstanding free
 # to arrive later, against storage the test has moved in the meantime. Registered
 # through `primed`, the route is on the page before it navigates and no read is ever
-# unrouted. The stream the page hears news on is not a state read and is not refused;
-# what it prompts is, every two seconds, for as long as the route stands.
+# unrouted. Freshness is not a state read and is not refused; failed state reads retry
+# on the two-second clock for as long as the route stands.
 #
 # The first is let through because `open_page` waits for the page's readiness facts,
 # including `lf-applied`, which rides on it — and that same wait is what leaves nothing
@@ -1795,46 +1795,6 @@ SHELL_BOX = """(() => {
 # How long a scroller holds one position before its travel is over, counted in the
 # browser's own rendering frames.
 SCROLL_STILL_FRAMES = 3
-
-# Record closed editor roots without changing their browser-visible mode. Geometry
-# probes below read their words; they never replace the editor or write its state.
-RECORD_EDITOR_ROOTS = """
-window.editorRoots = new WeakMap();
-const attach = Element.prototype.attachShadow;
-Element.prototype.attachShadow = function(options) {
-  const root = attach.call(this, options);
-  if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
-  return root;
-};
-"""
-
-# Complete words cross CodeMirror's text-node boundaries, so a split inside a ligature
-# does not change the measured range while the painted words remain still.
-COMMENT_WORD_RECTS = r"""node => {
-  const blockRects = block => {
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-    const text = nodes.map(n => n.textContent).join('');
-    const boxes = [];
-    let at = 0, i = 0;
-    for (const word of text.matchAll(/\S+/g)) {
-      while (at + nodes[i].length <= word.index) at += nodes[i++].length;
-      const range = document.createRange();
-      range.setStart(nodes[i], word.index - at);
-      let j = i, endAt = at;
-      const end = word.index + word[0].length;
-      while (endAt + nodes[j].length < end) endAt += nodes[j++].length;
-      range.setEnd(nodes[j], end - endAt);
-      const r = range.getBoundingClientRect();
-      boxes.push([r.x, r.y, r.width, r.height]);
-    }
-    return boxes;
-  };
-  const blocks = node.matches('.cm-content')
-    ? [...node.querySelectorAll('.cm-line')] : [...node.children];
-  return blocks.flatMap(blockRects);
-}"""
 
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so

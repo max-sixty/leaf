@@ -1523,11 +1523,14 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    assert faces[0] == ("assets/shadow.css", ":where(:root) .lf-ui"), faces[0]
+    # Public controls and injected controls share this one default; its root boundary
+    # and class weight still protect shadow content and win over page element rules.
+    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui"}
+        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
     ]
     assert defaults == [faces[0]], defaults
 
@@ -1540,7 +1543,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     drawers = (runtime / "drawers.js").read_text()
-    presentation = (runtime / "presentation.js").read_text()
+    page_paint = (runtime / "page-paint.js").read_text()
     sheet = (schema_model.ASSETS / "theme.css").read_text() + (
         runtime / "chrome.css"
     ).read_text()
@@ -1555,7 +1558,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         "var("
         + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
         + ")",
-        "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
+        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

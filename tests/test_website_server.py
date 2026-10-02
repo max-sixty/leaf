@@ -49,7 +49,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.session_cleanup import flocked
 from leaf.thread import cmd_reply, cmd_resolve
-from leaf_dev import example_previews, verify_site
+from leaf_dev import example_previews, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
 from websockets.exceptions import ConnectionClosedError
@@ -3274,6 +3274,27 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert host.attached == []
 
 
+def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_path):
+    """One visible page cannot throttle another page's canonical user recency."""
+    site = tmp_path / "site"
+    pages = {}
+    for name in ("first", "second"):
+        published = site / "examples" / name
+        published.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(page_dir, published)
+        pages[f"/examples/{name}"] = (f"examples/{name}", "example")
+    write_manifest(site, pages)
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, None))
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        for name in ("first", "second"):
+            get(f"{root}/examples/{name}/api/news")
+            assert (
+                json.loads((site / "examples" / name / "viewed.json").read_text())["t"]
+                > 0
+            )
+
+
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
     site = tmp_path / "site"
     published = site / "examples" / "decision"
@@ -4133,6 +4154,7 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
         "first_byte": 20,
         "document": 30,
         "paint": {"first-contentful-paint": 40},
+        "shifts": [],
         "upgraded": {"at": 50},
         "presented": {
             "at": 60,
@@ -4159,6 +4181,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
         "first_byte": 20,
         "document": 30,
         "paint": {},
+        "shifts": [],
         "upgraded": {"at": 50},
         "presented": {
             "at": 60,
@@ -4208,14 +4231,79 @@ def test_startup_resources_outlive_the_browser_timing_buffer(browser):
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)
     with running_http_server(httpd):
         page = browser.new_page()
-        page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+        verify_site.observe_startup(page)
         page.goto(f"http://127.0.0.1:{httpd.server_address[1]}/")
-        reading = page.evaluate("window.__leafVerifier.startupReading")
+        reading = page.evaluate("window.__leafStartup.reading")
         for milestone in ("upgraded", "presented"):
             assert reading[milestone]["code_requests"] == count
             assert reading[milestone]["code_bytes"] == count * len(script)
-        names = page.evaluate("window.__leafVerifier.resourceNames")
+        names = page.evaluate("window.__leafStartup.resourceNames")
         assert sum("/resource-" in name for name in names) == count
+
+
+def test_startup_shifts_are_attributed_diagnostics_not_failures(browser):
+    """A painted startup move is recorded, while quiet and later frames add none."""
+    page = browser.unwatched.new_page()
+    failures = verify_site.observe_startup(page)
+    page.route(
+        "http://startup.test/",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="<!doctype html><title>Startup shifts</title><body style='display:flow-root;margin:0'>"
+            "<p id='moving'>A passage painted before widgets upgrade.</p>"
+            "<p id='quiet' style='position:fixed;right:0;top:0'>A fixed control.</p>",
+        ),
+    )
+    page.goto("http://startup.test/")
+    page.wait_for_function(
+        "performance.getEntriesByType('paint').some(e => e.name === 'first-contentful-paint')"
+    )
+    page.evaluate("document.querySelector('#moving').style.marginTop = '80px'")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r))))"
+    )
+    first = startup.startup_reading(page)
+    assert first["shifts"], first
+    assert {shift["phase"] for shift in first["shifts"]} == {"before-upgrade"}
+    page.evaluate("document.body.setAttribute('data-lf-upgraded', '')")
+    page.evaluate("document.querySelector('#moving').style.marginTop = '140px'")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r))))"
+    )
+    upgraded = startup.startup_reading(page)
+    assert any(shift["phase"] == "before-presentation" for shift in upgraded["shifts"])
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    reading = startup.startup_reading(page)
+    moved = [
+        (shift, source)
+        for shift in reading["shifts"]
+        for source in shift["sources"]
+        if source["node"] and "#moving" in source["node"]
+    ]
+    assert {shift["phase"] for shift, _ in moved} == {
+        "before-upgrade",
+        "before-presentation",
+    }, reading["shifts"]
+    assert all(shift["value"] > 0 for shift, _ in moved)
+    assert all(not shift["hadRecentInput"] for shift, _ in moved)
+    assert all(
+        source["currentRect"]["y"] > source["previousRect"]["y"] for _, source in moved
+    )
+    assert not any(
+        source["node"] and "#quiet" in source["node"]
+        for shift in reading["shifts"]
+        for source in shift["sources"]
+    )
+    page.evaluate("document.querySelector('#moving').style.marginTop = '220px'")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert startup.startup_reading(page)["shifts"] == reading["shifts"]
+    assert "initial layout shifts (diagnostic)" in verify_site.startup_line(
+        "page", reading
+    )
+    assert "#moving" in verify_site.startup_line("page", reading)
+    assert failures == []
 
 
 @pytest.mark.parametrize(
@@ -4367,7 +4455,7 @@ class _DeployedPage:
             return 100.0
         if script == "window.__leafVerifier.visibleReplyAt":
             return 12_600.0
-        if script == "window.__leafVerifier.startupReading":
+        if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
                 if len(self.presentation_waits) > 1
@@ -4377,6 +4465,7 @@ class _DeployedPage:
                 "first_byte": 100.0,
                 "document": 200.0,
                 "paint": {"first-contentful-paint": 250.0},
+                "shifts": [],
                 "upgraded": {"at": 300.0},
                 "presented": {
                     "at": presented_at,
@@ -4691,7 +4780,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
-    assert page.init_scripts == [verify_site.VERIFIER_SCRIPT]
+    assert page.init_scripts == [startup.SCRIPT, verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
@@ -4713,6 +4802,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "javascriptBytesAtPresentation": 150 * 1024,
             "codeRequestsAtPresentation": 20,
             "codeBytesAtPresentation": 330 * 1024,
+            "layoutShifts": [],
         },
         "comment": {
             "sessionReference": None,
@@ -4753,6 +4843,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "javascriptBytesAtPresentation": 150 * 1024,
             "codeRequestsAtPresentation": 20,
             "codeBytesAtPresentation": 330 * 1024,
+            "layoutShifts": [],
             "followedRevisionMs": 2500.0,
         },
     }

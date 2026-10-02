@@ -1365,7 +1365,7 @@ export function createResponseSurface({
       const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
       const threadId = markAt(point.x, point.y);
       if (threadId)
-        return openPageThread(threadId, {
+        return void openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
         });

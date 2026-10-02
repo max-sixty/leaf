@@ -5245,6 +5245,69 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     expect(thin).to_be_focused()
 
 
+def test_playground_labels_can_be_selected_without_changing_the_controls(
+    browser, serve
+):
+    """A label is readable text even while the preview holds focus. Dragging its
+    words selects them; clicking the switch or pressing Space still changes it."""
+    source = PLAYGROUND_PAGE.replace(
+        "<p>Open until dusk.</p>",
+        '<p>Open until dusk.</p><button id="preview-focus">Try the card</button>',
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#card-playground")
+    toggle = playground.get_by_role("switch", name="Compact spacing")
+
+    for in_preview in (False, True):
+        for name, words in (
+            ("compact", "Compact spacing"),
+            ("radius", "Corner radius"),
+        ):
+            page.evaluate("getSelection().removeAllRanges()")
+            if in_preview:
+                page.locator("#preview-focus").click()
+            else:
+                page.locator("h1").click()
+            before = playground.evaluate("root => root.values")
+            label = playground.locator(
+                f'lf-playground-control[name="{name}"] .lf-playground-control-label'
+            )
+            label.scroll_into_view_if_needed()
+            box = label.evaluate("""label => {
+                const range = document.createRange();
+                range.selectNodeContents(label);
+                return range.getBoundingClientRect().toJSON();
+            }""")
+            y = box["y"] + box["height"] / 2
+            page.mouse.move(box["x"] + 0.5, y)
+            page.mouse.down()
+            page.mouse.move(box["right"] - 0.5, y, steps=12)
+            page.mouse.up()
+            assert page.evaluate("getSelection().toString()") == words
+            assert playground.evaluate("root => root.values") == before
+
+    # Selecting a word with a double-click must not operate the switch either.
+    label = playground.locator(
+        'lf-playground-control[name="compact"] .lf-playground-control-label'
+    )
+    label.dblclick(position={"x": 5, "y": 5})
+    assert page.evaluate("getSelection().toString()") == "Compact"
+    expect(toggle).not_to_be_checked()
+
+    # The control face keeps the preview focused and remains usable after selecting
+    # its label. Reading that label does not change the control.
+    preview = page.locator("#preview-focus")
+    preview.click()
+    assert page.evaluate("getSelection().toString()") == "Compact"
+    playground.locator("wa-switch [part=control]").click()
+    expect(toggle).to_be_checked()
+    expect(preview).to_be_focused()
+    label.click()
+    expect(toggle).to_be_checked()
+    toggle.press("Space")
+    expect(toggle).not_to_be_checked()
+
+
 def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
     browser, serve
 ):

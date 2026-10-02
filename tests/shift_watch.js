@@ -47,6 +47,12 @@
     const old = performance.now() - KEPT;
     while (list.length > retain && time(list[0]) < old) list.shift();
   };
+  // A retained frame may refer to unchanged nodes whose last sample predates it.
+  // Keep the state entering the oldest frame, not just changes after that frame.
+  let retainedFrom = -Infinity;
+  const pruneSamples = (list) => {
+    while (list.length > 1 && list[1].at <= retainedFrom) list.shift();
+  };
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
   // An element's parent in the composed tree, crossing from a shadow root to its host.
@@ -180,7 +186,7 @@
     for (const owner of new Set([...floatingOwners, ...selections.keys()])) {
       const readings = floating.get(owner) ?? [];
       readings.push({ at, selection: selections.get(owner) ?? null });
-      prune(readings, (reading) => reading.at);
+      pruneSamples(readings);
       floating.set(owner, readings);
     }
     floatingOwners = new Set(selections.keys());
@@ -211,7 +217,7 @@
       );
       const readings = animated.get(animation) ?? [];
       readings.push({ at, values });
-      prune(readings, (reading) => reading.at);
+      pruneSamples(readings);
       animated.set(animation, readings);
     }
     const nodes = everything();
@@ -243,6 +249,7 @@
     if (frame) {
       frames.push({ at, start: time, nodes, motion: [] });
       prune(frames, (frame) => frame.at);
+      retainedFrom = frames[0].at;
     }
     for (const node of nodes) {
       const scrolls = scrolled.get(node) ?? [];
@@ -250,7 +257,7 @@
       const prior = scrolls.at(-1)?.scroll;
       if (prior?.left !== scroll.left || prior?.top !== scroll.top) {
         scrolls.push({ at, scroll });
-        prune(scrolls, (item) => item.at);
+        pruneSamples(scrolls);
         scrolled.set(node, scrolls);
       }
       const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -359,12 +366,15 @@
         fragments,
         paint,
       });
-      prune(seen, (item) => item.at);
+      pruneSamples(seen);
       placed.set(node, seen);
     }
     return at;
   };
   const readingAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at);
+  // A coordinate binding can stand longer than the retained ledger. Its origin
+  // begins at the oldest complete frame once the earlier history is retired.
+  const poseAt = (node, at) => Math.max(readingAt(node, at).poseAt, retainedFrom);
   const boxAt = (node, at) => readingAt(node, at)?.rect;
   const paintAt = (node, at) => readingAt(node, at)?.paint;
   const ancestryAt = (node, at) => {
@@ -707,7 +717,7 @@
         was.anchor === now.anchor &&
         was.plane !== now.plane
       ) {
-        const before = boxAt(was.anchor, readingAt(owner, from).poseAt),
+        const before = boxAt(was.anchor, poseAt(owner, from)),
           after = boxAt(now.anchor, to);
         if (before && after) {
           for (const [axis, size, start] of [
@@ -730,7 +740,7 @@
       if (!anchor || anchor !== next?.anchor) continue;
       // Native anchor layout can follow its scroller in the next frame. Credit
       // source scrolling since this retained portal pose was first observed.
-      const start = readingAt(owner, from).poseAt;
+      const start = poseAt(owner, from);
       const before = boxAt(anchor, start),
         after = boxAt(anchor, to);
       const beforeLayout = layoutAt(anchor, start),

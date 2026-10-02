@@ -6392,10 +6392,10 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     page.mouse.down()
     page.mouse.move(x - 30, y)
     page.mouse.up()
-    # The selection surface defers its release update by one task. Read only after that
-    # task: before the claim boundary existed, a swipe the deck let go of restored the
-    # range captured on pointerdown and raised the Comment bar again.
-    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    # Read after the selection surface's release rendering: before the claim boundary
+    # existed, a swipe the deck let go of restored the pointerdown range and raised
+    # the Comment bar again.
+    rendered(page)
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
     assert page.evaluate("() => getSelection().toString()") == ""
     assert not page.locator(".lf-fab-bar").is_visible()

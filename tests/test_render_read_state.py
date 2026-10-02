@@ -780,7 +780,22 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
+    # Selection opening is outstanding rendering when the native release returns,
+    # even if a loaded event loop has not yet stood its response field.
+    page.evaluate("""() => {
+      window.selectionRelease = [];
+      document.addEventListener('mouseup', event => {
+        if (!event.composedPath().some(node => node.matches?.('lf-diff'))) return;
+        queueMicrotask(() => selectionRelease.push({
+          words: getSelection().toString(),
+          settled: document.querySelector('script[data-lf-entry]').lfRenderingSettled(),
+        }));
+      }, {once: true});
+    }""")
     _select_new_route(page)
+    assert page.evaluate("window.selectionRelease") == [
+        {"words": "new route", "settled": False}
+    ]
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):

@@ -1760,3 +1760,52 @@ def test_native_pointer_motion_owns_only_an_active_drag(browser, pressed):
         page.mouse.up()
     else:
         assert any("textarea#field moved without input" in e for e in errors), errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
+def test_long_held_native_anchor_keeps_complete_history(browser, fault):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<div id="scroller" style="height:140px;width:300px;overflow:auto">
+  <div id="ancestor" style="height:500px">
+    <div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">Target</div>
+  </div>
+</div>
+<textarea id="field" style="position:fixed;position-anchor:--target;top:calc(anchor(top) + 10px);left:400px"></textarea>
+<p id="evidence" style="position:absolute;left:10px;top:400px">Paint evidence</p></body>""")
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    initial = page.locator("#field").bounding_box()
+    page.evaluate(
+        "() => {window.nativeEntries=[];new PerformanceObserver(list=>nativeEntries.push(...list.getEntries().map(e=>e.startTime))).observe({type:'layout-shift'})}"
+    )
+    # The anchor stays put while its ancestor's reading changes on both sides of
+    # the sensor's retained-history window. No fake clock replaces native paint.
+    page.wait_for_timeout(200)
+    page.evaluate("ancestor.style.opacity='.99'")
+    page.evaluate(PAINTED)
+    page.wait_for_timeout(10400)
+    page.evaluate("ancestor.style.opacity='.9'")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.evaluate(
+        "fault=>{scroller.scrollTop=20;if(fault){field.style.marginTop='10px';evidence.style.left='30px'}}",
+        fault,
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    judge_watches()
+    errors = take_browser_errors(page)
+    after = page.locator("#field").bounding_box()
+    assert after["y"] == initial["y"] - 20 + (10 if fault else 0)
+    assert after["x"] == initial["x"]
+    assert after["width"] == initial["width"] and after["height"] == initial["height"]
+    if fault:
+        assert page.evaluate("nativeEntries.length") > 0
+        assert any("textarea#field moved without input" in e for e in errors), errors
+        assert all("moved without input" in error for error in errors), errors
+    else:
+        assert not errors, errors

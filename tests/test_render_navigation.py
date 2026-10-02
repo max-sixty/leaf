@@ -7,6 +7,7 @@ import pytest
 from interact_support import element_declaration
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import server as server_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -69,7 +70,6 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     ROOT,
-    TOKEN,
     accessible_details,
     ask_actions_hint,
     command_reference_rows,
@@ -1903,7 +1903,7 @@ def test_an_external_link_says_and_opens_where_it_goes(
     browser, serve, other_leaf, one_user
 ):
     other_url, _ = other_leaf
-    destination = f"{other_url}/?t={TOKEN}"
+    destination = f"{other_url}/?t={server_model.host_key()}"
     url = serve(
         leaf_page(
             "external link",
@@ -1952,7 +1952,7 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     left. An external link keeps its new-tab behavior and names that context change even
     though the sequence activates the link without first moving focus through it."""
     other_url, _ = other_leaf
-    destination = f"{other_url}/?t={TOKEN}"
+    destination = f"{other_url}/?t={server_model.host_key()}"
     page = open_page(
         browser,
         serve(

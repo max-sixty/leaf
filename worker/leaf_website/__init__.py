@@ -20,7 +20,7 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
-from functools import cache, partial
+from functools import partial
 from html import escape
 from pathlib import Path
 
@@ -46,6 +46,7 @@ from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.page_memory import Slot, memo
 from leaf.registry.storage import layer_metadata
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -243,10 +244,16 @@ def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
     return {"eventIds": event_ids}
 
 
-@cache
+class _Binding(Slot):
+    """A published page's immutable delivery metadata."""
+
+
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
-    """Read immutable delivery metadata once per published page and process."""
-    return layer_metadata(page_dir), preview_metadata(page_dir)
+    """Read immutable delivery metadata once while this process keeps the page
+    (`leaf.page_memory`)."""
+    return memo(page_dir, _Binding).get(
+        None, lambda: (layer_metadata(page_dir), preview_metadata(page_dir))
+    )
 
 
 def site_metadata(page_root: str, page: dict) -> str:

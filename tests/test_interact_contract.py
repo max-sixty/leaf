@@ -51,6 +51,7 @@ from interact_support import (
     declare_data_input,
     element_declaration,
     fetch,
+    fresh_process,
     live_versions,
     publish,
     published,
@@ -4410,10 +4411,6 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     from leaf.validation import source as source_model
 
     assert revisioning_model.activate_source(page_dir).error is None
-    # What a newly started server holds: none of this process's readings.
-    registry_storage._registries.clear()
-    registry_storage._read_page_registry_stamped.cache_clear()
-    revisioning_model._held.clear()
     validated, linted = [], []
     real_validate = registry_page.validate_registry
     real_lint = source_model.css_syntax_errors
@@ -4430,7 +4427,9 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
         lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
     )
 
-    assert revisioning_model.activate_source(page_dir).error is None
+    # What a newly started server holds: none of this test's readings.
+    with fresh_process():
+        assert revisioning_model.activate_source(page_dir).error is None
     assert validated == []
     assert linted == ["page <style>"]
 

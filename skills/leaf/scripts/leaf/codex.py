@@ -57,8 +57,7 @@ from .delivery import (
     retire_if_gone,
     validate_delivery_id,
 )
-from .event_log import flocked
-from .files import read_json, write_json
+from .files import read_json
 from .host import Harness, session_harness
 from .leases import sessions_home, step_hook_ran
 from .schema import THREAD_ANSWER_KINDS
@@ -70,6 +69,7 @@ from .service import (
     restore_page_claim,
     unacknowledged,
 )
+from .session_cleanup import flocked, write_json
 from .thread import (
     DeliveryReply,
     release_delivery_reply,

@@ -205,18 +205,22 @@ pointer, while the transition gives the browser and the next Stop their shared
 handling fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were. Absent the harness the environment implies, nothing is
-claimed and the hooks stand down. Synchronous registrations call `bin/leaf hook`
-directly; that shell launcher runs the application through `uv`, which supplies
-the supported interpreter and dependencies. The application entry routes the hook
-to its dependency-light owner before importing the CLI or page reading. It marks
-the session and records Codex provider turns even before a page is acquired.
-It reads active ownership through `service.owned_pages`; a session holding no
-page avoids the delivery and page-reading stacks. SessionEnd releases records still naming that
-session under each page's transaction lock. A registration suppresses errors and
-returns success when the application cannot answer, so a leaf bug costs a turn
-nothing. The host owns the hook deadline. `hooks/scripts/loop-guard.py` only
-supervises the background watch, calling the same launcher and converting its
-successful result into Claude Code's exit-2 wake.
+claimed and the hooks stand down. Turn hooks call `bin/leaf hook`; that shell
+launcher runs the application through `uv`, which supplies the supported
+interpreter and dependencies. The application entry routes the hook to its
+lightweight owner before importing the CLI or page reading. It marks the session
+and records Codex provider turns even before a page is acquired. It reads active
+ownership through `service.owned_pages`; a session holding no page avoids the
+delivery and page-reading stacks.
+
+SessionEnd calls the launcher's `session-end` entry, which runs its standalone
+stdlib cleanup program directly. That program supports Python 3.9 and releases
+records still naming the ended session under each page's transaction lock,
+including claims made by another checkout when this plugin has no uv environment.
+Managed Leaf delegates SessionEnd to the same owner. Registrations suppress errors
+and return success when the application cannot answer. The host owns their
+deadlines. `hooks/scripts/loop-guard.py` supervises the background watch, calling
+the launcher and converting its successful result into Claude Code's exit-2 wake.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`

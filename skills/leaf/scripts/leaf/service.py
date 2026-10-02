@@ -17,20 +17,17 @@ from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
-    flocked,
-    now_iso,
     read_cursor,
 )
-from leaf.files import read_json, write_json
-from leaf.locations import page_key
+from leaf.files import read_json
 from leaf.machine import pid_alive, state_home
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
-    EVENTS_FILE,
     INTERACTIONS_FILE,
     STATUS_FILE,
     UNNAMED_AGENT,
 )
+from leaf.session_cleanup import EVENTS_FILE, flocked, now_iso, page_key, write_json
 
 if TYPE_CHECKING:
     from leaf.host import Harness

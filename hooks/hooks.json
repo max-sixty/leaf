@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" session-end 2>/dev/null || true",
             "timeout": 3
           }
         ]

@@ -19,7 +19,7 @@ application entry routes `leaf hook` here before loading the CLI."""
 
 from .leases import mark_hooks, mark_step_hook
 from .service import owned_pages
-from .state_paths import end_session
+from .session_cleanup import end_session
 
 
 def cmd_hook(payload: dict) -> None:

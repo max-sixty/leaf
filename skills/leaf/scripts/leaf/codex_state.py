@@ -9,10 +9,9 @@ only ending a matching turn reaches the claims it must close.
 
 from pathlib import Path
 
-from .event_log import flocked
-from .files import read_json, write_json
+from .files import read_json
 from .leases import session_state_path
-from .state_paths import HOOK_TURN_SUFFIX, session_file
+from .session_cleanup import HOOK_TURN_SUFFIX, flocked, session_file, write_json
 
 
 def delivery_dir(session_id: str) -> Path:

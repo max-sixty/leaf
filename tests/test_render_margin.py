@@ -7574,6 +7574,24 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
+def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
+    """Once the sent turn is placed, a new draft keeps its first line where typed."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    preview.locator(".lf-say .lf-compose-submit").click()
+    rendered(page)
+    editor.click()
+    rendered(page)
+    before = preview.evaluate(DRAFTING_CARD)
+    editor.type("a long new draft " * 20)
+    rendered(page)
+    after = preview.evaluate(DRAFTING_CARD)
+    assert after["side"] == before["side"]
+    assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
+        before,
+        after,
+    )
+
+
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
     """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")

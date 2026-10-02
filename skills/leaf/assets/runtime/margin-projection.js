@@ -1008,10 +1008,12 @@ export function createMarginProjection({
     const transcript = measureTranscript();
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
-    // measurement on the next. Keep the reply's line until placement is reset, rather
-    // than switching back to its top after that first pass and moving the editor.
+    // measurement on the next. Keep the reply's line through those passes, then
+    // release it when a new draft starts so the editor grows below its first line.
+    const newDraft = drafting && !previewHold?.drafting;
     const keepReplyLine = Boolean(
-      previewHold?.keepReplyLine || (turned && (drafting || previewHold?.drafting)),
+      (previewHold?.keepReplyLine && !newDraft) ||
+      (turned && (drafting || previewHold?.drafting)),
     );
     const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
     void floatingUi()

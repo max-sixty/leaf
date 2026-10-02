@@ -313,6 +313,11 @@ export function renderSurfaces(collection, placedAt, commands) {
 
 export const claimed = (id) => claimedIds.has(id);
 
+// Whether a widget holds the thread `id` out of its flow, so that its margin marker is
+// the notice it waits behind.
+export const heldOut = (id) =>
+  [...registrations.values()].some(({ held }) => held.holds(id));
+
 // Shows the threads `ids` names that a widget holds out of its flow, and lands on the
 // first where its widget then draws it, since the marker the user pressed goes with
 // what it held. Returns whether a widget held any.

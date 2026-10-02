@@ -187,7 +187,7 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed, focusSurface, showHeld } from "./thread/surfaces.js";
+import { claimed, focusSurface, heldOut, showHeld } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -1194,9 +1194,10 @@ export function createMarginProjection({
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
-      const drafting = replyHasWords(threadKey(thread));
-      if ((thread.resolved && !drafting) || !thread.anchor || claimed(thread.id))
-        continue;
+      // A settled thread keeps its marker while the user has words for it, or while a
+      // widget holds it out of its flow behind that marker (thread/held-news.js).
+      const kept = replyHasWords(threadKey(thread)) || heldOut(thread.id);
+      if ((thread.resolved && !kept) || !thread.anchor || claimed(thread.id)) continue;
       const id = thread.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);

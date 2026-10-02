@@ -1154,7 +1154,18 @@ ROUTE_LINE = '["app/routes.py","new",201]'
 
 
 @pytest.mark.parametrize(
-    "end", ["clicked", "tapped", "keyboard", "replied", "resolved", "started", "left"]
+    "end",
+    [
+        "clicked",
+        "tapped",
+        "keyboard",
+        "settled",
+        "replied",
+        "resolved",
+        "started",
+        "left",
+        "standing",
+    ],
 )
 def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marker(
     browser, serve, end
@@ -1164,11 +1175,12 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     the diff draws can say it waits, so the diff does not draw it: it stands in the
     margin, as any thread the diff does not place does, and its marker is the notice.
     Clicking, tapping, or pressing Enter on the marker shows the thread under its line
-    and lands on it. It also shows when the user replies in it from the margin's card,
-    when they resolve it there, which takes it out of the margin, when they start a
-    thread on the same line, which shows after it, and when they scroll the line below
-    the window. The news lands well past Chrome's half second of
-    recent input, so the shift watch checks that holding the thread moved nothing."""
+    and lands on it, and the marker stays its notice when the agent settles it. It also
+    shows when the user replies in it from the margin's card, when they resolve it
+    there, when they start a thread on the same line, which shows after it, and when
+    they scroll the line below the window, unless they are writing in its card, which
+    stays with them. The news lands well past Chrome's half second of recent input, so
+    the shift watch checks that holding the thread moved nothing."""
     context = (
         browser.new_context(
             viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -1212,7 +1224,42 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         top, abs=0.5
     )
 
-    if end == "clicked":
+    if end == "settled":
+        # The agent settling its thread is news too, and the marker stays its notice.
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "resolve",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": held,
+                "revision": 1,
+            },
+        )
+        told(page)
+        expect(outlet).to_have_count(0)
+        expect(marker).to_be_visible()
+        marker.click()
+    elif end == "standing":
+        # A user writing in the margin's card keeps it as they scroll the line away.
+        page.keyboard.press("t")
+        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        expect(card).to_be_focused()
+        box = card.locator(":scope > .lf-say leaf-text")
+        write(box, "Only if")
+        line.evaluate(
+            """line => document.scrollingElement.scrollBy({
+              top: line.getBoundingClientRect().top - innerHeight - 400,
+              behavior: 'instant'})"""
+        )
+        page.evaluate(
+            "() => new Promise(done => requestAnimationFrame("
+            "() => requestAnimationFrame(done)))"
+        )
+        expect(box).to_be_focused()
+        expect(outlet).to_have_count(0)
+        return
+    elif end == "clicked":
         marker.click()
     elif end == "tapped":
         marker.tap()
@@ -1257,13 +1304,16 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(threads.last).to_contain_text("And the handler's name?")
     if end == "replied":
         expect(threads.first).to_contain_text("Yes, for one release.")
-    if end == "resolved":
+    if end in ("resolved", "settled"):
         expect(threads.first.locator(":scope > summary")).to_have_text(
             "Resolved · 1 message"
         )
     if end in ("clicked", "tapped", "keyboard"):
-        # The marker goes with what it held, and the user lands on the thread it showed.
+        # The marker goes with what it held, and the user lands on the thread it showed,
+        # or on the summary a settled thread folds to.
         expect(threads.first).to_be_focused()
+    if end == "settled":
+        expect(threads.first.locator(":scope > summary")).to_be_focused()
 
 
 @pytest.mark.parametrize(("width", "under_panel"), [(900, True), (1920, False)])

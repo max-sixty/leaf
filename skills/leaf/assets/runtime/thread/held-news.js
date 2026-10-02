@@ -37,6 +37,8 @@ import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
 import { turns } from "./model.js";
+import { THREAD } from "./selectors.js";
+import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 
 // Whether a turn is the user's gesture: one this page's ledger still holds the attempt
@@ -308,9 +310,10 @@ export class HeldNews {
  *  where the widget draws no thread, while the datum's foot is on screen. `hold` says
  *  which threads the widget is not handed to place. The margin draws each as it draws
  *  a thread no widget places, and pressing its marker is opening the notice, which
- *  `show` answers. A thread also shows when the user adds a turn to it or starts a
- *  thread at its datum, when it is settled, and when none of the datum shows in the
- *  window. */
+ *  `show` answers. The margin draws a held thread's marker though the agent settled it,
+ *  since the marker is its notice. A thread also shows when the user adds a turn to it,
+ *  settles or reopens it, or starts a thread at its datum, and when none of the datum
+ *  shows in the window. */
 export class HeldArrivals {
   #changed;
   // The keys of the page's threads at the last reading, or null before a reading drawn
@@ -344,13 +347,13 @@ export class HeldArrivals {
     const own = ownTurn();
     const keys = new Set(threads.map(({ thread }) => thread.key));
     this.#release(({ key }) => !keys.has(key));
-    // A settled thread leaves the margin, so no marker is left for it to wait behind. A
+    // Settling a thread or reopening it is the user's gesture in it, as a turn is. A
     // thread the agent moves follows its datum, and one moved to a datum with a thread
     // drawn joins that seat, whose HeldNews holds what arrives in it.
     for (const { thread, datum } of threads) {
       const held = this.#held.get(thread.key);
       if (!held) continue;
-      if (thread.resolved || turns(thread).some(own) || drawn.has(datum))
+      if (thread.settling || turns(thread).some(own) || drawn.has(datum))
         this.#held.delete(thread.key);
       else held.datum = datum;
     }
@@ -361,14 +364,10 @@ export class HeldArrivals {
       arrived.filter(({ thread }) => own(thread.root)).map(({ datum }) => datum),
     );
     for (const { thread, datum, node } of arrived) {
-      // A datum with a thread drawn has a seat; one whose growth would not be seen, or
-      // that a settled thread opens a seat at, draws its threads together.
-      const shows =
-        started.has(datum) ||
-        drawn.has(datum) ||
-        thread.resolved ||
-        !growthAfterIsSeen(node);
-      if (shows) this.#release((held) => held.datum === datum);
+      // A datum with a thread drawn has a seat, and one whose growth would not be seen
+      // draws its threads together.
+      if (started.has(datum) || drawn.has(datum) || !growthAfterIsSeen(node))
+        this.#release((held) => held.datum === datum);
       else this.#held.set(thread.key, { key: thread.key, id: thread.id, datum });
     }
   }
@@ -385,11 +384,20 @@ export class HeldArrivals {
     for (const datum of holding) {
       if (this.#watching.has(datum)) continue;
       const node = nodes.get(datum);
+      // A thread the user stands in, in the margin's card, stays there with them until
+      // the datum next leaves the window: its release would take the card, and the
+      // reply they may be writing, away.
       const leave = () => {
-        if (this.#release((held) => held.datum === datum)) this.#changed();
+        const standing = closestAcross(focused(), THREAD)?.dataset.thread;
+        const leaves = (held) => held.datum === datum && held.id !== standing;
+        if (this.#release(leaves)) this.#changed();
       };
       this.#watching.set(datum, { node, stop: whenOffScreen(node, leave) });
     }
+  }
+
+  holds(id) {
+    return [...this.#held.values()].some((held) => held.id === id);
   }
 
   // Shows the held threads `ids` names, and returns the ones it held, in `ids`' order.

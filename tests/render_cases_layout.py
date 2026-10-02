@@ -1385,7 +1385,19 @@ def serious_axe_violations(page):
         },
         "resultTypes": ["violations"],
     }
-    results = [(frame.url, Axe().run(frame, options=options)) for frame in page.frames]
+
+    # A hidden iframe can still have an about:blank document. Inspect only
+    # documents the reader can reach, including through visible parent frames.
+    def visible(frame):
+        return frame == page.main_frame or (
+            frame.frame_element().is_visible() and visible(frame.parent_frame)
+        )
+
+    results = [
+        (frame.url, Axe().run(frame, options=options))
+        for frame in page.frames
+        if visible(frame)
+    ]
     violations = [
         {**violation, "document": url}
         for url, result in results

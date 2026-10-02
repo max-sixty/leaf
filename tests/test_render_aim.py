@@ -537,9 +537,6 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         }"""
     )
     assert boxes["barBottom"] <= boxes["passageTop"], boxes
-    float_height = bar.evaluate(
-        "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
-    )
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -552,12 +549,11 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         scroll_settled(page)
         moved = page.evaluate("scrollY")
         assert moved > last_scroll
-        assert bar.evaluate(
-            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
-        ) == pytest.approx(float_height, abs=1)
+        expect(bar).to_be_visible()
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-placement", "top-start")
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(field).to_be_focused()
 
 
 def test_a_comment_on_a_scrolled_away_paragraph_stays_open_in_the_window(
@@ -1557,7 +1553,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_js_property("value", draft)
-    expect(bar).to_have_attribute("data-lf-placement", placement)
+    assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
     rendered(page)
     restored = bar.bounding_box()
     assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)

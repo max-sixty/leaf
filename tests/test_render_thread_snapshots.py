@@ -7,6 +7,7 @@ rendered from explicitly approved source; run evidence stays in .tmp.
 """
 
 import json
+import shutil
 from datetime import datetime, timezone
 
 import pytest
@@ -83,3 +84,37 @@ def test_message_delivery_appearance_and_first_frame(
         (run.output / "observations.json").write_text(
             json.dumps(run.observations, indent=2) + "\n", encoding="utf-8"
         )
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ["missing_png", "poisoned_png", "null_hash", "null_inventory", "malformed_marker"],
+)
+def test_approved_cache_rejects_missing_or_changed_bytes(
+    browser, tmp_path, monkeypatch, corruption
+):
+    """A completion claim cannot replace required bytes from a real approved render."""
+    from leaf_dev import thread_snapshot_source as source
+
+    store = source.approved_store(browser.version)
+    cache = tmp_path / "approved"
+    copied = cache / store.parent.name
+    shutil.copytree(store.parent, copied)
+    monkeypatch.setattr(source, "CACHE", cache)
+    assert source.approved_store(browser.version) == copied / "images"
+    png = next((copied / "images").rglob("*.png"))
+    marker = copied / "complete.json"
+    if corruption == "poisoned_png":
+        png.write_bytes(png.read_bytes() + b"poison")
+    elif corruption == "malformed_marker":
+        marker.write_text("{")
+    else:
+        png.unlink()
+        if corruption == "null_hash":
+            recorded = json.loads(marker.read_text())
+            recorded[str(png.relative_to(copied / "images"))] = None
+            marker.write_text(json.dumps(recorded))
+        elif corruption == "null_inventory":
+            marker.write_text("null")
+    with pytest.raises(RuntimeError, match="incomplete or changed"):
+        source.approved_store(browser.version)

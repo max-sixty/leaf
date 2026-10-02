@@ -27,7 +27,7 @@ import tempfile
 from importlib.metadata import version
 from pathlib import Path
 
-from leaf.session_cleanup import flocked
+from leaf.session_cleanup import flocked, json_bytes, replace_bytes
 
 from leaf_dev import ROOT
 from leaf_dev.harness import PAYLOAD, build_arm, environment, extract_ref
@@ -182,7 +182,7 @@ def capture_source(base: str, patch: bytes, destination: Path) -> Path:
                     "--image-snapshot-save-diff",
                     "--thread-snapshot-store",
                     str(store),
-                    "tests/test_render_thread_snapshots.py",
+                    "tests/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
                 ],
             )
             for command in commands:
@@ -226,6 +226,21 @@ def prepare_store(browser_version: str) -> Path:
     return snapshot_store(browser_version, prepare=True)
 
 
+def snapshot_inventory(store: Path, browser_version: str) -> dict[str, str] | None:
+    """Read every required image/geometry checksum, or report an incomplete store."""
+    profile = render_profile(browser_version)
+    images = {}
+    for case in CASES:
+        for stage in STAGES:
+            for suffix in ("png", "json"):
+                name = f"{profile}/{case.name}-{stage}.{suffix}"
+                path = store / name
+                if not path.is_file():
+                    return None
+                images[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return images
+
+
 def snapshot_store(browser_version: str, *, prepare: bool) -> Path:
     """One fingerprint and inventory owner for preparation and read-only checks."""
     base, patch = source_pin(prepare=prepare)
@@ -244,29 +259,28 @@ def snapshot_store(browser_version: str, *, prepare: bool) -> Path:
     with flocked(destination.with_suffix(".lock")):
         complete = destination / "complete.json"
         store = destination / "images"
-        if not complete.is_file():
+        try:
+            recorded = json.loads(complete.read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            # The marker is external disposable cache data. A normal check fails;
+            # requested preparation reconstructs it from the same approved source.
+            recorded = None
+        images = snapshot_inventory(store, browser_version)
+        if images is None or recorded != images:
             if not prepare:
                 raise RuntimeError(
-                    "approved thread snapshots are not prepared; run "
-                    "uv run leaf-dev thread-snapshots prepare"
+                    f"approved thread snapshot cache is missing, incomplete or changed: {destination}; "
+                    "run uv run leaf-dev thread-snapshots prepare"
                 )
+            # A failed regeneration must not retain an earlier completion claim.
+            complete.unlink(missing_ok=True)
             store = capture_source(base, patch, destination)
-            images = {
-                str(path.relative_to(store)): hashlib.sha256(
-                    path.read_bytes()
-                ).hexdigest()
-                for path in store.rglob("*")
-                if path.is_file()
-            }
-            complete.write_text(json.dumps(images, indent=2) + "\n")
-        images = json.loads(complete.read_text())
-        for case in CASES:
-            for stage in STAGES:
-                for suffix in ("png", "json"):
-                    name = f"{render_profile(browser_version)}/{case.name}-{stage}.{suffix}"
-                    path = store / name
-                    if hashlib.sha256(path.read_bytes()).hexdigest() != images[name]:
-                        raise RuntimeError(f"approved snapshot cache changed: {path}")
+            images = snapshot_inventory(store, browser_version)
+            if images is None:
+                raise RuntimeError(
+                    f"approved source capture is missing required images or geometry; evidence: {destination}"
+                )
+            replace_bytes([(complete, json_bytes(images, indent=2), False)])
     return store
 
 

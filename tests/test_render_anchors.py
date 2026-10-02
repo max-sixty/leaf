@@ -1388,6 +1388,66 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
+@pytest.mark.parametrize("holder", ["disclosure", "tab"])
+def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
+    """Chrome copy controls leave with hidden code and return ready for a finger."""
+    source = '<pre id="source"><code>copy this source</code></pre>'
+    contents = (
+        "<details><summary>Code</summary>" + source + "</details>"
+        if holder == "disclosure"
+        else '<lf-tabs id="views"><lf-tab id="overview" label="Overview">'
+        '<p id="intro">Overview</p></lf-tab><lf-tab id="code" label="Code">'
+        + source
+        + "</lf-tab></lf-tabs>"
+    )
+    url = live_url(
+        serve(leaf_page("Hidden code", '<h1 id="title">Hidden code</h1>' + contents))
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    page = open_page(browser, url, context=context)
+    control = page.locator(".lf-chrome > .lf-code-copy")
+    expect(control).to_have_count(1)
+    expect(page.locator("#source")).to_be_hidden()
+    expect(control).not_to_be_in_viewport()
+
+    opener = (
+        page.locator("summary")
+        if holder == "disclosure"
+        else page.get_by_role("tab", name="Code", exact=True)
+    )
+    closer = (
+        opener
+        if holder == "disclosure"
+        else page.get_by_role("tab", name="Overview", exact=True)
+    )
+    opener.tap()
+    rendered(page)
+    expect(page.locator("#source")).to_be_visible()
+    expect(control).to_be_in_viewport()
+    button = control.get_by_role("button")
+    button.tap()
+    expect(button).to_have_accessible_name("Code copied")
+    assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
+
+    closer.tap()
+    rendered(page)
+    expect(page.locator("#source")).to_be_hidden()
+    expect(control).not_to_be_in_viewport()
+    opener.tap()
+    rendered(page)
+    expect(control).to_be_in_viewport()
+    expect(button).to_have_accessible_name("Copy code")
+    page.evaluate("navigator.clipboard.writeText('cleared')")
+    button.tap()
+    expect(button).to_have_accessible_name("Code copied")
+    assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
+
+
 def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     browser, serve
 ):

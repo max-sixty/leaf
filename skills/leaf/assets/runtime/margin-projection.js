@@ -41,9 +41,9 @@
    holds one edge at its distance from the line it stands level with (`previewHold`):
    its top, so a turn arriving or the reply gaining a line leaves the transcript and the
    reply's first lines where the user reads them, and the reply's foot and Send move
-   down a line per wrap; its foot, with the reply row on it, where a turn joins the
-   transcript while the user drafts, and where the card stands over what it is about
-   and is read. Opening it on another thread lets it choose its spot afresh. A scroll
+   down a line per wrap; its foot, with the reply row on it, for the turn that joins the
+   transcript while the user drafts or sends, and where the card stands over what it is
+   about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
    never closes it: the card leaves with what it is about and comes back with it.
 
    The reply editor grows with its words, the card downward until its foot meets the
@@ -1008,15 +1008,21 @@ export function createMarginProjection({
     const transcript = measureTranscript();
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
-    // measurement on the next. Keep the reply's line through those passes, then
-    // release it on the next edit so the editor grows below its first line.
+    // measurement on the next. Borrow the reply's line for that turn, keyed by the
+    // projected message's stable key so admitting a Send keeps the same hold. A later
+    // reading turn or a new edit releases it; an arriving turn while drafting borrows it
+    // anew, and a Send borrows it through the handoff out of the reply row.
+    const thread = threadCardThread();
+    const latest = thread && turns(thread).at(-1);
     const newDraft = drafting && !previewHold?.drafting;
     const continuedDraft =
       drafting && replyEditor?.value && replyEditor.value !== previewHold?.draftText;
     const keepReplyLine = Boolean(
+      latest &&
       !newDraft &&
       !continuedDraft &&
-      (previewHold?.keepReplyLine || (turned && (drafting || previewHold?.drafting))),
+      ((previewHold?.replyTurn && previewHold.replyTurn === latest.key) ||
+        (turned && (drafting || (previewHold?.drafting && latest.author === "user")))),
     );
     const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
     void floatingUi()
@@ -1082,7 +1088,7 @@ export function createMarginProjection({
           ...spot,
           transcript,
           drafting,
-          keepReplyLine,
+          replyTurn: keepReplyLine ? latest.key : null,
           draftText: replyEditor?.value,
         };
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.

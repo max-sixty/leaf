@@ -90,9 +90,9 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
         expect(thread).to_be_visible()
         return ThreadSurface(
             thread.locator("leaf-text"),
-            thread.locator(".lf-page-thread-msg"),
+            thread.locator(".lf-msg"),
             page.locator("body"),
-            ".lf-margin-preview .lf-page-thread-msg",
+            ".lf-margin-preview .lf-msg",
             page.locator(".lf-margin-preview"),
         )
     if surface == "inline":
@@ -113,9 +113,9 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
         expect(thread.locator('[aria-busy="true"]')).to_have_count(0)
         return ThreadSurface(
             thread.locator("leaf-text"),
-            thread.locator(".lf-page-thread-msg"),
+            thread.locator(".lf-msg"),
             thread,
-            ".lf-page-thread-msg",
+            ".lf-msg",
             thread,
         )
     raise ValueError(f"unknown message surface: {surface}")

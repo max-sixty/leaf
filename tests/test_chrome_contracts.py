@@ -215,7 +215,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads")
-    editor = page.locator(".lf-thread[open] .lf-compose leaf-text")
+    editor = page.locator(".lf-thread[open] .lf-thread-reply leaf-text")
     write(editor, "A short follow-up.")
     assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
@@ -302,7 +302,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
 # Where an open card's reply box stands, the field the caret is drawn in, and the
 # caret itself: the field holding focus and the selection in it; and the list's scroll.
 REPLY_BOX = """card => {
-  const box = card.querySelector(':scope > .lf-compose');
+  const box = card.querySelector(':scope > .lf-thread-reply');
   const field = box.querySelector('leaf-text');
   const at = (el) => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; };
   return {
@@ -370,7 +370,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     if card.get_attribute("open") is None:
         card.locator(".lf-thread-summary").click()
     expect(card).to_have_attribute("open", "")
-    card.locator(".lf-compose leaf-text").click()
+    card.locator(".lf-thread-reply leaf-text").click()
     page.keyboard.type("My reply")
     if back_to_top:
         # Back up to the card above, which puts the open card's end below the fold.
@@ -442,11 +442,11 @@ def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, ser
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).to_have_attribute("open", "")
-    card.locator(".lf-compose leaf-text").click()
+    card.locator(".lf-thread-reply leaf-text").click()
     rendered(page)
     reading = """card => ({
       scroll: card.parentElement.scrollTop,
-      box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-compose')
+      box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-thread-reply')
         .getBoundingClientRect()),
       words: [...card.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect().top,
     })"""
@@ -484,7 +484,7 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
     panel_settled(page)
     threads = page.locator(".lf-threads")
     card = page.locator(f'.lf-thread[data-id="{root}"]')
-    write(card.locator(".lf-compose leaf-text"), ("A draft line.\n" * 8).strip())
+    write(card.locator(".lf-thread-reply leaf-text"), ("A draft line.\n" * 8).strip())
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     before = threads.evaluate("el => el.scrollTop")
     prior = card.locator(".lf-msg").last
@@ -816,6 +816,100 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
+    browser, serve, scheme
+):
+    """One conversation has the same typography and reply field in both places.
+
+    A short opening and a long Markdown answer exercise both message roles. Compare
+    the rendered faces instead of pinning a font size: changing the shared theme is
+    allowed, shrinking only the panel's face is not. Both reply routes append to the
+    same conversation.
+    """
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which detail should we keep?", {"section": "p0"}
+    )
+    answer = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "**Keep the evidence.** "
+            + "Explain how the result was measured. " * 40,
+        },
+    )
+    page = open_page(browser, url, color_scheme=scheme)
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    margin = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+
+    def faces(thread):
+        return thread.evaluate(
+            """thread => {
+              const styles = (node, properties) => {
+                const style = getComputedStyle(node);
+                return Object.fromEntries(properties.map(p => [p, style.getPropertyValue(p)]));
+              };
+              const type = ['font-family', 'font-size', 'font-weight', 'line-height', 'color'];
+              const field = thread.querySelector('.lf-thread-reply leaf-text');
+              return {
+                messages: [...thread.querySelectorAll('.lf-msg')].map(message => ({
+                  body: styles(message.querySelector('.lf-msg-body'), type),
+                  author: styles(message === thread.querySelector('.lf-msg')
+                    ? thread.querySelector('.lf-thread-root-meta b')
+                    : message.querySelector('.lf-msg-head b'), type),
+                })),
+                metadata: styles(thread.querySelector('.lf-thread-root-meta .lf-msg-meta'), type),
+                field: styles(field, [...type, 'padding-top', 'padding-right', 'padding-bottom',
+                  'padding-left', 'min-height']),
+                surround: styles(thread.querySelector('.lf-thread-reply .lf-compose-field'),
+                  ['border-radius', 'border-top-width', 'border-top-color', 'background-color']),
+              };
+            }"""
+        )
+
+    anchored = faces(margin)
+    assert len(anchored["messages"]) == 2
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if panel.get_attribute("open") is None:
+        panel.locator(".lf-thread-summary").click()
+    expect(panel.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+    assert faces(panel) == anchored, scheme
+    expect(panel.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_contain_text(
+        "Keep the evidence."
+    )
+    write(panel.get_by_role("textbox", name="Reply", exact=True), "Sent from Threads.")
+    with sending(page, "the panel follow-up"):
+        panel.get_by_role("button", name="Send", exact=True).click()
+    expect(panel.locator(".lf-msg").last).to_contain_text("Sent from Threads.")
+
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, False)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    write(
+        margin.get_by_role("textbox", name="Reply", exact=True), "Sent beside the page."
+    )
+    with sending(page, "the anchored follow-up"):
+        margin.get_by_role("button", name="Send", exact=True).click()
+    expect(margin.locator(".lf-msg").last).to_contain_text("Sent beside the page.")
+    sent = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply" and event["author"] == "user"
+    ]
+    assert [(event["parent"], event["text"]) for event in sent] == [
+        (root, "Sent from Threads."),
+        (root, "Sent beside the page."),
+    ]
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme):
     """The reply surround stays continuous as focus enters and leaves the thread.
 
@@ -829,7 +923,7 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
     thread = preview.locator(".lf-page-thread")
-    surround = thread.locator(".lf-say")
+    surround = thread.locator(".lf-thread-reply")
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
 
@@ -896,8 +990,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
-    stands on the messages' column, and its draft words start as far inside it as the
-    page composer's do, leaving room for Submit in the same row.
+    stands on the messages' column, and its draft words keep their inset as the
+    field grows and scrolls, leaving room for Submit in the same row.
     Resolve aligns with the root author and time instead of the quoted target. The
     same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
@@ -910,7 +1004,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
     thread.locator(".lf-thread-summary").click()
-    compose = thread.locator(".lf-compose")
+    compose = thread.locator(".lf-thread-reply")
     field_box = compose.locator("leaf-text")
     send = thread.get_by_role("button", name="Send", exact=True)
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
@@ -945,8 +1039,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                       : thread.querySelector(selector), pseudo).borderRadius;
                   return {thread: {x: own.x, y: own.y, width: own.width,
                                    height: own.height, right: own.right, bottom: own.bottom},
-                          compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
-                          field_box: rect('.lf-compose leaf-text'),
+                          compose: rect('.lf-thread-reply'), field: rect('.lf-compose-field'),
+                          field_box: rect('.lf-thread-reply leaf-text'),
                           metadata: rect('.lf-thread-root-meta'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
@@ -966,20 +1060,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                           message: rect('.lf-msg-body'),
                           messageFont: messageStyle.font,
                           inputFont: inputStyle.font,
-                          textStart: rect('.lf-compose leaf-text').x +
+                          textStart: rect('.lf-thread-reply leaf-text').x +
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
-                          // How far the page composer's words start inside its field.
-                          generalInset: (() => {
-                            const field = document.querySelector('.lf-general .lf-compose-field');
-                            const text = field.querySelector('leaf-text');
-                            const style = getComputedStyle(text);
-                            return text.getBoundingClientRect().x +
-                              parseFloat(style.borderInlineStartWidth) +
-                              parseFloat(style.paddingInlineStart) -
-                              field.getBoundingClientRect().x;
-                          })(),
-                          textEnd: rect('.lf-compose leaf-text').right -
+                          textEnd: rect('.lf-thread-reply leaf-text').right -
                             parseFloat(inputStyle.borderInlineEndWidth) - padding,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
@@ -987,6 +1071,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         )
 
     short = geometry()
+    text_inset = short["textStart"] - short["field"]["x"]
     assert short["field"]["x"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
@@ -1021,9 +1106,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     write(field_box, "First line.\nSecond line.\nThird line.\nFourth line.")
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
-    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(
-        grown["generalInset"], abs=1
-    )
+    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(text_inset, abs=1)
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
     assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
@@ -1041,7 +1124,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         scrolling = geometry()
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
-            scrolling["generalInset"], abs=1
+            text_inset, abs=1
         )
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
@@ -1083,9 +1166,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
               };
               return {
                 nav: middle('.lf-margin-preview-nav'),
-                author: middle('.lf-page-thread-head > b'),
+                author: middle('.lf-msg-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
-                authorRight: meta.querySelector('.lf-page-thread-head')
+                authorRight: meta.querySelector('.lf-msg-head')
                   .getBoundingClientRect().right,
                 navLeft: meta.querySelector('.lf-margin-preview-nav')
                   .getBoundingClientRect().left,
@@ -1488,7 +1571,7 @@ PHONE_READING_PAGE = leaf_page(
 
 
 def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
-    """Phone fields keep their text size and stand below a selected paragraph.
+    """Phone fields keep their text size and stand clear of a selected paragraph.
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the user panning
@@ -1496,8 +1579,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
     one set in a sidenote's smaller type opens a size larger than it showed.
 
-    The field goes below this paragraph even though it has more room above and too
-    little below: the page makes the room. This emulation cannot show the native iOS
+    With too little room below, the field stands above without scrolling the page.
+    This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
     # Every field in the composed tree, the vendored controls' own native fields in
@@ -1547,15 +1630,18 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     )
     box = comment.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    before_scroll = page.evaluate("scrollY")
     comment.tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     placed = page.evaluate("""() => {
       const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
       const paragraph = document.getElementById('p6').getBoundingClientRect();
-      return {barTop: bar.top, barBottom: bar.bottom, paragraphBottom: paragraph.bottom};
+      return {barTop: bar.top, barBottom: bar.bottom, paragraphTop: paragraph.top};
     }""")
-    assert placed["barTop"] >= placed["paragraphBottom"], placed
+    assert page.evaluate("scrollY") == before_scroll
+    assert placed["barBottom"] <= placed["paragraphTop"], placed
+    assert placed["barTop"] >= 0, placed
     assert placed["barBottom"] <= page.evaluate("innerHeight"), placed
 
 

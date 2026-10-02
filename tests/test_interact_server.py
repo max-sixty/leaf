@@ -4,6 +4,7 @@ import errno
 import html
 import http.client
 import http.cookiejar
+import http.cookies
 import json
 import os
 import re
@@ -4088,11 +4089,27 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    with opener.open(f"{server}/versions/v1.html?t={TOKEN}") as arrival:
+    # Host is client input; the bound listener still owns this cookie's identity.
+    arrival_url = urllib.request.Request(
+        f"{server}/versions/v1.html?t={TOKEN}", headers={"Host": "127.0.0.1:1"}
+    )
+    with opener.open(arrival_url) as arrival:
         assert arrival.status == 200
+        cookie = http.cookies.SimpleCookie(arrival.headers["Set-Cookie"])
+        [identity] = cookie.values()
+        assert identity["httponly"] and identity["samesite"] == "Strict"
+        assert identity["path"] == "/"
     # Persistent rather than a session cookie: the tab holds only the bare address,
     # which has to open again after the browser restarts.
     assert [(c.value, c.discard) for c in jar] == [(TOKEN, False)]
+
+    # An old global cookie is not another way through the current admission door.
+    assert (
+        fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
+            0
+        ]
+        == 403
+    )
 
     # No query this time: the runtime's own fetches never carry one.
     with opener.open(f"{server}/api/state") as polled:
@@ -4663,10 +4680,11 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
-    """The key is the machine's, so a user admitted at one page is admitted at
-    the next with no second link — cookies are scoped by host and blind to the
-    port, so the jar the first arrival filled is the jar the second is read
-    from."""
+    """One machine key admits each listener through its own handover link.
+
+    A keyed arrival sets that listener's cookie; other ports need their own
+    arrival even when their server takes the same machine key.
+    """
     second = tmp_path / "second-page"
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
@@ -4686,10 +4704,14 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
         )
         with opener.open(f"{first}/api/state?t={key}") as arrival:
             assert arrival.status == 200
-        # No query: the cookie the first page set is the whole of the second's
-        # authorization, and a 403 here raises rather than returns.
-        with opener.open(f"{other}/api/state") as onward:
+        with pytest.raises(urllib.error.HTTPError) as unvisited:
+            opener.open(f"{other}/api/state")
+        assert unvisited.value.code == 403
+        with opener.open(f"{other}/api/state?t={key}") as onward:
             assert onward.status == 200
+        for origin in (first, other):
+            with opener.open(f"{origin}/api/state") as polled:
+                assert polled.status == 200
 
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
@@ -5283,3 +5305,134 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     )
     assert resolved.exit_code == 0, resolved.output
     assert json.loads(resolved.output)["parent"] == "r-kept"
+
+
+def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
+    server, page_dir
+):
+    history = [
+        {
+            "id": "aabb0011",
+            "kind": "comment",
+            "text": "Review the room",
+            "anchor": {"section": "room"},
+        },
+        {
+            "id": "aabb0012",
+            "kind": "reply",
+            "parent": "aabb0011",
+            "author": "agent",
+            "text": "A sample answer",
+            "markup": '<lf-code id="answer-code" language="python"><pre>1</pre></lf-code>',
+        },
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "choose",
+            "detail": {"options": ["fast"]},
+            "revision": 27,
+        },
+    ]
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-ask id="route-ask"><h2>Route</h2><lf-options id="route" choose><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-ask>'
+
+    def template(identity):
+        return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'
+
+    source = PAGE.replace(
+        "</main>",
+        '<script id="fixture" type="application/json">'
+        + json.dumps(history)
+        + "</script>"
+        + template("first")
+        + template("second")
+        + "</main>",
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+    parent_before = event_model.read_events(page_dir)
+    generation = json.loads(fetch(server + "/api/state")[1])["layer"]["generation"]
+    # Allocations pinned to the reviewed revision read its fixture bytes, even
+    # after the mutable source is edited to a different fixture.
+    (page_dir / "index.html").write_text(
+        source.replace("Review the room", "Changed fixture")
+    )
+
+    def allocate(identity):
+        status, raw = fetch(
+            server + "/api/samples",
+            layer=generation,
+            headers={"Leaf-View-Revision": "1"},
+            data=json.dumps({"template": identity}).encode(),
+        )
+        assert status == 200, raw
+        return server + json.loads(raw)["url"]
+
+    def events(child):
+        # Each fresh practice page stamps its omitted fixture times at setup.
+        return [
+            {key: value for key, value in event.items() if key != "ts"}
+            for event in json.loads(fetch(child + "api/state")[1])["events"]
+        ]
+
+    first = allocate("first")
+    second = allocate("second")
+    initial = events(first)
+    assert initial[0]["text"] == "Review the room"
+    assert initial[1]["markup"].startswith('<lf-code id="answer-code"')
+    assert initial[2]["revision"] == 1
+    assert initial[2]["meaning"]["scope"] == "page"
+    assert events(second) == initial
+    status, raw = fetch(
+        first + "api/event",
+        layer=generation,
+        data=json.dumps(
+            {
+                "kind": "reply",
+                "revision": 1,
+                "parent": "aabb0011",
+                "text": "Only the first child",
+                "attempt": "fixture-child-reply",
+            }
+        ).encode(),
+    )
+    assert status == 200, raw
+    assert len(events(first)) == 4
+    assert events(second) == initial
+    assert event_model.read_events(page_dir) == parent_before
+    assert fetch(first + "api/release", layer=generation, data=b"{}")[0] == 200
+    reset = allocate("first")
+    assert events(reset) == initial
+
+
+def test_nested_sample_fixtures_resolve_in_the_immediate_parent_document(
+    server, page_dir
+):
+    template = """<script id="fixture" type="application/json">[{"kind":"comment","text":"Outer fixture"}]</script>
+<template id="outer" data-sample data-sample-events="fixture">
+<h1>Outer</h1>
+<script id="fixture" type="application/json">[{"kind":"comment","text":"Nested fixture"}]</script>
+<template id="inner" data-sample data-sample-events="fixture"><h1>Inner</h1></template>
+</template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    parent_before = event_model.read_events(page_dir)
+    generation = json.loads(fetch(server + "/api/state")[1])["layer"]["generation"]
+
+    def allocate(parent, identity):
+        status, raw = fetch(
+            parent + "api/samples",
+            layer=generation,
+            data=json.dumps({"template": identity}).encode(),
+        )
+        assert status == 200, raw
+        return server + json.loads(raw)["url"]
+
+    outer = allocate(server + "/", "outer")
+    inner = allocate(outer, "inner")
+    assert [
+        event["text"] for event in json.loads(fetch(outer + "api/state")[1])["events"]
+    ] == ["Outer fixture"]
+    assert [
+        event["text"] for event in json.loads(fetch(inner + "api/state")[1])["events"]
+    ] == ["Nested fixture"]
+    assert event_model.read_events(page_dir) == parent_before

@@ -226,6 +226,7 @@ STATES = (
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
+    State("plan-panel-dark", "review-a-plan", threads_panel, scheme="dark"),
     State(
         "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
     ),

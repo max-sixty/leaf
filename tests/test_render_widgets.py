@@ -5056,6 +5056,11 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
     expect(page.locator("#card-playground .lf-error")).to_contain_text(
         "control radius has a value off its step"
     )
+    consume_browser_errors(
+        page,
+        '<lf-playground id="card-playground"> failed: '
+        "control radius has a value off its step",
+    )
 
 
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
@@ -5192,7 +5197,9 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     playground = page.locator("#ring-playground")
     child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
     standing = "button => button.matches(':focus') && document.hasFocus()"
-    values = lambda: playground.evaluate("root => root.values")
+
+    def values():
+        return playground.evaluate("root => root.values")
 
     child_button.focus()
     assert child_button.evaluate(standing)
@@ -7042,17 +7049,35 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     """Undo has the same failure lifecycle without inventing a counter-decision."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-margin-for='sug']")
-    unfolded_button(row.locator(".lf-sug-reject")).click()
-    page.route(
-        "**/api/event",
-        lambda route: route.fulfill(
+    with sending(page, "the decision to be withdrawn"):
+        unfolded_button(row.locator(".lf-sug-reject")).click()
+    decision = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["detail"]["outcome"] == "reject"
+    )
+    refused = []
+
+    def refuse_undo(route):
+        event = route.request.post_data_json
+        if event["kind"] != "undo":
+            route.continue_()
+            return
+        refused.append(event)
+        route.fulfill(
             status=400,
             json={"ok": False, "final": True, "error": "refused before append"},
-        ),
-    )
-    row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
+        )
+
+    page.route("**/api/event", refuse_undo)
+    with sending(page, "the refused withdrawal"):
+        row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
+    assert [(event["kind"], event["undoes"]) for event in refused] == [
+        ("undo", decision["id"])
+    ]
     receipt = row.locator(".lf-margin-receipt")
     expect(receipt).to_have_text("Undo failed · Rejected")
+    consume_browser_errors(page, "400")
     assert receipt.evaluate(
         """element => {
           const probe = document.createElement('span');
@@ -7073,15 +7098,9 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
         "data-lf-state", re.compile(".+")
     )
     logged = events_model.read_events(serve.page_dir)
-    decision = next(
-        event
-        for event in logged
-        if event["kind"] == "action" and event["detail"]["outcome"] == "reject"
-    )
     assert [event["undoes"] for event in logged if event["kind"] == "undo"] == [
         decision["id"]
     ]
-    consume_browser_errors(page, "400")
 
 
 # `folded` is the layer's own division of the pair rather than a convenience: accept
@@ -8891,7 +8910,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
     resized(page, 1200, 900)
     # The seat is filled before the diff runs, or this asserts over a page that never
     # had the blocks in question.
-    expect(page.locator("#cd-q .lf-page-thread-msg")).to_have_count(2)
+    expect(page.locator("#cd-q .lf-msg")).to_have_count(2)
 
     stamp_page(
         d,
@@ -8903,7 +8922,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
         "two",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("#cd-q .lf-page-thread-msg")).to_have_count(2)
+    expect(page.locator("#cd-q .lf-msg")).to_have_count(2)
 
     compare_with(page)
     page.wait_for_function(
@@ -8943,13 +8962,11 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    inline = page.locator(f'#cd-q .lf-page-thread-msg[data-event="{message["id"]}"]')
+    inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
     inline_thread = page.locator(
-        f'#cd-q .lf-page-thread:has(.lf-page-thread-msg[data-event="{message["id"]}"])'
+        f'#cd-q .lf-page-thread:has(.lf-msg[data-event="{message["id"]}"])'
     )
-    expect(inline.locator(".lf-page-thread-body")).to_have_text(
-        "The north bracket fit."
-    )
+    expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
     panel_thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{message["id"]}"])')
@@ -8957,7 +8974,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page.evaluate(
         """([message]) => {
           window.__editedInline = document.querySelector(
-            `#cd-q .lf-page-thread-msg[data-event="${message}"]`);
+            `#cd-q .lf-msg[data-event="${message}"]`);
           window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
           window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
@@ -8983,9 +9000,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
 
-    expect(inline.locator(".lf-page-thread-body")).to_contain_text(
-        "The north bracket fits."
-    )
+    expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
     expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
     # The disclosure is on the head, and a thread's first message lends its head to the
@@ -9000,7 +9015,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
-          '#cd-q .lf-page-thread-msg[data-event="{message["id"]}"]')
+          '#cd-q .lf-msg[data-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
@@ -10254,7 +10269,9 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     that does not parse, a chart with no name for a user who cannot see it, a call to
     something Plot does not export, a value that is not Plot's options, a drawing Plot
     already made, which is how Plot's own examples end, and a height the page could not
-    have laid out before the chart drew."""
+    have laid out before the chart drew. The author hears the same words as the page's
+    `error` event, naming the chart, since the user seeing the box is not the author
+    seeing it."""
     said = {
         "bad-syntax": "does not parse",
         "bad-label": "ariaLabel",
@@ -10273,6 +10290,20 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         # The source stays under the message: a refusal the user cannot check is half a
         # refusal.
         expect(page.locator(f"#{chart_id} .lf-error pre")).to_contain_text("marks")
+        report = f'<lf-chart id="{chart_id}"> failed: '
+        consume_browser_errors(page, report)
+        reported = []
+        for _ in range(400):
+            reported = [
+                event["text"]
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "error"
+            ]
+            if reported:
+                break
+            page.wait_for_timeout(25)
+        assert len(reported) == 1 and reported[0].startswith(report), reported
+        assert said[chart_id] in reported[0], reported
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):

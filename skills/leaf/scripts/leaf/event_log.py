@@ -1,8 +1,10 @@
-"""Append-only event log storage, locking, and attempt identity."""
+"""Append-only event log storage, raw readings, locking, and attempt identity."""
 
 import json
 import os
 import secrets
+import signal
+import sys
 from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
@@ -253,3 +255,31 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
         read += len(complete)
         lines += complete.count(b"\n")
         stamp = next_reading(lambda: file_stamp(log), stamp)
+
+
+def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
+    """Print each event after `after` as the log reads back, and with `follow` each
+    one appended from then on, until stopped.
+
+    A reader that goes away is the ordinary end rather than a failure, whether
+    `head` closed the pipe or a follower's consumer stopped it: SIGINT, SIGTERM, and
+    a closed stdout all exit 0. Each line is flushed as it is printed, since a
+    follower's stdout is a pipe whose reader waits on that line.
+    """
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    records = (
+        follow_events(page_dir, after)
+        if follow
+        else (event for event in read_events(page_dir) if event["seq"] > after)
+    )
+    try:
+        for event in records:
+            print(jsonl_line(event), flush=True)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        # The interpreter flushes stdout again on exit, into the same closed pipe.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(0)
+    except FileNotFoundError as error:
+        sys.exit(str(error))

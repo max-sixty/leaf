@@ -75,3 +75,41 @@ class PageView:
         from .delivery import current_responses
 
         return current_responses(self._page_dir, events)
+
+
+class InitialPageView:
+    """A fresh single-revision page, before its directory is allocated.
+
+    Sample source validation and allocation put the same literal document and
+    captured vocabulary to ordinary admission. No claim or delivery exists yet,
+    so no response obligation can have been delivered.
+    """
+
+    def __init__(self, document: SourceDocument, registry: dict, contracts: dict):
+        self._document = document
+        self._registry = registry
+        self._contracts = contracts
+
+    @property
+    def revisions(self) -> list[int]:
+        return [1]
+
+    def document(self, revision: int) -> SourceDocument:
+        return self._document
+
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        return SourceReading(self._document, registry)
+
+    def registry(self, revision: int | None) -> dict:
+        return self._registry
+
+    @property
+    def within(self) -> dict:
+        return self._document.within
+
+    @property
+    def contracts(self) -> dict:
+        return self._contracts
+
+    def responses(self, events: list) -> dict:
+        return {}

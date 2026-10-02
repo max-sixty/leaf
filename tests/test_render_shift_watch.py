@@ -426,7 +426,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     if surface == "card":
         page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
         surface_root = page.locator(".lf-margin-preview")
-        header = surface_root.locator(".lf-page-thread-head").first
+        header = surface_root.locator(".lf-msg-head").first
     else:
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
@@ -436,9 +436,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     timestamp = header.locator("time")
     expect(receipt).to_have_text("Sent")
     expect(timestamp).to_have_text("just now")
-    protected = surface_root.locator(
-        "b, button, leaf-text, .lf-msg-body, .lf-page-thread-body"
-    )
+    protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
     boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
     before = protected.evaluate_all(boxes)
     assert before

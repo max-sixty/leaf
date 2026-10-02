@@ -1173,7 +1173,11 @@ this.threadSurface = consumeThreads(this, (collection, surfaces) => {
 ```
 
 `target(key)` returns `{anchor, placement}` only for an exact datum belonging to the
-widget, otherwise `null`; `placement.datumElement` is the rendered datum.
+widget, otherwise `null`; `placement.datumElement` is the rendered datum. It also
+returns `null` for a thread the agent starts at an on-screen datum where the widget
+draws no thread yet, since the outlet it opened would move what the user is reading:
+the thread waits in the margin until the user presses its marker, adds a turn of their
+own, or scrolls the datum out of the window.
 `composition` supplies the equivalent placement for the active composer, which may
 precede any Thread. The widget owns outlet creation, removal, and layout.
 Leaf validates target ownership and outlet containment before committing placements.

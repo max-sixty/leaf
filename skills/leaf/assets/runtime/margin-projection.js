@@ -1009,11 +1009,13 @@ export function createMarginProjection({
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
     // measurement on the next. Keep the reply's line through those passes, then
-    // release it when a new draft starts so the editor grows below its first line.
+    // release it on the next edit so the editor grows below its first line.
     const newDraft = drafting && !previewHold?.drafting;
+    const continuedDraft = drafting && replyEditor?.value &&
+      replyEditor.value !== previewHold?.draftText;
     const keepReplyLine = Boolean(
-      (previewHold?.keepReplyLine && !newDraft) ||
-      (turned && (drafting || previewHold?.drafting)),
+      !newDraft && !continuedDraft &&
+      (previewHold?.keepReplyLine || (turned && (drafting || previewHold?.drafting))),
     );
     const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
     void floatingUi()
@@ -1075,7 +1077,7 @@ export function createMarginProjection({
         const { scale, spot } = previewSide.landed(position);
         // The transcript this placement answered, so a turn that joined it while the
         // placement was worked out is one the next placement still sees join.
-        previewHold = { ...spot, transcript, drafting, keepReplyLine };
+        previewHold = { ...spot, transcript, drafting, keepReplyLine, draftText: replyEditor?.value };
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         previewPlacement.stand(position);
         const card = preview.getBoundingClientRect();

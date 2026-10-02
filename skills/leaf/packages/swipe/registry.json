@@ -1,6 +1,7 @@
 {
   "lf-swipe-deck": {
-    "description": "One rapid pass-or-keep classification Ask. Put it inside lf-ask, whose heading becomes the deck's accessible name. Cards begin in the `unseen` pile; the user sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. A card the user classified has a Return to queue button, which swipes it back to the front of `unseen`, including after completion, when returning any card reopens the Ask. Each classification reaches the agent as an absolute `swipe` action, and the Ask is answered once `unseen` is empty, so the swipe that empties it answers. Children are exactly one lf-swipe-pile for each verdict. A version that changes a pile's cards writes each card the user classified into it where the classification put it, and later versions keep it there unless they mark it `restated` (`authoring-revisions.md`, Honor user state). A rewrite that invalidates a classification takes `restated` on that card, and one that invalidates the completed deck takes it on the deck (see `$restated` in `registry.json`).",
+    "description": "A rapid pass-or-keep classification Ask, answered when no unseen cards remain.",
+    "x-instructions": "Put the deck inside lf-ask, whose heading names it. Keep classified cards in the piles the user chose across revisions unless the revision restates them. A rewrite that invalidates a classification restates the card; one that invalidates the completed deck restates the deck. Read authoring-revisions.md, Honor user state, and $restated.",
     "type": "object",
     "properties": {
       "id": {
@@ -71,7 +72,8 @@
     "x-example": "<lf-ask id=\"session-triage-decision\">\n  <h2>Which session-store follow-ups should we keep?</h2>\n  <lf-swipe-deck id=\"session-triage\">\n    <lf-swipe-pile id=\"session-queue\" verdict=\"unseen\">\n      <lf-swipe-card id=\"session-expiry\"><strong>Rolling expiry writes</strong><p>Move expiry refreshes off the request hot path.</p></lf-swipe-card>\n    </lf-swipe-pile>\n    <lf-swipe-pile id=\"session-pass\" verdict=\"pass\"></lf-swipe-pile>\n    <lf-swipe-pile id=\"session-keep\" verdict=\"keep\"></lf-swipe-pile>\n  </lf-swipe-deck>\n</lf-ask>"
   },
   "lf-swipe-pile": {
-    "description": "One semantic pile in a swipe deck. Supply exactly one pile for each `verdict`: `unseen` is the ordered queue, `pass` is out of scope, and `keep` is retained for follow-up. Children are lf-swipe-card elements only; cards are reparented here as recorded position state, so the verdict attribute is the classification and no card-level status is needed.",
+    "description": "One verdict pile in a swipe deck: unseen, pass, or keep.",
+    "x-instructions": "Use unseen for the ordered queue, pass for excluded proposals, and keep for retained follow-up. A card's pile supplies its classification; do not add a duplicate status to the card.",
     "type": "object",
     "properties": {
       "id": {
@@ -99,7 +101,8 @@
     "x-upgrade": false
   },
   "lf-swipe-card": {
-    "description": "One concise technical proposal in a swipe deck. Lead with a <strong> title and follow with enough prose to classify it without leaving the deck. Its id identifies it in classification details and preserves its verdict across page versions. Rewriting a classified proposal needs `restated` on this card (see lf-swipe-deck).",
+    "description": "One concise proposal the user can classify in a swipe deck.",
+    "x-instructions": "Lead with a `<strong>` title and enough prose to classify it without leaving the deck. Keep its id stable across versions. Rewriting a classified proposal needs restated on this card.",
     "type": "object",
     "properties": {
       "id": {

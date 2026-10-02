@@ -1,0 +1,58 @@
+# Added after a simplification audit queried lf-toc's example and schema, then
+# wrote a custom anchor index without reading its behavioral description.
+# The initial cold prompt passed 3/3 on both arms; this less directive prompt
+# passed 2/2 on both. It guards navigation and comparison together rather than
+# reproducing the long session. Also passed 2/2 with both the landed Contents
+# rule and its short-document exception. Native history replays, rather than
+# this cold prompt, discriminate the long-session instruction changes.
+schema_version: '1.0'
+name: report-navigation-uses-vocabulary
+description: "Contents navigation: retain comparison metadata alongside the report outline."
+tags:
+- authoring
+- navigation
+execution:
+  prompt: |
+    Write up the independently checked simplification opportunities as a Leaf
+    report. Order the eight candidates below by developer benefit. For each,
+    explain the scope, estimated net LOC cut, functionality change, validator's
+    verdict, and remaining verification. Keep the estimated savings available
+    together for comparison, and give each candidate a substantial section with
+    enough detail for the user to decide whether to implement it.
+
+    Candidates: one captured page-read context, 80–150 LOC, preserve behavior;
+    one binding-history fold, 55–95 LOC, preserve behavior; pushed data snapshots,
+    600–800 LOC, lose polling producers; whole-region revision replacement,
+    130–210 LOC, preserve drafts and focus; one Threads reading surface,
+    300–450 LOC, lose inline conversation cards; remove smart margin placement,
+    3500–4200 LOC, lose local markers; remove the hosted AI agent, 1200–1400 LOC,
+    retain public interactive demos; remove drawing comments, 900–1050 LOC,
+    keep ordinary anchored text comments. Mark implementation proofs as pending.
+
+    The vendored vocabulary is `packages/default/registry.json` under the Leaf
+    skill's base directory. The page directory is not reachable from here, so
+    reply with the complete `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/page-authoring\.md
+- name: reads-registry
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/packages/default/registry\.json
+- name: judgment
+  type: llm
+  criteria: |
+    Pass if the long scrolling report uses an empty, identified lf-toc for
+    heading-derived navigation, or lf-tabs/lf-tab for candidate views with built-in
+    navigation. Fail if a manually duplicated list of candidate anchor links or
+    page-authored selection script supplies the report's navigation instead.
+    Estimates and functionality changes remain available together for comparison;
+    a summary table carrying those facts may contain links and is not a duplicate
+    navigation list. Each candidate's details are reachable. Do not require a
+    particular visual arrangement, or a widget for ordinary prose or tabular facts.

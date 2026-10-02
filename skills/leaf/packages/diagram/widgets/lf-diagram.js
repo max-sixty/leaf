@@ -103,6 +103,10 @@ customElements.define(
         this.visualParts.clear();
         for (const [id, { element }] of boxes) {
           if (!element || !NAMEABLE.test(id)) continue;
+          // Generated state markers have no authored identity. Their IDs can
+          // overlap with authored state names, so recognize the rendered shape.
+          const shape = element.getAttribute("data-shape");
+          if (shape === "state-start" || shape === "state-end") continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           const label = element.getAttribute("data-label") || says || id;
           this.visualParts.set(`node:${id}`, { element, label });

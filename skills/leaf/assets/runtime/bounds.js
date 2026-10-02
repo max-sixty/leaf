@@ -7,7 +7,7 @@
    where a send lands its thread and which box holds a control still, where anchor
    travel reveals a passage, which margin lane clips a marker, and whose place
    continuity records and restores. A scroller page CSS makes is none of these: Leaf
-   keeps no place in it, and `version check` advises bounding the block instead.
+   keeps no place in it, and `page check` advises bounding the block instead.
 
    A region needs an id that names it in the next document too, since that is where a
    revision restores its place. A block of the page's own document with an id takes one

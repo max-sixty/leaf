@@ -18,23 +18,29 @@ theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row stands in the
-free room measured beside its target, in a rail the page declares, or as a pin by
-its target: in room found where it covers no words and no other box that paints its
-own extent, clear of neighbouring blocks where its target has room of its own, and
-reaching one line of words further out only where it has none within reach
-(`pinSpot`, `coverIn`), and otherwise inside its target's corner. A pin whose face is a
-primary and one more control that finds no room for both stands folded to its options'
-toggle, wearing the face of the kind its contribution declares, seated at that size
-where the actions it opens to fit inside its bounds
-(`seatRows`); a press on the toggle, or the keyboard arriving on it or standing at its
-target, opens it, spreading the actions over what stands beside it with the toggle
-left under the press, and moves nothing else.
+Auxiliary runtime controls overlay the page's existing geometry. Adding a control
+preserves content position, wrapping, and block size, including when its CSS loads
+before first paint. Keep covered content reachable through placement or disclosure
+rather than padding or a reserved row.
 
-The rail and a pin are different kinds. The rail is room: a strip beside the column,
-which the column may move over to leave (`settleResidency`) but never narrows or
-indents for. A pin, a passage mark, and everything else in the annotation layer is an
-overlay: it covers what lies under it and takes no room. No rule pads, indents,
+A margin row sits in the
+rail beside its target (`rowPosture`), or as a pin by its target: in room found where
+it covers no words and no other box that paints its own extent, clear of neighbouring
+blocks where its target has room of its own, and reaching one line of words further
+out only where it has none within reach (`pinSpot`, `coverIn`), and otherwise inside
+its target's corner. A pin whose face is a primary and one more control that finds no
+room for both stands folded to its options' toggle, wearing the face of the kind its
+contribution declares, seated at that size where the actions it opens to fit inside its
+bounds (`seatRows`); a press on the toggle, or the keyboard arriving on it or standing
+at its target, opens it, spreading the actions over what stands beside it with the
+toggle left under the press, and moves nothing else.
+
+The rail and a pin are different kinds. The rail is room: a strip right of `main`
+that sits wherever the window has room for it. It never moves, narrows, or indents
+the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency`). A pin,
+a passage mark, and everything else in the annotation layer is an overlay: it covers
+what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
 its target, such as an Ask's. Reserved room would make the page's geometry depend on
@@ -63,15 +69,35 @@ inspection layer.
 ### Stability
 
 The page holds still under the user's aim. A state change may repaint any box but
-must not move controls next to the gesture that caused it. News causes no layout
-shift: when a box's content changes without a gesture, that box may grow or shrink
-into free room, but no other element moves. A change the user requested may reflow
-the content it replaces, shown as motion the eye can follow. A hover, focus, or
+must not move controls next to the gesture that caused it. Without a gesture, a box
+may grow or shrink into free room, but reading content and controls stay put. Passive
+message metadata may rearrange inside a stationary header when it moves no neighbour
+and stays inside the header. Its age and receipt need no reserved-width slots;
+controls and ordinary reading text never take this exception. News grows where the
+reader isn't looking: above the screen, where scroll anchoring takes the growth into
+what they scrolled past, or below it. So a thread's reply box stands at the foot of the
+scroller that shows the thread, in the Threads panel as in the margin card, and a
+reply grows the thread above it without moving the box or its caret. Where news would
+move what the reader is reading, it waits behind a control of fixed size until they
+open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
+thread the agent starts wait behind a notice in a row the seat already draws, and a
+thread that would open a seat of its own, as on a diff line with no thread, waits in
+the margin behind its marker (`thread/held-news.js`). A change the user requested may reflow the
+content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page makes a
-layout shift Chrome reports without recent input, or whose typing carries its field
-(`tests/shift_watch.js`).
+suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+for a protected box moving on screen without input, news landing just after a press included,
+or typing carrying its field (`tests/shift_watch.js`).
+
+A widget paints its final box before it upgrades. The theme gives each widget, under
+`html[data-lf-interactive]`, the size its module will draw it at, so first paint
+already has the page's geometry and upgrade adds behavior without moving what follows,
+in a served page and an export alike. The
+widget quality check `keeps-first-box` measures each widget's box at first paint and
+once the page presents (`leaf package check PACKAGE --render`,
+`scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
+package and fails on a change `tests/known_widget_findings.py` does not list.
 
 Generated interface first appears in its settled position. Reserve space before a
 generated control appears; transient feedback may repaint a control or briefly
@@ -90,6 +116,23 @@ refusing it and the user taking it back (`thread/folding.js`). A result only the
 log can supply waits with `aria-busy`, painted on a delay so a fast answer shows
 nothing. Persistent status text is for a state the user must return to, such as
 failure.
+
+### Words stay where they were typed
+
+What the user has typed stays in front of them until they put it away. A box holding
+words closes only in answer to a key or a press that means to close it (Send,
+Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
+document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
+news never closes it. Geometry decides where a box stands, never whether: a box
+whose existing subject loses its visible attachment stays in the usable window,
+keeping its words, anchor, and focus, and reattaches when that target returns.
+Only where no usable window remains does it wait out of view with its words,
+anchor, and caret, standing again, focus returned, when room returns (`standFab`,
+`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+words and caret to the replacement. The suite's browser fixture fails any test
+whose page loses typed words without a key or press (`tests/words_watch.js`), and
+every corpus page is scrolled to both ends and back with each typed box open
+(`test_words_in_a_box_survive_scrolling_away_and_back`).
 
 ### Visual grammar
 
@@ -121,9 +164,18 @@ share; the theme's guard answers for CSS.
 
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
-boot sequence. `runtime/bootstrap.js` loads before everything else, can show a startup
-failure even if the module graph never loads, and holds page keys pressed
-before presentation. Content modules import only
+boot sequence. Two classic scripts run before the first paint, which no module
+reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
+else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
+it shows a startup failure and waits for a server that can start the page, even if
+the module graph never loads; and it holds page keys pressed before presentation.
+`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
+ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
+each widget its upgraded box, and takes the mark off when the runtime could not start
+because something it needs did not arrive (naming why in `data-lf-startup-error`), so
+the themes give back the readable fallback for every widget at once; it declares the
+page's storage scope;
+and it decides which member an `x-views` holder opens on. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -151,7 +203,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `thread-card-geometry.js`, `pointed-place.js` |
+| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
+| Comment box and thread card placement | `comment-placement.js`, `floating.js` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
@@ -181,7 +234,9 @@ the step between. The browser fixture fails a write that changes
 nothing in any test (`tests/write_watch.js`), and
 `test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 
-What a page says follows from where it stands now, not from how it got there. A page
+What a page says follows from where it stands now, not from how it got there. The one
+history its arrangement keeps is the order its margin rows came in, since a row that
+arrives yields to those already there rather than moving them (`margin-layout.js`). A page
 nobody touches writes nothing, asks for no frame, and moves no focus; a surface opened
 and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever
@@ -202,8 +257,9 @@ several packages' widgets need is the kernel's. The page's rules skip the chrome
 every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`), and the chrome's root and `.lf-ui` state the whole face they
 would otherwise inherit from the page.
-`runtime/chrome.css` and `runtime/marks.css` stay unlayered: their paint lies over
-the page, so they are adopted after page and package sheets and win by their
+`runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
+`chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
+Their paint lies over the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
@@ -230,7 +286,7 @@ selects from:
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is anchor paint's placement record (`point`, `pointRow`), written in its pass, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
-| geometry readings: what a scroller shows, what a surface hides, sticky-header room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareStickyHeaders`, `shownWindow`, `seenRect`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,

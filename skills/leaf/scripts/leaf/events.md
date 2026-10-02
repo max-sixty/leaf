@@ -67,7 +67,8 @@ user's own. An exact control may withdraw a forward action before that action's
 POST finishes: the browser derives the withdrawal immediately, keeps both gestures
 in its ordered ledger, and replaces the local dependency with the accepted action id
 before sending the undo. Refusal of the action discards its dependent undo; refusal
-of the undo re-derives the still-standing action.
+of the undo re-derives the still-standing action. A reaction's withdrawal is drawn
+the same way, from the moment it is sent, and its refusal brings the reaction back.
 
 ## Authorship and voice
 
@@ -83,9 +84,11 @@ through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
-Everything downstream turns on `author`: `leaf wait` prints user events and the
-banner counts only input that requires agent attention, so a `read` neither wakes
-the watcher nor reads as unanswered. An agent's own comment does neither. Either
+`service.requires_agent_attention` decides what needs the agent, from `author` and
+the kind's `$events` declaration: a user event of a kind not declared bookkeeping, or
+any `report` or `error`. `leaf wait` prints those, and the banner counts only the
+user events among them, so a `read`, declared bookkeeping, neither wakes the watcher
+nor reads as unanswered. An agent's own comment does neither. Either
 side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's

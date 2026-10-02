@@ -1,4 +1,4 @@
-/* Where two images differ: which pixels count, where a reader is sent to look, and
+/* Where two images differ: which pixels count, what each frame of a pair outlines, and
    the words that sum it up. */
 
 import assert from "node:assert/strict";
@@ -12,21 +12,40 @@ const blank = (width, height) => ({
   height,
   data: new Uint8ClampedArray(width * height * 4).fill(255),
 });
-// `value` is what the rectangle's one channel is set to, on a white image; the default
-// moves it far enough to draw.
+// A page: a blank image with a column of short lines down its right edge that every
+// pair here keeps, as the rest of a real page stays when one part of it changes.
+const page = (width, height) =>
+  painted(
+    blank(width, height),
+    ...Array.from({ length: 8 }, (_, i) => [
+      width - 30,
+      4 + i * 12,
+      20 + (i % 3) * 2,
+      6,
+    ]),
+  );
+// `value` is what the rectangle's one channel is set to; the default paints it black,
+// far enough to draw, and a rectangle under LINE (40) pixels on each side reads as a
+// mark, as text does.
 const painted = (image, ...rects) => {
   const copy = { ...image, data: image.data.slice() };
-  for (const [x, y, width, height, channel = 0, value = 0] of rects)
+  for (const [x, y, width, height, channel, value = 0] of rects)
     for (let row = y; row < y + height; row += 1)
       for (let column = x; column < x + width; column += 1)
-        copy.data[(row * image.width + column) * 4 + channel] = value;
+        for (const c of channel === undefined ? [0, 1, 2] : [channel])
+          copy.data[(row * image.width + column) * 4 + c] = value;
   return copy;
 };
-const read = (image, ...rects) => differingRegions(image, painted(image, ...rects));
+// An outline holds the pixels on both sides of its content's edges, so it stands one
+// pixel outside what was painted.
+const outlines = (reading, side) =>
+  reading.regions
+    .filter((region) => region.side === side)
+    .map(({ x, y, width, height, kind }) => ({ x, y, width, height, kind }));
 
 test("identical images differ nowhere", () => {
-  const image = blank(64, 48);
-  assert.deepEqual(read(image), {
+  const image = painted(blank(64, 48), [10, 10, 20, 8]);
+  assert.deepEqual(differingRegions(image, image), {
     width: 64,
     height: 48,
     changed: 0,
@@ -38,86 +57,165 @@ test("identical images differ nowhere", () => {
 test("one level in any one channel, alpha included, is a change", () => {
   const image = blank(40, 40);
   for (const channel of [0, 1, 2, 3])
-    assert.equal(read(image, [5, 6, 1, 1, channel, 254]).changed, 1);
+    assert.equal(
+      differingRegions(image, painted(image, [5, 6, 1, 1, channel, 254])).changed,
+      1,
+    );
 });
 
-test("a pixel moved 48 levels is drawn, and none moved less is", () => {
-  const image = blank(200, 100);
-  const reading = read(image, [10, 10, 20, 20, 1, 255 - 47], [150, 60, 20, 20, 1, 207]);
-  assert.equal(reading.changed, 800);
-  assert.deepEqual(reading.regions, [{ x: 150, y: 60, width: 20, height: 20 }]);
-  assert.equal(
-    describeDifference(read(image, [10, 10, 20, 20, 1, 208])),
-    "only slight changes",
+test("a pixel moved 48 levels is outlined, and none moved less is", () => {
+  const image = painted(page(200, 100), [10, 10, 20, 10], [120, 60, 20, 10]);
+  const slight = differingRegions(
+    image,
+    painted(image, [10, 10, 20, 10, undefined, 47]),
   );
-});
-
-test("a region is the exact box of its pixels, not of its squares", () => {
-  const { regions } = read(blank(100, 100), [13, 21, 5, 3]);
-  assert.deepEqual(regions, [{ x: 13, y: 21, width: 5, height: 3 }]);
-});
-
-test("changes close together read as one region, far apart as two", () => {
-  // Two words on a line, a few pixels apart, and a chip in the far corner.
-  const { regions } = read(
-    blank(400, 300),
-    [20, 20, 30, 10],
-    [56, 22, 40, 8],
-    [350, 270, 40, 20],
+  assert.equal(describeDifference(slight), "only slight changes");
+  const strong = differingRegions(
+    image,
+    painted(image, [120, 60, 20, 10, undefined, 48]),
   );
-  assert.deepEqual(regions, [
-    { x: 20, y: 20, width: 76, height: 10 },
-    { x: 350, y: 270, width: 40, height: 20 },
+  assert.deepEqual(outlines(strong, "before"), [
+    { x: 119, y: 59, width: 22, height: 12, kind: "changed" },
   ]);
+  assert.deepEqual(outlines(strong, "after"), outlines(strong, "before"));
 });
 
-test("a change that wraps across a diagonal still joins", () => {
-  const { regions } = read(blank(200, 200), [100, 10, 4, 4], [80, 22, 4, 4]);
-  assert.deepEqual(regions, [{ x: 80, y: 10, width: 24, height: 16 }]);
+test("content that changed in place is outlined in both frames, whole", () => {
+  // A word becomes a longer word; the line beside it stays.
+  const line = painted(page(300, 100), [200, 20, 30, 10]);
+  const before = painted(line, [20, 20, 30, 10]);
+  const after = painted(line, [20, 20, 50, 10]);
+  const reading = differingRegions(before, after);
+  assert.deepEqual(outlines(reading, "before"), [
+    { x: 19, y: 19, width: 32, height: 12, kind: "changed" },
+  ]);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 19, y: 19, width: 52, height: 12, kind: "changed" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area");
 });
 
-test("rows only the taller image has are a change", () => {
-  const reading = differingRegions(blank(64, 40), blank(64, 48));
-  assert.equal(reading.changed, 64 * 8);
-  assert.deepEqual(reading.regions, [{ x: 0, y: 40, width: 64, height: 8 }]);
+test("content pushed down by what grew above it moved, and is outlined where it is", () => {
+  // A paragraph grows by a line, and the one below it is pushed down unchanged.
+  const column = page(200, 200);
+  const before = painted(column, [20, 20, 30, 10], [20, 60, 24, 10], [60, 60, 12, 10]);
+  const after = painted(
+    column,
+    [20, 20, 30, 10],
+    [20, 34, 20, 10],
+    [20, 80, 24, 10],
+    [60, 80, 12, 10],
+  );
+  const reading = differingRegions(before, after);
+  // Nothing changed where the paragraph was, so before marks only the move.
+  assert.deepEqual(outlines(reading, "before"), [
+    { x: 19, y: 59, width: 54, height: 12, kind: "moved" },
+  ]);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 19, y: 19, width: 32, height: 26, kind: "changed" },
+    { x: 19, y: 79, width: 54, height: 12, kind: "moved" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area, 1 moved");
 });
 
-test("slight speckle joins a change only as its edge, and never joins itself", () => {
-  // A block with a slight rim, and slight speckle across the page that would chain
-  // everything into one region if slight squares joined one another.
-  const rects = [
-    [200, 80, 40, 40],
-    [242, 80, 4, 40, 1, 250],
+test("content moved across the page marks nothing at the place it left", () => {
+  // A list moves from under a chart to beside it.
+  const chart = painted(page(400, 300), [20, 20, 200, 120, undefined, 120]);
+  const list = (x, y) => [
+    [x, y, 30, 10],
+    [x, y + 20, 26, 10],
+    [x, y + 40, 34, 10],
   ];
-  for (let x = 0; x < 400; x += 16) rects.push([x, 10, 2, 2, 1, 250]);
-  for (let y = 10; y < 200; y += 16) rects.push([0, y, 2, 2, 1, 250]);
-  const { regions } = read(blank(400, 200), ...rects);
-  assert.deepEqual(regions, [{ x: 200, y: 80, width: 46, height: 40 }]);
+  const reading = differingRegions(
+    painted(chart, ...list(20, 180)),
+    painted(chart, ...list(250, 20)),
+  );
+  assert.deepEqual(outlines(reading, "before"), [
+    { x: 19, y: 179, width: 36, height: 52, kind: "moved" },
+  ]);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 249, y: 19, width: 36, height: 52, kind: "moved" },
+  ]);
+  assert.equal(describeDifference(reading), "1 area moved");
 });
 
-test("a strong change over half the image points nowhere", () => {
-  const image = blank(160, 160);
-  const most = read(image, [0, 0, 160, 90]);
+test("rows only the taller image has are a change, though they draw nothing", () => {
+  const reading = differingRegions(blank(64, 40), blank(64, 60));
+  assert.equal(reading.changed, 64 * 20);
+  assert.deepEqual(outlines(reading, "before"), []);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 0, y: 40, width: 64, height: 20, kind: "changed" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area");
+});
+
+test("content in rows only the taller image has is one area with them", () => {
+  const reading = differingRegions(
+    painted(blank(64, 40), [10, 10, 20, 8]),
+    painted(blank(64, 60), [10, 10, 20, 8], [10, 46, 20, 8]),
+  );
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 0, y: 40, width: 64, height: 20, kind: "changed" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area");
+});
+
+test("a strong change over most of the image points nowhere", () => {
+  const image = page(160, 160);
+  const most = differingRegions(image, painted(image, [0, 0, 160, 90, 1, 0]));
   assert.deepEqual([most.throughout, most.regions], [true, []]);
+  assert.equal(describeDifference(most), "changed throughout");
   // Slight everywhere, as a contrast shift is, is still only slight.
   assert.equal(
-    describeDifference(read(image, [0, 0, 160, 160, 1, 250])),
+    describeDifference(
+      differingRegions(
+        blank(160, 160),
+        painted(blank(160, 160), [0, 0, 160, 160, 1, 250]),
+      ),
+    ),
     "only slight changes",
   );
-  // A strong ring around the edge covers less than half, so it is drawn.
-  const ring = read(image, [0, 0, 160, 8], [0, 152, 160, 8], [0, 0, 8, 160]);
-  assert.deepEqual([ring.throughout, ring.regions.length], [false, 1]);
 });
 
 test("the description", () => {
-  const reading = (changed, throughout, count) => ({
+  const reading = (changed, throughout, regions = []) => ({
     changed,
     throughout,
-    regions: Array.from({ length: count }, () => ({})),
+    regions,
   });
-  assert.equal(describeDifference(reading(0, false, 0)), "identical");
-  assert.equal(describeDifference(reading(5, false, 0)), "only slight changes");
-  assert.equal(describeDifference(reading(5, true, 0)), "changed throughout");
-  assert.equal(describeDifference(reading(5, false, 1)), "1 changed area");
-  assert.equal(describeDifference(reading(5, false, 3)), "3 changed areas");
+  const region = (side, kind, x = 0) => ({
+    x,
+    y: 0,
+    width: 10,
+    height: 10,
+    side,
+    kind,
+  });
+  assert.equal(describeDifference(reading(0, false)), "identical");
+  assert.equal(describeDifference(reading(5, false)), "only slight changes");
+  assert.equal(describeDifference(reading(5, true)), "changed throughout");
+  // A change seen in both frames counts once; one seen in only one frame counts too.
+  assert.equal(
+    describeDifference(
+      reading(5, false, [region("before", "changed"), region("after", "changed")]),
+    ),
+    "1 changed area",
+  );
+  assert.equal(
+    describeDifference(
+      reading(5, false, [region("after", "changed"), region("after", "changed", 50)]),
+    ),
+    "2 changed areas",
+  );
+  assert.equal(
+    describeDifference(
+      reading(5, false, [
+        region("before", "changed"),
+        region("after", "changed"),
+        region("before", "moved", 50),
+        region("after", "moved", 90),
+      ]),
+    ),
+    "1 changed area, 1 moved",
+  );
 });

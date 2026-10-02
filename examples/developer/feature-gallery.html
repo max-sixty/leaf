@@ -455,6 +455,13 @@
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
             </p>
+            <p id="bg-history-return-guide">
+              Follow
+              <a id="bg-history-reference" href="#bg-kept-draft"
+                >the kept-draft sample</a
+              >, then use browser Back. The viewport and focus return to this link;
+              press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
+            </p>
           </section>
 
           <section id="bg-changes">
@@ -654,6 +661,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 back to this passage and reopens the box on the sentence. That
                 destination stands in the sequence only while a kept draft does, so
                 pressing <kbd>g</kbd> with nothing written offers no such place to go.
+              </p>
+              <p id="bg-kept-draft-move">
+                To carry unfinished words to another item, press <kbd>s</kbd> and choose
+                the paragraph above, then type without sending. Move focus to
+                <a id="bg-kept-draft-next" href="#bg-kept-draft-move">this next item</a>
+                and press <kbd>c</kbd>: the box opens on this item with the same words.
+                Sending attaches the comment here. A destination that already holds a
+                draft keeps its own words and leaves the first draft available.
+              </p>
+              <p id="bg-visible-draft-guide">
+                Keep a comment open and scroll its passage out of view: the field
+                remains in the window with its words and focus. Scroll back to see it
+                reattach. On a wide window, Tab to a contents link and press
+                <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
+                disappears; the field remains available, and widening reattaches it.
               </p>
             </section>
           </section>
@@ -872,9 +894,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. The first item's row counts the Ask
-              inside it until you answer; narrow the window below the set's 36rem and
-              the list becomes a row above the item.
+              Walk it with the up and down arrows. Open an item to answer its Ask;
+              narrow the window below the set's 36rem and the list becomes a row above
+              the item.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -882,12 +904,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
-                <p id="bg-side-4107-what">
-                  SSO fails for every Northwind user since their IdP certificate
-                  rotated.
-                </p>
                 <lf-ask id="bg-side-4107-ask">
                   <h3 id="bg-side-4107-question">What happens to ESC-4107?</h3>
+                  <p id="bg-side-4107-what">
+                    SSO fails for every Northwind user since their IdP certificate
+                    rotated.
+                  </p>
                   <lf-options id="bg-side-4107-outcome" choose>
                     <lf-option id="bg-side-4107-fix"
                       ><strong>Fix</strong> Upload the new certificate.</lf-option
@@ -945,7 +967,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               sample stands at this exhibit's margin; open Page Map to see that same
               contributed control as a full labeled row. Reload to see the one-time
               pulse as Working arrives. A control dims only while its user action is
-              waiting for the log to confirm it.
+              waiting for the log to confirm it. Open a thread and shorten the window:
+              its messages scroll between the header and reply field, and the scrollbar
+              spans those messages alone. Scroll the page to give a short conversation
+              more room; the card expands once all its messages fit. The reply field
+              keeps the same inset at both sides and below it.
             </p>
             <lf-margin-entry-gallery
               id="bg-margin-controls-samples"
@@ -1097,12 +1123,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
-                <lf-chart id="bg-chart">
+                <lf-chart id="bg-chart" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  height: 200,
   x: {label: "run", ticks: 3},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
@@ -1122,11 +1147,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-bars">
+                <lf-chart id="bg-chart-bars" data-height="200">
                   <pre>
 {
   ariaLabel: "Checks complete by run: first 5, second 9, third 12",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks complete"},
   marks: [
@@ -1139,11 +1163,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-stack">
+                <lf-chart id="bg-chart-stack" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks"},
   color: {
@@ -1233,8 +1256,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   >walking skeleton</lf-gloss
                 >. Code adds line numbers and Notes, and quotes an excerpt under its
                 file's own numbers with an elided row where it skips; Tree shows file
-                structure.
+                structure. Use Copy code on the right of either block below, or Tab to
+                it and press Enter. The clipboard keeps the code's whitespace and leaves
+                out line numbers and Notes.
               </p>
+              <pre id="bg-plain-code"><code>leaf page check ./proposal
+leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):

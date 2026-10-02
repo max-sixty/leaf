@@ -817,23 +817,13 @@
         line-height: 1.65;
       }
 
-      /* A rendered line is as wide as its source so that the reader scrolls; a wrapped
-         candidate gives it the reader's width back so it has somewhere to break. */
-      .code-candidate[data-wrap="true"] lf-code pre,
-      .code-candidate[data-wrap="true"] .lf-code-line {
-        width: auto;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-
-      /* A wrapped line's continuation hangs past the number gutter rather than under it. */
-      .code-candidate[data-wrap="true"] .lf-code-line {
-        padding-inline-start: 46px;
-        text-indent: -46px;
-      }
-
-      .code-candidate[data-wrap="true"] .lf-code-line::before {
-        text-indent: 0;
+      /* The built reader wraps a line longer than its block. A scrolled candidate gives
+         each line its source's width back, so the block scrolls instead. */
+      .code-candidate[data-wrap="false"] .lf-code-line {
+        width: max-content;
+        min-width: 100%;
+        box-sizing: border-box;
+        white-space: pre;
       }
 
       .code-measurement {
@@ -1299,10 +1289,10 @@
       lf-merge-steps li[data-now] p {
         display: block;
       }
-      html:not([data-lf-live]) lf-merge-steps p {
+      html:not([data-lf-interactive]) lf-merge-steps p {
         display: block;
       }
-      html:not([data-lf-live]) lf-merge-steps li {
+      html:not([data-lf-interactive]) lf-merge-steps li {
         cursor: auto;
       }
       lf-merge-steps .this-run {
@@ -2569,12 +2559,11 @@ Run the online schema migration before deploying.
           This suggests a reduction, but four post-work observations and no control
           house cannot estimate its size.
         </p>
-        <lf-chart id="heat-response">
+        <lf-chart id="heat-response" data-height="300">
           <pre>
 {
   ariaLabel: "Weekly gas use against outside temperature: the four weeks after the work sit below the five before at similar temperatures",
   marginBottom: 40,
-  height: 260,
   grid: true,
   inset: 8,
   x: {label: "outside average, °C"},
@@ -2862,7 +2851,11 @@ export function releaseLabels(releases) {
           Targeting keeps element identity separate from the comparison's visual labels
           and settings.
         </p>
-        <lf-targeting id="code-comparison-targeting" submit-label="Propose exact edit">
+        <lf-targeting
+          id="code-comparison-targeting"
+          data-height="767"
+          submit-label="Propose exact edit"
+        >
           <lf-target-preview id="code-target-preview">
             <section id="target-reader-artifact" class="code-candidate">
               <h3 class="reader-treatment-title">Built reader treatment</h3>
@@ -2934,12 +2927,11 @@ export const summarize = checks =>
         </aside>
         <section class="panel" id="lp-traffic">
           <h2>Candidate traffic since deploy</h2>
-          <lf-chart id="lp-traffic-chart">
+          <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
 {
   ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
   marginBottom: 40,
-  height: 220,
   x: {label: "minutes since deploy", ticks: 7},
   y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
   marks: [
@@ -3386,12 +3378,11 @@ export const summarize = checks =>
                 settlement batch holds the ledger lock. The lag cleared by 03:20 each
                 night without anyone touching it.
               </p>
-              <lf-chart id="ar-export-hours">
+              <lf-chart id="ar-export-hours" data-height="220">
                 <pre>
 {
   ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
   marginBottom: 40,
-  height: 220,
   x: {
     domain: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
     ticks: ["22:00", "00:00", "02:00", "04:00", "06:00"],
@@ -3875,6 +3866,7 @@ max-sixty/worktrunk #3865
               </p>
               <lf-diagram
                 id="pr-flow-diagram"
+                data-height="541"
                 parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
               >
                 <pre>
@@ -3923,7 +3915,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" review>
+          <lf-diff id="pr-key-hunk" data-height="524" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -4096,7 +4088,12 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             it. Comments retain their file coordinate—and, for line comments, side,
             line, and quote—even when the file disclosure is closed.
           </p>
-          <lf-diff id="pr-exact-patch" source="pr-review-patch" collapsed>
+          <lf-diff
+            id="pr-exact-patch"
+            data-height="2126"
+            source="pr-review-patch"
+            collapsed
+          >
             <pre></pre>
           </lf-diff>
         </section>
@@ -4105,6 +4102,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       <aside id="pr-rail">
         <lf-pull-request
           id="pr-reviewed-request"
+          data-height="1321"
           source="pr-review-facts"
         ></lf-pull-request>
         <section class="panel" id="pr-history">
@@ -4172,11 +4170,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           <div>
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
-              command: commit, squash, rebase, test, merge, then clean up. The film
-              draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run, including the
-              three ways it stops early. Hover a commit, branch, worktree or hook to see
-              what it is; Alt-click one to comment on it.
+              command. The film draws each step from the flags below it, so ticking
+              <code>--no-ff</code> or a failing test re-plots the run. Hover a commit,
+              branch, worktree or hook to see what it is; Alt-click one to comment on
+              it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>
@@ -4578,6 +4575,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
         </p>
         <lf-diagram
           id="security-before-flow"
+          data-height="117"
           parts="node:R0 node:R1 node:A1 node:R2 node:P1"
         >
           <pre>
@@ -6296,7 +6294,7 @@ expire old keys</code></pre>
                       </li>
                     </ul>
                   </nav>
-                  <section id="queue-guidance">
+                  <section id="queue-instructions">
                     <h4>Queue order</h4>
                     <p>
                       Staff accounts lead. Regional free cohorts follow before paid
@@ -6441,6 +6439,13 @@ observe --cohort staff</code></pre>
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
+            </p>
+            <p id="bg-history-return-guide">
+              Follow
+              <a id="bg-history-reference" href="#bg-kept-draft"
+                >the kept-draft sample</a
+              >, then use browser Back. The viewport and focus return to this link;
+              press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
           </section>
 
@@ -6641,6 +6646,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 back to this passage and reopens the box on the sentence. That
                 destination stands in the sequence only while a kept draft does, so
                 pressing <kbd>g</kbd> with nothing written offers no such place to go.
+              </p>
+              <p id="bg-kept-draft-move">
+                To carry unfinished words to another item, press <kbd>s</kbd> and choose
+                the paragraph above, then type without sending. Move focus to
+                <a id="bg-kept-draft-next" href="#bg-kept-draft-move">this next item</a>
+                and press <kbd>c</kbd>: the box opens on this item with the same words.
+                Sending attaches the comment here. A destination that already holds a
+                draft keeps its own words and leaves the first draft available.
+              </p>
+              <p id="bg-visible-draft-guide">
+                Keep a comment open and scroll its passage out of view: the field
+                remains in the window with its words and focus. Scroll back to see it
+                reattach. On a wide window, Tab to a contents link and press
+                <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
+                disappears; the field remains available, and widening reattaches it.
               </p>
             </section>
           </section>
@@ -6859,9 +6879,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. The first item's row counts the Ask
-              inside it until you answer; narrow the window below the set's 36rem and
-              the list becomes a row above the item.
+              Walk it with the up and down arrows. Open an item to answer its Ask;
+              narrow the window below the set's 36rem and the list becomes a row above
+              the item.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -6869,12 +6889,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
-                <p id="bg-side-4107-what">
-                  SSO fails for every Northwind user since their IdP certificate
-                  rotated.
-                </p>
                 <lf-ask id="bg-side-4107-ask">
                   <h3 id="bg-side-4107-question">What happens to ESC-4107?</h3>
+                  <p id="bg-side-4107-what">
+                    SSO fails for every Northwind user since their IdP certificate
+                    rotated.
+                  </p>
                   <lf-options id="bg-side-4107-outcome" choose>
                     <lf-option id="bg-side-4107-fix"
                       ><strong>Fix</strong> Upload the new certificate.</lf-option
@@ -6932,7 +6952,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               sample stands at this exhibit's margin; open Page Map to see that same
               contributed control as a full labeled row. Reload to see the one-time
               pulse as Working arrives. A control dims only while its user action is
-              waiting for the log to confirm it.
+              waiting for the log to confirm it. Open a thread and shorten the window:
+              its messages scroll between the header and reply field, and the scrollbar
+              spans those messages alone. Scroll the page to give a short conversation
+              more room; the card expands once all its messages fit. The reply field
+              keeps the same inset at both sides and below it.
             </p>
             <lf-margin-entry-gallery
               id="bg-margin-controls-samples"
@@ -7084,12 +7108,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
-                <lf-chart id="bg-chart">
+                <lf-chart id="bg-chart" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  height: 200,
   x: {label: "run", ticks: 3},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
@@ -7109,11 +7132,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-bars">
+                <lf-chart id="bg-chart-bars" data-height="200">
                   <pre>
 {
   ariaLabel: "Checks complete by run: first 5, second 9, third 12",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks complete"},
   marks: [
@@ -7126,11 +7148,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 }
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-stack">
+                <lf-chart id="bg-chart-stack" data-height="240">
                   <pre>
 {
   ariaLabel: "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
-  height: 200,
   x: {domain: ["first", "second", "third"], label: null},
   y: {grid: true, label: "checks"},
   color: {
@@ -7220,8 +7241,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   >walking skeleton</lf-gloss
                 >. Code adds line numbers and Notes, and quotes an excerpt under its
                 file's own numbers with an elided row where it skips; Tree shows file
-                structure.
+                structure. Use Copy code on the right of either block below, or Tab to
+                it and press Enter. The clipboard keeps the code's whitespace and leaves
+                out line numbers and Notes.
               </p>
+              <pre id="bg-plain-code"><code>leaf page check ./proposal
+leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):
@@ -8062,7 +8087,11 @@ switch --readers checkout-api,orders-api</code></pre>
       </p>
       <lf-ask id="targeting-ask">
         <h2>Which exact changes should be made?</h2>
-        <lf-targeting id="targeting-workbench" submit-label="Submit changes">
+        <lf-targeting
+          id="targeting-workbench"
+          data-height="767"
+          submit-label="Submit changes"
+        >
           <lf-target-preview id="targeting-preview">
             <div class="target-grid">
               <article id="target-release" class="target-card">

@@ -25,6 +25,7 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -347,7 +348,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description stays unchanged.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -389,7 +390,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description waits for Markdown.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -582,10 +583,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(context).to_be_focused()
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -597,10 +595,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:40 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(added).to_be_focused()
     # Each line already stood in the window once the diff revealed it, so neither
     # trip departed: no history entry, and the address kept no fragment.
     assert page.evaluate("history.length") == entries
@@ -1892,6 +1887,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
     expect(page.locator("html")).to_have_attribute("data-lf-live", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (
@@ -4544,21 +4540,10 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
 
 def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
-    """The ladder unwinds from where the user is, and out on the page the innermost
-    thing they are in is the decision they are standing on. There was no rung for it: `d`
-    brought them to a decision, ringed it, and no key took them out again — the one place in
-    the runtime where a press put the user somewhere with nothing to undo it, and the
-    line said nothing about Escape at all while they stood there.
-
-    What letting go is not is the walk forgetting: the ring says where the user is and
-    the walk keeps its own place, so the next press steps on rather than handing them
-    back the decision they just put down.
-
-    The landing is `body`, and a short page is where that stopped working. Chrome makes
-    a scroll container focusable so the keyboard can scroll it, which is the whole of
-    why `body.focus()` ever moved anything here — on a page that fits the window, the
-    call did nothing and the user stayed on the control the line had just promised to
-    take them off."""
+    """Escape closes the command reference, then lets go of the Ask and focuses body.
+    The next Ask walk reads the visible page place, returning to the first Ask before
+    advancing. Letting go also works on a page with no scroll range and after a Page
+    Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
     events_model.append_event(
@@ -4594,7 +4579,10 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
-    # The worklist keeps its place through that.
+    # The directional walk reads the user's current visible place after Escape.
+    # Reenter the first Ask from there, then move to the next one.
+    page.keyboard.press("a")
+    expect(page.locator("#live-question-decision")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -7684,20 +7672,22 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
-    # the repeatable category walk and the thread-local reply route explicit.
+    # reaches Threads, on the title of the thread it shows open. A stray digit there
+    # neither travels nor picks; t then c makes the repeatable category walk and the
+    # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
-    # completion closes it and the second is the arrival on the list.
+    # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    title = page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")
+    expect(title).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(title).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()
@@ -8442,7 +8432,7 @@ def test_a_command_goal_s_words_flow_as_prose(browser, serve):
           words.selectNodeContents(a.previousSibling);
           const lines = [...words.getClientRects()];
           const box = a.getBoundingClientRect();
-          const chip = a.closest('[data-lf-command-goal]')
+          const chip = a.closest('lf-task')
             .querySelector(':scope > .lf-task-meta > span');
           return {display: getComputedStyle(a).display,
                   sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
@@ -8890,6 +8880,8 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
         "The hunk is complete; see the run and park."
     )
+    # The reply landed where the user was looking, so it waits for them to open it.
+    seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()

@@ -4,7 +4,8 @@
  * module without awaiting it, exposes bounded polling facts to Playwright, and keeps
  * every probe invocation synchronous so a stopped page cannot strand Python inside
  * `evaluate`. The pre-upgrade readings live here as well: they must run while the
- * Leaf entry is held, before the probe module and runtime exist. So do the rendering
+ * Leaf entry is held, before the probe module and runtime exist, and a probe that
+ * compares against them reads what they kept through `firstBoxes`. So do the rendering
  * waits, which hold on any page the driver runs in, a published capture that serves no
  * probes among them, and cost no module load. */
 (() => {
@@ -93,7 +94,21 @@
   const themeReady = () =>
     [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/theme.css"));
 
+  // Each authored widget's border box as the page first paints it: the whole authored
+  // document laid out under the theme, with the prepaint's `data-lf-interactive` on
+  // the root and nothing upgraded. The element is kept, so a reading taken once the
+  // page presents measures the same node (`changedBoxes` in widgets.js).
+  let firstBoxes = Object.freeze([]);
+
   const preUpgradeFindings = () => {
+    firstBoxes = Object.freeze(
+      [...document.querySelectorAll("body > main *")]
+        .filter((element) => element.localName.startsWith("lf-"))
+        .map((element) => {
+          const { width, height } = element.getBoundingClientRect();
+          return Object.freeze({ element, width, height });
+        }),
+    );
     const main = document.querySelectorAll("body > main");
     const custom = [...document.querySelectorAll("*")]
       .map((element) => element.localName)
@@ -127,5 +142,6 @@
     renderingSettled,
     themeReady,
     preUpgradeFindings,
+    firstBoxes: () => firstBoxes,
   });
 })();

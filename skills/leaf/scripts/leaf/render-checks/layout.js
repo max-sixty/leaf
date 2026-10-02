@@ -1,10 +1,52 @@
-import { pageScroller, shownBand, TEXT_BOX, uiInside } from "/runtime/widget-api.js";
+import {
+  pageScroller,
+  readingPosture,
+  readingRegions,
+  shownBand,
+  shownRegionBounds,
+  TEXT_BOX,
+  uiInside,
+} from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
+
+// The page's own margin residents, without Leaf's rail: that holds only markers and
+// never moves the column. Both a sweep sample and its breakpoint refinement read the
+// tokens the margin layout publishes, rather than rediscovering residency from boxes.
+export function marginResidents() {
+  return (document.querySelector("main")?.getAttribute("data-lf-margin") ?? "")
+    .split(" ")
+    .filter((token) => token && token !== "rail")
+    .join(" ");
+}
+
+// One settled-width geometry sample. These readers are synchronous and read-only:
+// taking them in one browser turn preserves their findings while removing the
+// protocol round trips between fields. Resize and rendering completion belong to the
+// caller, so a sample neither advances the page nor waits for a different layout.
+export function geometryReading(open) {
+  return {
+    overflow: rootOverflow(),
+    misplaced: misplacedBoxes(),
+    margin: marginResidents(),
+    arrangement: arrangedBoxes(open),
+    panes: heldPanes(),
+  };
+}
+
+// The fixed viewport's column and margin findings, before the table experiment
+// temporarily changes wrapping. Keep singleton readers for callers asking one fact.
+export function columnGeometry() {
+  return {
+    overflow: rootOverflow(),
+    misplaced: misplacedBoxes(),
+    stranded: strandedMargins(),
+  };
+}
 
 // How the page's own arrangement stands: for each flex or grid box the page wrote (a
 // Layout, or the page's own grid), how many of its items stand in each row. The walk goes
@@ -58,9 +100,7 @@ export function heldPanes() {
   return [...main.children].flatMap((body) => {
     if (body.matches("header, footer")) return [];
     const rects = [...body.children]
-      .filter((el) =>
-        el.matches('[data-lf-reading-role="pane"]:not([data-lf-generated])'),
-      )
+      .filter((el) => el.matches(AUTHORED_PANE))
       .map((pane) => pane.getBoundingClientRect())
       .filter((r) => r.width > 0 && r.height > 0);
     if (rects.length < 2) return [];
@@ -70,6 +110,37 @@ export function heldPanes() {
       ),
     );
     return [{ at: element(body), held, panes: rects.length, beside }];
+  });
+}
+const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
+
+// Each region of a screen that runs past its room. A full-height workspace is a screen
+// rather than a page to scroll (page-authoring.md, A workspace), so each region of it the
+// page wrote is meant to show what it holds: a pane the page wrote, and the body itself,
+// which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
+// declares that it scrolls, and a widget's own regions are its to hold, so neither is
+// here. A workspace the window is too small to hold flows and scrolls as a page, and is
+// no screen. Each comes back with its id, the name every finding uses, and how far its
+// body runs past its scrollport.
+export function overflowingRegions() {
+  const main = document.querySelector("body > main.layout-workspace");
+  if (
+    !main ||
+    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() !== "1"
+  )
+    return [];
+  const screenRegion = (host) =>
+    host.matches(AUTHORED_PANE) ||
+    (host.parentElement === main &&
+      getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
+        "layout");
+  return readingRegions().flatMap((region) => {
+    if (!main.contains(region.host) || !screenRegion(region.host)) return [];
+    if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
+    const over = region.body.scrollHeight - region.body.clientHeight;
+    return over > 1
+      ? [{ id: region.id, at: element(region.host), over: Math.round(over) }]
+      : [];
   });
 }
 

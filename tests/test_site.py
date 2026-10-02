@@ -311,7 +311,14 @@ def test_product_pages_are_published_as_complete_page_records(site):
             "status.json",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        for name in ("guidance", "media", "revisions", "runtime", "vendor", "widgets"):
+        for name in (
+            "instructions",
+            "media",
+            "revisions",
+            "runtime",
+            "vendor",
+            "widgets",
+        ):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
         assert json.loads((page / "status.json").read_text())["state"] == "idle"
 
@@ -561,7 +568,14 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             "theme.css",
         ):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        for sub in ("guidance", "media", "revisions", "runtime", "vendor", "widgets"):
+        for sub in (
+            "instructions",
+            "media",
+            "revisions",
+            "runtime",
+            "vendor",
+            "widgets",
+        ):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert json.loads((page_dir / "status.json").read_text())["state"] == "idle"
         assert not (page_dir / "service.json").exists()
@@ -772,6 +786,9 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     # The mark is the runtime's own and does not stay in front of the user.
     assert "_leaf-recovered" not in page.evaluate("location.href")
     expect(banner).to_be_visible()
+    # The failed-release probe keeps requesting while the page is open. End that
+    # source of deliberate 404s before accounting for its browser reports.
+    page.close()
     consume_browser_errors(page, "404", "Failed to load resource", "error loading")
 
 

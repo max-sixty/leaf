@@ -1,7 +1,8 @@
 """Page claims, serialized transactions, and status.
 
 The transaction holds the page's append lease; what may be appended under it is
-`event_contracts`' to say."""
+`event_contracts`' to say. Claim discovery runs in a cold host hook, so
+process inspection and page-event semantics are imported only by their callers."""
 
 import hashlib
 import os
@@ -10,33 +11,26 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from leaf.activity import reply_binding_stands
 from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
-    flocked,
-    now_iso,
     read_cursor,
 )
-from leaf.files import read_json, write_json
-from leaf.host import (
-    HARNESSES,
-    Harness,
-    message_identity,
-    session_harness,
-)
-from leaf.locations import page_key
+from leaf.files import read_json
 from leaf.machine import pid_alive, state_home
-from leaf.registry.kernel import bookkeeping_kinds
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
-    EVENTS_FILE,
     INTERACTIONS_FILE,
     STATUS_FILE,
     UNNAMED_AGENT,
 )
+from leaf.session_cleanup import EVENTS_FILE, flocked, now_iso, page_key, write_json
+
+if TYPE_CHECKING:
+    from leaf.host import Harness
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
@@ -84,8 +78,10 @@ def readable_claim(claim: dict | None) -> dict | None:
     Every reader goes through `page_claim` or `claim_records`, so this is the
     only place that decides it, and a session is never taken down by a record it
     does not own."""
-    if not claim or not CLAIM_IDENTITY <= claim.keys():
+    if not isinstance(claim, dict) or not CLAIM_IDENTITY <= claim.keys():
         return None
+    from leaf.host import HARNESSES
+
     if claim["harness"] not in HARNESSES:
         return None
     return claim if CLAIM_LIFETIMES & claim.keys() else None
@@ -96,7 +92,7 @@ def page_claim(page_dir: Path) -> dict | None:
     return readable_claim(read_json(claim_path(page_dir)))
 
 
-def claim_lifetime(page_dir: Path, harness: Harness) -> dict:
+def claim_lifetime(page_dir: Path, harness: "Harness") -> dict:
     """The fields `claim_is_active` reads, as everything that writes them must.
 
     Two things state a lifetime on this rule: a page's claim, and a preview that
@@ -117,9 +113,9 @@ def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
     job's claim points at, the recent touch an `activity` claim stands on, or
     the process every other claim's pid names (`Harness.lifetime`). The only
-    reading of that rule: the hooks reach it through `uv` rather than keeping a
-    copy, so a host that states its lifetime a new way joins here alone, beside
-    the one constructor above that writes what this reads."""
+    reading of that rule: cold hooks and the CLI both call it, so a host that
+    states its lifetime a new way joins here alone, beside the one constructor
+    above that writes what this reads."""
     if not claim or claim["released"] is not None:
         return False
     if "job" in claim:
@@ -167,9 +163,10 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     return time.time() - newest < ACTIVITY_GRACE_SECS
 
 
-def claim_records() -> list:
+def claim_records(session_id: str | None = None) -> list:
     """Every atomic page claim record currently on this machine, retiring each
-    record whose page directory is gone.
+    record whose page directory is gone. When a session is named, unrelated
+    records need no harness validation or lifetime reading.
 
     A claim outlives its session on purpose: it is the provenance of a page that
     is still there. Once the page is gone it says nothing, and a page is usually
@@ -190,7 +187,10 @@ def claim_records() -> list:
         page = record.get("page") if isinstance(record, dict) else None
         if isinstance(page, str) and not Path(page).is_dir():
             path.unlink(missing_ok=True)
-        elif claim := readable_claim(record):
+        elif (
+            session_id is None
+            or (isinstance(record, dict) and record.get("id") == session_id)
+        ) and (claim := readable_claim(record)):
             claims.append(claim)
     return claims
 
@@ -222,7 +222,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
+    def take_claim(self, harness: "Harness") -> tuple[dict | None, dict]:
         """Record this session as the page's watcher.
 
         The record carries the claimant's harness as well as its id, so every
@@ -272,7 +272,7 @@ class PageTransaction:
         else:
             write_json(path, previous)
 
-    def owned_by(self, harness: Harness | None) -> bool:
+    def owned_by(self, harness: "Harness | None") -> bool:
         """Whether this transaction may act for the given waiter."""
         if harness is None:
             return self.active_claim is None
@@ -301,9 +301,9 @@ class PageTransaction:
         behind those words stays the page's to judge from evidence.
 
         `turn_id` narrows the close to that turn, for a carrier whose account may
-        arrive after a later turn opened. The Stop hook passes none: whatever turn
-        of the session is open is the one ending, including one a claim taken
-        mid-turn minted before the host named it.
+        arrive after a later turn opened. A synchronous Stop closes the session's
+        current claims, including one taken mid-turn before the host named it.
+        A provider observation guards that close against a newer prompt.
         """
         claim = self.claim
         if (
@@ -337,7 +337,7 @@ class PageTransaction:
 
         A prompt or delivery into a turn that is already open renews its
         `turn_opened` instead: it is proof the turn runs now, and an interrupt,
-        which runs no hook and so leaves the turn open, would otherwise leave the
+        which some hosts leave open without a hook, would otherwise leave the
         next prompt's work judged by the interrupted turn's opening.
 
         The turn's identity is its host's, where the host names one: Codex names
@@ -450,6 +450,8 @@ class PageTransaction:
         holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
         where there is no name to use and inventing one would put words in a
         program's mouth."""
+        from leaf.host import message_identity
+
         identity = message_identity()
         claim = self.claim
         return {
@@ -600,6 +602,8 @@ class PageTransaction:
         """The stream's bindings with one response address bound to `attempt`
         in `turn_id`, refusing an address another delivery's binding holds while
         it stands (`activity.reply_binding_stands`)."""
+        from leaf.activity import reply_binding_stands
+
         bindings = dict(stream.get("reply_bindings") or {})
         standing = bindings.get(responds)
         claim = self.claim
@@ -726,7 +730,7 @@ class PageTransaction:
     def cursor(self) -> int:
         return read_cursor(self.page_dir)
 
-    def watch_state(self, harness: Harness | None) -> str:
+    def watch_state(self, harness: "Harness | None") -> str:
         if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
@@ -744,9 +748,12 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the host session the page's watcher, if a host supplied one.
 
-    `server start` and named `leaf wait` claim; authoring commands do not. A
+    `server start`, a named `leaf wait` and `page claim` claim; authoring
+    commands do not. A
     bare-shell serve makes no claim and therefore starts as standing.
     """
+    from leaf.host import session_harness
+
     harness = session_harness()
     if not harness:
         return None
@@ -842,10 +849,8 @@ def owned_pages(session_id: str | None) -> list:
     """Active pages owned by one session, or by every session when id is None."""
     pages = {
         Path(claim["page"])
-        for claim in claim_records()
-        if claim_is_active(claim)
-        and (session_id is None or claim["id"] == session_id)
-        and (Path(claim["page"]) / EVENTS_FILE).is_file()
+        for claim in claim_records(session_id)
+        if claim_is_active(claim) and (Path(claim["page"]) / EVENTS_FILE).is_file()
     }
     return sorted(pages, key=str)
 
@@ -874,6 +879,8 @@ def unacknowledged(events: list, cursor: int) -> list:
 
 def requires_agent_attention(event: dict) -> bool:
     """Whether a log event creates host work, rather than user bookkeeping."""
+    from leaf.registry.kernel import bookkeeping_kinds
+
     return (
         event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
     ) or event["kind"] in {"report", "error"}

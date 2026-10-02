@@ -4,7 +4,7 @@
     "contracts": {
       "lf-worktree": {
         "description": "Current worktree evidence keyed by the id of its authored lf-worktree seat.",
-        "guidance": {
+        "instructions": {
           "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
         },
         "schema": {
@@ -128,7 +128,7 @@
     }
   },
   "lf-roster": {
-    "description": "Who is working, and where each of them stands right now. Children are lf-agent elements only. Where lf-tasks is the work and lf-milestones the schedule, a roster is the other axis a page running several workers needs: the tree says a task is active, and only the roster says which of five sessions is holding it, what that one is doing this minute, and whether anybody has heard from it since breakfast. Reach for it on a page one orchestrator publishes and several workers report to — the standing hub arrangement — and leave it off a page with one agent on it, where the banner already says everything a roster would.\n\nIt stands wider than the prose column where the window has the room (x-space), because a roster is read across rather than down: the comparison a user wants is one agent's line against the next, and a column narrow enough for prose puts each line's own facts on two rows and destroys it.",
+    "description": "A view of multiple workers, their durable remits, and their current activity.",
     "type": "object",
     "properties": {
       "id": {
@@ -143,7 +143,8 @@
     "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the work is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
   },
   "lf-agent": {
-    "description": "One worker: a session, an agent, a person. Lead with a <strong> name — the identity it reports under — and prose saying its durable remit. On a command surface, placement gives that remit: directly under lf-command means the whole project; directly under an lf-task means that goal and its descendants. This admits coordinators, area owners, and leaf specialists without closing them into a role enum.\n\nThe version carries `state` and optional `on`. `state` says where the worker stands: working, waiting, blocked, idle, reaped, or done. `on` is only the current focus and, inside a command, must remain within the structural remit; a broad coordinator or idle worker need not invent one. A report adds the finer-grained `doing` clause and moves the row live until a version absorbs or overrules it. One report verb carries state and doing together so an activity sentence cannot split across fold coordinates; a version adjudicates the durable state while the activity clause remains transient. Branch and worktree evidence belong to a page-bound external source rather than to authored worker prose.\n\nThe row computes when the log last heard from this worker, even past an absorbed report. A working claim silent for the shared quarter-hour grace is called out, so the banner and fleet mean the same thing by quiet. The row remains a view; a nested Ask carries any work for the user.",
+    "description": "One worker’s identity, durable remit, current state, and reported activity.",
+    "x-instructions": "Lead with a `<strong>` name matching the worker's reporting identity, then explain its durable remit. Within lf-command, place the worker directly under the command for project-wide work or under the narrowest task covering its remit. on is its current focus within that remit, not a role; an idle worker or broad coordinator need not invent one. Keep branch and worktree evidence in a page-bound data source. Give user work a nested Ask.",
     "type": "object",
     "properties": {
       "id": {
@@ -226,7 +227,8 @@
     }
   },
   "lf-tasks": {
-    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf page report` (lf-task's agent-written x-state verb) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
+    "description": "A hierarchy of work with ownership, status, and progress derived from its tasks.",
+    "x-instructions": "Write the work's actual decomposition as nested lf-task elements rather than flattening it. Keep each task's id stable across revisions so comments remain attached.",
     "type": "object",
     "properties": {
       "id": {
@@ -240,7 +242,8 @@
     "x-example": "<lf-tasks id=\"aviary-plan\">\n  <lf-task id=\"t-feeders\" status=\"active\" owner=\"wren\">\n    <strong>Rebuild the feeders</strong> Two of four mounted.\n    <lf-task id=\"t-mounts\" status=\"done\" owner=\"wren\"><strong>Replace the mounts</strong></lf-task>\n    <lf-task id=\"t-baffles\" status=\"review\" owner=\"finch\" when=\"aug 4\">\n      <strong>Fit squirrel baffles</strong> Ready for review.\n      <lf-ask id=\"t-baffles-decision\"><h3>Are the baffles ready?</h3>\n        <lf-options id=\"t-baffles-review\" choose>\n          <lf-option id=\"t-baffles-approve\"><strong>Approve</strong></lf-option>\n          <lf-option id=\"t-baffles-revise\"><strong>Request changes</strong></lf-option>\n        </lf-options>\n      </lf-ask>\n    </lf-task>\n  </lf-task>\n  <lf-task id=\"t-bath\" status=\"blocked\">\n    <strong>Heat the bird bath</strong> Waiting on a transformer delivery.\n  </lf-task>\n</lf-tasks>"
   },
   "lf-command": {
-    "description": "A goal-first command surface. Its nested goals are the one authored plan; each worker lives once at the narrowest tree level matching its durable remit — directly under the command for project-wide coordination, or under any goal for that goal's whole subtree. `on` is only the worker's current focus inside that remit. The orchestration upgrade derives the operator header, stopped-work reading, and live-worker projection from this tree. `label` and `phase` name the outcome and planning horizon. The readings stand as open panels at the head of the command, or in the `lf-command-readings` that names it. Do not author a second roster or Asks list beside it: those are views of the tree and its log. Later packages may add their own goal or worker widgets under `$command.widgets` without teaching Leaf's kernel their names.",
+    "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
+    "x-instructions": "Write one plan tree and place each worker once at the narrowest level matching its durable remit. Use on only for the worker's current focus inside that remit. Keep roster and Ask inventory as derived readings rather than authoring duplicate lists. Use lf-command-readings when the readings belong beside the tree instead of above it.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -261,10 +264,11 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
-    "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\">\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
+    "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\" talk>\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
-    "description": "Where a command's readings stand when they belong beside its tree rather than at its head: the outcome with its done fraction and counts, the stopped work oldest first, and the live workers. Author it empty, with `for` naming the lf-command, in the rail of a wide page whose body holds the tree; the command fills it and keeps it current. Without one, the command heads itself with the same panels.",
+    "description": "A separate placement for a command’s progress, stopped work, and live worker readings.",
+    "x-instructions": "Author it empty and set for to the command it presents. Place it in the rail of a wide page when the tree belongs in the body; otherwise the command presents the same readings at its head.",
     "type": "object",
     "properties": {
       "id": {
@@ -293,7 +297,8 @@
     "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings for=\"garden-command\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {
-    "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf page report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",
+    "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
+    "x-instructions": "Lead with a `<strong>` title, followed by prose and then its child tasks. Explain the blocker in prose when status is blocked. Status describes the work; put work for the user in a nested Ask instead. A worker's status report is provisional; a stamped version absorbs or overrules it through overruled (read $report).",
     "type": "object",
     "properties": {
       "id": {
@@ -390,7 +395,8 @@
     }
   },
   "lf-worktree": {
-    "description": "One stable address for a disposable worker's inspectable evidence. Author an empty element with an id and bind its `worktrees` input through the `source` attribute. The widget projects the matching record into the element and keeps datum comments attached when a later snapshot replaces it. Branch, divergence, diffstat, test result, file tree, and diff are observed data rather than authored version state.",
+    "description": "A stable, commentable address for observed worktree evidence supplied by the host.",
+    "x-instructions": "Keep one empty, stable element beside each worker whose evidence the host can inspect, binding source to the worktree snapshot. Reuse a source id when widgets read the same snapshot; give independent feeds different ids. Give a replacement worktree a new element id so old comments cannot attach to different work.",
     "type": "object",
     "properties": {
       "id": {
@@ -416,9 +422,6 @@
         "contract": "lf-worktree",
         "source": "source"
       }
-    },
-    "x-guidance": {
-      "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one source id for widgets that read the same snapshot, or use different source ids when a page has independent worktree feeds. Give a replacement worktree a new element id."
     },
     "x-upgrade": true,
     "x-space": "wide",

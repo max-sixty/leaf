@@ -1,6 +1,6 @@
 """Whole-version render attempts and retry policy."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
@@ -8,10 +8,13 @@ from .readings import (
     arrangement_changes,
     margin_changes,
     open_widgets,
+    overflowing_region_advice,
+    overflowing_regions,
     shrunk_label_advice,
     stacked_panes,
     sweep,
     swept_overflow,
+    unreserved_height_advice,
 )
 from .scheme import _render_scheme
 
@@ -26,12 +29,15 @@ class RenderReading:
     """What the browser gate read of a version: a failure refuses it, advice does not.
     `margin_widths` are the widths, besides the fixed viewports, it rendered because the
     page's margin content changes there. `arrangement` is each swept width at which the
-    page's own arrangement is at its tightest before it changes, with what changes."""
+    page's own arrangement is at its tightest before it changes, with what changes.
+    `overflowing` is each region of a screen that runs past its room
+    (`overflowing_regions`), which the advice also names."""
 
     failures: list[str]
     advice: list[str]
     margin_widths: list[int]
     arrangement: list[tuple[int, str, str]]
+    overflowing: list[dict]
 
 
 def _viewport_label(viewport: dict) -> str:
@@ -62,7 +68,7 @@ def _findings_with_viewports(
 
 def _render_version_attempt(
     browser, url: str, served_timeout_ms: int | None = None
-) -> tuple[list, list, bool, list]:
+) -> tuple[RenderReading, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console warning or error (a widget failing soft is one, since the page reports it),
     a page error, an issue Chrome's DevTools raises, a request that 404s,
@@ -85,8 +91,9 @@ def _render_version_attempt(
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme, it
-    reads more: as advice, whether a margin pin stands over text, and whether a
-    drawing's fit to its box shrinks its labels past reading; and then, resizing that
+    reads more: as advice, whether a margin pin stands over text, whether a
+    drawing's fit to its box shrinks its labels past reading, and whether a widget
+    declaring x-height drew at a height its first paint did not hold; and then, resizing that
     loaded page through every width from 360px to 1920px, the sideways readings again:
     a version holds at each of them, not only at the two it renders. There it also
     reads whether a workspace whose panes stand side by side at the desktop viewport
@@ -95,14 +102,14 @@ def _render_version_attempt(
     finds each width where the page's margin content changes (a sidebar, contents map
     or note first standing in the margin), and the gate renders the page there too, in
     the light scheme: what stands in the margin is layout, which the scheme does not
-    change.
-    Returns the failures and the advice; no failures is a pass.
+    change. Last, back at the desktop viewport, it advises on each region of a screen
+    that runs past the room it has. No failures is a pass.
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
     (the tests/test_render_*.py modules) — so the gate and the suite hold one set of
-    invariants. Returns ordinary failures, ResizeObserver notices, whether every
-    reading completed, and advice. `browser` is a live Playwright browser; nothing here imports
+    invariants. Returns the reading, ResizeObserver notices, and whether every reading
+    completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""
     from playwright.sync_api import Error as PlaywrightError
 
@@ -117,10 +124,16 @@ def _render_version_attempt(
     advice = []
     changes = []
     arrangement = []
+    overflowing = []
 
     def once(page, registry):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
         advice.extend(shrunk_label_advice(page))
+        advice.extend(
+            unreserved_height_advice(
+                page, {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+            )
+        )
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         swept.extend(stacked_panes(widths, RENDER_VIEWPORTS[0]["width"]))
@@ -132,6 +145,10 @@ def _render_version_attempt(
             for width in margin_changes(page, widths, height)
             if width not in fixed
         )
+        # Last, back at the desktop viewport the sweep has left.
+        regions = overflowing_regions(page, RENDER_VIEWPORTS[0])
+        overflowing.extend(regions)
+        advice.extend(overflowing_region_advice(region) for region in regions)
 
     def render(viewport, scheme, then=None):
         viewport_label = _viewport_label(viewport)
@@ -159,14 +176,14 @@ def _render_version_attempt(
                 page.close()
         raise
     rendered = [*RENDER_VIEWPORTS, *margins]
-    return (
+    reading = RenderReading(
         _findings_with_viewports(failures, rendered) + swept,
-        _findings_with_viewports(notices, rendered),
-        all(completed),
         advice,
         changes,
         arrangement,
+        overflowing,
     )
+    return reading, _findings_with_viewports(notices, rendered), all(completed)
 
 
 def render_version(
@@ -198,35 +215,34 @@ def render_version(
                 browser, url, served_timeout_ms=served_timeout_ms
             )
         except PlaywrightError as error:
-            return (
-                [
-                    "the browser gate failed while running its probe module: "
-                    + str(error).strip().splitlines()[0]
-                ],
-                [],
-                False,
-                [],
-                [],
-                [],
+            failure = (
+                "the browser gate failed while running its probe module: "
+                + str(error).strip().splitlines()[0]
             )
+            return RenderReading([failure], [], [], [], []), [], False
 
-    found, notices, complete, advice, widths, arrangement = attempt()
-    retain(found)
+    first, notices, complete = attempt()
+    retain(first.failures)
+
+    def reading():
+        # Advice and the other readings are the first attempt's; failures accumulate.
+        return replace(first, failures=failures)
+
     if not complete:
         retain(notices)
-        return RenderReading(failures, advice, widths, arrangement)
+        return reading()
     if not notices:
-        return RenderReading(failures, advice, widths, arrangement)
+        return reading()
 
-    found, confirming_notices, complete, _advice, _widths, _arrangement = attempt()
-    retain(found)
+    confirming, confirming_notices, complete = attempt()
+    retain(confirming.failures)
     if not complete:
         for notice in [*notices, *confirming_notices]:
             retain([f"{notice} (the confirming render attempt did not complete)"])
-        return RenderReading(failures, advice, widths, arrangement)
+        return reading()
     if confirming_notices:
         failures.extend(
             f"{notice} (recurred on the confirming render attempt)"
             for notice in confirming_notices
         )
-    return RenderReading(failures, advice, widths, arrangement)
+    return reading()

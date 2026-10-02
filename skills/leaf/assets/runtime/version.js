@@ -91,7 +91,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -185,7 +185,8 @@ const versionedHeadNode = (node) =>
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
 // built. The module graph can define chrome-only elements before this clone, but authored
-// markup cannot contain those tags, so the authored main is still untouched. Runtime-owned
+// markup cannot contain those tags, so the authored main is untouched but for the marks
+// the prepaint painted for the first paint, which the copy takes off. Runtime-owned
 // head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
 // The source and live main are therefore the same tree, which makes the pairing below a
 // plain walk of the two together.
@@ -209,7 +210,7 @@ const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
   authoredHtmlAttributes: authoredAttributes(document.documentElement),
-  source: servedMain?.cloneNode(true) ?? null,
+  source: servedMain ? unmarkedCopy(servedMain) : null,
 };
 const initialPairs = servedMain
   ? pairSources(initialDocument.source, servedMain, new WeakMap())
@@ -219,8 +220,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  landedAt,
-  setLanded,
   forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
@@ -1325,6 +1324,13 @@ export function createVersionController({
         doc.documentElement,
         authoredHtmlAttributes,
       );
+      // Delivery states each revision's declared review on its root, where the theme
+      // reads the banner's rows from it, so the arriving revision's comes across with it.
+      keeps(
+        document.documentElement,
+        "data-lf-review",
+        doc.documentElement.getAttribute("data-lf-review"),
+      );
       authoredBodyAttributes = replaceAuthoredAttributes(
         document.body,
         doc.body,
@@ -1534,7 +1540,6 @@ export function createVersionController({
     const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
       revision: runtime.currentRevision,
-      ask: landedAt()?.id,
       activeRegion: active?.id,
       regions: Object.fromEntries(regionViews),
     });
@@ -1550,7 +1555,6 @@ export function createVersionController({
   }
 
   function restoreView(view, currentIntent) {
-    setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??

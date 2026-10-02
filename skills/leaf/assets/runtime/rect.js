@@ -1,5 +1,5 @@
 /* The rectangle arithmetic placements share. It reads no document, so the pure placement
-   folds (`margin-placement.js`, `thread-card-geometry.js`, the hint seating in
+   folds (`margin-placement.js`, `comment-placement.js`, the hint seating in
    `keyboard/hints.js`) take it as readily as the passes that measure. */
 
 // Whether two boxes share any pixel.

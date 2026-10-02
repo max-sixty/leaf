@@ -23,6 +23,11 @@ elements in page order. They remain visible as one complete page. The user can p
 Ask depends on an earlier answer, publish it in the next turn instead of authoring
 every possible branch.
 
+For independent proposals, make progress visible as each one is decided: give
+each proposal its own `lf-ask` with explicit accept and reject choices. Either
+choice completes that Ask; leaving it unanswered keeps it open. A shared
+`multiple` group fits a question whose answer is a selected set.
+
 For an interface or behavior choice, make the relevant interaction work inside
 each option so the user can try every alternative before choosing. For a choice
 between arrangements, structures, or mechanisms that nothing can run yet, draw each

@@ -10,8 +10,9 @@ Click a title, type a draft, change spacing, and collapse the thread from its ti
 press Escape).
 Simulated replies stay local to the sketch; only Choose layout submits a configuration
 to the agent. Cmd/Ctrl+Enter adds a simulated reply. Refresh resets the simulations.
-The real Leaf Threads panel implements the compact accordion and remains available
-for feedback independently of the sketch. Counts use a shared column across all rows.
+The real Leaf Threads panel remains available for feedback independently of the
+sketch. Its implementation and keyboard contract are the baseline; the mock rows
+only compare spacing.
 The real panel's keyboard behavior is defined in
 [Escape unwinds the hierarchy, not the history](../../skills/leaf/assets/runtime/keyboard/AGENTS.md#escape-unwinds-the-hierarchy-not-the-history).
 The page-local sketch uses Escape to collapse its selected mock thread; its
@@ -22,6 +23,5 @@ uv run leaf-dev preview --source notes/thread-navigation/playground.html --slot 
 ```
 
 The companion log and `threads.json` supply the release discussion fixture and its
-anchors. The runtime uses the selected compact accordion; the page-local sketch keeps
-spacing alternatives available for design discussion. Its illustrative activity labels
-are separate from the runtime's existing delivery readings.
+anchors. The sketch's activity labels illustrate a discussion; they do not define
+Leaf's delivery or thread-attention states.

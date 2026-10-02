@@ -26,7 +26,6 @@ import {
   keeps,
   keepsText,
   layoutChanged,
-  measure,
   notice,
   offer,
   once,
@@ -131,6 +130,8 @@ customElements.define(
       try {
         this.#build();
         this.#ready = true;
+        // Built, so the height the page reserved for it lifts (x-height).
+        this.classList.add("lf-rendered");
         if (this.#interactive)
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
@@ -799,7 +800,7 @@ customElements.define(
       const copy = this.#copy;
       copy.updateComplete.then(() => {
         const trigger = copy.querySelector(".lf-playground-copy-trigger");
-        measure(trigger, () => reserve(trigger, COPY_WORDS));
+        reserve(trigger, COPY_WORDS);
         restoreFocus?.(trigger);
       });
     }

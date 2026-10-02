@@ -8,17 +8,18 @@ commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each p
 built from this checkout's example source and served by the arm's own launcher, so
 only the runtime, theme and server differ between the two stills of a state.
 
-A state is an example, a viewport and color scheme, and the input that brings a fresh
-tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs). The catalogue
-(`STATES`) covers states a user reaches by acting, not only pages at rest; add one
-where a change touches a surface it does not reach.
+A state is an example, a viewport, a color scheme and a pointer, and the input that
+brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
+The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
+add one where a change touches a surface it does not reach.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
 Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
-`diff.png` outlining each region.
+`diff.png` outlining the head's own regions, a change in red and a move in blue. The
+crops cover both stills' regions.
 """
 
 import shutil
@@ -76,6 +77,20 @@ def card_reply(page: Page) -> None:
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
+def card_reply_sent(page: Page) -> None:
+    """The margin card's message metadata after sending a reply."""
+    card_reply(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("button", name="Send", exact=True).click()
+    card.locator(".lf-page-thread-msg.user .lf-msg-sending").last.wait_for()
+
+
+def card_reply_large(page: Page) -> None:
+    """A pasted reply exhausting the room below the thread, with its caret at the end."""
+    card_reply(page)
+    page.keyboard.insert_text("\n" + "\n".join(f"Reply line {n}" for n in range(40)))
+
+
 def threads_panel(page: Page) -> None:
     """The Threads panel, opened from the banner."""
     page.locator(".lf-threads-toggle").click()
@@ -116,14 +131,30 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
-def code_focused(page: Page) -> None:
-    """The first code block with a note, focused by keyboard, with the note in view."""
-    page.keyboard.press("Tab")
-    pre = page.locator("pre:has(.lf-code-note)").first
-    pre.focus()
-    pre.locator(".lf-code-note").first.evaluate(
+def code_note(page: Page) -> None:
+    """The first code block with a note, the note in view."""
+    page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
+
+
+def code_copy_by_pointer(page: Page) -> None:
+    """Code's corner control revealed by hovering its source."""
+    code_note(page)
+    page.locator("lf-code pre").first.hover()
+
+
+def code_copy_by_keyboard(page: Page) -> None:
+    """Code's corner control with the keyboard focus ring visible."""
+    code_note(page)
+    page.keyboard.press("Tab")
+    page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
+
+
+def code_source_by_touch(page: Page) -> None:
+    """Reading code by touch, with the corner control disclosed away."""
+    code_note(page)
+    page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
 
 
 def pane_focused(page: Page) -> None:
@@ -136,6 +167,13 @@ def pane_focused(page: Page) -> None:
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def versions_menu(page: Page) -> None:
+    """The Versions menu, opened from More: a row for each version, with its note."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-version").click()
+    page.locator(".lf-version-menu .lf-version-row").first.wait_for()
 
 
 def go_to(page: Page) -> None:
@@ -151,13 +189,19 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_by_pointer,
         card_by_keyboard,
         card_reply,
+        card_reply_sent,
+        card_reply_large,
         threads_panel,
         panel_reply_sent,
         composer,
         card_grabbed,
-        code_focused,
+        code_note,
+        code_copy_by_pointer,
+        code_copy_by_keyboard,
+        code_source_by_touch,
         pane_focused,
         element_thread,
+        versions_menu,
         go_to,
     )
 }
@@ -170,9 +214,11 @@ class State:
     drive: Callable[[Page], None]
     viewport: tuple[int, int] = DESKTOP
     scheme: str = "light"
+    touch: bool = False
 
 
 STATES = (
+    State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
@@ -180,19 +226,70 @@ STATES = (
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
+    ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State(
+        "plan-versions-touch",
+        "review-a-plan",
+        versions_menu,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "plan-panel-touch",
+        "review-a-plan",
+        threads_panel,
+        viewport=(390, 844),
+        touch=True,
+    ),
     # Last on its page, since the reply it sends stays in the log.
     State("plan-panel-sent", "review-a-plan", panel_reply_sent),
+    State("plan-card-sent", "review-a-plan", card_reply_sent),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),
-    State("walkthrough-code", "pr-walkthrough", code_focused),
-    State("walkthrough-code-dark", "pr-walkthrough", code_focused, scheme="dark"),
+    State("walkthrough-code", "pr-walkthrough", code_note),
+    State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
+    State("walkthrough-copy-hover", "pr-walkthrough", code_copy_by_pointer),
+    State("walkthrough-copy-keyboard", "pr-walkthrough", code_copy_by_keyboard),
+    State(
+        "walkthrough-copy-touch",
+        "pr-walkthrough",
+        code_note,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "walkthrough-source-touch",
+        "pr-walkthrough",
+        code_source_by_touch,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
+    ),
+    State(
+        "ship-card-short-window-dark",
+        "ship-review",
+        card_by_pointer,
+        viewport=(1440, 480),
+        scheme="dark",
+    ),
+    State(
+        "ship-card-touch",
+        "ship-review",
+        card_by_pointer,
+        viewport=(390, 500),
+        touch=True,
+    ),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
@@ -201,7 +298,7 @@ STATES = (
 
 def capture(browser, address: str, state: State, path: Path) -> None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme) as page:
+    with tab(browser, state.viewport, state.scheme, state.touch) as page:
         load(page, address)
         state.drive(page)
         settle(page)
@@ -264,10 +361,10 @@ def crop(folder: Path, regions: list[dict]) -> None:
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
-    for r in regions:
+    for r in (r for r in regions if r["side"] == "after"):
         draw.rectangle(
             (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
-            outline=(220, 0, 0),
+            outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
             width=2,
         )
     faded.crop(box).save(folder / "diff.png")

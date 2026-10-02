@@ -22,6 +22,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
@@ -2491,7 +2492,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     # presence must leave the sentinel alone: a hidden, still-open tab no longer
     # counts as user attention. Reopening the stream below must replace it.
     page.wait_for_timeout(100)
-    files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
+    cleanup_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
     serve.httpd.viewed_at = 0
     events_model.append_event(
         serve.page_dir,
@@ -2529,9 +2530,9 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     text = page.locator(".lf-status-detail")
 
     def declare(detail):
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
+            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
         )
 
     # Every ask is held; the test answers each admitted read by hand.
@@ -2997,7 +2998,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             )
         else:
             service_model.claim_path(d).unlink(missing_ok=True)
-        files_model.write_json(d / "status.json", status)
+        cleanup_model.write_json(d / "status.json", status)
         told(page)
 
     declare("working", "revising the plan")
@@ -3266,9 +3267,9 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d, id="s")
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
+            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
         )
         told(page)
 
@@ -3326,7 +3327,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # activity reading.
     record_claim(d, id="s", pid=os.getpid(), agent="Claude")
     old_status = files_model.read_json(d / "status.json")
-    files_model.write_json(
+    cleanup_model.write_json(
         d / "status.json",
         {
             **old_status,
@@ -3727,12 +3728,12 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "rerunning the failing shard",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
                 "after": events_model.read_events(d)[-1]["seq"],
                 "work": [
                     {
@@ -3755,7 +3756,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         )
         told(page)
 
-    claim(events_model.now_iso())
+    claim(cleanup_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
     expect(work_line).to_have_text("Working")
@@ -3843,7 +3844,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d, id="s")
-    claim(events_model.now_iso())
+    claim(cleanup_model.now_iso())
     expect(work_line).to_have_text("Working")
     expect(work_line).to_have_count(1)
     expect(held_thread).not_to_have_attribute(
@@ -3894,9 +3895,9 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             )
 
     def declare(state, **status):
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": state, "ts": events_model.now_iso(), **status},
+            {"state": state, "ts": cleanup_model.now_iso(), **status},
         )
         told(page)
 
@@ -4344,7 +4345,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         },
     )
     told(page)
-    expect(healthy).to_contain_text("The healthy thread still updates.")
+    # The reply lands in view, so the healthy thread holds it behind its notice.
+    expect(healthy.get_by_role("button", name="1 new reply")).to_be_visible()
     assert (
         broken_element.evaluate(
             "widget => widget.querySelectorAll('.lf-page-thread').length"
@@ -4415,7 +4417,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             },
         )
         told(page)
-        expect(healthy).to_contain_text("A later reading retries the repaired adapter.")
+        # The notice holding the first reply counts this one too.
+        expect(healthy.get_by_role("button", name="2 new replies")).to_be_visible()
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
         expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
             "value", "Keep this unsent reply."
@@ -4855,9 +4858,9 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
     with page.expect_response("**/api/state*"):
-        files_model.write_json(
+        cleanup_model.write_json(
             serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": events_model.now_iso()},
+            {"state": "working", "detail": "newer", "ts": cleanup_model.now_iso()},
         )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")

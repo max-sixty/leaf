@@ -207,11 +207,17 @@ const refreshDraftRecord = (ctx) => {
 // brings the words back here on a refusal with nothing to restore them from.
 const standingGestures = new Map(); // ctx -> attempt
 
-const activeDraftRecord = (ctx) => {
+const unsettledDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
-  if (!record || record.settled || attemptAccepted(record.attempt)) return null;
-  return standingGestures.get(ctx) === record.attempt ? null : record;
+  return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
 };
+const activeDraftRecord = (ctx) => {
+  const record = unsettledDraftRecord(ctx);
+  return standingGestures.get(ctx) === record?.attempt ? null : record;
+};
+// Sending hides a generation's words while its result stands on screen, but does
+// not end its editor's lifetime: refusal still owes those words that same editor.
+export const draftHasContent = (ctx) => Boolean(unsettledDraftRecord(ctx)?.text);
 // Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
 // action, or a poll that observed the attempt in the log. Re-read shared storage before
 // making that claim so a stale view cannot settle a newer durable generation. A refused
@@ -267,6 +273,19 @@ export const clearDraft = (ctx) => {
   }
   return settleDraft(ctx, current.attempt);
 };
+// The destination owner has chosen its complete value and found room for it. Store
+// that value durably before settling the exact source generation, so a later source
+// edit is never discarded. A failed destination write keeps its local branch and the
+// persisted source. Every live destination view reads the same transferred draft.
+export function transferDraft(from, to, text) {
+  const source = activeDraftRecord(from);
+  if (!source || from === to) return false;
+  const durable = saveDraft(to, text);
+  if (durable && settleDraft(from, source.attempt))
+    projectDraftRecord(from, draftCache.get(from).record);
+  tellDraft(to, text);
+  return true;
+}
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
 export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
@@ -366,12 +385,19 @@ export async function sendDraft(ctx, owns, send) {
 // round trip happens behind them.
 //
 // The returned handle names the message the send drew. It is what a caller opens or
-// focuses, and the log's answer renames that same node rather than replacing it.
+// focuses, and the log's answer renames that same node rather than replacing it. A send
+// the page refuses before posting, such as a reply to a thread being settled, drew
+// nothing: the words stay in the box and the caller hears null, as for a draft it could
+// not claim.
 export function sendMessage(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
   const flight = send(current.attempt, current.payload);
   const answer = standGesture(ctx, current);
+  if (!flight) {
+    answer(null);
+    return null;
+  }
   void Promise.resolve(flight).then(answer);
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }

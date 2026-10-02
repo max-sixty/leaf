@@ -10,10 +10,10 @@ from interact_support import (
 )
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -775,10 +775,9 @@ def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
 
 def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
     """Approval is on the banner's row wherever the page declares sign-off, stamped or
-    not. It came and went with the stamp, and the banner wraps by what it holds, so at
-    a width where Approval decides the wrap a draft arriving unwrapped the banner and
-    moved the whole document: news moving the page. Before a stamp the press is refused
-    and says why."""
+    not. It came and went with the stamp, and at a width where Approval takes the
+    banner to two rows a draft arriving took it back to one and moved the whole
+    document: news moving the page. Before a stamp the press is refused and says why."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -787,7 +786,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
     resized(page, 560, 800)
     button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
-    rows = page.evaluate("() => document.documentElement.dataset.lfBannerRows")
+    height = page.evaluate(BANNER_HEIGHT)
     top = page.evaluate(
         "() => document.querySelector('main').getBoundingClientRect().top"
     )
@@ -800,7 +799,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
     expect(button).to_have_attribute(
         "title", "There is no stamped version to approve yet"
     )
-    assert page.evaluate("() => document.documentElement.dataset.lfBannerRows") == rows
+    assert page.evaluate(BANNER_HEIGHT) == height
     after = page.evaluate(
         "() => document.querySelector('main').getBoundingClientRect().top"
     )
@@ -1971,17 +1970,49 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(more).to_have_attribute("aria-expanded", "false")
 
 
-# Where the banner's two parts stand, and how much of the window it takes from the page.
+# Where the banner's two parts stand, the height the theme states for it (the document's
+# head is reserved at that height), and each control on its row that the banner cuts off.
 BANNER_ROWS = """() => {
   const box = (selector) => document.querySelector(selector).getBoundingClientRect();
   const banner = box('.lf-banner'), status = box('.lf-banner-status'),
         actions = box('.lf-banner-actions');
+  const shown = [...document.querySelectorAll('.lf-banner-actions > *')]
+    .filter((control) => control.checkVisibility());
+  const clipped = shown
+    .filter((control) => {
+      const at = control.getBoundingClientRect();
+      return at.left < Math.max(banner.left, actions.left) - 0.5
+        || at.right > Math.min(banner.right, actions.right) + 0.5
+        || at.bottom > banner.bottom + 0.5;
+    })
+    .map((control) => control.textContent.trim());
   return {wrapped: actions.top >= status.bottom - 1,
-          rows: document.documentElement.dataset.lfBannerRows,
           height: banner.height, bannerBottom: banner.bottom,
-          actionsBottom: actions.bottom,
+          stated: parseFloat(getComputedStyle(document.body, '::before').height),
+          clipped, controls: shown.map((control) => control.textContent.trim()),
           main: document.querySelector('body > main').getBoundingClientRect().top};
 }"""
+BANNER_HEIGHT = (
+    "() => document.querySelector('.lf-banner').getBoundingClientRect().height"
+)
+
+
+def signed_off(html):
+    return html.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+
+
+def assert_banner_as_stated(read, wrapped):
+    assert read["wrapped"] == wrapped, read
+    assert read["height"] == pytest.approx(read["stated"], abs=0.5), (
+        f"the banner drew a height other than the one the theme states: {read}"
+    )
+    assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
+        f"the document's head does not end where the banner does: {read}"
+    )
+    assert not read["clipped"], f"the banner cut off {read['clipped']}: {read}"
 
 
 @pytest.mark.parametrize(
@@ -1990,55 +2021,78 @@ BANNER_ROWS = """() => {
         # A landscape phone holds the status beside Threads, and beside Approval too.
         (740, True, False, False),
         (740, True, True, False),
-        # One window, two banners: the run that asks for sign-off leaves the status less
-        # than its floor there, and only that one wraps.
+        # One window, two banners: the run that asks for sign-off would leave the
+        # status too little room there, and only that one takes a second row.
         (600, False, False, False),
         (600, False, True, True),
+        # A phone held upright gives the run a row of its own; a little wider, it
+        # doesn't need one.
         (390, True, False, True),
+        (470, True, False, False),
     ],
 )
-def test_the_banner_wraps_by_what_it_holds(
+def test_the_banner_rows_follow_the_window_and_sign_off(
     browser, serve, width, touch, signoff, wrapped
 ):
-    """The banner takes a second row only where its control run would leave the status
-    less than its floor, which is a fact about what it holds rather than the window: a
-    landscape phone has one row, as a desk window does, and at one width a page asking
-    for sign-off wraps where a page without it does not. The page starts under whatever
-    the banner drew, and the run stays inside it."""
-    html = SUGGESTION_PAGE
-    if signoff:
-        html = html.replace(
-            "<title>suggestions</title>",
-            '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-        )
+    """The banner's rows are the theme's to state, from the pointer, the window's width
+    and the page's declared sign-off, so the document's head is reserved at the banner's
+    height before the runtime draws it and nothing the banner holds later moves the
+    page. A landscape phone has one row, as a desk window does, and at one width a page
+    asking for sign-off has two where a page without it has one. The banner draws the
+    height it states, and every control on its row stands inside it."""
+    html = signed_off(SUGGESTION_PAGE) if signoff else SUGGESTION_PAGE
     context = browser.new_context(
         viewport={"width": width, "height": 800}, has_touch=touch, is_mobile=touch
     )
     page = open_page(browser, serve(html), context=context)
     page_at_rest(page)
     read = page.evaluate(BANNER_ROWS)
-    assert read["wrapped"] == wrapped, read
-    assert read["rows"] == ("2" if wrapped else "1"), read
+    assert_banner_as_stated(read, wrapped)
     row = 53 if touch else 52 if width <= 480 else 42
     assert read["height"] == pytest.approx(row + (36 if wrapped else 0), abs=1), read
-    assert read["actionsBottom"] <= read["bannerBottom"] + 0.5, read
-    assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
-        f"the document's head does not follow the rows the banner drew: {read}"
+
+
+def test_a_finger_s_steps_keep_the_banner_s_rows(browser, serve):
+    """A step a finger takes on the banner, here page search's, stands in the reading
+    loop's place on the row the banner already has. Just wider than a phone's upright
+    face, where the steps have the least room beside the status, they still fit, and
+    the banner keeps its height, so opening search moves nothing."""
+    context = browser.new_context(
+        viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
     )
-    # Before the runtime reports its rows, the render-blocking theme reserves the head
-    # from what delivery wrote on the root. It reserved one row for a sign-off page at
-    # 600px, so the page shown first moved down a row when the banner arrived.
-    guessed = page.evaluate(
-        """() => lfUnwatched(() => {
-          const root = document.documentElement;
-          const drawn = root.dataset.lfBannerRows;
-          delete root.dataset.lfBannerRows;
-          const guess = getComputedStyle(root).getPropertyValue('--lf-banner-rows').trim();
-          root.dataset.lfBannerRows = drawn;
-          return guess;
-        })"""
+    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
+    page_at_rest(page)
+    before = page.evaluate(BANNER_ROWS)
+    assert_banner_as_stated(before, wrapped=False)
+    page.keyboard.press("/")
+    page.keyboard.type("feeder")
+    expect(
+        page.locator(".lf-banner-actions > .lf-btn", has_text="Next")
+    ).to_be_visible()
+    page_at_rest(page)
+    read = page.evaluate(BANNER_ROWS)
+    assert "Close search" in read["controls"], read
+    assert_banner_as_stated(read, wrapped=False)
+    assert read["main"] == pytest.approx(before["main"], abs=1), (before, read)
+
+
+def test_a_revision_that_asks_for_sign_off_gives_the_banner_its_rows(browser, serve):
+    """Sign-off is the revision's declaration, and a revision taken on in place brings
+    its own: the banner's rows follow it as Approval does, so the run that now holds
+    Approval takes the second row a fresh load of the same revision would give it."""
+    page = open_page(browser, live_url(serve(SUGGESTION_PAGE)))
+    resized(page, 600, 800)
+    page_at_rest(page)
+    assert_banner_as_stated(page.evaluate(BANNER_ROWS), wrapped=False)
+    (serve.page_dir / "index.html").write_text(
+        signed_off(SUGGESTION_PAGE).replace(
+            "</lf-board>", "</lf-board>\n<p>A draft asking for sign-off.</p>"
+        )
     )
-    assert guessed == read["rows"], (width, touch, signoff, guessed, read["rows"])
+    told(page)
+    expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    page_at_rest(page)
+    assert_banner_as_stated(page.evaluate(BANNER_ROWS), wrapped=True)
 
 
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
@@ -2572,7 +2626,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
         edge_control = page.locator(edge_selector)
         edge_control.evaluate("edge => edge.blur()")
-        for _ in range(80):
+        # Every thread title Tab reaches opens its thread, so the walk crosses each
+        # thread's own controls on the way to the grip.
+        for _ in range(400):
             page.keyboard.press("Tab")
             if edge_control.evaluate("edge => document.activeElement === edge"):
                 break
@@ -3232,12 +3288,12 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
     told(page)
@@ -3247,9 +3303,9 @@ def test_a_panel_row_follows_its_pages_status_live(
     # user reading both surfaces has to work out whether they mean the same thing.
     # Its own watcher has to be live for that, which is what the neighbour's held lease
     # proves — judged from the same evidence its banner judges itself on.
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": events_model.now_iso()},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     with live_watcher(other_dir, page):
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
@@ -3261,12 +3317,12 @@ def test_a_panel_row_follows_its_pages_status_live(
         # winning where two overlap: a title on the line would answer the hover most
         # likely to be asking for the rest, a user pointing at the words that ran out
         # of room, with the one part of the account they can already read.
-        files_model.write_json(
+        cleanup_model.write_json(
             other_dir / "status.json",
             {
                 "state": "waiting",
                 "detail": "pick a storage engine",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
             },
         )
         told(page)
@@ -3372,17 +3428,17 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     held = page.evaluate(
@@ -3451,9 +3507,9 @@ def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(0)
@@ -3495,9 +3551,9 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(2)
@@ -3613,9 +3669,9 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     page.wait_for_function(
@@ -4082,10 +4138,8 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
     reading_place()
 
-    # The card releases to whole-panel selection, and the press after that closes the
-    # sheet.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # A panel thread has no release of its own: Escape from it is the panel's, and with
+    # nothing narrowed that closes the sheet.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
@@ -4729,13 +4783,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `g T` lands the user; `c` there
-    # enters its page comment box.
+    # The panel, and then the thread its list shows open — which is where `g T` lands
+    # the user; `c` there enters that thread's reply box. The page comment box below the
+    # list is the panel's other box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    sweep("standing on the comment list")
+    shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    expect(shown.locator(":scope > .lf-thread-summary")).to_be_focused()
+    sweep("standing on the open thread")
     page.keyboard.press("c")
+    expect(shown.locator("leaf-text")).to_be_focused()
+    sweep("standing in a reply box")
+    page.locator(".lf-general leaf-text").focus()
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     sweep("standing in the general box")
     page.keyboard.press("Escape")
@@ -4989,10 +5048,10 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
                     foot: rect(document.querySelector(".lf-thread-panel-foot")),
                     status: rect(document.querySelector(".lf-bottom-status")),
-                    standingThread: standing ? rect(standing) : null,
+                    standingTitle: standing ? rect(document.activeElement) : null,
                     lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
-                    listInlinePad: list.style.paddingBottom,
+                    listInlinePad: list.style.getPropertyValue("--lf-threads-foot"),
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
@@ -5022,7 +5081,8 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, multiline
 
     # A thread walk introduces foreground status above the panel. Reach the last thread
-    # through the real keyboard route and prove its card lands clear of that status band.
+    # through the real keyboard route and prove its title lands clear of that status band.
+    # The open card itself fills the list, its free room reaching under the status.
     field.evaluate("field => field.blur()")
     page.locator(".lf-threads").focus()
     for _ in range(6):
@@ -5032,8 +5092,8 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     walked = boxes()
     assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
     assert walked["listInlinePad"], walked
-    assert walked["standingThread"], walked
-    assert walked["standingThread"]["bottom"] <= walked["status"]["top"], (
+    assert walked["standingTitle"], walked
+    assert walked["standingTitle"]["bottom"] <= walked["status"]["top"], (
         f"the last walked thread landed under its live status: {walked}"
     )
 
@@ -5721,6 +5781,7 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
+            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
@@ -5737,7 +5798,6 @@ RING_CASES = (
                 (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
-                ("lf-code pre", "code-pre-light"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
@@ -5756,7 +5816,13 @@ RING_CASES = (
         (),
         {"pr-walkthrough": (("leaf-text.lf-fab-input", "inline-response"),)},
     ),
-    ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    # The list holds focus itself only while it shows no thread, so the sample finds
+    # nothing and backs out of the find box onto the emptied list.
+    (
+        "the thread list",
+        ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
+        {"corpus": ((None, "thread-list"),)},
+    ),
     (
         "a thread title",
         (),
@@ -6110,8 +6176,10 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     # The thread list's ring is a later-painted pseudo-element because its scrolling
     # contents can cover an outline on the list itself. Prove that paint is part of the
     # reading, then take it away without moving focus and require the list to be reported.
-    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
-    page.evaluate("() => document.activeElement?.blur()")
+    # The list keeps focus itself only while it shows no thread, so this half stands on
+    # a page with none.
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(RING_FOCUS_START)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -6223,6 +6291,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        if name == "wt-merge":
+            # Its pane body earns a keyboard stop only while it has content to scroll.
+            resized(page, 1200, 700)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(

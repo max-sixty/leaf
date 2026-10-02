@@ -27,6 +27,7 @@ from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -78,6 +79,7 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
+    PART_DIAGRAM_PAGE,
     PREFIXED_VISUAL_PAGE,
     STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
@@ -110,6 +112,7 @@ from render_harness import (
     resized,
     root_overflow,
     scroll_followers,
+    scroll_settled,
     scroll_writes,
     state_changes,
     still_page,
@@ -267,6 +270,35 @@ def _pane_regions(columns: str, media: str) -> str:
     )
 
 
+def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
+    """A workspace is a screen the reader moves through, so a region of it that has to
+    scroll is the exception, and the gate names each one at the desktop viewport, as
+    advice: the page still passes. Here the detail pane runs past its room and the
+    queue fits, so only the detail is named."""
+    source = leaf_page(
+        "screen regions",
+        """
+  <header><h1>Alerts</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
+    <lf-pane id="detail" label="Detail"><div><p>Disk pressure on db-2.</p>"""
+        + "".join(f"<p>Evidence line {n}.</p>" for n in range(60))
+        + """</div></lf-pane>
+  </div>
+""",
+        head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
+        "gap: var(--sp-4); }</style>",
+        layout="workspace",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    assert [region["id"] for region in reading.overflowing] == ["detail"]
+    (advice,) = [line for line in reading.advice if "past the region" in line]
+    assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+
+
 STACK = "{ #regions { grid-template-columns: 1fr; } }"
 SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
 
@@ -388,6 +420,74 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
         "the smallest ("
     ), advice
     assert "from the 11px it was set at" in advice, advice
+
+
+# A widget whose module draws a 120px box, where its authored markup holds nothing.
+RESERVING_LAYER = {
+    "lf-test-drawn": {
+        "description": "A drawing its module makes at a height no rule knows ahead of it.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-height": True,
+        "x-example": '<lf-test-drawn id="drawn" data-height="120"></lf-test-drawn>',
+    }
+}
+RESERVING_WIDGETS = {
+    "lf-test-drawn.js": """
+import { once } from '/runtime/widget-api.js';
+
+customElements.define('lf-test-drawn', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const drawing = document.createElement('div');
+    drawing.style.blockSize = '120px';
+    this.append(drawing);
+    this.classList.add('lf-rendered');
+  }
+});
+"""
+}
+
+
+def test_a_widget_drawn_at_a_height_its_first_paint_did_not_reserve_gets_advice(
+    browser, serve
+):
+    """A widget that states the height its module draws at holds it from first paint,
+    so the gate has nothing to say about it; one stating none, or another height, is
+    told the height to state."""
+    source = leaf_page(
+        "reserved heights",
+        """
+<h1>Reserved heights</h1>
+<lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
+<lf-test-drawn id="unreserved"></lf-test-drawn>
+<lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
+""",
+        head="<style>lf-test-drawn { display: block; }</style>",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(source, layer_registry=RESERVING_LAYER, layer_widgets=RESERVING_WIDGETS),
+    )
+
+    assert reading.failures == []
+    assert reading.advice == [
+        (
+            "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
+            "reserves no height, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
+        (
+            "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
+            "reserves 40px, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
+    ]
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
@@ -1620,6 +1720,41 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     )
 
 
+def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
+    page = PART_DIAGRAM_PAGE
+    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
+    assert failures == [
+        f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
+        "but its module leaves nameable parts unlisted node:U"
+        for scheme in ("light", "dark")
+    ]
+
+
+def test_state_diagram_parts_ignore_generated_markers_after_a_comment(browser, serve):
+    page = TYPED_PARTS_PAGE.replace(
+        "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+    ).replace(
+        "    Fetch --&gt; Build",
+        "    [*] --&gt; Fetch\n    Fetch --&gt; Build",
+        1,
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
+def test_state_diagram_parts_keep_authored_ids_that_resemble_markers(browser, serve):
+    page = leaf_page(
+        "authored state ids",
+        """<h1 id="title">Authored state ids</h1>
+<lf-diagram id="life" parts="node:_start2 node:_end2"><pre>
+stateDiagram-v2
+  [*] --&gt; _start2
+  _start2 --&gt; _end2
+  _end2 --&gt; [*]
+</pre></lf-diagram>""",
+    )
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
+
+
 def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
     """A namespace and a class inside it can share a name, and the class is the box.
 
@@ -2733,6 +2868,117 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     assert findings == [], "\n\n".join(findings)
 
 
+# The words in the field holding the focus, found through the shadow trees on the way
+# to it, or null where the focus is on no field; and each field's words that the page
+# draws, found the same way.
+FOCUSED_WORDS = """() => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  if (!at?.matches('textarea, input, [contenteditable], leaf-text')) return null;
+  return at.value ?? at.textContent;
+}"""
+SHOWN_WORDS = """() => {
+  const found = [];
+  const walk = (root) => {
+    for (const node of root.querySelectorAll('*')) {
+      if (node.matches('textarea, input, [contenteditable], leaf-text')
+          && node.checkVisibility({ visibilityProperty: true }))
+        found.push(node.value ?? node.textContent);
+      if (node.shadowRoot) walk(node.shadowRoot);
+    }
+  };
+  walk(document);
+  return found;
+}"""
+# Every scroller the page holds sent to one end on both axes, remembering where each
+# stood, or put back there.
+SCROLL_ALL_TO = """(end) => {
+  const scrolls = (el) => el === document.scrollingElement
+    || /auto|scroll/.test(getComputedStyle(el).overflow);
+  const scrollers = [document.scrollingElement, ...document.querySelectorAll('*')]
+    .filter((el) => scrolls(el) && (el.scrollHeight > el.clientHeight + 1
+      || el.scrollWidth > el.clientWidth + 1));
+  window.__lfScrolledFrom = scrollers.map((el) => [el, el.scrollTop, el.scrollLeft]);
+  for (const el of scrollers) {
+    el.scrollTop = end === 'start' ? 0 : el.scrollHeight;
+    el.scrollLeft = end === 'start' ? 0 : el.scrollWidth;
+  }
+}"""
+SCROLL_ALL_BACK = """() => {
+  for (const [el, top, left] of window.__lfScrolledFrom) {
+    el.scrollTop = top;
+    el.scrollLeft = left;
+  }
+}"""
+
+
+def into_the_page(page):
+    """Tab to the first stop inside the page's content, where `c` names its item."""
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if page.evaluate("() => Boolean(document.activeElement?.closest('main'))"):
+            return True
+    return False
+
+
+# Every box the user types into from the keyboard, by how they reach it: a comment on
+# the item they stand at, the page's own comment, and a thread card's reply where the
+# page has a thread to open. Each route takes the user from the page to where the
+# box's keys apply and returns them, or nothing where the page offers no such box. A
+# new box joins by its route.
+TYPED_BOXES = {
+    "comment on an item": lambda page: into_the_page(page) and ["c"],
+    "comment on the page": lambda page: ["c"],
+    "thread card reply": lambda page: (
+        page.locator(
+            '.lf-threads-toggle:text-matches("Open threads: [1-9]")'
+        ).first.is_visible()
+        and ["t", "c"]
+    ),
+}
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
+    """A box the user is typing in is still there, holding their words and the focus,
+    after every scroller on the page has been sent to either end and back: scrolling is
+    reading, and what the user wrote waits for them. The browser fixture fails a box
+    that went away on the way even where it came back (`words_watch.js`)."""
+    url = serve(source)
+    findings = []
+    for box, route in TYPED_BOXES.items():
+        page = still_page(browser, url)
+        left_alone(page)
+        page.evaluate(RELEASE_FOCUS)
+        keys = route(page)
+        if not keys:
+            continue
+        for key in keys:
+            page.keyboard.press(key)
+            rendered(page)
+        if page.evaluate(FOCUSED_WORDS) is None:
+            findings.append(f"{'+'.join(keys)} put the user in no {box} to type in")
+            continue
+        words = f"Words for the {box}"
+        page.keyboard.type(words)
+        for end in ("end", "start"):
+            page.evaluate(SCROLL_ALL_TO, end)
+            scroll_settled(page)
+            rendered(page)
+            page.evaluate(SCROLL_ALL_BACK)
+            scroll_settled(page)
+            rendered(page)
+            if words not in page.evaluate(SHOWN_WORDS):
+                findings.append(f"the {box} scrolled to the {end} and back is gone")
+                break
+            if page.evaluate(FOCUSED_WORDS) != words:
+                findings.append(
+                    f"the {box} scrolled to the {end} and back lost the focus"
+                )
+                break
+    assert findings == [], "\n".join(findings)
+
+
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     """A frame trims the margin at its edge through every first or last child: a bare
     section, a boxless one, and a padded grid section alike, with nothing declared on
@@ -3042,8 +3288,9 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
-# to follow it there.
-AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+# to follow it there. The list states the inline floor; the block floor is padding on
+# the controls a flex or grid container could squeeze, and min-height on the rest.
+AIM_FLOOR_RULE = "min-width: var(--aim-floor);"
 
 
 def aim_selectors():

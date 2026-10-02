@@ -76,9 +76,9 @@
   .layout-sidebar > aside { flex: 1 1 18rem; }
   .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row
-   * as tall as the row. How a row wraps is the page's to judge: the guidance names a
-   * lone tile on its own row as a look to avoid, and the page sets its own columns
-   * where it does. */
+   * as tall as the row. How a row wraps is the page's to judge: the pre-handover review
+   * (page-authoring.md) names a lone tile on its own row as a look to avoid, and the
+   * page sets its own columns where it does. */
   .layout-tiles {
     display: grid;
     gap: var(--sp-4);
@@ -135,6 +135,12 @@
       flex: 1 1 0;
       min-block-size: 0;
       margin-block: 0;
+    }
+    /* A page's grid of panes shares the body's height among its rows. Only that grid:
+     * a Layout sets the size of the box it arranges, and a widget that is the body lays
+     * out its own tracks, so a row rule written on every body held a side list's row to
+     * the window and drew its rows over one another. */
+    main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
       grid-auto-rows: minmax(0, 1fr);
     }
     /* The body takes the window's height to pass on to its panes. A pane it does not

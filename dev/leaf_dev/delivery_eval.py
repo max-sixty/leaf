@@ -8,15 +8,15 @@ so commit what you want measured. Each session is asked to serve a copy of
 `examples/triage-board.html` and handle its comments; the command posts comments over
 the page's API at the moments a case names:
 
-- `idle`: after a turn ends with the wait running, twice, so the second arrives only
-  if the agent restarted its wait;
-- `mid-turn`: as soon as the setup turn's wait is running, so the comment reaches a
+- `idle`: after a turn ends with the page handed over, twice, so the second arrives
+  only if the session went on watching;
+- `mid-turn`: as soon as the setup turn has the page's URL, so the comment reaches a
   turn still in progress.
 
 For each comment it reports, in seconds from the post, when the delivery reached the
 agent (`woken`), the page log's `pickup`, the agent's work claim, its first reply, its
 last reply in that turn (`done`) and the turn's end; what carried the comment in
-(`route`: the wait's notification or a hook); and what the agent ran between the
+(`route`: a wake or a hook); and what the agent ran between the
 delivery and its claim, which should be nothing.
 
 There are no statistics: two rounds, one page, fixed comments, the default model, and
@@ -60,7 +60,7 @@ PROMPT = (
     "and handle the comments I leave on it."
 )
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
-# once the setup turn's background wait has started.
+# once the setup turn has the page's URL.
 CASES = {"idle": ("idle", "idle"), "mid-turn": ("running",)}
 COMMENTS = (
     {
@@ -75,7 +75,7 @@ COMMENTS = (
 
 
 def attempt(n: int) -> str:
-    return f"delivery-eval-{n}"
+    return f"delivery-eval-{n:04d}-attempt"
 
 
 def moment(record: dict) -> float:
@@ -160,13 +160,13 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                         found := URL.search(json.dumps(block.get("content")))
                     ):
                         url = found.group(0)
-                    if due[:1] == ["running"] and url and block["tool_use_id"] in waits:
-                        # The wait is running and the setup turn is not over.
+                    if due[:1] == ["running"] and url:
+                        # The page is served and the setup turn is not over.
                         post()
                 if record.get("type") != "result":
                     continue
-                if due[:1] == ["idle"] and url and waits:
-                    # A turn is over and the session idles on its wait.
+                if due[:1] == ["idle"] and url:
+                    # A turn is over and the session idles on its page.
                     post()
                 elif not due and received >= posted:
                     # Every comment is picked up; a trailing wake may follow.

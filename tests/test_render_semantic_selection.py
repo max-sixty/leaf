@@ -31,6 +31,34 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Table line selection",
+                "<table><tr><td><strong>Short label here</strong><br>"
+                "<span>Then a second line of text.</span></td></tr></table>",
+            )
+        ),
+    )
+    before, after, quote = page.evaluate("""async () => {
+      const first = document.querySelector('td strong').firstChild;
+      const next = document.querySelector('td span').firstChild;
+      const selection = getSelection();
+      selection.setBaseAndExtent(first, 0, next, 0);
+      const before = selection.toString();
+      const {snapSelection, selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+      snapSelection();
+      const after = selection.toString();
+      selection.setBaseAndExtent(first, 0, next, 4);
+      return [before, after, selectionAnchor(selection).quote];
+    }""")
+    assert before == "Short label here\n"
+    assert after == before
+    assert quote == "Short label here Then"
+
+
 def test_short_inline_code_selection_offers_comment(browser, serve):
     """A complete code term is commentable even when it is one or two characters."""
     page = open_page(
@@ -969,8 +997,8 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
 def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     browser, serve
 ):
-    """An editable field owns slash as text. From the thread list, the same key opens
-    that panel's find box rather than the page search standing behind it."""
+    """An editable field owns slash as text. From a thread in the panel, the same key
+    opens that panel's find box rather than the page search standing behind it."""
     html = leaf_page(
         "scoped slash",
         '<label>Path <input id="path"></label><p>Searchable page words.</p>',
@@ -986,7 +1014,11 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(
+        page.locator(
+            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
+        )
+    ).to_be_focused()
     page.keyboard.press("/")
     thread_search = page.get_by_role("searchbox", name="Find in threads")
     expect(thread_search).to_be_focused()

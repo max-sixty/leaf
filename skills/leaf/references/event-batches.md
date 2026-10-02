@@ -128,9 +128,10 @@ retry, even if a later delivery also includes newer events; your host contract o
 the wait and acknowledgement route.
 
 `leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
-ending named on stderr. On exit 0 it prints one JSON envelope, or, where the
-host's hook carries input, one line naming the page with new input. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
-that restarted a dead server says so on stderr. The endings:
+ending named on stderr. The input is one JSON envelope, or, where the host's hook
+carries input, one line naming the page with new input. Exit 1 from `leaf wait
+--ack` means the acknowledgement was refused. A wait that restarted a dead server
+says so on stderr. The exit 2 endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.

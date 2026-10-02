@@ -205,13 +205,13 @@ HOOK_CONTEXT_LIMIT = 10_000
 
 
 def pointer_acknowledgement(delivery_id: str) -> str:
-    """What a delivery too large to hand over inline tells its reader."""
+    """What a delivery too large to hand over inline tells its reader, who confirms
+    it once read."""
     return (
-        "Leaf's hook handed this delivery over as a pointer, because it was too large "
-        "for the turn's context; until it is confirmed, the user's moves read Sent. "
-        "Once all of it is in your context, confirm it: "
-        f"{Harness.run_ack(delivery_id)}: it confirms this delivery and waits for "
-        "the next."
+        "Leaf's hook handed this delivery over as a pointer, because it was too "
+        "large for the turn's context; until it is confirmed, the user's moves "
+        "read Sent. Once all of it is in your context, confirm it with "
+        f"`leaf delivery ack {delivery_id}`."
     )
 
 
@@ -252,7 +252,7 @@ def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None
     ), None
 
 
-def carry_turn(event: str | None, sid: str, payload: dict) -> None:
+def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
     """Answer a prompt, Stop, or other page-reading hook for a session holding a
     page: open or close its turn, hand over its pending input, and name what its
     pages are owed."""
@@ -278,8 +278,11 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
         # turn with what it says as new context. Stamp only a turn the hook lets
         # end.
         if not owed and (not reasons or payload.get("stop_hook_active")):
-            close_session_turn(sid)
-            return
+            # A provider-named turn closes through the synchronous observation
+            # in cmd_hook, which also covers a page acquired mid-turn.
+            if not payload.get("turn_id"):
+                close_session_turn(sid)
+            return True
     else:
         reasons = unattended_pages(sid)
     if not reasons and not batches:

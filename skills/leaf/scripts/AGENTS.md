@@ -65,7 +65,8 @@ subpackage's initializer is only a marker, never a second API.
 - `media`, `publishing`, `live_shell`: page-bound media, public version stamps, and
   the static files a host serves beside Leaf's API.
 
-Within `registry/`, `contract` owns shared schema helpers, `kernel` the fixed
+Within `registry/`, `contract` owns vocabulary readings and derived declarations,
+`schema` the offline JSON Schema engine, and `kernel` the fixed
 kernel event contract, `layer`, `widgets`, and `state` own their vocabulary
 contracts, `validation` composes those gates, `page` composes page-owned
 declarations and provenance, `storage` owns the vendored-file cache, and

@@ -34,9 +34,9 @@
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
  * each playground's presets. */
-:where(:root) .lf-ui { font-family: var(--sans); font-size: var(--t-5);
+:where(:root) :is(.lf-ui, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
@@ -233,7 +233,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
@@ -648,24 +648,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   details > summary::-webkit-details-marker { display: none; }
 }
 /* Ordinary action buttons share their face across document and shadow trees.
+ * Authored .button controls use the same face as runtime-owned .lf-btn controls.
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
-.lf-btn { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
-.lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
-.lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
+:is(.lf-btn, .button) { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+:is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
+:is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
-   softened accent hairline, with the tint rising on hover. .lf-btn.on below is its
+   softened accent hairline, with the tint rising on hover. The selected face below is its
    neighbour — a full accent border on the chip ground — so a toggle and a commitment
    never read as one. */
-.lf-btn.primary { color: var(--accent);
+:is(.lf-btn, .button).primary { color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); }
-.lf-btn.primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }
+:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }
 /* Two selectors, two mechanisms, one look: the platform's own on the banner's real
    buttons, and the attribute wireInput sets, which is the only one a span press can
    wear. */
-.lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-.lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
+:is(.lf-btn, .button):disabled, :is(.lf-btn, .button)[aria-disabled="true"] { opacity: .55; cursor: default; }
+:is(.lf-btn, .button).primary:is(:disabled, [aria-disabled="true"]) {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); }
 /* Standing on a press, in the band everything else the user stands on is drawn in
@@ -682,7 +683,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-.lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+:is(.lf-btn, .button):is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
           --lf-focus-ring: btn; outline-offset: 2px; }
 /* An icon action's hit box, and the height of an empty composer field, which stands
    that action inside it with 6px of room either side. Stated at the root, where a widget
@@ -802,7 +803,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
-.lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+:is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    this file because document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }

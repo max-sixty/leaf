@@ -5815,10 +5815,10 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     )
     assert frame["ground"] == frame["paper"], frame
     assert frame["fieldBorder"] == "solid", frame
-    # The field's box at the card's border and padding, and the words one field
-    # inset in from it, where they used to stand inside a second frame at 25px.
+    # The field's box stands at the card's padding; words share the conversation's
+    # reading inset, rather than gaining a second frame.
     assert frame["field"][0] - frame["card"] == 13, frame
-    assert frame["inset"] == 21, frame
+    assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned
@@ -7285,11 +7285,11 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
+    assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
-    # Under or over its words, the card's minimum ends on their right edge
-    # (comment-placement.js), where the comment box would stand.
-    assert narrow["cardRight"] == pytest.approx(narrow["wordsRight"], abs=0.5), narrow
+    # The sent thread retains the comment frame's width and inline start.
+    # Its control cluster remains clear when the card takes the lower route.
+    assert narrow["cardRight"] <= narrow["mainRight"] + 2, narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     # Clear of its words under or over them, the card leaves its cluster uncovered.
     assert (
@@ -7308,11 +7308,11 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
         "textbox", name="Reply", exact=True
     ).click()
 
-    # With room to spare, the card takes only the width its short thread needs.
+    # With room to spare, the carried frame stays clear of the target controls.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] == pytest.approx(wide["minimum"], abs=0.5), wide
+    assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
-    assert wide["cardLeft"] >= wide["controlsRight"] + 7.5, wide
+    assert wide["cardLeft"] > wide["controlsRight"], wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):

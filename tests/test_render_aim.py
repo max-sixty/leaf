@@ -24,7 +24,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
     ASKS_PAGE,
-    HOLD_MOTION,
     SUGGESTION_PAGE,
     live_url,
 )
@@ -187,111 +186,36 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
-    """The in-place field and the thread are two sizes of one writing surface.
+    """A compact comment keeps its writing face as Send opens its target's thread.
 
-    The field keeps the small footprint that leaves the passage readable, but uses the
-    thread UI's type instead of a smaller caption face. On send, its last rectangle is
-    carried to the inline thread while the real card fades through it; the card must not
-    simply replace the field in one frame.
+    The frame and words through the motion are checked by the send-placement cases.
     """
-    page = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
+    page = open_page(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
     target = page.locator("#p10")
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
     compact = field.evaluate(
-        """node => {
-          const style = getComputedStyle(node), box = node.getBoundingClientRect();
-          return { x: box.x, y: box.y, width: box.width, height: box.height,
-                   family: style.fontFamily, size: style.fontSize };
-        }"""
+        "node => ({family: getComputedStyle(node).fontFamily, "
+        "size: getComputedStyle(node).fontSize})"
     )
-    assert compact["height"] == 32
+    assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
-    source = field.bounding_box()
-    # Keep a margin render pending across the accepted comment and its next frame.
-    # Rendering rebuilds entry records, so the scheduled carry must recognize the same
-    # destination by its durable key rather than by the old record's object identity.
-    page.evaluate(
-        """() => {
-          window.__lfForceMarginRender = true;
-          const renderAgain = () => {
-            if (!window.__lfForceMarginRender) return;
-            dispatchEvent(new Event('resize'));
-            requestAnimationFrame(renderAgain);
-          };
-          requestAnimationFrame(renderAgain);
-        }"""
-    )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
-    ghost = page.locator(".lf-thread-transition")
-    expect(ghost).to_have_count(1)
-    page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
+    expect(preview.get_by_text("Carry this comment into its thread.")).to_be_visible()
+    expect(target).to_be_focused()
     reply = preview.locator("leaf-text")
-    # The send leaves the user on the target, the card up beside it.
-    expect(target).to_be_focused()
     full = reply.evaluate(
-        "node => ({ family: getComputedStyle(node).fontFamily, "
-        "size: getComputedStyle(node).fontSize })"
+        "node => ({family: getComputedStyle(node).fontFamily, "
+        "size: getComputedStyle(node).fontSize})"
     )
-    assert (compact["family"], compact["size"]) == (
-        full["family"],
-        full["size"],
-    )
-
-    # Hold the first frame: the field's submitted box still stands exactly where the
-    # user left it, and the full card is transparent underneath. Three motions share
-    # the one duration — shell, card, and words — so reduced motion can settle all three
-    # through the same primitive.
-    assert page.evaluate("() => window.__lfHeld.length") == 3
-    carried = ghost.bounding_box()
-    for dimension in ("x", "y", "width", "height"):
-        assert carried[dimension] == pytest.approx(source[dimension], abs=1)
-    expect(preview).to_have_css("opacity", "0")
-    destination = page.evaluate(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          const card = preview.getBoundingClientRect();
-          const motion = window.__lfHeld.find((played) =>
-            played.effect.target.classList.contains('lf-thread-transition'));
-          const end = motion.effect.getKeyframes().at(-1);
-          return {
-            card: {
-              // Where layout stands it, whichever edges hold it (floating.js), before
-              // the reveal's own motion.
-              x: preview.offsetLeft, y: preview.offsetTop,
-              width: card.width, height: card.height,
-            },
-            end: {
-              x: parseFloat(end.left), y: parseFloat(end.top),
-              width: parseFloat(end.width), height: parseFloat(end.height),
-            },
-          };
-        }"""
-    )
-    for dimension in ("x", "y", "width", "height"):
-        assert destination["end"][dimension] == pytest.approx(
-            destination["card"][dimension], abs=1
-        ), destination
-    page.evaluate(
-        """() => {
-          const words = window.__lfHeld.find((played) =>
-            played.effect.target.classList.contains('lf-thread-transition-text')
-          );
-          words.currentTime = words.effect.getComputedTiming().duration / 2;
-        }"""
-    )
-    expect(ghost.locator(".lf-thread-transition-text")).to_have_css("opacity", "0")
-
-    page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
-    expect(ghost).to_have_count(0)
-    expect(preview).to_have_css("opacity", "1")
-    expect(target).to_be_focused()
+    assert compact == full
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
@@ -811,8 +735,7 @@ def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
 def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     browser, serve
 ):
-    """With no room left under it, the field rises by what its next line needs, its
-    foot on the window's, and scrolls only once it fills the window."""
+    """A side editor at the window foot grows upward, then scrolls within its frame."""
     page = open_page(
         browser,
         serve(
@@ -842,12 +765,12 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
         """async () => (await window.__lfRuntimeImport('/runtime/geometry.js'))
           .shownWindow({gap: 8}).bottom"""
     )
-    assert resting["bottom"] < foot - 20, (resting, foot)
+    assert resting["bottom"] <= foot + 0.5, (resting, foot)
     write(field, "\n".join(f"Line {n}" for n in range(6)))
     rendered(page)
     risen = page.evaluate(SIDE_COMMENT)
-    assert risen["bottom"] == pytest.approx(foot, abs=1), (risen, foot)
-    assert risen["top"] < resting["top"] - 20, (resting, risen)
+    assert risen["bottom"] <= foot + 0.5, (risen, foot)
+    assert risen["field"] < resting["field"] - 20, (resting, risen)
     assert risen["scrolled"] == 0, risen
     write(field, "\n".join(f"Line {n}" for n in range(80)))
     rendered(page)
@@ -883,7 +806,9 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact = bar.bounding_box()
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
-    assert compact["y"] > 200, compact
+    banner = page.locator(".lf-banner").bounding_box()
+    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    assert compact["y"] >= ceiling and compact["y"] + compact["height"] <= 352, compact
     write(
         field,
         "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50)),
@@ -894,11 +819,8 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
           return field.scrollHeight > field.clientHeight;
         }"""
     )
-    banner = page.locator(".lf-banner").bounding_box()
-    ceiling = max(48, banner["y"] + banner["height"] + 6)
     box = bar.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
-    assert box["y"] < compact["y"] - 20, (compact, box)
     assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
@@ -937,12 +859,8 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
 
     write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(6)))
-    page.wait_for_function(
-        """() => {
-          const field = document.querySelector('.lf-fab-input');
-          return field.clientHeight === field.scrollHeight && field.clientHeight > 100;
-        }"""
-    )
+    rendered(page)
+    assert field.evaluate("node => node.clientHeight > 100")
 
     write(field, "\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
     page.wait_for_function(

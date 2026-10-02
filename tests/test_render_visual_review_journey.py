@@ -282,7 +282,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(capture.get_by_role("link", name="Back to releases")).to_be_visible()
     save("base-detail")
 
-    capture.goto(f"{candidate_target.origin}/versions/v1.html")
+    capture.goto(f"{candidate_target.origin}/versions/v1.html?t={capture_key}")
     expect(capture.get_by_text("Ready", exact=True)).to_be_visible()
     save("candidate-catalog")
     capture.get_by_role("link", name="Open release 17").click()
@@ -291,7 +291,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(capture.get_by_role("link", name="Back to releases")).to_have_count(0)
     save("candidate-detail")
 
-    capture.goto(f"{corrected_target.origin}/versions/v1.html")
+    capture.goto(f"{corrected_target.origin}/versions/v1.html?t={capture_key}")
     capture.get_by_role("link", name="Open release 17").click()
     expect(capture).to_have_url(f"{corrected_target.origin}/versions/v2.html")
     expect(capture.get_by_role("link", name="Back to releases")).to_be_visible()

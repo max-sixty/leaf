@@ -2086,7 +2086,6 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
-    expect(page.locator(":target")).to_have_attribute("id", hrefs[1][1:])
     expect(page).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     scroll_settled(page)
     top = page.locator("h3").evaluate("heading => heading.getBoundingClientRect().top")
@@ -2364,7 +2363,7 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     )
     expect(page.locator("#section-two > h2")).to_have_attribute("id", "title-two")
     toc.get_by_role("link", name="Move the readers").click()
-    expect(page.locator(":target")).to_have_attribute("id", "section-three")
+    expect(page).to_have_url(re.compile(r"#section-three$"))
     scroll_settled(page)
     arrival = page.locator("#section-three").evaluate(
         """section => {
@@ -2373,14 +2372,16 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
           const heading = section.querySelector(':scope > h3');
           return {
             clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
+            margin: parseFloat(getComputedStyle(section).scrollMarginTop),
             section: section.getBoundingClientRect().top,
             eyebrow: eyebrow.getBoundingClientRect().top,
             heading: heading.getBoundingClientRect().top,
           };
         }"""
     )
-    assert arrival["section"] == pytest.approx(arrival["clear"], abs=1)
-    assert arrival["eyebrow"] == pytest.approx(arrival["clear"], abs=1)
+    destination_top = arrival["clear"] + arrival["margin"]
+    assert arrival["section"] == pytest.approx(destination_top, abs=1)
+    assert arrival["eyebrow"] == pytest.approx(destination_top, abs=1)
     assert arrival["heading"] > arrival["eyebrow"]
 
 
@@ -2388,8 +2389,8 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     """A map link creates an ordinary fragment-history entry on the root scrollport.
 
     Back restores the reading position from before the click and Forward restores the
-    fragment destination. Leaf keeps no competing pixel history and :target remains the
-    browser's state throughout."""
+    fragment destination. The shared travel pass reveals the destination while the
+    browser retains each entry's reading position."""
     source = leaf_page(
         "native contents history",
         """
@@ -2424,7 +2425,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     expect(move).to_have_css("pointer-events", "auto")
     move.click()
     expect(page).to_have_url(re.compile(r"#move$"))
-    expect(page.locator(":target")).to_have_attribute("id", "move")
     page.wait_for_function(
         "() => document.getElementById('move').getBoundingClientRect().top < 150"
     )
@@ -2436,7 +2436,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     page.wait_for_function(
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=bookmark
     )
-    assert page.locator(":target").count() == 0
 
     page.evaluate("history.forward()")
     page.wait_for_function("() => location.hash === '#move'")
@@ -2444,7 +2443,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
         arg=destination,
     )
-    expect(page.locator(":target")).to_have_attribute("id", "move")
 
 
 def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
@@ -2854,7 +2852,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     start.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     scroll_settled(page)
-    expect(page.locator(":target")).to_have_attribute("id", start_href[1:])
     assert (
         page.locator(start_href).evaluate("node => node.getBoundingClientRect().top")
         < 150

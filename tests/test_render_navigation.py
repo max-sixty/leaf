@@ -4197,24 +4197,11 @@ def test_an_inline_thread_rings_its_card_only_while_the_keyboard_stands_on_it(
     expect(reply).to_be_focused()
     assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
     writing = thread.evaluate(paint)
-    reply_ring = reply.evaluate(
-        """el => { const s = getComputedStyle(el); return {
-          style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
-          border: s.borderColor,
-        }; }"""
-    )
     assert writing == pointer
-    # One ring and no accented border: the reply wears the text box's band, which
-    # replaces the resting border rather than standing off it. `theme.css` states
-    # that inside `.lf-page-thread` so a thread seated in a widget's shadow
-    # tree wears the same band, and the chrome text-box rule states it for the
-    # document; both say the same thing, so this reading is the same either way.
-    assert reply_ring == {
-        "style": "solid",
-        "width": "2px",
-        "offset": "0px",
-        "border": "rgba(0, 0, 0, 0)",
-    }
+    drawn = rings_drawn(page)
+    assert len(drawn) == 1, drawn
+    assert drawn[0]["ring"] == "text-box" and drawn[0]["sample"], drawn
+    assert not ring_faults(drawn, "the focused reply box")
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
@@ -10827,9 +10814,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
-    resting_thread = thread.evaluate(
-        "thread => { const s = getComputedStyle(thread); return {"
-        "background: s.backgroundColor}; }"
+    surface = thread.locator(":scope > .lf-thread-summary")
+    resting_background = surface.evaluate(
+        "surface => getComputedStyle(surface).backgroundColor"
     )
     thread.locator(":scope > .lf-thread-summary").focus()
     thread_standing = shortcut_bar_text(page)
@@ -10841,12 +10828,11 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     page.mouse.down()
     assert shortcut_bar_text(page) == thread_standing
-    current_thread = thread.evaluate(
-        "thread => { const s = getComputedStyle(thread); return {"
-        "background: s.backgroundColor, outline: s.outlineStyle}; }"
+    assert thread.evaluate("thread => getComputedStyle(thread).outlineStyle") == "none"
+    assert (
+        surface.evaluate("surface => getComputedStyle(surface).backgroundColor")
+        != resting_background
     )
-    assert current_thread["outline"] == "none"
-    assert current_thread["background"] != resting_thread["background"]
     page.mouse.up()
     assert "reply" not in shortcut_bar_text(page)
 

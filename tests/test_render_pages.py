@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     add_test_widget,
+    append_carried_log_record,
     record_claim,
 )
 from leaf import cli as cli_model
@@ -624,7 +625,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         if decided_here:
             plain = serve(example, seed_log=False)
             for event in [e for e in events if e["kind"] != "action"]:
-                events_model.append_event(serve.page_dir, event)
+                append_carried_log_record(serve.page_dir, event)
             undecided = open_page(browser, plain)
             undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
@@ -686,7 +687,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
         f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )
     for i, (_, anchor) in enumerate(anchors):
-        events_model.append_event(
+        append_carried_log_record(
             d,
             {
                 "kind": "comment",
@@ -823,7 +824,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     """
     url = serve(TWIN_V1)
     d = serve.page_dir
-    root = events_model.append_event(
+    root = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -870,7 +871,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     with page.expect_console_message(
         lambda message: "read failed" in message.text
     ) as fault:
-        events_model.append_event(
+        append_carried_log_record(
             d,
             {
                 "kind": "reply",
@@ -960,7 +961,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     with page.expect_console_message(
         lambda message: "read failed" in message.text
     ) as fault:
-        root = events_model.append_event(
+        root = append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -1005,7 +1006,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1039,7 +1040,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     with page.expect_console_message(
         lambda message: "read failed" in message.text
     ) as fault:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
@@ -1068,7 +1069,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     """A refused resolution restores the user's reply destination and selection."""
     url = serve(TWIN_V1)
     page_dir = serve.page_dir
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1102,7 +1103,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     with page.expect_console_message(
         lambda message: "read failed" in message.text
     ) as fault:
-        events_model.append_event(
+        append_carried_log_record(
             page_dir,
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
@@ -1322,7 +1323,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     """
     example = next(path for path in EXAMPLES if path.stem == "live-progress")
     url = serve(example)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1574,7 +1575,7 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     """A focused visual paints one ring: its own, since its thread draws nothing at
     rest. Standing in that thread moves the contour into the projected mark."""
     url = serve(WIDE_DIAGRAM_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2550,7 +2551,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     says so, which is why this asks: the widget is in the panel, and the panel's width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2560,7 +2561,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "text": "How does the fallback read?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2609,7 +2610,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
     420px panel has no room for two columns either way: the stacking rule is what
     replaces the grid, and it is visible whatever the user has drawn the panel to."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2619,7 +2620,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "text": "What did the two stores cost us?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2666,7 +2667,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
     behind, even where an occurrence asks for it with `data-width`: it is the page's to
     give, and the panel's width bounds a message."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2676,7 +2677,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "text": "What did the old copy say?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

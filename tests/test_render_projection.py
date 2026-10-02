@@ -4585,7 +4585,10 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
-    # The worklist keeps its place through that.
+    # The directional walk reads the user's current visible place after Escape.
+    # Reenter the first Ask from there, then move to the next one.
+    page.keyboard.press("a")
+    expect(page.locator("#live-question-decision")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')

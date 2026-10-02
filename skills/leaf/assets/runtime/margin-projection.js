@@ -949,23 +949,7 @@ export function createMarginProjection({
       coarse: coarsePointer.matches,
     });
     if (hold) previewHold = { ...hold, transcript: measureTranscript() };
-    if (fresh) {
-      previewHold = null;
-      if (
-        (side === "top" || side === "bottom") &&
-        makeRoom(
-          side,
-          place.clear,
-          place.extent,
-          preview.getBoundingClientRect().height,
-          boundary,
-          scroller,
-        )
-      ) {
-        previewSide.scrolled();
-        return placeThreadPreview();
-      }
-    }
+    if (fresh) previewHold = null;
     const transcript = measureTranscript();
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
@@ -1000,6 +984,7 @@ export function createMarginProjection({
           boundary,
           minimum: { width: cardMinimum() },
           fit({ width, scale }) {
+            if (!stillCurrent()) return;
             const room = Math.min(cardMeasure(), width);
             preview.style.setProperty(
               "--lf-thread-min-width",
@@ -1021,7 +1006,17 @@ export function createMarginProjection({
               : held === "foot"
                 ? clamp(edge, boundary.top + last, boundary.bottom) - boundary.top
                 : boundary.bottom - clamp(edge, boundary.top, boundary.bottom - last);
-            measureThreadCard(room, cap / scale.y);
+            const height = measureThreadCard(room, cap / scale.y);
+            // Fitting the width settles wrapping before opening the card spends
+            // scroll travel. A scroll supersedes this answer's attachment geometry.
+            if (
+              fresh &&
+              (side === "top" || side === "bottom") &&
+              makeRoom(side, place.clear, place.extent, height, boundary, scroller)
+            ) {
+              previewSide.scrolled();
+              placeThreadPreview();
+            }
           },
           hold: () => previewHold && { [held]: previewHold[held] },
         });

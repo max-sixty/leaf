@@ -356,9 +356,9 @@ def sent(browser, serve, name):
     # A card that scrolled the page is read where it stands on the page the box stood on.
     carried = page.evaluate("scrollY") - scrolled
     if phone_room is not None:
-        assert carried == 0, (
-            "The touch handoff must keep the page and its boundary still"
-        )
+        assert (
+            carried == 0
+        ), "The touch handoff must keep the page and its boundary still"
     placed = {
         edge: value + (carried if edge in ("top", "bottom") else 0)
         for edge, value in page.evaluate(RECT, ".lf-margin-preview").items()
@@ -790,4 +790,26 @@ def test_send_grows_thread_around_the_words(
         edges = reading_edges()
         assert len(edges) == 5, edges
         assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
+        if size == (390, 844) and at == 0.12:
+            # Reopening at a wider measure removes a line. Spend only the travel
+            # that fitted height needs, keeping both the page's words and the card.
+            card.locator(".lf-margin-preview-close").click()
+            resized(page, 900, 600)
+            page.locator(on.block).evaluate(
+                "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * .4)"
+            )
+            rendered(page)
+            page.keyboard.press("Enter")
+            rendered(page)
+            opening = card.evaluate("""async card => {
+              const {commentBoundary, COMMENT_GAP} =
+                await window.__lfRuntimeImport('/runtime/comment-placement.js');
+              const box = card.getBoundingClientRect();
+              return {top:box.top, bottom:box.bottom,
+                boundary:commentBoundary().top, gap:COMMENT_GAP};
+            }""")
+            assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
+            assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
+                opening["gap"], abs=1
+            ), opening
     judge_watches()

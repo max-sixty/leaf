@@ -248,7 +248,6 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    # Last on its page, since the reply it sends stays in the log.
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),

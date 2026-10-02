@@ -2205,11 +2205,8 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     )
 
 
-def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
-    """Floating UI's scroll observer keeps the field attached to its passage, and the
-    viewport holds the field in only while the passage is there: once the passage has
-    scrolled away the field goes with it, rather than staying pinned under the banner over
-    whatever the user scrolled to."""
+def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(browser, serve):
+    """The field follows a visible passage and stays in the window when it leaves."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2234,11 +2231,12 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         arg=before,
     )
     page.evaluate("document.scrollingElement.scrollTop += 2 * innerHeight")
-    page.wait_for_function("""() => {
-      const passage = document.getElementById('p30').getBoundingClientRect();
-      const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-      return passage.bottom < 0 && composer.bottom < 0;
-    }""")
+    page.wait_for_function(
+        "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"
+    )
+    rendered(page)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
 PANED_LONG_PAGE = leaf_page(
@@ -2310,13 +2308,10 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(field).to_have_js_property("value", "Half a thought more")
 
 
-def test_a_comment_field_waiting_out_of_view_takes_no_keys_and_c_brings_it_back(
+def test_a_comment_field_stays_in_view_when_its_pane_scrolls_past_the_target(
     browser, serve
 ):
-    """While a pane scrolled past its item leaves the field nowhere to stand, the field
-    waits out of view, and the keys it would answer are not the user's: Escape does not
-    close a box the user cannot see, and Tab does not open its choices. `c` is the way
-    back: it brings the item and the field into view with the words and the focus."""
+    """A bounded pane can move the target away without taking the draft or caret."""
     page = open_page(browser, serve(PANED_LONG_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#reading"), "bounded")
@@ -2333,17 +2328,13 @@ def test_a_comment_field_waiting_out_of_view_takes_no_keys_and_c_brings_it_back(
     )
     scroll_settled(page, "#reading-body")
     rendered(page)
-    expect(box).to_be_hidden()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Escape")
-    rendered(page)
-    page.keyboard.press("c")
     expect(box).to_be_visible()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Half a thought")
-    assert box.bounding_box()["width"] == pytest.approx(width, abs=1), (
-        "Tab opened the choices of a field the user could not see"
-    )
+    expect(box).to_have_attribute("data-lf-plane", "window")
+    assert box.bounding_box()["width"] == pytest.approx(width, abs=1)
+    page.keyboard.type(" more")
+    expect(field).to_have_js_property("value", "Half a thought more")
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):

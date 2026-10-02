@@ -16,6 +16,7 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  whenArrived,
   pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
@@ -903,6 +904,7 @@ async function presentPage() {
     throw error;
   }
   markPagePresented();
+  void whenArrived().then(landFragment);
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();

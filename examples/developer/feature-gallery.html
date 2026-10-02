@@ -338,6 +338,30 @@
       ]
     </script>
     <script type="module">
+      import { afterPresentation } from "/runtime/widget-api.js";
+
+      const pageRoot = document.querySelector(
+        'link[rel="canonical"][data-lf-runtime]',
+      ).href;
+      // Composing this markup into another page does not copy its stamped history.
+      const framingScenario = document.querySelector("#bg-durable-embedding");
+      const revealFraming = async () => {
+        const response = await fetch(new URL("api/state", pageRoot));
+        if (!response.ok) throw new Error(`Page history: HTTP ${response.status}`);
+        const state = await response.json();
+        if (state.versions.some(({ version }) => version === 2))
+          framingScenario.hidden = false;
+      };
+      void afterPresentation(revealFraming);
+      const frameOpener = document.querySelector("#bg-durable-frame-open");
+      frameOpener.addEventListener("click", () => {
+        const frame = document.querySelector("#bg-durable-frame");
+        frame.src = new URL("versions/v2.html?pin", pageRoot).href;
+        frame.hidden = false;
+        frame.scrollIntoView({ block: "center" });
+        frameOpener.disabled = true;
+      });
+
       await customElements.whenDefined("lf-sample");
 
       const sample = document.querySelector("#bg-panel-sample");
@@ -1626,6 +1650,33 @@ gallery/
                     </p>
                   </template>
                 </lf-sample>
+              </section>
+              <section id="bg-durable-embedding" hidden>
+                <h3>Stamped page in a frame</h3>
+                <p id="bg-durable-frame-guide">
+                  Open the earlier map decision, then open its Threads panel. This is
+                  the gallery's ordinary stamped v2, with its durable history and
+                  original text. Reloading the frame keeps that version; it is not a
+                  temporary practice copy. Its scheme, hostname, and port match this
+                  page; another origin cannot frame it.
+                </p>
+                <div id="bg-durable-frame-host">
+                  <button id="bg-durable-frame-open" type="button">
+                    Open the earlier map decision
+                  </button>
+                  <iframe
+                    id="bg-durable-frame"
+                    src="about:blank"
+                    title="The gallery's stamped v2 map decision"
+                    loading="lazy"
+                    hidden
+                    style="
+                      width: 100%;
+                      height: 460px;
+                      border: 1px solid var(--border-2);
+                    "
+                  ></iframe>
+                </div>
               </section>
               <section id="bg-window-practice">
                 <h3>Window sample</h3>

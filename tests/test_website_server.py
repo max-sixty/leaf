@@ -1500,9 +1500,9 @@ module.main()
     assert adapter.wait(timeout=STATED_TIMEOUT) == -signal.SIGTERM
     deadline = time.monotonic() + STATED_TIMEOUT
     while pid_alive(app_server):
-        assert (
-            time.monotonic() < deadline
-        ), "the App Server outlived the adapter that started it"
+        assert time.monotonic() < deadline, (
+            "the App Server outlived the adapter that started it"
+        )
         time.sleep(0.05)
     assert not (socket_dir / "app-server.sock").exists()
 

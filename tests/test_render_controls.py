@@ -192,6 +192,13 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
 
+    views["you"].get_by_role("button", name=re.compile("Open threads")).click()
+    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 open thread"
+    )
+    expect(views["you"].locator('.lf-thread[data-id="98850286"]')).to_be_visible()
+
 
 def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
     """The catalog tab's presets operate a real panel and survive sample Reset."""

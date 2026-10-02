@@ -4760,22 +4760,14 @@ WORDS_RIGHT = """() => {
 }"""
 
 
-def _walk_gallery_thread(page, thread_id):
-    """Reach a gallery thread by identity as samples change page order."""
+def _open_gallery_thread(page, target, thread_id):
+    """Enter a gallery thread from its target's comment note."""
+    page.locator(f"#{target}").scroll_into_view_if_needed()
+    comment_note(page, f"#{target}").press("Enter")
     walked = page.locator(".lf-margin-preview .lf-page-thread")
-    seen = set()
-    while True:
-        previous = walked.get_attribute("data-thread") if walked.count() else None
-        page.keyboard.press("t")
-        expect(walked).to_be_focused()
-        if previous is not None:
-            expect(walked).not_to_have_attribute("data-thread", previous)
-        standing = walked.get_attribute("data-thread")
-        rendered(page)
-        if standing == thread_id:
-            return
-        assert standing not in seen, f"the thread walk returned to {standing}"
-        seen.add(standing)
+    expect(walked).to_have_attribute("data-thread", thread_id)
+    expect(walked).to_be_focused()
+    rendered(page)
 
 
 def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
@@ -4791,8 +4783,8 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
 
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
-    _walk_gallery_thread(page, crowded_thread)
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-crowded", crowded_thread)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(page.locator("#bg-crowded")).to_be_in_viewport()
@@ -4858,7 +4850,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     resized(page, 2672, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
     expect(page.locator("#bg-thread-text")).to_be_in_viewport()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
@@ -4987,7 +4979,7 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
@@ -5033,7 +5025,7 @@ def test_a_thread_in_a_short_rail_stands_on_the_side_with_room(browser, serve):
     resized(page, 1024, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');

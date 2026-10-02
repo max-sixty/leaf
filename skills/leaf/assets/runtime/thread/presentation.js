@@ -5,7 +5,9 @@
    for every textual/geometry view. It is an epoch presenter: the publication claims its
    region and the pass paints it, after the projection whose provenance words its
    passages resolve over. Its presentation ticket commits the thread surfaces
-   together with preparation for frozen widgets newly joined to the panel. A mechanical
+   together with preparation for frozen widgets newly joined to the panel. Surface
+   callbacks nominate outlets during preparation; their seats, composer and ownership
+   commit together after every required member is ready. A mechanical
    repaint — a draft, a hover, a narrowing — claims the same region through `present`.
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
@@ -49,6 +51,7 @@ export function createThreadPresentation({
   available = true,
   inlineView,
   surfaceView,
+  anchorPlacement,
   anchorPaint,
   anchorControls,
   drawingPaint,
@@ -157,14 +160,17 @@ export function createThreadPresentation({
       const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
       renderHolds(threads);
-      const painted = anchorPaint.paint({
-        threads,
-        draft: readDraft(),
-        actionAnchor: activeActionAnchor(),
-      });
-      if (painted) anchorControls.render(painted);
-      drawingPaint.paint(threads);
-      surfaces = renderSurfaces(collection, anchorPaint.placedAt, surfaceView);
+      const readTargets = () => {
+        const anchors = anchorPlacement.read({
+          threads,
+          draft: readDraft(),
+          actionAnchor: activeActionAnchor(),
+        });
+        if (anchors) anchorControls.render(anchorPaint.paint(anchors));
+        drawingPaint.paint(threads);
+      };
+      readTargets();
+      surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
       void surfaces.completion.catch(() => {});
       prepared = Promise.all(
         livePanels.map(({ controller, view }) =>
@@ -190,6 +196,11 @@ export function createThreadPresentation({
       const [, candidates] = result;
       if (!current()) return;
       for (const candidate of candidates) candidate?.commit();
+      // Preparation may materialize or retire targets without another publication.
+      // Preserve immediate semantic paint, then refresh the same directory and its
+      // retained decoration before any nominated surface actually moves.
+      readTargets();
+      surfaces.commit();
       commitThreadSeats(batch);
       renderAnnotations();
       pageGeometry.pageShifted();

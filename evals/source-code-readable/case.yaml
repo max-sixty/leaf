@@ -3,13 +3,14 @@
 # On d1a357e06, with page-authoring.md read, the baseline passed 0 of 3 and the
 # guidance on language and illustrative-code formatting passed 3 of 3. The plain
 # diagnostic output is the guardrail against treating every preformatted block as code.
-schema_version: '1.0'
-name: source-code-readable
-description: "Source snippets declare their language and keep the code structure readable; literal output remains literal."
-tags:
-- authoring
-- code
-execution:
+description: source-code-readable
+metadata:
+  purpose: Source snippets declare their language and keep the code structure readable; literal output
+    remains literal.
+  tags:
+  - authoring
+  - code
+vars:
   prompt: |
     Use the leaf:leaf skill and read `references/page-authoring.md` inside its
     base directory before revising this page.
@@ -37,18 +38,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the revised HTML
     section rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: readable-source
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: readable-source
+  value: |
     The JavaScript source is displayed in a syntax-highlighted Leaf code block:
     either a native pre/code with class="language-javascript" or a lf-code with
     language="javascript". Object fields and closing braces are broken onto

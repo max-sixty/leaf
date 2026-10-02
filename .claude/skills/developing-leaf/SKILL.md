@@ -270,7 +270,10 @@ Run cold, a case that states the situation plainly usually passes on both arms: 
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
 session's context needs a replay of that session instead.
-`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
+`leaf-dev scenario-eval usability [CASE]...` runs cases that need a page directory
+and `leaf`, through the same Promptfoo reporting and assertion framework.
+`scenario-eval arrangement` owns paired composition studies, and `scenario-eval
+delivery` owns live feedback timing. Those existing trajectories use Claude Code.
 No grader has been checked against a person's judgment, so a pass is weak evidence.
 
 ## Refresh the public catalog stills

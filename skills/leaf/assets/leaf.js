@@ -56,6 +56,7 @@ import {
   reactionTokens,
   sendReaction,
 } from "./runtime/reactions.js";
+import { createAnchorPlacement } from "./runtime/anchor-placement.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
 import { createAnchorControls } from "./runtime/anchor-controls.js";
 import { createAnchorTravel } from "./runtime/anchor-travel.js";
@@ -259,6 +260,7 @@ const hintChrome = {
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
+const anchorPlacement = createAnchorPlacement();
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
@@ -274,7 +276,7 @@ const anchorPaint = createAnchorPaint({
       : null,
 });
 const drawingPaint = createDrawingPaint({
-  anchors: anchorPaint,
+  anchors: anchorPlacement,
   activeDrawing: () => drawing.activeDrawing(),
   draftDrawings: () => drawing.draftDrawings(),
 });
@@ -321,7 +323,7 @@ pageGeometry = createPageGeometry({
   refreshActionBar: () => responseSurface.refreshFab(),
 });
 const anchorTravel = createAnchorTravel({
-  anchors: anchorPaint,
+  anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
@@ -381,6 +383,7 @@ app = mountApplication({
   targetPickerOpen: () => targets.targetPickerOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
+  anchorPlacement,
   anchorPaint,
   anchorControls,
   drawingPaint,
@@ -621,7 +624,7 @@ targets = createTargetPicker({
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPaint.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
@@ -670,7 +673,7 @@ threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
   threadHere: app.margin.threadHere,
-  placedAt: anchorPaint.placedAt,
+  placedAt: anchorPlacement.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
@@ -731,7 +734,7 @@ const standing = createStanding({
       { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
-        target: anchorPaint.placedAt(standingThreadId())?.element,
+        target: anchorPlacement.placedAt(standingThreadId())?.place,
       },
     ]),
   paintTouchControls,

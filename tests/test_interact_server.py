@@ -3696,7 +3696,10 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
         (
             "a body nested past the parser's stack",
-            b"[" * 100000 + b"]" * 100000,
+            # Python 3.14 bounds the parser by the C stack it has left, and a
+            # macOS worker thread parses 100,000 levels; a million is 2 MB, inside
+            # the door's bound, and overflows any thread's stack.
+            b"[" * 1_000_000 + b"]" * 1_000_000,
             "invalid JSON",
         ),
     ]

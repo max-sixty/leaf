@@ -326,19 +326,43 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="hub">'
+        '<lf-command id="hub" readings="goal">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
         "</lf-agent></lf-task></lf-command>"
-        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='command'" in errors[1]
+    assert "$command.widgets widget where role='readings'" in errors[0]
+    assert "$command.widgets widget where role='goal'" in errors[1]
+
+
+def test_a_readings_seat_answers_to_one_command(page_dir):
+    """A command fills the seat it names, so each seat in a document is named by
+    exactly one command: a second command naming it is refused, and so is a seat no
+    command names, while each command naming its own seat passes."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = SourceDocument(
+        '<lf-command id="one" readings="seat"></lf-command>'
+        '<lf-command id="two" readings="seat"></lf-command>'
+        '<lf-command id="three" readings="other"></lf-command>'
+        '<lf-command-readings id="seat"></lf-command-readings>'
+        '<lf-command-readings id="other"></lf-command-readings>'
+        '<lf-command-readings id="orphan"></lf-command-readings>'
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert errors == [
+        (
+            '<lf-command> (line 1): readings="seat" is already named by '
+            "<lf-command id='one'> (line 1); only one element may name it"
+        ),
+        "<lf-command-readings> (line 1): no <lf-command> names it in `readings`",
+    ]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -720,10 +744,12 @@ def test_reply_validates_widget_markup(page_dir):
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never freezes."""
+    """Reply markup naming a page element of the wrong role never freezes, nor does
+    a command naming the page's seat, which it would fill from another document."""
     subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        '<lf-command id="hub" readings="seat"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+        '<lf-command-readings id="seat"></lf-command-readings>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -749,11 +775,18 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
+    swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='command'" in swapped.output
+    assert "where role='readings'" in swapped.output
 
-    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
+    borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
+    assert borrowed.exit_code != 0
+    assert "outside its own document" in borrowed.output
+
+    valid = reply(
+        '<lf-command id="quoted" readings="quoted-seat"></lf-command>'
+        '<lf-command-readings id="quoted-seat"></lf-command-readings>'
+    )
     assert valid.exit_code == 0, valid.output
 
 

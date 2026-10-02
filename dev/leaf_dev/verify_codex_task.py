@@ -1,6 +1,6 @@
 """Run real Codex tasks through Leaf's transports and check what they leave.
 
-    uv run leaf-dev verify-codex-task
+    uv run leaf-dev verify-codex-task [--preview]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
@@ -27,6 +27,11 @@ After each step every comment posted so far has exactly one reply and a pickup, 
 the page's claim names the task's last turn, closed. The claim's turn is App Server's
 id for that turn, so the prompt hook and the adapter agree on one identity, and a
 turn that ended stays closed. During the user's own turn the claim names that turn.
+
+With `--preview`, setup runs the canonical `leaf-dev preview --user` command instead.
+Every step retains its keyed URL. Between turns, the page server is interrupted;
+the preview restores it without an edit and the next comment is answered through
+the existing adapter at the same URL.
 
 It spends a few model turns on the host's Codex login, so CI does not run it. The
 task, its page and its state home live in a temporary directory, removed when every
@@ -79,6 +84,7 @@ COMMENTS = {
     "idle": ("triage-lede", "Which of these items actually blocks the release?"),
     "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
+    "reconnect": ("triage-lede", "Is the same review still connected?"),
 }
 
 
@@ -286,16 +292,44 @@ def post(page: Path, step: str) -> None:
     )
 
 
-def journey(task: Task, page: Path, codex: str, transport: str) -> None:
+def journey(
+    task: Task, page: Path, codex: str, transport: str, *, preview: bool = False
+) -> None:
     def step(name: str, started: float) -> None:
         click.echo(f"{transport}/{name}: passed in {time.monotonic() - started:.0f} s")
 
     started = time.monotonic()
     isolated_adapter = f"leaf codex start ./page --codex-path {shlex.quote(codex)}"
-    task.say(
-        f"{PROMPT} This isolated test has a dedicated Codex executable. "
-        f"Connect the page with `{isolated_adapter}`."
-    )
+    if preview:
+        command = shlex.join(
+            [
+                "uv",
+                "run",
+                "--project",
+                str(ROOT),
+                "leaf-dev",
+                "preview",
+                "--source",
+                "./source.html",
+                "--slot",
+                "page",
+                "--user",
+            ]
+        )
+        # Codex's login shell constructs PATH afresh. Set the transport wrapper
+        # on this command itself so preview's automatic connection selects it.
+        command = f"PATH={shlex.quote(str(Path(codex).parent))}:$PATH {command}"
+        task.say(
+            "I wrote a Leaf source at ./source.html. "
+            f"Run `{command}` as a long-running shell command and leave it running "
+            "so I can review it. The command connects feedback automatically. "
+            "Handle the comments I leave on the page."
+        )
+    else:
+        task.say(
+            f"{PROMPT} This isolated test has a dedicated Codex executable. "
+            f"Connect the page with `{isolated_adapter}`."
+        )
     task.settle(
         lambda: adapter_is_live(task.thread) and running_server(page) is not None,
         "the setup turn did not serve the page and start the adapter",
@@ -311,12 +345,22 @@ def journey(task: Task, page: Path, codex: str, transport: str) -> None:
         f"the adapter did not select the {transport} transport",
     )
     check(page, task, [])
+    url = running_server(page)["url"]
+
+    def check_step(posted: list[str]) -> None:
+        check(page, task, posted)
+        require(
+            running_server(page)["url"] == url,
+            "the page's keyed URL changed between Codex turns",
+        )
+        PageClient(url).state()
+
     step("setup", started)
 
     started = time.monotonic()
     post(page, "idle")
     task.settle(lambda: bool(answers(page, "idle")), "comment `idle` was not answered")
-    check(page, task, ["idle"])
+    check_step(["idle"])
     step("idle", started)
 
     started = time.monotonic()
@@ -371,7 +415,7 @@ def journey(task: Task, page: Path, codex: str, transport: str) -> None:
         lambda: bool(answers(page, "mid-turn")),
         "comment `mid-turn` was not answered",
     )
-    check(page, task, ["idle", "mid-turn"])
+    check_step(["idle", "mid-turn"])
     if transport == "queue":
         require(
             task.started[previous_turns:] == [user_turn],
@@ -394,14 +438,39 @@ def journey(task: Task, page: Path, codex: str, transport: str) -> None:
         lambda: adapter_is_live(task.thread),
         "the agent did not start the adapter again",
     )
-    check(page, task, ["idle", "mid-turn"])
+    check_step(["idle", "mid-turn"])
     post(page, "restart")
     task.settle(
         lambda: bool(answers(page, "restart")),
         "comment `restart` was not answered",
     )
-    check(page, task, ["idle", "mid-turn", "restart"])
+    check_step(["idle", "mid-turn", "restart"])
     step("restart", started)
+
+    if preview:
+        started = time.monotonic()
+        servers = [
+            process
+            for process in psutil.process_iter(["cmdline"])
+            if (cmdline := process.info["cmdline"] or [])
+            and "_serve" in cmdline
+            and str(page) in cmdline
+        ]
+        require(len(servers) == 1, "the isolated preview has no unique page server")
+        servers[0].kill()
+        servers[0].wait(10)
+        task.settle(
+            lambda: running_server(page) is not None,
+            "the idle preview did not restore its server without an edit",
+        )
+        check_step(["idle", "mid-turn", "restart"])
+        post(page, "reconnect")
+        task.settle(
+            lambda: bool(answers(page, "reconnect")),
+            "the restored preview's comment was not answered",
+        )
+        check_step(["idle", "mid-turn", "restart", "reconnect"])
+        step("reconnect", started)
 
 
 def task_codex(root: Path, executable: str, transport: str) -> str:
@@ -427,7 +496,7 @@ def task_codex(root: Path, executable: str, transport: str) -> str:
     return str(wrapper)
 
 
-def verify_transport(codex: str, transport: str) -> None:
+def verify_transport(codex: str, transport: str, *, preview: bool = False) -> None:
     # Outside any repository, so the task loads no project instructions or skills.
     root = Path(tempfile.mkdtemp(prefix=f"leaf-verify-codex-{transport}-"))
     state, work = root / "state", root / "work"
@@ -443,23 +512,27 @@ def verify_transport(codex: str, transport: str) -> None:
     isolated = environment(
         XDG_STATE_HOME=str(state),
         CODEX_HOME=str(home),
+        LEAF_PREVIEWS_ROOT=str(work),
     )
     os.environ.clear()
     os.environ.update(isolated)
     passed = False
     try:
-        run_leaf(ROOT, state, "page", "init", str(page), check=True)
-        shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-        run_leaf(
-            ROOT,
-            state,
-            "page",
-            "stamp",
-            str(page),
-            "--text",
-            "Release triage for review.",
-            check=True,
-        )
+        if preview:
+            shutil.copy(ROOT / "examples" / "triage-board.html", work / "source.html")
+        else:
+            run_leaf(ROOT, state, "page", "init", str(page), check=True)
+            shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
+            run_leaf(
+                ROOT,
+                state,
+                "page",
+                "stamp",
+                str(page),
+                "--text",
+                "Release triage for review.",
+                check=True,
+            )
         with private_app_server(executable) as endpoint:
             task = Task(endpoint)
             try:
@@ -472,7 +545,7 @@ def verify_transport(codex: str, transport: str) -> None:
                         "sandbox": "danger-full-access",
                     },
                 )["thread"]["id"]
-                journey(task, page, executable, transport)
+                journey(task, page, executable, transport, preview=preview)
                 passed = True
             finally:
                 task.socket.close()
@@ -489,11 +562,12 @@ def verify_transport(codex: str, transport: str) -> None:
 
 
 @click.command()
-def verify_codex_task() -> None:
+@click.option("--preview", is_flag=True, help="Verify the canonical live user preview.")
+def verify_codex_task(preview: bool = False) -> None:
     """Run Codex tasks through both Leaf transports and check same-turn delivery."""
     codex = shutil.which("codex")
     if codex is None:
         raise click.ClickException("cannot find the `codex` executable on PATH")
     for transport in ("app-server", "queue"):
-        verify_transport(codex, transport)
+        verify_transport(codex, transport, preview=preview)
     click.echo("Every check passed.")

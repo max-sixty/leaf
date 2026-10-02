@@ -4,6 +4,7 @@ import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -329,9 +330,9 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
         reported = set()
         deadline = time.monotonic() + 10
         while str(edited) not in reported:
-            assert time.monotonic() < deadline, (
-                f"the edit was never reported: {reported}"
-            )
+            assert (
+                time.monotonic() < deadline
+            ), f"the edit was never reported: {reported}"
             reported |= {path for _, path in next(changes)}
     finally:
         changes.close()
@@ -1130,32 +1131,56 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     served_preview,
 ):
     """A `--user` service still enabled with no server is the preview's to bring
-    back on its next update, and does not end it: that is a server that died, or
+    back without an edit, and does not end it: that is a server that died, or
     one a re-vendor could not start again (its recorded port taken), which is left
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
-    source, _, directory, process, _, log = served_preview
+    _, _, directory, process, url, log = served_preview
     port = server_model.running_server(directory)["port"]
-    killed = subprocess.run(
-        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
-    )
-    assert killed.returncode == 0
+    claim = service_model.page_claim(directory)
+    events = (directory / "events.jsonl").read_bytes()
+    # Hold the watcher while taking the stopped server's port. The first revival
+    # must refuse, then recover after that condition clears without a source edit.
+    with socket.socket() as occupied:
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        os.killpg(process.pid, signal.SIGSTOP)
+        try:
+            killed = subprocess.run(
+                ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+            )
+            assert killed.returncode == 0
+            wait_for(
+                lambda: server_model.running_server(directory),
+                lambda running: running is None,
+                failure="the killed server still held its lease",
+            )
+            occupied.bind(("127.0.0.1", port))
+            occupied.listen()
+        finally:
+            os.killpg(process.pid, signal.SIGCONT)
+        wait_for(
+            log.read_text,
+            lambda output: "can't serve" in output,
+            failure="the occupied preview address was not reported",
+            timeout=10,
+        )
+        assert files_model.read_json(directory / "service.json")["enabled"]
+
     wait_for(
         lambda: server_model.running_server(directory),
-        lambda running: running is None,
-        failure="the killed server still held its lease",
-    )
-    assert files_model.read_json(directory / "service.json")["enabled"]
-
-    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
-    wait_for(
-        log.read_text,
-        lambda output: "Reloaded watched" in output,
+        bool,
         failure="the preview did not bring its server back",
-        timeout=60,
+        timeout=10,
     )
     assert process.poll() is None, log.read_text()
     assert server_model.running_server(directory)["port"] == port
+    wait_for(
+        lambda: _reachable(url),
+        bool,
+        failure="the restored preview did not answer at its original keyed URL",
+    )
+    assert service_model.page_claim(directory) == claim
+    assert (directory / "events.jsonl").read_bytes() == events
 
 
 # ---------- export: the page as one file ----------

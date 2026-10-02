@@ -1767,7 +1767,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    thread and work cue; green means the user owes a move, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and
    the one arrival pulse rather than competing for the attention color. */
-:where(.lf-margin-entry[data-lf-kinds="comment"],
+:where(.lf-margin-entry[data-lf-kinds~="comment"],
     .lf-page-map-action[data-lf-map-item^="comment:"],
     .lf-margin-entry[data-lf-agent-workflow],
     .lf-page-map-action[data-lf-agent-workflow])

@@ -3964,27 +3964,34 @@ def _margin_entry_paint(control):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve, scheme):
+@pytest.mark.parametrize("target", ["bracket", "bracket-decision"])
+def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
+    browser, serve, scheme, target
+):
     """Whose turn a thread is reaches the margin as colour and as a word.
 
     The user's own comment is the control: one target, one retained marker, and the
     only thing that changes between the two readings is who spoke last. Pickup and work
     remain secondary when another thread on the same target still needs the user.
-    Rails and pins keep that priority in both color schemes.
+    Rails and pins keep that priority in both color schemes, including a target
+    whose marker also carries the authored Ask.
     """
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
     page = open_page(
-        browser, live_url(serve(ASK_PAGE, events=[COMMENT_ON_ASK])), color_scheme=scheme
+        browser, live_url(serve(ASK_PAGE, events=[comment])), color_scheme=scheme
     )
     resized(page, 1440, 900)
-    cluster = page.locator('[data-lf-margin-for="bracket"]')
+    cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
-    expect(marker).to_have_attribute("data-lf-kinds", "comment")
+    expect(marker).to_have_attribute(
+        "data-lf-kinds", "comment ask" if target == "bracket-decision" else "comment"
+    )
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
     with_agent = _margin_entry_paint(marker)
     expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
 
-    events_model.append_event(
+    agent_comment = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -3992,7 +3999,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve, sc
             "agent": "Claude",
             "revision": 1,
             "text": "Two of them can share a visit; the third cannot.",
-            "anchor": {"section": "bracket"},
+            "anchor": {"section": target},
         },
     )
     told(page)
@@ -4008,6 +4015,38 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve, sc
         "icon": token_colour(page, "--turn-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
+
+    # A reply returns the thread to the agent before pickup adds any workflow cue.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": agent_comment["id"],
+            "text": "Answering the visit question.",
+        },
+    )
+    told(page)
+    expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(marker).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    assert _margin_entry_paint(marker) == {
+        "background": with_agent["background"],
+        "icon": token_colour(page, "--accent"),
+    }, "the answered thread lost its blue cue beside the authored Ask"
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": agent_comment["id"],
+            "text": "Which visit should we choose?",
+            "awaits": True,
+        },
+    )
+    told(page)
+    expect(marker).to_have_attribute("data-lf-turn", "user")
+    assert _margin_entry_paint(marker) == on_user
 
     # Page Map lists each thread on its own row, so the user's own thread is the
     # control for the agent's beside it.

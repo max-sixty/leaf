@@ -102,7 +102,14 @@ import {
   targetPlace,
   targetSegments,
 } from "../resolved-target.js";
-import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
+import {
+  composer,
+  composerOpen,
+  fab,
+  fabBar,
+  fabInput,
+  fabOptions,
+} from "./selection.js";
 
 import {
   closeCommandReference,
@@ -217,8 +224,6 @@ export function createResponseSurface({
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
-  let fabMinimumWidth = null;
-  let fabMinimumComposer = null;
   let fabPositionFrame = 0;
   // Whether the bar the user has is waiting out of view for room to stand
   // (withholdFab), and where it takes them back to when it stands again.
@@ -232,8 +237,25 @@ export function createResponseSurface({
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
-  // Measure the compact response once per anchor/state. Expanded choices are designed to
-  // wrap and therefore cannot redefine whether the response surface fits at all.
+  // The compact row's occupied space beside the field, in CSS pixels. The frame's
+  // minimum may leave spare space, so subtracting the field from the frame mistakes
+  // that space for controls and makes successive fits widen the field in steps.
+  // Choices wrap on their own row; media shares the compact row and its footprint.
+  const fabControlsWidth = () => {
+    const style = getComputedStyle(fabBar);
+    const items = [...fabBar.children]
+      .flatMap((node) => (node === composer ? [...node.children] : [node]))
+      .filter((node) => node !== fabOptions && node.getClientRects().length);
+    return (
+      parseFloat(style.paddingInlineStart) +
+      parseFloat(style.paddingInlineEnd) +
+      parseFloat(style.columnGap) * Math.max(0, items.length - 1) +
+      items.reduce(
+        (width, node) => width + (node.contains(fabInput) ? 0 : node.offsetWidth),
+        0,
+      )
+    );
+  };
   const fabFrameAt = () =>
     composerOpen && fabFloating && !panelIsOpen()
       ? {
@@ -242,17 +264,12 @@ export function createResponseSurface({
           placement: fabPlacement.capture(),
         }
       : null;
-  const minimumFabWidth = () => {
-    if (fabMinimumWidth === null || fabMinimumComposer !== composerOpen) {
-      fabMinimumComposer = composerOpen;
-      fabMinimumWidth = composerOpen
-        ? parseFloat(
-            getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
-          ) + Math.max(0, fabBar.offsetWidth - fabInput.offsetWidth)
-        : fabBar.scrollWidth;
-    }
-    return fabMinimumWidth;
-  };
+  const minimumFabWidth = () =>
+    composerOpen
+      ? parseFloat(
+          getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
+        ) + fabControlsWidth()
+      : fabBar.scrollWidth;
   const fabFits = (bounds = null) => {
     const boundary = floatBoundary(bounds);
     return (
@@ -287,8 +304,6 @@ export function createResponseSurface({
     if (!reset) return;
     if (!repositioning) answerFabPosition(false);
     fabPlacement.forget();
-    fabMinimumWidth = null;
-    fabMinimumComposer = null;
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-response-room", "--lf-float-h"])
       fabBar.style.removeProperty(property);
@@ -482,10 +497,9 @@ export function createResponseSurface({
           : Math.max(0, boundary.width);
       fabBar.style.setProperty("--lf-float-w", `${width}px`);
       if (!composerOpen) return;
-      const controls = Math.max(0, fabBar.offsetWidth - fabInput.offsetWidth);
       fabBar.style.setProperty(
         "--lf-response-room",
-        `${Math.max(0, Math.min(width, cardMeasure()) - controls)}px`,
+        `${Math.max(0, Math.min(width, cardMeasure()) - fabControlsWidth())}px`,
       );
     };
     const setHeight = (available) => {

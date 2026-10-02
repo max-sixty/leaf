@@ -624,8 +624,24 @@ def test_send_grows_thread_around_the_words(
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
+    field = page.locator(".lf-fab-input")
+    before_typing = field.bounding_box()
     page.keyboard.insert_text(text)
     rendered(page)
+    after_typing = field.bounding_box()
+    if long is False:
+        assert (
+            min(
+                abs(after_typing["y"] - before_typing["y"]),
+                abs(
+                    after_typing["y"]
+                    + after_typing["height"]
+                    - before_typing["y"]
+                    - before_typing["height"]
+                ),
+            )
+            <= 1
+        ), "Typing a short comment may grow its field, but must not carry it"
     if options:
         page.locator(".lf-response-more").click()
         rendered(page)

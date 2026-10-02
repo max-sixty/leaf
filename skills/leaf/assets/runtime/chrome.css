@@ -1202,6 +1202,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     min-width: min(var(--thread-card-min), var(--lf-float-w, 100vw));
+    max-width: min(var(--lf-float-w, calc(100vw - 16px)), var(--thread-card));
     padding: var(--lf-comment-frame-top) calc(var(--lf-comment-inset) + 1px)
       var(--lf-comment-frame-bottom);
     pointer-events: none;
@@ -1243,8 +1244,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      one-line minimum, so content cannot re-seat the bar. The room's width caps the
      whole bar, and the field is the flex item that shrinks, so on a narrow screen the
      words wrap sooner and the ellipsis keeps its room. */
-  leaf-text.lf-fab-input { --lf-response-min-width: 216px; width: auto;
-    min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
+  .lf-fab-bar { --lf-response-min-width: 216px; }
+  leaf-text.lf-fab-input { width: auto; min-width: 0;
     max-width: var(--lf-response-room, calc(var(--thread-card) - 60px));
     max-height: var(--lf-float-h, 60vh);
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
@@ -1253,6 +1254,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
     --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
     flex: 0 1 auto; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
+    min-width: var(--lf-response-min-width); }
   .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
@@ -1350,6 +1353,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: none !important; }
   .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
     max-width: 148px; padding: 0; overflow-x: auto; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
+    flex: 0 1 auto; min-width: 42px; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */

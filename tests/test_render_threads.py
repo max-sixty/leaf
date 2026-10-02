@@ -1662,13 +1662,17 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
 
 
-def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, serve):
+@pytest.mark.parametrize("width", [1280, 390])
+def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
+    browser, serve, width
+):
     """The compact composer reads the complete draft hidden behind its text box.
 
     Several images make its shelf overflow, proving the anchored box gets the same
     horizontal thumbnail projection as the larger thread text boxes.
     """
     page = open_page(browser, serve(LONG_PAGE))
+    resized(page, width, 844)
     page.locator("#p1").click(click_count=3)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
@@ -1697,6 +1701,11 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     expect(field).to_have_js_property("value", "")
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
     expect(shelf.locator("img")).to_have_count(4)
+    rendered(page)
+    field_box = field.bounding_box()
+    more_box = page.locator(".lf-response-more").bounding_box()
+    assert field_box["x"] + field_box["width"] <= more_box["x"]
+    assert more_box["x"] + more_box["width"] <= width
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close — draft kept")
     layout = shelf.evaluate(
         """element => ({

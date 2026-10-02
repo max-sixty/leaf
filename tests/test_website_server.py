@@ -2842,10 +2842,12 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     turn.begin()
     cmd_resolve(page_dir, comment["id"])
     told(page)
-    # Let resolution finish filtering the card out; racing its fold can conceal a
-    # disclosure reset that would hide an answer arriving later in a real turn.
-    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
-    expect(thread).to_be_hidden()
+    # The agent's resolution is news, so the card the user is looking at stays in
+    # Open Threads, drawn resolved, rather than folding out from in front of them.
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    expect(thread).to_have_count(1)
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread).to_be_visible()
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -3315,7 +3317,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
             in document
         )
-        assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
 
         # A released document sends the public startup beacon, which the deployed site

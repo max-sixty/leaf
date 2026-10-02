@@ -10,7 +10,8 @@
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
 import { nextRender } from "../rendering.js";
-import { TEXT_FIELD, holdFocus } from "../focus.js";
+import { holdFocus } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -63,7 +64,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, grow = false, search = null },
+  { visible = true, kept = null, grow = false, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -104,6 +105,11 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
+    // A card the panel keeps though its view no longer admits it, and why ("news" or
+    // "draft", thread-list-view.js, `keeping`), keeps the shape it stood in, so the news that changed it moves
+    // nothing: its reply box, on which an open card's room rests; the control row above
+    // its first message, where Reopen wears Resolve's face, done.
+    kept,
     grow,
     folding: false,
     search,
@@ -123,8 +129,14 @@ export function threadReading(
         : panel
           ? ""
           : "✓ Resolved",
-    settlement: Object.freeze({ kind, word, label, pending: settling }),
-    reply: !resolved,
+    settlement: Object.freeze({
+      kind,
+      word,
+      label,
+      pending: settling,
+      icon: !resolved || Boolean(kept),
+    }),
+    reply: !resolved || Boolean(kept),
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
     messages: Object.freeze(messages),
   });
@@ -137,7 +149,6 @@ function navigationSummary(navigation, model) {
   const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
-  const hasMeta = draft || status || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
@@ -146,12 +157,13 @@ function navigationSummary(navigation, model) {
   // card under the reader.
   return html`<summary
     class="lf-thread-summary"
+    data-lf-reflow="text"
     title=${pendingTitle ? nothing : title}
   >
     <span class="lf-thread-topic" data-lf-pending-title=${pendingTitle ? "" : nothing}
       >${pendingTitle ? "Generating title" : title}</span
     >
-    <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
+    <span class="lf-thread-meta">
       ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status
@@ -432,7 +444,7 @@ export class ThreadView {
       ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
         headerActions && messages[0]
-          ? html`<div class="lf-thread-root-meta">
+          ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
               ${messages[0].header}${news} ${headerActions}
             </div>`
           : nothing
@@ -557,20 +569,21 @@ export class ThreadView {
       ?.focus({ preventScroll: true });
   }
 
+  // Resolve is a check; Reopen is a word, or, where it stands in Resolve's place, the
+  // check drawn done, at Resolve's size.
   #settlement(model) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    let button = this.#settlements.get(state.kind);
+    const face = `${state.kind}${state.icon ? " icon" : ""}`;
+    let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        reopen
-          ? "lf-btn lf-reopen lf-thread-action"
-          : "lf-btn lf-resolve lf-icon-action",
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${state.icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       button.onclick = this.#settle;
-      this.#settlements.set(state.kind, button);
+      this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [
         {
@@ -585,12 +598,12 @@ export class ThreadView {
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
-    if (!reopen) {
+    if (state.icon) {
       const label = model.folding ? "Resolved" : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
+    render(state.icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
     return button;
   }
 

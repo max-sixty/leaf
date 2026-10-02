@@ -35,7 +35,8 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 // Holding the user's place, caret included, across a move or re-render of the node they
 // stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
-export { focusDestination, holdFocus, TEXT_BOX, TEXT_FIELD } from "./focus.js";
+export { focusDestination, holdFocus } from "./focus.js";
+export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
 export { setChildren } from "./dom-children.js";
@@ -68,12 +69,12 @@ export {
 export { repaint } from "./repaint.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export {
-  MARGIN_ENTRY_SCHEMA,
-  marginEntry,
-  presentMarginEntry,
-  registerMarginContribution,
-} from "./margin-entries.js";
+  contributionEntry,
+  presentContributionEntry,
+} from "./contribution-controls.js";
+export { registerContribution } from "./contributions.js";
 export {
   inlineMarkdownFragment,
   loadMarkdown,

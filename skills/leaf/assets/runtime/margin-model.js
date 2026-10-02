@@ -21,12 +21,12 @@
 import {
   KINDS,
   spokenSubject,
-  marginItemKey,
-  compareMarginContributions,
-  compareMarginEntryRecords,
-  marginContributionState,
-  marginEntryStateRank,
-} from "./margin-entry-model.js";
+  contributionItemKey,
+  compareContributions,
+  compareContributionEntryRecords,
+  contributionState,
+  contributionEntryStateRank,
+} from "./contribution-model.js";
 
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
@@ -54,12 +54,13 @@ const noticeItems = (entry) =>
 // explicitly declares an interaction state joins this axis.
 const deriveEntryState = (entry) => {
   const states = [
-    ...entry.offers.map(marginContributionState),
+    ...entry.offers.map(contributionState),
     ...entry.items.map((item) => item.state ?? item.workflowFace?.state ?? "idle"),
   ];
   return (
     states.sort(
-      (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
+      (left, right) =>
+        contributionEntryStateRank(left) - contributionEntryStateRank(right),
     )[0] ?? "idle"
   );
 };
@@ -92,7 +93,7 @@ const deriveReadingChoices = (items) => {
     if (item.kind === "comment") threadList.push(item);
     else
       choices.push({
-        key: marginItemKey(item),
+        key: contributionItemKey(item),
         kind: item.kind,
         items: [item],
         text: item.text,
@@ -174,7 +175,8 @@ export function readingState(choice) {
     (choice?.items ?? [])
       .map((item) => item.state ?? item.workflowFace?.state ?? "idle")
       .sort(
-        (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
+        (left, right) =>
+          contributionEntryStateRank(left) - contributionEntryStateRank(right),
       )[0] ?? "idle"
   );
 }
@@ -394,13 +396,13 @@ export function marginInventory(groups) {
         .filter(
           (offered) => offered.reading.side === "after" && !offered.reading.hasReadings,
         )
-        .sort(compareMarginContributions);
+        .sort(compareContributions);
       const controls = Object.freeze(
-        controlItems(direct).sort(compareMarginEntryRecords),
+        controlItems(direct).sort(compareContributionEntryRecords),
       );
       const afterControls = Object.freeze(
         after.flatMap((offered) =>
-          controlItems([offered]).sort(compareMarginEntryRecords),
+          controlItems([offered]).sort(compareContributionEntryRecords),
         ),
       );
       const primary = controls[0];

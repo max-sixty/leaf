@@ -8,15 +8,15 @@
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import {
-  clearMarginEntryControls,
-  marginContributionSource,
-  createMarginEntryControl,
-  marginEntry,
-  marginEntryControlMatches,
-  marginEntryRecord,
-  presentMarginEntry,
-  trackMarginEntryControl,
-} from "./margin-entries.js";
+  clearContributionControls,
+  createContributionControl,
+  contributionEntry,
+  contributionControlMatches,
+  contributionEntryRecord,
+  presentContributionEntry,
+  trackContributionControl,
+} from "./contribution-controls.js";
+import { contributionSource } from "./contributions.js";
 import { el, offer } from "./widget-elements.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { holdFocus } from "./focus.js";
@@ -83,9 +83,9 @@ class MarginClusterView extends HTMLElement {
     // The toggle's face, More or the kind a folded pin folds, painted when it changes.
     if (this.#toggle !== model.toggle) {
       this.#toggle = model.toggle;
-      presentMarginEntry(
+      presentContributionEntry(
         this.#more,
-        marginEntry({
+        contributionEntry({
           key: "options",
           icon: model.toggle.icon,
           label: model.toggle.label,
@@ -148,7 +148,7 @@ export function createMarginClusterViews({
   let relationOrdinal = 0;
 
   function controlsOf(offered, surface) {
-    const source = marginContributionSource(offered);
+    const source = contributionSource(offered);
     let controls = contributionControls.get(source);
     if (!controls) {
       controls = new Map();
@@ -160,16 +160,16 @@ export function createMarginClusterViews({
     for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
     for (const entry of entries) {
       let control = controls.get(entry.key);
-      if (!control || !marginEntryControlMatches(control, entry)) {
-        control = createMarginEntryControl(entry);
+      if (!control || !contributionControlMatches(control, entry)) {
+        control = createContributionControl(entry);
         controls.set(entry.key, control);
         changed.add(control);
-      } else if (marginEntryRecord(control) !== entry) changed.add(control);
+      } else if (contributionEntryRecord(control) !== entry) changed.add(control);
       control.onclick = (event) =>
         activateContribution({ offered, entry, control, surface, event });
-      trackMarginEntryControl(source, surface, entry.key, control);
+      trackContributionControl(source, surface, entry.key, control);
     }
-    clearMarginEntryControls(source, surface, liveKeys);
+    clearContributionControls(source, surface, liveKeys);
     for (const entry of entries) {
       const control = controls.get(entry.key);
       const related =
@@ -180,7 +180,7 @@ export function createMarginClusterViews({
         if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
       });
       if (changed.has(control))
-        presentMarginEntry(control, entry, {
+        presentContributionEntry(control, entry, {
           relatedControlIds: related.map((node) => node.id),
         });
     }
@@ -195,10 +195,10 @@ export function createMarginClusterViews({
     }
     if (item.kind === "reading") return materializeReading(item);
     if (item.kind === "notice") {
-      let node = contributionNotices.get(marginContributionSource(item.offered));
+      let node = contributionNotices.get(contributionSource(item.offered));
       if (!node) {
         node = el("span", "lf-margin-receipt");
-        contributionNotices.set(marginContributionSource(item.offered), node);
+        contributionNotices.set(contributionSource(item.offered), node);
       }
       keeps(node, "data-lf-margin-receipt", item.notice.tone);
       render(html`${item.notice.text}`, node);
@@ -220,7 +220,7 @@ export function createMarginClusterViews({
   const clearOffers = (offers, surface) => {
     if (!surface) return;
     for (const offered of offers)
-      clearMarginEntryControls(marginContributionSource(offered), surface, new Set());
+      clearContributionControls(contributionSource(offered), surface, new Set());
   };
 
   function materializeOptions(model) {
@@ -242,9 +242,9 @@ export function createMarginClusterViews({
       spill.type = "button";
       spills.set(model.entryKey, spill);
     }
-    presentMarginEntry(
+    presentContributionEntry(
       spill,
-      marginEntry({
+      contributionEntry({
         key: "all-options",
         icon: "all",
         label: model.spill.label,

@@ -142,10 +142,11 @@ def script_kind(attrs: dict) -> str:
     return "classic" if kind in JAVASCRIPT_TYPES else "data"
 
 
-# The one policy a page is delivered under: no other site may frame a live page, where it
-# could lay its own content over a decision and take the user's click. The ordinary
-# server sends it as a header, and the site manifest carries it to the Worker.
-FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
+# Same-origin parents already share the page's DOM and request authority. Permit
+# embedding there; a different origin must not disguise a live decision under its
+# own controls, even when same-site cookies authorize the framed page. The server
+# sends this policy as a header and the site manifest carries it to the Worker.
+FRAME_ANCESTORS_CSP = "frame-ancestors 'self'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.
 DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}

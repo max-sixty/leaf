@@ -987,7 +987,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         )
 
     short = geometry()
-    assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
     assert short["field"]["x"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(

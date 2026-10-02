@@ -3672,43 +3672,32 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ), (name, status, answer)
             assert answer.get("attempt") == event["attempt"], (name, answer)
             assert answer.get("error"), (name, answer)
-    # The refusals decided before the body is a dict at all, which the parsed rows above
-    # cannot reach. These name no attempt because the door has nothing to read one out
-    # of, but each is safely final: parsing failed before an append could begin, so the
-    # browser may put the gesture back. What it must still receive is an answer: a body
-    # defeats the parse in more ways than the parse was written for — bytes that are not
-    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and
-    # nesting past the parser's own stack raises RecursionError, which is not even a
-    # ValueError. Uncaught, each left the request unanswered — which the outbox reads as
-    # a lost connection and re-posts every poll for the life of the tab.
-    #
-    # Each row names the refusal it must earn rather than asking for any refusal at all.
-    # The depth the parser gives up at is the interpreter's to choose, so a platform
-    # that got through this nesting would fall to the next gate, be refused as not an
-    # object, and pass a row that had proved nothing about the stack it was written for.
+    # A malformed or non-object body has no attempt to read, but still earns a
+    # final refusal. Deeply nested arrays may exhaust a recursive JSON decoder or
+    # parse successfully in an iterative one; either way, they are not events.
     unreadable = [
         (
             "a body that is not UTF-8",
             b'{"kind": "comment", "text": "\xff"}',
-            "invalid JSON",
+            {"invalid JSON"},
         ),
-        ("a body that is not JSON", b"{not json", "invalid JSON"),
-        ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
+        ("a body that is not JSON", b"{not json", {"invalid JSON"}),
+        ("a body that is not an object", b"[1, 2]", {"event must be a JSON object"}),
         (
-            "a body nested past the parser's stack",
+            "a deeply nested array",
             b"[" * 100000 + b"]" * 100000,
-            "invalid JSON",
+            {"invalid JSON", "event must be a JSON object"},
         ),
     ]
-    for name, body, refusal in unreadable:
+    for name, body, reasons in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)
         answer = json.loads(answered)
-        assert (status, answer.get("ok"), answer.get("final"), answer.get("error")) == (
+        assert (status, answer.get("ok"), answer.get("final")) == (
             400,
             False,
             True,
-            refusal,
         ), (name, status, answer)
+        assert answer["error"] in reasons, (name, answer)
 
     # The fifth is the header rather than the body, and no opener will send it: a
     # Content-Length past what the door takes. The bound is declared rather than

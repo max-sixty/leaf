@@ -577,8 +577,9 @@ whatever its `lfElementsFor(key)` maps to elements under itself. `lf-code` answe
 
 `navigateToDatum(widget, attribute, key, messages)` travels to the first element a key
 addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data or
-draw a visual part it shows only in another state, opens its containing disclosure, focuses that disclosure, updates the fragment, and
-announces the supplied `success` or `missing` message. A lazy target may implement
+draw a visual part it shows only in another state, opens its containing disclosure, focuses
+the addressed element, updates the fragment, and announces the supplied `success` or
+`missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
 semantic key to the rendered projected element.
 

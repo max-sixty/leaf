@@ -80,7 +80,7 @@
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { replyHasWords } from "./thread/replies.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { afterScript, cancelRender, nextRender } from "./rendering.js";
 import {
   KINDS,
   excerptWords,
@@ -1598,22 +1598,29 @@ export function createMarginProjection({
     if (previewEntry && !preservePreview) closePreview();
     expandedOptionsKey = nextKey;
     expandedOptionsOwner = nextOwner;
-    settlingOptionsFocus = true;
-    try {
-      renderMargin.refresh();
-      if (returnFocus && previousKey) {
-        handBack(moreMarginEntries.get(previousKey));
-      } else if (focusOption && nextKey) {
-        const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
-        const fallback = clusterMarginEntries(hosts.get(nextKey));
-        const next =
-          (focusOption === "last" ? choices.at(-1) : choices[0]) ??
-          (focusOption === "last" ? fallback.at(-1) : fallback[0]);
-        next?.focus({ preventScroll: true });
+    const paint = () => {
+      settlingOptionsFocus = true;
+      try {
+        renderMargin.refresh();
+        if (returnFocus && previousKey) {
+          handBack(moreMarginEntries.get(previousKey));
+        } else if (focusOption && nextKey) {
+          const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
+          const fallback = clusterMarginEntries(hosts.get(nextKey));
+          const next =
+            (focusOption === "last" ? choices.at(-1) : choices[0]) ??
+            (focusOption === "last" ? fallback.at(-1) : fallback[0]);
+          next?.focus({ preventScroll: true });
+        }
+      } finally {
+        settlingOptionsFocus = false;
       }
-    } finally {
-      settlingOptionsFocus = false;
-    }
+    };
+    // Opening needs controls before the caller reads availability. Closing paints
+    // the end of the gesture, where a submitted action replaces its contribution.
+    // Paint and its focus return share the guard, so the return cannot reopen it.
+    if (open) paint();
+    else afterScript(paint);
     if (previousOwner === "responses")
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }

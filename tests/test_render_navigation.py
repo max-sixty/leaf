@@ -2098,6 +2098,13 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
     expect(page.locator("#arrival")).to_be_in_viewport()
+    page.go_back()
+    page.wait_for_function("""async () => {
+      const {walkOrigin} = await window.__lfRuntimeImport('/runtime/standing-target.js');
+      return walkOrigin()?.id === 'source';
+    }""")
+    page.go_forward()
+    expect(page.locator("#arrival")).to_be_focused()
     page.keyboard.press("t")
     if surface == "panel":
         next_thread = page.locator(
@@ -9608,6 +9615,80 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     expect(pick).to_be_focused()
     page.keyboard.press("Shift+a")
     expect(page.locator("#second-decision")).to_be_focused()
+
+
+def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
+    """Back and Forward restore the place commands read, not just its pixels."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return to the source",
+                """
+<h1>Return to the source</h1>
+<section id="source" style="min-height:900px">
+  <h2>Source</h2><a id="reference" href="#destination">Read the destination</a>
+</section>
+<section id="middle" style="min-height:900px"><h2>Middle</h2></section>
+<section id="destination" style="min-height:900px"><h2>Destination</h2></section>
+""",
+            )
+        ),
+    )
+    # Following the reference is a real arrival, not a script assigning focus.
+    page.locator("#reference").click()
+    expect(page.locator("#destination")).to_be_focused()
+    scroll_settled(page)
+    page.go_back()
+    expect(page.locator("#reference")).to_be_focused()
+    page.wait_for_function("scrollY < 100")
+    page.go_forward()
+    expect(page.locator("#destination")).to_be_focused()
+    page.go_back()
+    expect(page.locator("#reference")).to_be_focused()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", "Comment on a · Read the destination"
+    )
+
+
+@pytest.mark.parametrize("close_source", [False, True])
+def test_history_returns_only_a_visible_caret(browser, serve, close_source):
+    """A caret in prose is a working place even when no element holds focus."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return to prose",
+                """
+<h1>Return to prose</h1>
+<details id="source-fold" open><summary>The source</summary>
+<p id="source">Read this source passage before the question.</p></details>
+<div style="height:1600px"></div>
+<lf-ask id="question"><h2>Where should we build?</h2>
+<lf-options id="places" choose><lf-option id="here">Here</lf-option>
+<lf-option id="there">There</lf-option></lf-options></lf-ask>
+""",
+            )
+        ),
+    )
+    page.locator("#source").click()
+    before = page.evaluate("""() => {
+      const s = getSelection();
+      return {at: s.focusNode.parentElement.id, offset: s.focusOffset};
+    }""")
+    assert before["at"] == "source"
+    page.keyboard.press("a")
+    expect(page.locator("#question")).to_be_focused()
+    if close_source:
+        page.locator("#source-fold > summary").click()
+    page.go_back()
+    page.wait_for_function("document.activeElement === document.body")
+    returned = page.evaluate("""() => {
+      const s = getSelection();
+      return s.focusNode && {at: s.focusNode.parentElement.id, offset: s.focusOffset};
+    }""")
+    assert returned == (None if close_source else before)
 
 
 def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):

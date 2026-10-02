@@ -1567,7 +1567,8 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
         "Opened src/summary.rs:259 in the exact patch"
     )
 
-    line.click(modifiers=["Alt"])
+    expect(line).to_be_focused()
+    page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     write(
         page.locator(".lf-composer leaf-text"),
@@ -1576,6 +1577,62 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and event.get("text")
+    ]
+    assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
+
+
+@pytest.mark.parametrize("destination", ["call", "patch"])
+def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
+    """Light-DOM data and its shadow-DOM destination keep exact identity."""
+    example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
+    page = open_page(browser, live_url(serve(example)))
+    page.get_by_role("tab", name="CallDiff").click()
+    location = (
+        page.locator("#pr-call-diagram")
+        .get_by_role("link", name="src/summary.rs:259")
+        .first
+    )
+    # Reach the real link through the browser's tab order. The source case reads
+    # keyboard focus inside a generated datum, rather than focusing the datum directly.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if location.evaluate("node => node.matches(':focus')"):
+            break
+    expect(location).to_be_focused()
+    assert location.evaluate("node => node.matches(':focus-visible')")
+    target = location.locator("xpath=..")
+    if destination == "patch":
+        page.keyboard.press("Enter")
+        target = page.locator(
+            '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
+        )
+        expect(target).to_be_focused()
+        expect(page.locator(".lf-live")).to_have_text(
+            "Opened src/summary.rs:259 in the exact patch"
+        )
+        expect(target).to_be_in_viewport()
+    datum = target.get_attribute("data-lf-datum")
+    owner = target.get_attribute("data-lf-projection")
+    revision = target.get_attribute("data-lf-source-revision")
+    assert datum and owner and revision
+    page.keyboard.press("e")
+    expect(
+        page.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).not_to_have_count(0)
+    page.keyboard.press("1")
+    round_trip(page)
+    reaction = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event["kind"] == "comment" and event.get("token")
+    )
+    assert reaction["anchor"]["section"] == owner
+    assert reaction["anchor"]["datum"] == datum
+    assert reaction["anchor"]["source_revision"] == revision
 
 
 def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):

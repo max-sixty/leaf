@@ -810,6 +810,22 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
+ * heading is never set wider than the column, however wide the box around it. Package
+ * captions may span their own frame, so this typography rule shares their base layer. */
+@media screen {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
+    max-inline-size: var(--col);
+  }
+  /* A bounded block scrolls within its stated height. A widget can assign that bound to
+   * an inner reader instead, keeping its own caption outside the scroller. */
+  [data-lf-bound] {
+    max-block-size: var(--lf-bound, 28rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+    --lf-top: 0px;
+  }
+}
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {
   main { padding-top: 28px; padding-bottom: 72px; }

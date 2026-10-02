@@ -164,6 +164,27 @@ WORKSPACE_PAGE = leaf_page(
 )
 
 
+def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(browser, serve):
+    source = leaf_page(
+        "Captured document",
+        '<h1>Capture</h1><lf-text-document id="capture" source="capture" '
+        'label="A captured source" data-bound="start"></lf-text-document>',
+    )
+    url = serve(source)
+    data_model.cmd_data_set(serve.page_dir, "capture", "line of source\n" * 100)
+    page = open_page(browser, url)
+    capture = page.locator("#capture")
+    caption = capture.locator("figcaption")
+    listing = capture.locator("pre")
+    expect(caption).to_be_visible()
+    assert capture.evaluate("el => el.scrollHeight === el.clientHeight")
+    assert listing.evaluate("el => el.scrollHeight > el.clientHeight")
+    assert caption.evaluate(
+        "el => Math.abs(el.getBoundingClientRect().width - "
+        "el.parentElement.getBoundingClientRect().width) <= 2"
+    )
+
+
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):

@@ -180,23 +180,6 @@
       --lf-room: 0px;
     }
 
-    /* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
-     * heading is never set wider than the column, however wide the box around it. This is
-     * typography, not layout, so it holds with or without a Layout; boxes are the page's. */
-    :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
-      max-inline-size: var(--col);
-    }
-
-    /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
-     * occurrence), so a long log or feed never grows the page. `end` follows the newest
-     * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. What
-     * sticks inside it sticks at its own top, which no chrome covers (`--lf-top`). */
-    [data-lf-bound] {
-      max-block-size: var(--lf-bound, 28rem);
-      overflow: auto;
-      overscroll-behavior: contain;
-      --lf-top: 0px;
-    }
     /* A widget with a stated height (x-height, or data-height on an occurrence) has that
      * box from the first paint until its module has drawn (`lf-rendered`), so the drawing
      * lands in room the page already laid out. What the element holds before then is its

@@ -76,7 +76,13 @@ export function watchCodeBlocks() {
         pre.addEventListener(
           "keydown",
           (event) => {
-            if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey)
+            if (
+              event.target !== pre ||
+              event.key !== "Enter" ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey
+            )
               return;
             event.preventDefault();
             const button = copy.shadowRoot?.querySelector("button");

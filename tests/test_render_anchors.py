@@ -1369,6 +1369,25 @@ def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser,
     assert page.locator("#unknown code").text_content() == "y = 2"
 
 
+def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page(
+                "Code link",
+                '<h1 id="destination">Destination</h1>'
+                '<pre id="source"><code>See <a id="code-link" href="#destination">details</a></code></pre>',
+            )
+        )
+    )
+    page = open_page(browser, url)
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(1)
+    page.locator("#source").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#code-link")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(re.compile(r"#destination$"))
+
+
 def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     browser, serve
 ):

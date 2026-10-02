@@ -34,12 +34,9 @@ from leaf_dev.harness import (
     scratch,
     waits_started,
 )
+from leaf_dev.review_scenario import REQUEST, prepare
 
 TURN_LIMIT = 600
-PROMPT = (
-    "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
-    "and handle the comments I leave on it."
-)
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
 CASES = {"idle": ("idle", "idle"), "mid-turn": ("running",)}
@@ -92,17 +89,15 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
     page, state = work / "page", run / "state"
+    prepare(arm, state, page)
     leaf = partial(run_leaf, arm, state)
-    leaf("page", "init", str(page), check=True)
-    shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-    leaf("page", "stamp", str(page), "--text", "Release triage for review.", check=True)
     url, waits, due, posted, received = None, set(), list(CASES[case]), 0, 0
     closing = False
     try:
         with (
             LiveChild(
                 work,
-                PROMPT,
+                REQUEST,
                 "--plugin-dir",
                 str(arm),
                 stderr=run / "stderr.txt",

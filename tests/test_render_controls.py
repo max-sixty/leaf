@@ -6291,6 +6291,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        if name == "wt-merge":
+            # Its pane body earns a keyboard stop only while it has content to scroll.
+            resized(page, 1200, 700)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(

@@ -375,7 +375,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     # This contract starts while reading the latest turn. Entry into a visible reply
     # preserves whatever older reading preceded it; choosing the end is explicit.
     if answers > 1:
-        reply_box = card.locator(".lf-compose").bounding_box()
+        reply_box = card.locator(".lf-thread-reply").bounding_box()
         latest = card.locator(".lf-msg").last.bounding_box()
         assert reply_box is not None and latest is not None
         before = page.locator(".lf-threads").evaluate("el => el.scrollTop")

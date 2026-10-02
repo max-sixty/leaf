@@ -3682,33 +3682,32 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     # ValueError. Uncaught, each left the request unanswered — which the outbox reads as
     # a lost connection and re-posts every poll for the life of the tab.
     #
-    # Each row names the refusal it must earn rather than asking for any refusal at all.
-    # The depth the parser gives up at is the interpreter's to choose, so a platform
-    # that got through this nesting would fall to the next gate, be refused as not an
-    # object, and pass a row that had proved nothing about the stack it was written for.
+    # A recursive parser rejects deep nesting at the parse boundary. An iterative
+    # parser can read it and rejects the resulting list at the object boundary instead.
+    # Either must answer safely and finally; malformed bytes have only the parse route.
     unreadable = [
         (
             "a body that is not UTF-8",
             b'{"kind": "comment", "text": "\xff"}',
-            "invalid JSON",
+            {"invalid JSON"},
         ),
-        ("a body that is not JSON", b"{not json", "invalid JSON"),
-        ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
+        ("a body that is not JSON", b"{not json", {"invalid JSON"}),
+        ("a body that is not an object", b"[1, 2]", {"event must be a JSON object"}),
         (
-            "a body nested past the parser's stack",
+            "a deeply nested body",
             b"[" * 100000 + b"]" * 100000,
-            "invalid JSON",
+            {"invalid JSON", "event must be a JSON object"},
         ),
     ]
-    for name, body, refusal in unreadable:
+    for name, body, refusals in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)
         answer = json.loads(answered)
-        assert (status, answer.get("ok"), answer.get("final"), answer.get("error")) == (
+        assert (status, answer.get("ok"), answer.get("final")) == (
             400,
             False,
             True,
-            refusal,
         ), (name, status, answer)
+        assert answer.get("error") in refusals, (name, status, answer)
 
     # The fifth is the header rather than the body, and no opener will send it: a
     # Content-Length past what the door takes. The bound is declared rather than

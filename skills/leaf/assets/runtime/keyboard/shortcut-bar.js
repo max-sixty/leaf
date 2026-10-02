@@ -22,11 +22,8 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
-   More owns the leading column, independent of naturally grouped passive hints.
-   Expanded hints use a full-width row above the More and Escape footer; the control
-   stays at the foot while changing hints reflow inside their stationary region.
-   Hint nodes hold no state and are repainted by position across command changes;
-   a changed command does not replace the box that carried its previous hint.
+   Contextual hints and More repack together inside the bar as the command scene
+   changes. This bounded control reflow does not move the bar or the page beside it.
 
    The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
    narrow window keeps the leading hint and a sequence too long for the window keeps its
@@ -53,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -99,6 +96,7 @@ import { pagePresented } from "../presentation.js";
 // a visible door to the complete list should be a door every user can work.
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
+shortcutBarEl.setAttribute("data-lf-reflow", "controls");
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
 let activateShortcutMore = null;
 
@@ -136,7 +134,20 @@ const bottomStatusTemplate = (model) => html`
 `;
 
 const shortcutBarTemplate = (model) =>
-  html`<button
+  html`${repeat(
+      model.items,
+      (item) => item.key,
+      (item) => html`
+        <span
+          class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
+          aria-hidden="true"
+          data-lf-command-ids=${item.commandIds}
+          >${keySequenceTemplate(item.sequence)}${
+            item.said ? html`<span>${item.said}</span>` : nothing
+          }</span
+        >
+      `,
+    )}<button
       type="button"
       class="lf-shortcut-more"
       title=${model.more.title}
@@ -147,25 +158,10 @@ const shortcutBarTemplate = (model) =>
       @click=${() => activateShortcutMore?.()}
     >
       <kbd class="lf-key-badge">${model.more.binding}</kbd
-      ><span>${model.more.line}</span>
-    </button>
-    <div class="lf-shortcut-hints" data-lf-passive>
-      ${model.items.map(
-        (item) => html`
-          <span
-            class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
-            aria-hidden="true"
-            data-lf-command-ids=${item.commandIds}
-            >${keySequenceTemplate(item.sequence)}${
-              item.said ? html`<span>${item.said}</span>` : nothing
-            }</span
-          >
-        `,
-      )}
-    </div>
-    ${
+      ><span>${model.more.line}</span></button
+    >${
       model.tail
-        ? html`<span class="lf-shortcut lf-shortcut-tail" aria-hidden="true"
+        ? html`<span class="lf-shortcut" aria-hidden="true"
             >${keySequenceTemplate(model.tail.sequence)}<span
               >${model.tail.said}</span
             ></span
@@ -222,6 +218,14 @@ declareBottomBar(bottomChromeBoxes);
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
+const rowPresentationKeys = new WeakMap();
+let nextRowPresentationKey = 1;
+const rowPresentationKey = (row) => {
+  const source = sourceRow(row);
+  if (!rowPresentationKeys.has(source))
+    rowPresentationKeys.set(source, nextRowPresentationKey++);
+  return rowPresentationKeys.get(source);
+};
 const effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route) => active.includes(route.binding));
@@ -282,10 +286,10 @@ const arrange = (rows) => {
       ? rows
       : [...rows.slice(0, referenceAt), ...rows.slice(referenceAt + 1)];
   const candidates = withoutReference;
+  const first = candidates[0];
   const wayOut = candidates.find(
     (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false,
   );
-  const first = candidates[0];
   const second =
     wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
   const short = new Set([first, second].filter(Boolean));
@@ -339,8 +343,9 @@ export function renderShortcutBar(goToStatus) {
   const rows = lineRows(scopes);
   if (!shortcutHelpAvailable()) shortcutBarIsExpanded = false;
   const expanded = shortcutBarIsExpanded && !commandReferenceOpen();
-  // More is its own permanent control. The expanded bar gives it and Escape the
-  // bottom row, while the other hints use the full width above them.
+  // `?` has its own permanent More control, so its ordinary row remains in the DOM only
+  // as the register's hidden projection. In the expanded bar, the current Escape is drawn
+  // after that control so both disclosure choices finish the second row.
   const { candidates, reference, short, tail, wayOut } = arrange(rows);
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
@@ -362,7 +367,7 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
-  // Keep the contextual hints together at the front of the ordinary line. The
+  // Keep the two contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.
   const projected =
@@ -370,7 +375,11 @@ export function renderShortcutBar(goToStatus) {
       ? candidates
       : [...shown, ...candidates.filter((row) => !shown.has(row))];
   const projectedRows = projected.filter((row) => !expanded || row !== tail);
-
+  const referenceRows = reference ? [reference] : [];
+  // The interactive disclosure stays with the contextual shortlist. A wider system
+  // font must not push More onto a lower row beside a page or panel control, where two
+  // compact targets would no longer have the 24px separation either one owes.
+  const ordered = [...projectedRows, ...referenceRows];
   // More's key face is the same contextual projection as every other key on the line, and
   // the line shows only what works from where the user is. In a text box the typing scope
   // claims `?`, so the row is absent and More stands down with it: a bare "more" read as
@@ -386,12 +395,13 @@ export function renderShortcutBar(goToStatus) {
   // another destination, so it keeps its ordinary one-step face.
   const sequenceScope = complete?.scope;
   const sequence = word(sequenceScope?.sequence) ?? [];
-  const presentations = projectedRows.map((row) => {
+  const presentations = ordered.map((row) => {
     const inSequence = sequence.length && !row.sequenceControl;
     const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
+      key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: word(row.line),
@@ -399,19 +409,18 @@ export function renderShortcutBar(goToStatus) {
         .map(({ id }) => id)
         .join(" "),
       wayOut: row === wayOut,
-      hidden: !expanded && !shown.has(row),
+      hidden: sourceRow(row) === SHORTCUT_HELP || (!expanded && !shown.has(row)),
     });
   });
   // The door is not useful behind the room it opens, nor where its key does not work.
   // While the reference stands, its own Escape row is the short line; in either case More
-  // remains retained and keeps its natural footprint, while visibility removes it
-  // from paint and focus. The reference takes focus
+  // remains retained but leaves layout and the focus order. The reference takes focus
   // before this state is painted.
   const model = Object.freeze({
     items: Object.freeze(presentations),
     more: Object.freeze({
       hidden: commandReferenceOpen() || !referenceBinding,
-      binding: spell(referenceBinding ?? bindings(SHORTCUT_HELP)[0]),
+      binding: referenceBinding ? spell(referenceBinding) : null,
       line: referenceLine,
       title: referenceDoes,
       expanded,
@@ -431,18 +440,17 @@ export function renderShortcutBar(goToStatus) {
   });
   keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
   render(shortcutBarTemplate(model), shortcutBarEl);
-  const hintLine = shortcutBarEl.querySelector(".lf-shortcut-hints");
-  const rowSpans = hintLine.querySelectorAll(":scope > .lf-shortcut");
+  const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
   const drawn = model.items.map((presentation, index) => ({
     presentation,
     span: rowSpans[index],
   }));
   // The status stands at the bar's far end, level with the one row, so a standing status
-  // limits the hint region without moving More. A transient notice
+  // pads the row's end and More and the way out stop short of it. A transient notice
   // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
   // the line for the seconds it shows. The expanded bar's upper row is not level with the
   // status, so it reserves nothing.
-  const barStyle = getComputedStyle(hintLine);
+  const barStyle = getComputedStyle(shortcutBarEl);
   const gap = parseFloat(barStyle.columnGap);
   const [status] = expanded ? [] : standingStatusBoxes();
   const reserved = status ? status.width + gap : 0;
@@ -460,14 +468,17 @@ export function renderShortcutBar(goToStatus) {
     );
   };
   const line =
-    hintLine.getBoundingClientRect().width -
+    shortcutBarEl.getBoundingClientRect().width -
+    parseFloat(barStyle.borderLeftWidth) -
+    parseFloat(barStyle.borderRightWidth) -
+    parseFloat(barStyle.paddingLeft) -
     parseFloat(barStyle.paddingRight) +
-    (parseFloat(hintLine.style.getPropertyValue("--lf-status-room")) || 0);
+    (parseFloat(shortcutBarEl.style.getPropertyValue("--lf-status-room")) || 0);
   const eligible = new Map(
     drawn.map(({ span, presentation }) => [span, !presentation.hidden]),
   );
   const widths = new Map(
-    [...hintLine.children]
+    [...shortcutBarEl.children]
       .filter((node) => eligible.get(node) ?? !node.hidden)
       .map((node) => [node, outer(node)]),
   );
@@ -477,8 +488,6 @@ export function renderShortcutBar(goToStatus) {
     let used = Infinity;
     for (const [node, width] of widths) {
       if (trimmed.has(node)) continue;
-      // Starting another row cannot make an intrinsically wider hint fit.
-      if (width > line - room) return Infinity;
       used += gap + width;
       if (used > line - room) {
         rows += 1;
@@ -487,14 +496,13 @@ export function renderShortcutBar(goToStatus) {
     }
     return rows;
   };
-  // Hints keep one row. Expansion gives them the full width above the footer.
-  // Trimming is a row ceiling rather than permission to clip.
-  // The line yields its lowest-ranked current commands until its rows fit; hidden rows remain
+  // A row ceiling rather than permission to clip: one row, or two in the expanded bar.
+  // The line yields its lowest-ranked current commands until More fits; hidden rows remain
   // available to inspection and the reference. The way out is the one row the trim may
   // not spend. A line covering the page at a narrow width is exactly where the user needs
   // it: the way out sits last in the register's order, so a trim that only counted from
   // the end would drop it first of all.
-  const ceiling = 1;
+  const ceiling = expanded ? 2 : 1;
   const removable = drawn
     .filter(({ presentation }) => !presentation.hidden && !presentation.wayOut)
     .map(({ span }) => span)
@@ -507,10 +515,10 @@ export function renderShortcutBar(goToStatus) {
     trimmed.delete(span);
     if (rowsUsed(reserved) > ceiling) trimmed.add(span);
   }
-  // A status too wide to leave the way out its row gives the room back and stands
-  // over it, since the status takes no pointer events and the row is the promise.
+  // A status too wide to leave More and the way out their row gives the room back and
+  // stands over them, since it takes no pointer events and the row is the promise.
   const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
-  hintLine.style.setProperty("--lf-status-room", `${room}px`);
+  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
   for (const { presentation, span } of drawn)
     keepsHidden(span, presentation.hidden || trimmed.has(span));
 }

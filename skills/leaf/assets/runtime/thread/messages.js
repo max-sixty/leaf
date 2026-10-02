@@ -221,7 +221,7 @@ export class MessageView {
     render(
       html`
         <b>${model.by}</b
-        ><span class="lf-msg-meta" data-lf-passive
+        ><span class="lf-msg-meta" data-lf-reflow="text"
           ><time datetime=${model.timestamp}>${model.age}</time> ${
             model.workflowLabel
               ? html`<span class="lf-msg-sending" title=${model.workflowTitle}

@@ -957,9 +957,9 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
         expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
             "data-lf-expanded", "true"
         )
-    # Admission changes passive hints; the real More control stays under the pointer.
-    more = page.locator(".lf-shortcut-more")
-    before = more.bounding_box()
+    # Admission may repack contextual hints and More inside the same bottom band.
+    band = page.locator(".lf-shortcut-bar")
+    before = band.bounding_box()
     assert before is not None
 
     held[0].continue_()
@@ -972,7 +972,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     )
 
     rendered(page)
-    assert more.bounding_box() == before
+    assert band.bounding_box() == before
 
 
 PAGE_DECLARATION = {

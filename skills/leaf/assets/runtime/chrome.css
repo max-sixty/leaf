@@ -1663,37 +1663,28 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      overlay and leaves the bar's reservation where it was. Hints are the eye's copy of
      facts spoken elsewhere and stay aria-hidden; More is a real control. Useful
      transient state — a semantic walk's live ordinal, or a brief command or arrival
-     notice in its place — stands at the bar's other end. A standing one trims the
-     short hints without moving More; a sequence pads its end
-     (--lf-status-room) so its rows stop short of it. syncLayout keeps the bar
+     notice in its place — stands at the bar's other end, and a standing one pads the
+     line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
      out of the thread panel, which stands over the page's right edge. A covering
      thread panel makes it inert background; a covering drawer stands under it, as a
-     drawer always does. The runtime trims hints to one row at their natural widths.
-     In the expanded bar that row spans the full width above the More and Escape footer.
-     The footer stays level with the status, and the extra row grows upward over the page.
-     A hint wider than its region is omitted rather than clipped. */
+     drawer always does. The line wraps, and the runtime works out from the hints' widths
+     which would spill past one row and hides them (two rows in the expanded bar): one row
+     fills the bar's stated height exactly, and the expanded bar's second grows the line
+     upward. The rows pack
+     to the foot, and the foot's padding centres a row of key badges in the bar, so the
+     last row stands where a one-row line does, level with the status. Overflow is the
+     backstop for a single hint wider than the window. */
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
     box-sizing: border-box; min-height: var(--lf-bottom-bar-h);
-    padding: 9px calc(18px + var(--lf-safe-right))
+    padding: 9px calc(18px + var(--lf-safe-right) + var(--lf-status-room, 0px))
       calc((var(--lf-bottom-bar-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
       calc(18px + var(--lf-safe-left));
-    display: grid; grid-template-columns: max-content minmax(0, 1fr);
-    gap: 6px 12px; align-items: end;
+    display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+    align-content: flex-end;
     color: var(--muted); font-size: var(--t-6);
     background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }
-  /* More owns the bottom-left target. Passive hints pack at their natural widths;
-     expansion gives them the full upper row, with the way out beside More below. */
-  .lf-shortcut-hints { position: relative; min-width: 0; overflow: clip;
-    display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
-    padding-inline-end: var(--lf-status-room, 0px); }
-  .lf-shortcut-hints > .lf-shortcut { width: max-content; }
-  .lf-shortcut-bar[data-lf-expanded="true"] > .lf-shortcut-hints {
-    grid-column: 1 / -1; grid-row: 1; min-height: var(--lf-key-badge-size); }
-  .lf-shortcut-bar[data-lf-expanded="true"] > .lf-shortcut-more {
-    grid-column: 1; grid-row: 2; }
-  .lf-shortcut-tail { grid-column: 2; grid-row: 2; justify-self: start; }
   /* A drawer stands under the band in both postures, its list ending above the band's
      height. Where the Leaves drawer, or the Asks drawer on a narrow window, covers the page,
      the band stays over it and its scrim, the guide to the keys the drawer answers, rather
@@ -1777,9 +1768,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--accent); color: var(--card); }
   .lf-shortcut-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
     pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
-    border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer;
-    white-space: nowrap; text-align: start; align-self: end; }
-  .lf-shortcut-more[hidden] { visibility: hidden; pointer-events: none; }
+    border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
+  .lf-shortcut-more[hidden] { display: none; }
   .lf-shortcut-more:hover { color: var(--ink-2); }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands

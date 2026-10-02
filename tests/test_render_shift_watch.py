@@ -73,7 +73,7 @@ def test_a_shift_without_input_fails(browser, distance):
 PASSIVE_LABELS = """<!doctype html><body class="lf-chrome" style="margin:0; font:12px monospace">
 <div id="row" style="display:flex; align-items:baseline; width:360px; line-height:24px">
   <div id="header" style="display:contents">
-    <b>You</b><span data-lf-passive style="display:flex; gap:8px; margin-left:8px">
+    <b>You</b><span data-lf-reflow="text" style="display:flex; gap:8px; margin-left:8px">
       <time id="age">just now</time><span id="receipt">Sent</span>
     </span>
   </div>
@@ -126,8 +126,8 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
                 "node => node.removeAttribute('data-lf-runtime')"
             )
     if fault == "undeclared":
-        page.locator("[data-lf-passive]").evaluate(
-            "node => node.removeAttribute('data-lf-passive')"
+        page.locator("[data-lf-reflow]").evaluate(
+            "node => node.removeAttribute('data-lf-reflow')"
         )
     if fault in {"adjacent_control", "contained_control"}:
         page.evaluate(
@@ -135,7 +135,7 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
               const button = document.createElement('button');
               button.id = 'action';
               button.textContent = 'Act';
-              document.querySelector(fault === 'contained_control' ? '[data-lf-passive]' : '#row')
+              document.querySelector(fault === 'contained_control' ? '[data-lf-reflow]' : '#row')
                 .append(button);
             }""",
             fault,
@@ -154,6 +154,69 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
     )
     judge_watches()
     assert receipt.bounding_box()["x"] != before["x"]
+    if protected:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("text_only", "button#action"),
+        ("undeclared", "button#action"),
+        ("outside_runtime", "button#action"),
+        ("boxless_region", "button#action"),
+        ("moving_region", "div#region"),
+        ("growing_region", "p#reading"),
+        ("escaping_control", "button#action"),
+        ("moving_neighbour", "button#neighbour"),
+    ],
+)
+def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protected):
+    """Adaptive commands may repack; their box, outside controls and content may not."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body class="lf-chrome" style="margin:0;font:12px monospace">'
+            '<div id="region" data-lf-reflow="controls" '
+            'style="display:flex;align-items:center;gap:8px;width:240px;height:40px">'
+            '<span id="hint">Short hint</span><button id="action">More</button></div>'
+            '<p id="reading">Read this paragraph.</p><button id="neighbour">Outside</button>'
+            "</body>"
+        )
+    )
+    if fault == "text_only":
+        page.locator("#region").evaluate(
+            "node => node.setAttribute('data-lf-reflow', 'text')"
+        )
+    if fault == "undeclared":
+        page.locator("#region").evaluate(
+            "node => node.removeAttribute('data-lf-reflow')"
+        )
+    if fault == "outside_runtime":
+        page.evaluate("document.body.className = ''")
+    if fault == "boxless_region":
+        page.locator("#region").evaluate("node => node.style.display = 'contents'")
+    page.evaluate(PAINTED)
+    before = page.locator("#action").bounding_box()
+    page.evaluate(
+        """fault => {
+          document.getElementById('hint').textContent = 'A longer hint';
+          const region = document.getElementById('region');
+          if (fault === 'moving_region') region.style.marginLeft = '6px';
+          if (fault === 'growing_region') region.style.height = '60px';
+          if (fault === 'escaping_control') region.style.gap = '300px';
+          if (fault === 'moving_neighbour')
+            document.getElementById('neighbour').style.marginLeft = '6px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    assert page.locator("#action").bounding_box()["x"] != before["x"]
     if protected:
         errors = consume_browser_errors(page, "moved without input")
         assert any(f"{protected} moved without input" in error for error in errors), (
@@ -183,7 +246,7 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
     """Five receipt sources pass only when an omitted control also holds still."""
     rows = "".join(
         f'<div style="display:flex;width:360px;height:30px;align-items:baseline">'
-        '<b>You</b><span class="lf-msg-meta" data-lf-passive style="display:flex;gap:8px;margin-left:8px">'
+        '<b>You</b><span class="lf-msg-meta" data-lf-reflow="text" style="display:flex;gap:8px;margin-left:8px">'
         f'<time>just now</time><span id="receipt{n}" style="width:150px">Sent</span>'
         "</span></div>"
         for n in range(6)

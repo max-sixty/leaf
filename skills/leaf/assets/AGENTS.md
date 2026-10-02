@@ -71,12 +71,12 @@ inspection layer.
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. Without a gesture, a box
 may grow or shrink into free room, but reading content and controls stay put.
-Runtime-owned informational text may repack inside a stationary runtime region
-when it moves no neighbour and both painted positions stay inside that region.
-Its owner declares the text group with `data-lf-passive`: message age and receipt
-labels, and contextual keyboard hints, follow this contract. A group containing
-a control or ordinary page reading content cannot declare it. Keep the actual
-controls stationary rather than reserving columns for changing informational text.
+Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
+group, such as message age and receipt labels, may repack inside its stationary
+owner and contains no controls. A `controls` group, such as the adaptive shortcut
+bar, may repack its hints and controls inside its own stationary box. Both painted
+positions stay inside that boundary, and neighbours and ordinary page reading
+content stay put. Typing still cannot carry its field.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a

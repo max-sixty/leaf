@@ -20,12 +20,13 @@
 //   whatever a timer or a server's answer changes may repaint a box or grow it into
 //   free room. Forbidden motion is reported for every source Chrome names, once per
 //   element, named by write_watch.js's `lfPlace`.
-//   Runtime surfaces declare informational projections with `data-lf-passive`. Those
-//   labels may rearrange inside a stationary owner, with unchanged neighbours and both
-//   painted positions inside it. A projection containing a control gets no exception.
-//   This covers passive age, receipt and shortcut hints; it is not a pixel budget.
+//   Runtime surfaces declare bounded reflow with `data-lf-reflow`: text groups may
+//   repack inside their stationary owner; control groups may repack inside their own
+//   stationary box. Text declarations cannot contain controls. Both painted positions
+//   remain inside that boundary, and undeclared neighbours stay put. This covers
+//   message metadata and adaptive command bars; it is not a pixel budget.
 //   When Chrome's five-source cap is full, frame readings must also show that no
-//   other visible box was repositioned. Passive projections must not hide omitted protected motion.
+//   other visible box was repositioned. Permitted reflow must not hide omitted protected motion.
 // - Typing never carries its field. A keystroke may grow its field, at whichever edge
 //   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
 //   never moves the field whole, as a "Draft" mark appearing in the header above a reply
@@ -381,16 +382,25 @@
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
     (presented === null || startTime < presented);
-  const passiveProjection = ({ node, previousRect, currentRect }, around) => {
+  const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-    const projection = element?.closest?.("[data-lf-passive]");
+    const projection = element?.closest?.("[data-lf-reflow]");
     // Runtime ownership follows passages.js `leafSurface`, including inline threads.
     if (!projection?.closest(".lf-chrome, [data-lf-runtime]") || around.length !== 3)
       return false;
-    if (projection.matches(interactive) || projection.querySelector(interactive))
+    const mode = projection.getAttribute("data-lf-reflow");
+    if (mode !== "text" && mode !== "controls") return false;
+    if (
+      mode === "text" &&
+      (projection.matches(interactive) || projection.querySelector(interactive))
+    )
       return false;
-    let header = up(projection);
-    while (header instanceof Element && getComputedStyle(header).display === "contents")
+    let header = mode === "controls" ? projection : up(projection);
+    while (
+      mode === "text" &&
+      header instanceof Element &&
+      getComputedStyle(header).display === "contents"
+    )
       header = up(header);
     if (!(header instanceof Element)) return false;
     const stationary = (node) => {
@@ -417,7 +427,7 @@
       });
     return inside(previousRect) && inside(currentRect);
   };
-  const passiveOnly = (entry, around) => {
+  const confinedReflowOnly = (entry, around) => {
     if (entry.sources.length < 5) return true;
     if (around.length !== 3) return false;
     const visible = (node, rect, at) => {
@@ -478,7 +488,7 @@
           (Math.abs(to.left - from.left) >= 1 || Math.abs(to.top - from.top) >= 1) &&
           (visible(node, previousRect, around[before].at) ||
             visible(node, currentRect, around[after].at)) &&
-          !passiveProjection({ node, previousRect, currentRect }, around)
+          !permittedReflow({ node, previousRect, currentRect }, around)
         )
           return false;
       }
@@ -490,10 +500,10 @@
   const unasked = (entry, frame) => {
     if (presenting(entry)) return;
     const around = frame < 1 ? [] : frames.slice(frame - 1, frame + 2);
-    const passive = new Set(
-      entry.sources.filter((source) => passiveProjection(source, around)),
+    const permitted = new Set(
+      entry.sources.filter((source) => permittedReflow(source, around)),
     );
-    const complete = passive.size > 0 && passiveOnly(entry, around);
+    const complete = permitted.size > 0 && confinedReflowOnly(entry, around);
     for (const source of entry.sources) {
       const { node, previousRect, currentRect } = source;
       const read = node ? around.map(({ at }) => boxAt(node, at)) : [];
@@ -503,7 +513,7 @@
         !read.some((box) => moved(box, read[2]))
       )
         continue;
-      if (complete && passive.has(source)) continue;
+      if (complete && permitted.has(source)) continue;
       report(
         `${name(node)} moved without input`,
         by(previousRect, currentRect) + beside(entry.sources, node),

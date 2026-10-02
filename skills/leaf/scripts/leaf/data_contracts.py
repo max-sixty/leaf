@@ -7,7 +7,7 @@ import click
 from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
-from .registry.contract import aware_instant, json_validator
+from .registry.schema import aware_instant, json_validator
 from .revision_artifact import read_revision
 from .schema import DATA_SOURCE_NAME
 from .structure import SourceDocument

@@ -30,7 +30,7 @@ const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
-  frame_ancestors: "frame-ancestors 'none'",
+  frame_ancestors: "frame-ancestors 'self'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],
     session: ["media", "revisions", "versions"],

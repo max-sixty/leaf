@@ -1,6 +1,6 @@
 /* One diagnostic record of this tab's browser input. The page event log remains the
    authority for decisions; this stream explains the gestures that led to them. */
-import { TEXT_BOX } from "./focus.js";
+import { TEXT_BOX } from "./control-selectors.js";
 import { PAGE_ROOT } from "./storage.js";
 
 // A document with no declared root has no server to record to: an interactive export,

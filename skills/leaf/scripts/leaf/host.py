@@ -560,25 +560,28 @@ def claude_code_session_records(session_id: str) -> list[dict]:
     Every state read asks this of each claimed page, so a listing is reused for
     `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
     presence cache's interval: a record added, removed or atomically replaced
-    moves the stamp at once."""
+    moves the stamp at once. The listing is the machine's rather than a page's, so
+    the process keeps the last one, replaced whole."""
+    global _registry_listing
     sessions = claude_code_sessions()
     try:
         stamp = sessions.stat().st_mtime_ns
     except OSError:
         return []
-    held = _registry_cache.get(sessions)
+    held = _registry_listing
     if (
         held is None
-        or held[1] != stamp
-        or time.monotonic() - held[0] >= REGISTRY_READ_S
+        or held[:2] != (sessions, stamp)
+        or time.monotonic() - held[2] >= REGISTRY_READ_S
     ):
-        held = (time.monotonic(), stamp, _registry_records(sessions))
-        _registry_cache[sessions] = held
-    return [record for record in held[2] if record.get("sessionId") == session_id]
+        held = (sessions, stamp, time.monotonic(), _registry_records(sessions))
+        _registry_listing = held
+    return [record for record in held[3] if record.get("sessionId") == session_id]
 
 
 REGISTRY_READ_S = 1.0
-_registry_cache: dict[Path, tuple[float, int, list[dict]]] = {}
+# (registry directory, its stamp, when it was listed, its records)
+_registry_listing: tuple[Path, int, float, list[dict]] | None = None
 
 
 def _registry_records(sessions: Path) -> list[dict]:

@@ -27,7 +27,7 @@ export function mountReplay(capabilities) {
     submitComment(threadId) {
       const transition = commands.threadTransitionOrigin(
         commands.fabInput,
-        commands.fabInput.value,
+        commands.fabFrameAt(),
       );
       commands.detachComposer();
       return () => commands.openInlineThread(threadId, { transition });

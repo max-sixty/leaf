@@ -289,7 +289,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread + .lf-page-thread::before { content: "";
           position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
           border-top: 1px solid var(--rule); pointer-events: none; }
-.lf-thread-transcript { min-width: 0; }
+/* Every conversation shares its reading edge, including a floating draft. The
+   field subtracts its border; messages and metadata take the full inset. */
+:root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px; }
+.lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
 .lf-msg { margin: 16px 0 0; }
@@ -299,6 +302,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           font-size: var(--t-6); }
 .lf-thread-root-meta { display: flex; align-items: center; gap: var(--sp-2);
           min-height: max(28px, var(--aim-floor));
+          padding-inline: var(--lf-thread-text-inset) 0;
           font-size: var(--t-6); }
 /* Metadata may shrink, but spare room belongs to the action group: a growing news
    label keeps its leading edge and stays reachable beside an overlapping panel. */
@@ -855,7 +859,8 @@ pre:hover + .lf-code-copy,
 /* A thread's reply is one field on every surface; its container decides where it stands.
    The wrapper wears the border and focus band around the editor and its Send action. */
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field { --lf-compose-pad-inline-start: 7px;
+.lf-thread-reply .lf-compose-field {
+          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
           border: 1px solid var(--border-2);
           border-radius: 6px; background: var(--card); }
 .lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {

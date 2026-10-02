@@ -160,8 +160,8 @@ import { closestAcross, inChrome } from "./passages.js";
 import { visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 
-import { threadList } from "./thread/state.js";
-import { turns } from "./thread/model.js";
+import { allThreads } from "./thread/state.js";
+import { threadNames, turns } from "./thread/model.js";
 import { whenDocumentPresented } from "./semantic-state.js";
 
 import { notice } from "./notifications.js";
@@ -2275,7 +2275,7 @@ export function createMarginProjection({
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
   function openInlineThread(id, { transition = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadList().find((t) => t.id === id));
+    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
@@ -2344,7 +2344,7 @@ export function createMarginProjection({
     { focus = null, travel = true, intent = retainUserIntent() } = {},
   ) {
     if (!intent()) return null;
-    if (!panelIsOpen()) {
+    if (!panelIsOpen() && focus !== "message") {
       // Capture the departure before any selected surface moves focus. The route
       // returns its actual destination only after the existing placement has landed.
       const localFocus = focus ?? "reply";
@@ -2603,8 +2603,10 @@ export function createMarginProjection({
   // element its inventory entry is grouped under. A general or detached thread has none.
   const threadTarget = (id) => placedAt(id)?.place ?? null;
   const threadFocusTarget = (id, { focus = null } = {}) => {
+    if (focus === "message") return null;
     const surface = surfaceFocusTarget(id, { focus });
     if (surface) return surface;
+    id = threadNames(allThreads()).get(id)?.id ?? id;
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id,
     );

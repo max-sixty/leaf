@@ -43,9 +43,11 @@ from types import SimpleNamespace
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
+from browser_sources import browser_function
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from leaf import cli as cli_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
@@ -728,6 +730,50 @@ def heard_back(reading):
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
     _until(page, heard_back, "heard back what it sent")
+
+
+def hold_pending_thread_presentation(page):
+    """Hold the list while a new comment's pending thread is presented."""
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('.lf-threads');
+          const present = list.present;
+          const held = Promise.withResolvers();
+          list.present = model => {
+            const row = model.rows.find(row => row.kind === 'thread' &&
+              row.descriptor.id.startsWith('pending:'));
+            if (!row && !window.pendingCommentId) return present.call(list, model);
+            window.pendingCommentId ??= row.descriptor.id;
+            window.commentPresentationHeld = true;
+            return held.promise.then(() => present.call(list, model));
+          };
+          window.releaseCommentPresentation = () => {
+            list.present = present;
+            held.resolve();
+          };
+        }"""
+    )
+
+
+def admit_before_presenting_comment(page, page_dir, text):
+    """Admit the held comment before releasing its original presentation."""
+    page.wait_for_function("() => window.commentPresentationHeld === true")
+    assert page.evaluate("window.pendingCommentId").startswith("pending:")
+    round_trip(page)
+    admitted = next(
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment" and event.get("text") == text
+    )
+    page.wait_for_function(
+        """async id => {
+          const {threadList} = await window.__lfRuntimeImport('/runtime/thread/state.js');
+          return threadList().some(thread => thread.id === id);
+        }""",
+        arg=admitted["id"],
+    )
+    page.evaluate("releaseCommentPresentation()")
+    return admitted
 
 
 # A press or a click reaches the runtime inside the driver's call and posts behind it, so
@@ -1803,15 +1849,7 @@ RELEASE_FOCUS = """async () =>
   (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
 
 
-SCROLL_STILL = """([selector, axis, frames]) => {
-  const box = selector ? document.querySelector(selector) : document.scrollingElement;
-  if (!box) return false;
-  const at = axis === "x" ? box.scrollLeft : box.scrollTop;
-  const held = globalThis.__lfScrollStill;
-  globalThis.__lfScrollStill =
-    held && held.at === at ? { at, frames: held.frames + 1 } : { at, frames: 0 };
-  return globalThis.__lfScrollStill.frames >= frames;
-}"""
+SCROLL_STILL = browser_function("harness.js", "scrollStill")
 
 
 def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
@@ -2049,29 +2087,7 @@ def scroll_followers(writes):
 # `data-lf-traffic` is the runtime's request ledger, which the page's clock moves. An
 # inline style is a set of declarations, read sorted: a property taken off and set again
 # stands last in the attribute's text and says the same.
-PAGE_STATE = """() => {
-  const said = (node) => (a) => a.name === "style"
-    ? `style=${JSON.stringify([...node.style].map((property) =>
-        `${property}: ${node.style.getPropertyValue(property)}` +
-        (node.style.getPropertyPriority(property) ? " !important" : "")).sort().join("; "))}`
-    : `${a.name}=${JSON.stringify(a.value)}`;
-  const lines = [[...document.documentElement.attributes]
-    .filter((a) => a.name !== "data-lf-traffic")
-    .map(said(document.documentElement)).sort().join(" ")];
-  const walk = (parent, path) => {
-    for (const node of parent.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE && node.data.trim())
-        lines.push(`${path} ${JSON.stringify(node.data.trim())}`);
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const here = `${path} > ${node.localName}${node.id ? "#" + node.id : ""}`;
-      lines.push(`${here} ${[...node.attributes].map(said(node)).sort().join(" ")}`);
-      if (node.shadowRoot) walk(node.shadowRoot, `${here} ::shadow`);
-      walk(node, here);
-    }
-  };
-  walk(document.body, "body");
-  return lines;
-}"""
+PAGE_STATE = browser_function("harness.js", "pageState")
 
 
 def page_state(page):
@@ -2140,32 +2156,8 @@ def left_alone(page):
 
 # Armed in each of the page's documents: its writes (`write_watch.js`), the frames it asks
 # for, counted where they are asked for, and each time the focus lands in it.
-_REST_ARM = """() => {
-  window.lfWrites = [];
-  window.lfWriteStep = null;
-  const rest = (window.lfRest = { frames: {}, focus: 0 });
-  const request = window.requestAnimationFrame;
-  window.requestAnimationFrame = (callback) => {
-    // The first caller past the runtime's scheduler, which is whose loop it is.
-    const site = new Error().stack.split("\\n").slice(2)
-      .find((line) => !line.includes("/runtime/rendering.js"))?.trim() ?? "";
-    return request.call(window, (time) => {
-      rest.frames[site] = (rest.frames[site] ?? 0) + 1;
-      callback(time);
-    });
-  };
-  document.addEventListener("focusin", () => rest.focus++, { capture: true });
-}"""
-_REST_READ = """() => {
-  const writes = window.lfWrites;
-  window.lfWrites = null;
-  const endless = document.getAnimations()
-    .filter((animation) => animation.playState === "running" &&
-      animation.effect?.getComputedTiming().iterations === Infinity)
-    .map((animation) => `${animation.animationName ?? animation.id} on ` +
-      `${animation.effect.target.localName}.${[...animation.effect.target.classList].join(".")}`);
-  return { writes, ...window.lfRest, endless };
-}"""
+_REST_ARM = browser_function("harness.js", "armRest")
+_REST_READ = browser_function("harness.js", "readRest")
 
 
 def at_rest(page):

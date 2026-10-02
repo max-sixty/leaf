@@ -55,7 +55,7 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Measure the fresh-reader review.** "Pre-handover review" has a subagent with only
+- **#24 — Measure the fresh-reader review.** "Pre-handover review" has a subagent with only
   the user's request and the check's screens work the page as the user would, since
   the author resolves every name from notes the user never saw. On the triage page
   that reader caught the scrolled-off context, a heading answering the author's own
@@ -64,8 +64,15 @@ has tried; settle that before building it.
   **Unconfirmed:** one page, one run each. Measure across pages whether authors run
   it, what it costs (about 110k tokens and two minutes there), and what it catches
   beyond the author's own reading. `evals/record-read-without-the-notes` checks only
-  that an author says it will; doing it needs `notes/usability-eval/harness.py` or
-  session replays.
+  that an author says it will. Add a live `leaf-dev scenario-eval usability` case
+  with a seeded reader-visible defect and a clean control. Give the reviewer only
+  the request and screens; score whether it finds the defect without inventing one
+  in the control. Record author invocation and review cost separately.
+- **#25 — Run live scenarios on Codex as well as Claude Code.** Static instruction
+  cases already compare both hosts; the page, revision and feedback scenarios
+  still execute Claude Code. Start with the existing `near-miss` scenario on both
+  hosts, retaining the same checks and evidence. Extend the shared scenario
+  executor after that control works, rather than introducing another eval runner.
 
 ### Prose
 

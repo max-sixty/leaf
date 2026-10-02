@@ -11,7 +11,7 @@ renders that source with its own browser,
 which avoids separate platform PNG approvals. Both arms share the browser, so a
 browser upgrade's own visual regression is outside this oracle.
 
-The baseline owns its Python Leaf and fixtures. Only the current journey, snapshot
+The baseline owns its Python Leaf and fixtures. Only the current browser mechanics, journey, snapshot
 adapter and pytest plugin are overlaid. A recipe incompatible with approved source
 fails during generation and requires a reviewed source refresh. Missing pins, failed
 generation and incomplete stores never fall back to the candidate's appearance.
@@ -57,6 +57,7 @@ SOURCE_PATCH_PATHS = (
     ":(glob,exclude)build/browser/generated/**",
 )
 RECIPE = (
+    "dev/leaf_dev/browser.py",
     "dev/leaf_dev/thread_journey.py",
     "dev/leaf_dev/thread_snapshots.py",
     "dev/leaf_dev/thread_snapshot_plugin.py",
@@ -227,7 +228,6 @@ def snapshot_store(browser_version: str, *, prepare: bool) -> Path:
         *RECIPE,
         "dev/leaf_dev/thread_snapshot_source.py",
         "dev/leaf_dev/harness.py",
-        "dev/leaf_dev/browser.py",
         "uv.lock",
     ):
         digest.update((ROOT / name).read_bytes())

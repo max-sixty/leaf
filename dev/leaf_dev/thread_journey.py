@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from leaf.render_checks import rendered, wait_for_probe
 from playwright.sync_api import Locator, Page, expect
 
+from leaf_dev.browser import scroll_settled
+
 WORDS = "Keep the reader's words in the thread while this reply is being sent."
 NEXT_WORDS = "Keep the next draft separate from the reply still being sent."
 STAGES = (
@@ -168,6 +170,11 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
                 && Number.isFinite(move.effect.getComputedTiming().endTime))""",
             arg=shown.region.element_handle(),
         )
+        # Send/open has already initiated any landing scroll. Scroll belongs to
+        # the browser, and its smooth travel is not a Web Animation.
+        if surface in {"panel", "general"}:
+            scroll_settled(page, ".lf-threads")
+        scroll_settled(page)
         reading = {
             "intent": intent,
             "region": shown.region.bounding_box(),

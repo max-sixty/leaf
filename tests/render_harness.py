@@ -54,6 +54,9 @@ from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.browser import (
+    scroll_settled,  # noqa: F401 — shared browser wait, re-exported to tests
+)
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -1743,51 +1746,11 @@ SHELL_BOX = """(() => {
 })()"""
 
 
-# How long a scroller holds one position before its travel is over, counted in the
-# browser's own rendering frames.
-SCROLL_STILL_FRAMES = 3
-
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
 RELEASE_FOCUS = """async () =>
   (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
-
-
-SCROLL_STILL = """([selector, axis, frames]) => {
-  const box = selector ? document.querySelector(selector) : document.scrollingElement;
-  if (!box) return false;
-  const at = axis === "x" ? box.scrollLeft : box.scrollTop;
-  const held = globalThis.__lfScrollStill;
-  globalThis.__lfScrollStill =
-    held && held.at === at ? { at, frames: held.frames + 1 } : { at, frames: 0 };
-  return globalThis.__lfScrollStill.frames >= frames;
-}"""
-
-
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
-    """Wait for stable scroll position after the caller observes scroll initiation.
-
-    The helper cannot distinguish a finished scroll from one not yet issued.
-    Callers first observe the gesture's synchronous arrival, focus, or attribute
-    change that accompanies its scroll. The quiet interval is counted in animation
-    frames to span the pause between instant nested-scrollport placement and the
-    outer scroller's smooth movement, rather than a machine-dependent time window.
-
-    Each call resets its observation. Timeout reports the selected scroller and
-    its last reading. `tests/AGENTS.md`, "A wait consumes a fact the system states",
-    owns the caller policy."""
-    page.evaluate("() => { delete globalThis.__lfScrollStill; }")
-    try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
-    except PlaywrightTimeout:
-        where = scroller or "the document"
-        held = page.evaluate(
-            "() => globalThis.__lfScrollStill ?? null",
-        )
-        raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
-        ) from None
 
 
 def panel_settled(page, open=True):

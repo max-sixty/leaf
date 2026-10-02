@@ -1451,7 +1451,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     )
 
     def hold_parent_state(route):
-        if route.request.frame == page.main_frame:
+        # Hold only the initial reading. After presentation the gallery asks for
+        # its stamped history as declared arrival work; that request must finish.
+        if route.request.frame == page.main_frame and not held:
             held.append(route)
         else:
             route.continue_()
@@ -1474,7 +1476,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
-    held.pop(0).continue_()
+    held[0].continue_()
     wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(

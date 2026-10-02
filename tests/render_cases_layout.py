@@ -1367,11 +1367,14 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 
 
 def serious_axe_violations(page):
-    """WCAG A/AA violations at serious or critical, as (violations, report)."""
-    # Inspect each document directly: the Python adapter only injects axe into the
-    # document it receives.
+    """Serious/critical WCAG A/AA findings in accessible documents, with a report."""
+    # The adapter injects only its document. Install axe in child documents too,
+    # then let axe's frame traversal preserve the parent's accessibility boundary
+    # and inspect exposed child documents without auditing hidden placeholders.
+    axe = Axe()
+    for frame in page.frames:
+        frame.evaluate(axe.axe_script)
     options = {
-        "iframes": False,
         "runOnly": {
             "type": "tag",
             "values": [
@@ -1385,10 +1388,9 @@ def serious_axe_violations(page):
         },
         "resultTypes": ["violations"],
     }
-    results = [(frame.url, Axe().run(frame, options=options)) for frame in page.frames]
+    result = axe.run(page, options=options)
     violations = [
-        {**violation, "document": url}
-        for url, result in results
+        {**violation, "document": page.url}
         for violation in result.response["violations"]
         if violation["impact"] in {"serious", "critical"}
     ]

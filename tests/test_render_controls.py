@@ -4738,6 +4738,53 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
 
 
+def test_the_accessibility_audit_reads_exposed_frames_and_their_names(browser, serve):
+    """Hidden documents are absent; exposed documents and frame names are audited."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame audit",
+                """<h1>Frame audit</h1>
+<iframe id="hidden-frame" title="Hidden practice" hidden srcdoc="<button></button>"></iframe>
+<iframe title="Hidden from assistive technology" aria-hidden="true" tabindex="-1"
+  srcdoc="<button></button>"></iframe>
+<iframe id="shown-frame" title="Visible practice"
+  srcdoc="<html lang='en'><title>Practice</title><body><main><h1>Practice</h1>
+    <button></button></main></body></html>"></iframe>
+""",
+            )
+        ),
+    )
+    shown = page.locator("#shown-frame")
+    child = shown.element_handle().content_frame()
+    child.evaluate("""async () => {
+      const frame = document.createElement('iframe');
+      frame.id = 'nested-frame';
+      frame.title = 'Nested practice';
+      frame.srcdoc = `<html lang="en"><title>Nested practice</title><body><main>
+        <h1>Nested practice</h1><button></button></main></body></html>`;
+      const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once:true}));
+      document.body.append(frame);
+      await loaded;
+    }""")
+    violations, _ = serious_axe_violations(page)
+    assert [violation["id"] for violation in violations] == ["button-name"]
+    assert len(violations[0]["nodes"]) == 2, "both exposed documents must be audited"
+
+    child.locator("button").evaluate("button => button.textContent = 'Continue'")
+    child.frame_locator("#nested-frame").locator("button").evaluate(
+        "button => button.textContent = 'Continue'"
+    )
+    shown.evaluate("frame => frame.removeAttribute('title')")
+    violations, _ = serious_axe_violations(page)
+    assert [violation["id"] for violation in violations] == ["frame-title"]
+
+    shown.evaluate("frame => frame.title = 'Visible practice'")
+    violations, report = serious_axe_violations(page)
+    assert violations == [], report
+
+
 def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good

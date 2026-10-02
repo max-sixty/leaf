@@ -32,10 +32,23 @@ import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
-import { pendingForParent } from "../pending/model.js";
 import { readApplication } from "../semantic-state.js";
 
 const TAG = "leaf-thread-list";
+
+// Whether this page's ledger holds a gesture of the user's on `thread`: a settlement,
+// reply or reaction on one of its messages, a move on a widget one of them holds, or
+// the refusal that takes one back.
+function gesturedOn(thread) {
+  const { unresolved, document } = readApplication();
+  const messages = new Set(thread.msgs.map(({ id }) => id));
+  return unresolved.some(
+    ({ event }) =>
+      messages.has(event.parent) ||
+      (event.widget &&
+        messages.has(document.descriptors.get(event.widget)?.document.message)),
+  );
+}
 const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
 
 class ThreadListView extends RetainedFace {
@@ -85,9 +98,8 @@ class ThreadListView extends RetainedFace {
   // threads the view admits (narrowing.js), this says when a card it stops admitting
   // leaves, and the model builder combines the two into one reading. A change of view
   // puts any card away. A card whose reply holds words stays, so settlement never puts a
-  // draft away. The user's own gesture on the thread (a settlement, a reply, a reaction,
-  // or the refusal that takes one back), while this page's ledger holds it, takes the
-  // card in the turn it is drawn; a settlement folds it out (willUpdate). Any other
+  // draft away. The user's own gesture on the thread (`gesturedOn`) takes the card in
+  // the turn it is drawn; a settlement folds it out (willUpdate). Any other
   // change is news, and its card stays, drawn as the news left it, while its going would
   // move something the user sees: while any of it shows, since every card after it would
   // rise, and, as the card the list shows open, while the panel shows, since another card
@@ -99,8 +111,7 @@ class ThreadListView extends RetainedFace {
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return false;
     if (replyHasWords(key)) return true;
-    const ledger = readApplication().unresolved;
-    if (thread.msgs.some(({ id }) => pendingForParent(ledger, id))) return false;
+    if (gesturedOn(thread)) return false;
     return view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));

@@ -528,7 +528,7 @@ def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     """Run one of a package's `scripts/` in the environment its header declares.
 
     The package is found by the lookup `page init --package NAME` resolves
-    through, so a producer command in guidance names a package and a script
+    through, so a producer command in instructions names a package and a script
     rather than a path on this machine, and an installed package's tools run on
     the same terms as a bundled one's. Each script is a Python file whose inline
     metadata (PEP 723) declares its dependencies; `uv run --script` builds that

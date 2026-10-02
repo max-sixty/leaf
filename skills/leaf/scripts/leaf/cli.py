@@ -308,14 +308,23 @@ def media(dir: str, files) -> None:
         print(json.dumps({"path": url, "source": str(src)}, ensure_ascii=False))
 
 
-@page.command(short_help="List or print composed guidance by audience.")
+@page.command(short_help="Read instructions for selected components and audience.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("audience", required=False, metavar="AUDIENCE")
-def guidance(dir: str, audience: str | None) -> None:
-    """List audiences, or print the guidance for AUDIENCE."""
-    from leaf.page import cmd_guidance
+@click.option("--widget", "widgets", multiple=True, metavar="TAG")
+@click.option("--contract", "contracts", multiple=True, metavar="ID")
+def instructions(
+    dir: str, audience: str | None, widgets: tuple[str, ...], contracts: tuple[str, ...]
+) -> None:
+    """List audiences, or print AUDIENCE's selected-component instructions.
 
-    cmd_guidance(resolve_dir(dir), audience)
+    With no component selection, read only shared package instructions. Select
+    widgets before writing markup; their examples, required members, and data
+    contracts bring their own instructions into the same reading.
+    """
+    from leaf.page import cmd_instructions
+
+    cmd_instructions(resolve_dir(dir), audience, widgets=widgets, contracts=contracts)
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")

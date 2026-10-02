@@ -24,9 +24,9 @@ execution:
     spectrum from small tweaks (colour, weight, which marks show, how the gutter sign
     and bar sit together) to an overhaul. Put it in a playground I can play with."
 
-    The page was initialized with the `playground` package, whose author guidance
+    The page was initialized with the `playground` package, whose author instructions
     `page init` copied into the page; the same file is
-    `packages/playground/guidance/author.md` inside the leaf skill's base directory,
+    `packages/playground/instructions/author.md` inside the leaf skill's base directory,
     the directory that holds its `references/`.
     Write its playground: the `lf-ask` with its `lf-playground`, and a `<style>`
     element with the candidates' CSS. The preview can be a short static diff of about
@@ -37,10 +37,10 @@ graders:
   type: tool_used
   tool: Skill
   input_match: leaf
-- name: reads-playground-guidance
+- name: reads-playground-instructions
   type: tool_used
   tool: Read
-  input_match: skills/leaf/packages/playground/guidance/author\.md
+  input_match: skills/leaf/packages/playground/instructions/author\.md
 - name: has-presets
   type: regex
   pattern: <lf-playground-preset\b

@@ -2,22 +2,22 @@
 
 The Layout-tab and factual-correction phase landed in
 [PR #1476](https://github.com/max-sixty/leaf/pull/1476). The maintainer rewrite is
-written but unlanded; agent guidance is next. Site, UI vocabulary and example
+written but unlanded; agent instructions are next. Site, UI vocabulary and example
 selection wait on decisions A–E below. Retire this note when the phases land and
-any standing rule has moved into its owning guidance.
+any standing rule has moved into its owning instructions.
 
 Each phase recovers what its reader needs, rewrites the prose, and checks dropped
-claims against the code. Preserve behavior in agent and maintainer guidance unless
+claims against the code. Preserve behavior in agent and maintainer instructions unless
 a claim is wrong. The front page stays as it is; other site pages may be reorganized.
 Use `/writing-prose` for the rewrite and an independent review for the result.
 Word counts describe the change; reader usefulness and preserved meaning judge it.
 
-## Phase 1: Maintainer guidance
+## Phase 1: Maintainer instructions
 
 The local branch `agent-a7d03ea41654f534b` at `5c7baed6fcbaf7d26a2cc4f63a035418b546e6e8` contains the rewrite.
 Its recorded comparison takes 17 files from 33,267 to 24,750 words. The biggest
 cuts remove duplicated module contracts, discovery history and command catalogs
-already available through `--help`. The root guidance above “Repository map” is
+already available through `--help`. The root instructions above “Repository map” are
 unchanged.
 
 Before landing, independently review the final cuts, especially `session-lifetime.md`
@@ -26,11 +26,11 @@ gates on the candidate after bringing it current; the earlier passing suite is
 historical evidence, not a current landing result. Keep this work with its existing
 branch rather than starting a second maintainer rewrite.
 
-## Phase 2: Agent guidance
+## Phase 2: Agent instructions
 
 Apply the same reader-based rewrite to `skills/leaf/SKILL.md`, the routed references
-and package guidance. Score with `leaf-dev guidance-eval` before and after, following
-“Score a guidance change” in `/developing-leaf`. This phase needs no product decision.
+and package instructions. Score with `leaf-dev instructions-eval` before and after, following
+“Score an instruction change” in `/developing-leaf`. This phase needs no product decision.
 
 - Make package discovery and behavior-module obligations easy to scan in `packages.md`.
 - Give host selection, initial work status and the URL-in-every-message rule one
@@ -38,11 +38,11 @@ and package guidance. Score with `leaf-dev guidance-eval` before and after, foll
 - Put event-handling instructions before transport details. `event-batches.md` and
   `conversation-loop.md` still name `answering` clauses where deliveries expose
   merged `handling`; reconcile the instruction with the actual delivery shape.
-- Reduce revision-state and margin guidance to what the author acts on. Keep package
+- Reduce revision-state and margin instructions to what the author acts on. Keep package
   record semantics in their existing owner.
 - Separate agent operation from user setup and maintainer mechanisms in serving
   and host references. Check uncertain setup passages against an actual fresh host.
-- In command-hub guidance, distinguish a leaf goal from a Leaf page.
+- In command-hub instructions, distinguish a leaf goal from a Leaf page.
 
 Recheck source claims at the start of the phase. Earlier “version check” and data-write
 findings have already been corrected in their author-facing references; they are not
@@ -97,7 +97,7 @@ the mix. Test the wording on actual banner and neighboring-page rows.
 **Decision D — sidebar naming.** `layout-sidebar` and `aside.sidebar` name different
 forms. Options are renaming the Layout to `layout-aside`, renaming the margin idiom,
 or keeping both with distinct descriptions. A rename cuts over validation, registry,
-guidance, examples and eval cases together; score guidance before and after.
+instructions, examples and eval cases together; score instructions before and after.
 
 ## Phase 6: Example subjects
 

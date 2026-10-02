@@ -5781,6 +5781,7 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
+            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (

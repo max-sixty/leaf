@@ -61,9 +61,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev delivery-eval [BASE_REF]` compares how a live Claude Code agent handles a
   comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
   a dollar each.
-- `leaf-dev guidance-eval [CASE]...` runs the guidance cases in `evals/` on the merge
-  base's guidance and the working tree's at once, and prints each case's passes per
-  arm (`/developing-leaf`, "Score a guidance change").
+- `leaf-dev instructions-eval [CASE]...` runs the instructions cases in `evals/` on the merge
+  base's instructions and the working tree's at once, and prints each case's passes per
+  arm (`/developing-leaf`, "Score an instruction change").
 
 ## Examples and previews
 

@@ -87,7 +87,7 @@ What the traces show:
 - **A mixed batch gets each event's treatment.** No run wrote the undone card move
   into the markup, every run fixed the non-global regular expression the page error
   named, and every run answered the pick in markup and stamped it, with `chosen` on
-  the option or `settled` on the group. The `shorten` reaction was handled both ways the guidance
+  the option or `settled` on the group. The `shorten` reaction was handled both ways the instructions
   allows: shortened in place and closed, or proposed as an `lf-suggestion` that
   `resolves` it. One run named all four pieces of work in one page-wide status and
   claimed nothing on the comment's thread, so that comment read Picked up rather than
@@ -113,7 +113,7 @@ What the traces show:
 Some checks failed, but no run gave a wrong answer, wrote to the wrong place or lost
 a user's state. The misses fell into these classes:
 
-- **The unclaimed comment is a guidance miss.** The comment's own `answering` clause
+- **The unclaimed comment is an instruction miss.** The comment's own `answering` clause
   asks for a claim `--on` its thread, and the other runs made one, though some folded
   the rest of the batch's work into that one claim.
 - **The renderer reads on `shared-source` are missing information.** The selection

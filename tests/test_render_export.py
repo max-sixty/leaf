@@ -331,9 +331,9 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
         reported = set()
         deadline = time.monotonic() + 10
         while str(edited) not in reported:
-            assert (
-                time.monotonic() < deadline
-            ), f"the edit was never reported: {reported}"
+            assert time.monotonic() < deadline, (
+                f"the edit was never reported: {reported}"
+            )
             reported |= {path for _, path in next(changes)}
     finally:
         changes.close()

@@ -5,13 +5,14 @@
    placing (floating.js): this module chooses the side and names the boxes, and
    Floating UI's offset, size and shift do the rest.
 
-   A comment stands by what it is about, read four ways. `clear` is the box it keeps
+   A comment stands by what it is about. `clear` is the box it keeps
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
    row a pointing gesture named in it (pointed-place.js). `extent` is that box whole,
    however much of it a scroll has clipped, which is what the room around it is measured
    from. `row` is the line it stands level with beside `clear`: a passage's first line,
    else `clear`'s top. `column` is the passage's inline start when it quotes words;
-   without one, the card's minimum width ends at `clear`'s right edge. `margin` is where across the page the margin row for it stands,
+   without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
+   across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. An existing subject
    with no visible attachment supplies `clear: null`: its open editor stands in the
@@ -182,8 +183,11 @@ export const cardMeasure = () => rootLength("--thread-card");
    A superseded computation retains that hold. The placement owns its carried inline
    offset; `hold` supplied to `options` names only a block edge.
 
-   `fit({ side, width, scale })` sizes the surface for the room its side gives: the width
-   of its lane, in its positioning space, with the scale that space has. */
+   `fit({ side, width, scale })` sizes the surface for the room its side gives, in its
+   positioning space. Floating UI shifts the frame before that room is measured; its
+   declared minimum is limited only by the boundary, never by its passage's column.
+   The intended inline start caps growth, before a restored draft's own width can
+   shift it; a landed adjustment then keeps that start as typing widens the field. */
 export function commentPlacement() {
   let side = null;
   let inline = null;
@@ -389,25 +393,6 @@ export function commentPlacement() {
           };
         }),
         holding,
-        ui.size({
-          ...overflow,
-          apply(state) {
-            const { scale } = measure(state);
-            const lane =
-              carriedInline !== null
-                ? boundary.right - clear.left - carriedInline
-                : side === "right"
-                  ? boundary.right - box.right - COMMENT_GAP
-                  : side === "left"
-                    ? clear.left - boundary.left - COMMENT_GAP
-                    : boundary.right - (inlineStart + (inline ?? 0) * scale.x);
-            fit({
-              side,
-              width: Math.max(0, Math.min(state.availableWidth, lane / scale.x)),
-              scale,
-            });
-          },
-        }),
         ui.shift({
           ...overflow,
           mainAxis: true,
@@ -434,6 +419,28 @@ export function commentPlacement() {
               heldIn = Math.abs(limited.y - state.y) < 0.5;
               return limited;
             },
+          },
+        }),
+        ui.size({
+          ...overflow,
+          apply(state) {
+            const { scale } = measure(state);
+            const lane =
+              carriedInline !== null
+                ? boundary.right - clear.left - carriedInline
+                : across
+                  ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
+                  : side === "right"
+                    ? boundary.right - box.right - COMMENT_GAP
+                    : clear.left - boundary.left - COMMENT_GAP;
+            fit({
+              side,
+              width: Math.max(
+                Math.min(minimum.width, boundary.width) / scale.x,
+                Math.min(state.availableWidth, lane / scale.x),
+              ),
+              scale,
+            });
           },
         }),
       ].filter(Boolean);

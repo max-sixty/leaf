@@ -486,6 +486,52 @@ def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     assert after["left"] == pytest.approx(before["left"], abs=1)
 
 
+def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
+    browser, serve
+):
+    """A passage's column attaches the surface; it cannot shrink its usable frame.
+    Send's frame adoption must not hide a different rule when that card reopens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "right edge passage",
+                '<h1>Review the note</h1><p id="edge">Needle</p><p>Keep its thread usable.</p>',
+                head="<style>#edge { text-align: right; }</style>",
+                layout="wide",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 900, "height": 900})
+    page.keyboard.press("/")
+    page.keyboard.insert_text("Needle")
+    page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    field.click()
+    page.keyboard.insert_text("A note")
+    rendered(page)
+    before = page.evaluate(RECT, ".lf-fab-bar")
+    page.keyboard.insert_text(" with enough words to widen and wrap. " * 5)
+    rendered(page)
+    after = page.evaluate(RECT, ".lf-fab-bar")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    rendered(page)
+    card = page.evaluate(RECT, ".lf-margin-preview")
+    boundary, minimum = page.evaluate("""async () => {
+      const {commentBoundary, cardMinimum} =
+        await window.__lfRuntimeImport('/runtime/comment-placement.js');
+      const {left, right, width} = commentBoundary();
+      return [{left, right, width}, cardMinimum()];
+    }""")
+    assert card["right"] - card["left"] >= min(minimum, boundary["width"]) - 1
+    assert card["left"] >= boundary["left"] - 1
+    assert card["right"] <= boundary["right"] + 1
+
+
 @pytest.mark.parametrize("region", ["document", "pane"])
 @pytest.mark.parametrize("route", ["target", "selection"])
 def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_frame(

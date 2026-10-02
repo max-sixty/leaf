@@ -1,13 +1,12 @@
 """Text-passage readings of authored HTML."""
 
 import re
-from functools import cached_property
+from functools import cached_property, lru_cache
 from html.parser import HTMLParser
 from typing import NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
-from markdown_it import MarkdownIt
 
 from .structure import VOID_TAGS, SourceDocument
 
@@ -99,22 +98,22 @@ class _RenderedInlineWords(HTMLParser):
                 self.parts.append(image.get("alt", ""))
 
 
-_inline_markdown = MarkdownIt(
-    "default", {"html": False, "strikethrough_single_tilde": True}
-)
-_added_inline_markdown = MarkdownIt(
-    "default", {"html": False, "breaks": True, "strikethrough_single_tilde": True}
-)
-# The browser accepts syntax first, then removes unsafe link destinations while
-# retaining their label. Parse those links here too, where only visible text is read.
-_inline_markdown.validateLink = lambda _url: True
-_added_inline_markdown.validateLink = lambda _url: True
+@lru_cache(maxsize=2)
+def _inline_markdown(added: bool):
+    from markdown_it import MarkdownIt
+
+    parser = MarkdownIt(
+        "default", {"html": False, "breaks": added, "strikethrough_single_tilde": True}
+    )
+    # The browser accepts syntax first, then removes unsafe link destinations while
+    # retaining their label. Parse those links here too, where only visible text is read.
+    parser.validateLink = lambda _url: True
+    return parser
 
 
 def inline_markdown_words(source: str, *, added: bool = False) -> str:
     reader = _RenderedInlineWords()
-    parser = _added_inline_markdown if added else _inline_markdown
-    reader.feed(parser.renderInline(source))
+    reader.feed(_inline_markdown(added).renderInline(source))
     return "".join(reader.parts)
 
 

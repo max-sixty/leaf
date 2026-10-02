@@ -20,7 +20,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import retirement_slots
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 

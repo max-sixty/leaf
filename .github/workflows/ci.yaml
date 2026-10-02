@@ -140,6 +140,6 @@ jobs:
           path: |
             .tmp/test-results/results.xml
             .tmp/thread-snapshots/runs/
-            .tmp/thread-snapshots/approved/*/capture.log
+            .tmp/thread-snapshots/approved/
           if-no-files-found: ignore
           retention-days: 30

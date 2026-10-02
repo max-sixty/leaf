@@ -1,7 +1,9 @@
 """Approved thread appearance from an explicit, reviewed historical source.
 
 The expectation is tests/snapshots/thread-source.json plus thread-source.patch, a
-small text patch against a durable public main ancestor. Both arms use the same
+small text patch against a durable public main ancestor. Generated browser bundles
+are rebuilt from approved build inputs and the JavaScript lock; no minified vendor
+output is duplicated in the patch. Both arms use the same
 browser/OS, so no PNG, platform-specific golden catalogue or external upload is
 needed. The approved source runs its own Python server and browser runtime;
 thread_snapshot_source owns extraction and caching. This is an explicit source

@@ -56,7 +56,7 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     total = 1 + max(0, tall - height + step - 1) // step
     shots = []
     for k in range(min(MOST_SCREENS, total)):
-        page.evaluate(f"window.scrollTo(0, {k * step})")
+        page.evaluate("top => window.scrollTo(0, top)", k * step)
         rendered(page)
         shot = into / f"{stem}-{k + 1}.png"
         page.screenshot(path=shot)

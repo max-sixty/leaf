@@ -4,6 +4,7 @@ import os
 import re
 
 import pytest
+from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
     append_command,
@@ -26,12 +27,9 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
-    ACCENT_SWATCH,
     BANNER_ORDER,
     BANNER_WATCH,
-    DEEP_FOCUS,
     DEFINE_BOXES,
-    HERE_SHADOW,
     MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
@@ -6146,102 +6144,8 @@ RING_SCOPE_WIDTH = {
 # Focus put back at the document's start. A blur retains the previous sequential
 # navigation position, which would make the opening key sequences depend on the last case.
 RING_FOCUS_START = RELEASE_FOCUS
-# A keyboard stop this sweep has not reached, one it has, or the document boundary.
-# This deliberately waits for no settled geometry: focus paint is synchronous, and the
-# separate sample floor below owns ring geometry. Avoiding a layout-settlement probe at
-# every Tab is what makes a complete native-stop sweep cheap.
-RING_NEW_STOP = f"""() => {{
-  const e = ({DEEP_FOCUS})();
-  if (!e || e === document.body || e === document.documentElement) return "empty";
-  if (window.__lfSeen.has(e)) return "seen";
-  window.__lfSeen.add(e);
-  return "new";
-}}"""
-# A focused sample the user cannot find, or null when they can.
-#
-# Three answers count, because the layer leaves "here" drawn in three ways and every one of
-# them is the user seeing the same thing.
-#
-# The platform's own ring (`outline-style: auto`) is the first and the commonest. Leaf
-# restyles the controls it draws and leaves that ring on the rest — an authored link, a
-# `summary`, a widget's own native control — and replacing it everywhere would be a
-# change to how the product looks rather than a thing this test is owed.
-#
-# The layer's focus ring is the second, on the stop or on an ancestor: a `choose` group
-# takes the ring for the pick mark inside it, whose own rule states `outline: none`
-# exactly so the two do not both draw, and the user sees the group.
-#
-# What this cannot see, said out loud so a green is not read as more than it is. A
-# joined `lf-options` carrying log news — restated, pending, reported — deliberately
-# stands its ring down, because an element takes one outline and the log has claimed it;
-# the layer's own comment (packages/default/theme.css) names the carriers that stand in
-# its place as the washed cell and the key badges, and neither is an outline nor an
-# accent shadow. That is a fifth way of drawing "here" and this reading has no honest
-# test for it: accepting a background would pass every stop on a tinted page. No corpus
-# example reaches the state — none carries `restated`, the one shipped log carries no
-# report, and the samples make no gesture — so nothing here is being excused today. A
-# reading of the wash has to come with the corpus case that shows it.
-#
-# A marked element answers the keyboard with the same named accent ring as any other
-# focusable passage. Its hover and current-thread contours have no focus-ring
-# declaration, so they cannot be mistaken for focus.
-#
-# The band cast as a shadow is the third. The anchored response bar draws it that way —
-# its focused states take the outline off so the field and its choices keep one
-# silhouette — and to a user that is the same ring. It is the sweep's own reading
-# (HERE_SHADOW), so the two halves of this file agree on what an accent shadow ring is
-# rather than each keeping a spelling of it: the earlier one here took any shadow
-# carrying the accent, which a wash or a tinted lift would have satisfied. Read on the
-# stop itself and never on an ancestor, since a card's decorative drop shadow is no
-# answer to where the keyboard is and accepting one from any ancestor would pass every
-# stop on a page with one shadowed box above it.
-#
-# Every colour is resolved through a swatch rather than compared as written, and the
-# accent is resolved twice: `outline-color` serializes as the browser resolved it, and a
-# `color-mix` resolves into a different space than a plain token does, so the ring's
-# `rgb(...)` and the shadow's `color(srgb ...)` are the same colour written two ways and
-# each needs the browser to say so.
-SEEN_STOP = f"""() => {{
-  const e = ({DEEP_FOCUS})();
-  if (!e) return null;
-  const {{ accent, mixed }} = ({ACCENT_SWATCH})();
-  const ringed = (cs) => cs.outlineStyle === 'solid'
-    && cs.outlineWidth === cs.getPropertyValue('--focus-ring-w').trim()
-    && cs.outlineColor === accent;
-  // A box whose own content paints over its outline draws the same ring on a later
-  // pseudo-element instead: the scrolling thread list's frame, a page thread over its
-  // pinned reply row, a code block's host over its sticky notes. That ring is only ever
-  // named, so it answers under the same rule as a named ancestor's outline.
-  const overlaid = (el) => {{
-    const cs = getComputedStyle(el, '::after');
-    return cs.content !== 'none' && ringed(cs)
-      && cs.getPropertyValue('--lf-focus-ring').trim() !== 'none';
-  }};
-  const shown = (el) => {{
-    const cs = getComputedStyle(el);
-    return cs.outlineStyle === 'auto' || ringed(cs);
-  }};
-  // An ancestor answers only for a ring whose rule named it. Every ancestor on this
-  // chain contains the focus by construction, so containing it says nothing; what
-  // separates a ring drawn because the user is here from one drawn for another
-  // reason is that the layer's focus rules say which ring they are and the pointer's
-  // do not. An element mark's contour is the case: it is not a named
-  // outline, so neither answers the keyboard's question for every stop underneath it.
-  const named = (el) =>
-    getComputedStyle(el).getPropertyValue('--lf-focus-ring').trim() !== 'none';
-  if (shown(e) || overlaid(e)) return null;
-  for (let el = e.parentElement ?? e.getRootNode().host ?? null; el;
-       el = el.parentElement ?? el.getRootNode().host ?? null)
-    if ((shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
-        || overlaid(el))
-      return null;
-  if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
-  const cls = typeof e.className === 'string' && e.className.trim()
-    ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
-  return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + cls
-    + ' [outline ' + getComputedStyle(e).outlineStyle
-    + ', shadow ' + getComputedStyle(e).boxShadow + ']';
-}}"""
+RING_NEW_STOP = browser_function("focus_rings.js", "newStop", using="control_name.js")
+SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
 
 
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):

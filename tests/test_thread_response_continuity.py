@@ -185,24 +185,80 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     page.unroute_all(behavior="wait")
 
 
-def test_narrow_panel_editor_growth_retains_the_live_send(browser, serve):
-    """Native wrapping grows the editor upwards during both first and later edits."""
+@pytest.mark.parametrize(
+    ("contents", "integer_band", "viewport"),
+    [
+        ("example", False, (390, 740)),
+        ("long", False, (390, 740)),
+        ("short", True, (420, 741)),
+        ("long", True, (420, 741)),
+    ],
+    ids=["example-fractional", "long-fractional", "short-integer", "long-integer"],
+)
+def test_narrow_panel_editor_growth_retains_the_live_send(
+    browser, serve, contents, integer_band, viewport
+):
+    """Wrapping retains Send across short/long cards and native scroll quantization.
+
+    Default typography gives the list a fractional height. An authored integer
+    line-box theme supplies its contrast without changing any geometry rule.
+    Both the first wrap and a later wrap beside a held send keep every control edge.
+    """
     from pathlib import Path
 
     from render_harness import holding, panel_settled
 
-    source = Path(__file__).resolve().parents[1] / "examples/review-a-plan.html"
+    if contents == "example":
+        source = Path(__file__).resolve().parents[1] / "examples/review-a-plan.html"
+        url = serve(source)
+    else:
+        head = (
+            "<style>:root { --lf-ui-lh: 1.5; --t-6: 12px; }</style>"
+            if integer_band
+            else ""
+        )
+        url = serve(
+            leaf_page("Reply wrapping", "<h1>Review the release</h1>", head=head)
+        )
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "id": "root",
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Keep the review clear.",
+            },
+        )
+        if contents == "long":
+            events_model.append_event(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "revision": 1,
+                    "parent": "root",
+                    "text": "\n\n".join(
+                        ["Retain the release context while writing the next reply."]
+                        * 14
+                    ),
+                },
+            )
     context = browser.new_context(
-        viewport={"width": 390, "height": 740}, reduced_motion="no-preference"
+        viewport={"width": viewport[0], "height": viewport[1]},
+        reduced_motion="no-preference",
     )
-    page = open_page(browser, serve(source), context=context)
+    page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    band = page.locator(".lf-threads").bounding_box()["height"]
+    assert (band == round(band)) is integer_band, f"wrong native band contrast: {band}"
     owner = page.locator(".lf-threads > .lf-thread").last
     if owner.get_attribute("open") is None:
         owner.locator(".lf-thread-summary").click()
     draft = owner.locator("leaf-text")
     expect(draft).to_be_visible()
+    assert (owner.bounding_box()["height"] > band) is (contents == "long")
     page.evaluate("""() => {
       window.editorGrowth = [];
       for (const type of ['beforeinput', 'input']) document.addEventListener(type, event => {
@@ -211,8 +267,12 @@ def test_narrow_panel_editor_growth_retains_the_live_send(browser, serve):
         const row = field?.closest('.lf-thread-reply');
         if (!row) return;
         const send = row.querySelector('.lf-thread-send');
+        const list = row.closest('.lf-threads');
+        const floor = list.getBoundingClientRect().bottom
+          - parseFloat(getComputedStyle(list).paddingBottom)
+          - parseFloat(getComputedStyle(row).bottom);
         window.editorGrowth.push({type, field: field.getBoundingClientRect().toJSON(),
-          send: send.getBoundingClientRect().toJSON()});
+          send: send.getBoundingClientRect().toJSON(), row: row.getBoundingClientRect().toJSON(), floor});
       }, true);
     }""")
     held = []
@@ -238,10 +298,12 @@ def test_narrow_panel_editor_growth_retains_the_live_send(browser, serve):
     for before, after in zip(poses[::2], poses[1::2], strict=True):
         assert (before["type"], after["type"]) == ("beforeinput", "input")
         assert after["field"]["height"] > before["field"]["height"], poses
+        for pose in (before, after):
+            assert pose["row"]["bottom"] == pose["floor"], poses
         for edge in ("left", "top", "right", "bottom"):
             assert abs(after["send"][edge] - before["send"][edge]) < 0.5, poses
-        assert 0 <= after["field"]["top"] < after["field"]["bottom"] <= 740
-        assert 0 <= after["send"]["top"] < after["send"]["bottom"] <= 740
+        assert 0 <= after["field"]["top"] < after["field"]["bottom"] <= viewport[1]
+        assert 0 <= after["send"]["top"] < after["send"]["bottom"] <= viewport[1]
     held.pop().continue_()
     round_trip(page)
     rendered(page)

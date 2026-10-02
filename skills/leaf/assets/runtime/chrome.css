@@ -1067,8 +1067,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     position: sticky; bottom: var(--focus-ring-room); }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
     flex-direction: column; box-sizing: border-box;
-    /* The border and flow room together match the sticky row's stable inset. */
-    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border));
+    /* Native scrollHeight and clientHeight round separately to whole CSS pixels.
+       Their difference can over-scroll by less than one. End flow one pixel nearer
+       the border so the row remains on its sticky floor through that boundary. */
+    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px);
     min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
   .lf-thread-compact[open]:has(> .lf-thread-reply)::details-content { display: flex;
     flex: 1; flex-direction: column; }

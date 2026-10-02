@@ -835,6 +835,11 @@ match a declaration there:
 }
 ```
 
+Add `"owns": true` to a typed contract whose referrer fills its target, as a command
+fills the readings seat it names. `page check` then requires the target in the
+referrer's own document, and every element there that the predicate selects named by
+exactly one referrer, so no seat stands empty or holds two commands' readings.
+
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.
@@ -1173,7 +1178,11 @@ this.threadSurface = consumeThreads(this, (collection, surfaces) => {
 ```
 
 `target(key)` returns `{anchor, placement}` only for an exact datum belonging to the
-widget, otherwise `null`; `placement.datumElement` is the rendered datum.
+widget, otherwise `null`; `placement.datumElement` is the rendered datum. It also
+returns `null` for a thread the agent starts at an on-screen datum where the widget
+draws no thread yet, since the outlet it opened would move what the user is reading:
+the thread waits in the margin until the user presses its marker, adds a turn of their
+own, or scrolls the datum out of the window.
 `composition` supplies the equivalent placement for the active composer, which may
 precede any Thread. The widget owns outlet creation, removal, and layout.
 Leaf validates target ownership and outlet containment before committing placements.

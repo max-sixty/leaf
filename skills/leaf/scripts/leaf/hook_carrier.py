@@ -20,7 +20,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .state import close_session_turn
+from .state import close_session_turn, flocked, session_lock_path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     ReceiptRefused,
@@ -74,6 +74,7 @@ class PagePlan:
 
     page: Path
     claim: dict
+    lifecycle: dict
     harness: Harness
     state: dict
     pending: list[dict]
@@ -99,9 +100,9 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 while True:
                     lifecycle = session_record(session_id)
                     state = full_state(page_dir, page.events)
+                    claim = page.active_claim
                     if session_record(session_id) == lifecycle:
                         break
-                claim = page.active_claim
                 if claim is None or claim["id"] != session_id:
                     continue
                 pending = unacknowledged(page.events, state["cursor"])
@@ -110,6 +111,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     PagePlan(
                         page_dir,
                         claim,
+                        lifecycle,
                         harness,
                         state,
                         pending,
@@ -211,7 +213,12 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
         if not plan.acknowledged:
             continue
         try:
-            with PageTransaction(plan.page) as page:
+            with (
+                PageTransaction(plan.page) as page,
+                flocked(session_lock_path(session_id)),
+            ):
+                if session_record(session_id) != plan.lifecycle:
+                    continue
                 claim = page.active_claim
                 if not claim or (claim["id"], claim["generation"], claim["turn"]) != (
                     session_id,
@@ -294,11 +301,18 @@ def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None
     ), None
 
 
-def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
+def carry_turn(
+    event: str | None, sid: str, payload: dict, expected: dict | None | object = ...
+) -> bool | None:
     """Answer a prompt, Stop, or other page-reading hook for a session holding a
     page: open or close its turn, hand over its pending input, and name what its
     pages are owed."""
+    expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
+    if session_record(sid) != expected or any(
+        plan.lifecycle != expected for plan in plans
+    ):
+        return
     if payload.get("turn_id") and any(
         plan.claim["turn"] != payload["turn_id"] for plan in plans
     ):
@@ -312,8 +326,7 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
         pick_up_acknowledged(sid, plans)
     elif event == "Stop":
         if not stop_continues(plans, repeated=bool(payload.get("stop_hook_active"))):
-            if not payload.get("turn_id"):
-                close_session_turn(sid)
+            close_session_turn(sid, payload.get("turn_id"), expected=expected)
             return True
     reasons = remedies(plans, batches)
     if not reasons and not batches:
@@ -334,39 +347,39 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
         if reasons
         else []
     )
-    # The whole context is composed before anything is confirmed, and confirmed
-    # just before it is printed, so a hook that fails on the way confirms
-    # nothing. A page whose receipt is refused keeps its batch pending for the
-    # next hook, which a page and sequence already handled treats as a retry.
+    # Publish the whole context under its epoch guard before confirming input.
+    # Per-page receipts follow with the same guard and page→session lock order.
+    # If a newer prompt wins after publication, unreceipted input stays pending.
     message, confirmed = compose(batches, attention)
-    refused = []
+    with flocked(session_lock_path(sid)):
+        if session_record(sid) != expected:
+            return
+        if event == "Stop":
+            print(
+                json.dumps(
+                    (type(plans[0].harness) if plans else Harness).continue_turn(
+                        message
+                    )
+                ),
+                flush=True,
+            )
+        else:
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "UserPromptSubmit",
+                            "additionalContext": message,
+                        }
+                    }
+                ),
+                flush=True,
+            )
+
     for batch in confirmed["batches"] if confirmed else ():
         try:
-            receive_one(batch, sid)
+            receive_one(batch, sid, lifecycle=expected)
         except (ReceiptRefused, FileNotFoundError):
-            # Changed hands or went away since it was read: nothing is confirmed
-            # for it, and whoever holds it now takes that input.
-            refused.append(batch["page"])
-    if refused:
-        message += "\n" + "\n".join(
-            f"- {page} changed hands before Leaf could confirm its input, so it is "
-            "not yours to answer: leave it to the page's new owner."
-            for page in refused
-        )
-    if event == "Stop":
-        print(
-            json.dumps(
-                (type(plans[0].harness) if plans else Harness).continue_turn(message)
-            )
-        )
-    else:
-        print(
-            json.dumps(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "UserPromptSubmit",
-                        "additionalContext": message,
-                    }
-                }
-            )
-        )
+            # Context was published, but a new turn/owner won before receipt.
+            # Its unchanged cursor keeps the exact input pending for that owner.
+            continue

@@ -89,7 +89,7 @@ from .service import (
     starting_claim,
 )
 from .session import Watch, read_watch_pass
-from .state import EVENTS_FILE, flocked
+from .state import EVENTS_FILE, flocked, session_record, start_session_turn
 from .thread import (
     delivery_reply_reserved,
 )
@@ -384,8 +384,10 @@ class TaskObserver:
             return None
         fold = self.turns.get(turn_id)
         if fold is None and follow:
-            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
-            fold.open()
+            fold = TurnFold(self.thread_id, turn_id)
+            if not fold.open():
+                return None
+            self.turns[turn_id] = fold
         elif fold is None and ended and delivery_id is not None:
             fold = TurnFold(self.thread_id, turn_id)
         if fold is not None and delivery_id is not None and fold.delivery_id is None:
@@ -485,6 +487,7 @@ def start_delivery_turn(
             raise RuntimeError(
                 f"the Codex task is not taking turns: {status.get('type', 'unknown')}"
             )
+        expected = session_record(session_id)
         turn_id = start_app_server_delivery(
             lambda method, params: app_server_request(
                 socket, method, 2, params, buffered.append
@@ -497,6 +500,11 @@ def start_delivery_turn(
         # turn the moment it says anything; every other failure has given it back.
         socket.close()
         raise
+    if start_session_turn(session_id, turn_id, expected) is None:
+        socket.close()
+        raise AppServerDeliveryUncertain(
+            "a newer session turn superseded the provider start"
+        )
     # On the task's configured model: a user's App Server offers no model this
     # process could name for every account.
     name_untitled_threads(

@@ -31,7 +31,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from .state import open_session_turn
+from .state import open_session_turn, flocked, session_lock_path, session_record
 from .files import read_json
 from .host import claim_harness, session_harness
 from .machine import state_home
@@ -43,7 +43,7 @@ from .service import (
     requires_agent_attention,
     unacknowledged,
 )
-from .state import flocked, write_json
+from .state import write_json
 
 DELIVERY_FORMAT = "leaf-delivery-v3"
 # The routes that carry a delivery to an agent: `leaf wait`'s output, a host hook's
@@ -477,17 +477,26 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
     return pages
 
 
-def receive_one(batch: dict, session_id: str | None) -> Path:
+def receive_one(
+    batch: dict, session_id: str | None, *, lifecycle: dict | None = None
+) -> Path:
     """Confirm one page's batch of a delivery and record its entry into
     `session_id`'s turn, under that page's transaction; raise `ReceiptRefused`
     when the page no longer matches."""
     page_dir = Path(batch["page"])
-    with (
-        PageTransaction(page_dir) as page,
-        receive_batch(page, batch, session_id=session_id) as events,
-    ):
-        turn = page.open_turn(session_id) if session_id else None
-        record_pickup(page, events, session=session_id, turn=turn)
+    with PageTransaction(page_dir) as page:
+        if lifecycle is not None:
+            with flocked(session_lock_path(session_id)):
+                if session_record(session_id) != lifecycle:
+                    raise ReceiptRefused("the receiving turn has changed")
+                with receive_batch(page, batch, session_id=session_id) as events:
+                    record_pickup(
+                        page, events, session=session_id, turn=lifecycle["turn"]
+                    )
+        else:
+            with receive_batch(page, batch, session_id=session_id) as events:
+                turn = page.open_turn(session_id) if session_id else None
+                record_pickup(page, events, session=session_id, turn=turn)
     return page_dir
 
 

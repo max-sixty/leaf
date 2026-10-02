@@ -256,9 +256,17 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
             record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
         elif record["lifetime"] == lifetime:
             return record
-        else:
+        elif not record["lifetime"]:
             record = {**record, "lifetime": lifetime}
+        else:
+            record = new_session(session_id, lifetime)
+            record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
         return write_session(record)
+
+
+def renew_turn(record: dict) -> dict:
+    """Renew a trusted prompt/tool observation under the caller's session lock."""
+    return write_session({**record, "turn_opened": now_iso(), "turn_closed": None})
 
 
 def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict | None:
@@ -266,7 +274,8 @@ def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict
 
     A closed provider identity never reopens. Unknown-id hosts reuse their open
     turn and mint a new identity after its ending. Callback callers validate the
-    existing identity before calling this; only a prompt introduces a new one.
+    existing identity before calling this; prompts and guarded provider starts
+    are the only boundaries that introduce a known replacement.
     """
     record = session_record(session_id)
     if record is None:
@@ -278,7 +287,7 @@ def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict
         if turn_id is None:
             turn_id = record["turn"] if record["turn_closed"] is None else None
             turn_id = turn_id or secrets.token_hex(8)
-        if turn_id == record["turn"] and record["turn_closed"] is not None:
+        if turn_id == record["turn"]:
             return record
         record = {
             **record,
@@ -300,6 +309,25 @@ def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | Non
         if record is not None and record["ended"] is not None:
             # Only a prompt/claim starts a new lifetime, never a late receipt.
             return None
+        if (
+            record
+            and turn_id is not None
+            and (
+                (record["provider"] and record["turn"] != turn_id)
+                or (record["turn"] == turn_id and record["turn_closed"] is not None)
+            )
+        ):
+            return None
+        return advance_turn(session_id, turn_id, running=True)
+
+
+def start_session_turn(
+    session_id: str, turn_id: str, expected: dict | None
+) -> dict | None:
+    """Adopt a provider start result only if its request still owns this epoch."""
+    with flocked(session_lock_path(session_id)):
+        if session_record(session_id) != expected:
+            return None
         return advance_turn(session_id, turn_id, running=True)
 
 
@@ -309,13 +337,25 @@ def prompt_turn(session_id: str, turn_id: str | None = None) -> dict:
         record = session_record(session_id)
         if record is not None and record["ended"] is not None:
             write_session(new_session(session_id, record["lifetime"]))
+        record = session_record(session_id)
+        if record and (
+            turn_id == record["turn"]
+            or (turn_id is None and record["turn_closed"] is None)
+        ):
+            return renew_turn(record)
         return advance_turn(session_id, turn_id, running=True)
 
 
-def close_session_turn(session_id: str, turn_id: str | None = None) -> bool:
+def close_session_turn(
+    session_id: str, turn_id: str | None = None, *, expected: dict | None | object = ...
+) -> bool:
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is None or record["ended"] is not None:
+        if (
+            record is None
+            or record["ended"] is not None
+            or (expected is not ... and record != expected)
+        ):
             return False
         return advance_turn(session_id, turn_id, running=False) is not None
 

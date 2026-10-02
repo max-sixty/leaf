@@ -12,6 +12,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import secrets
 import shlex
 import shutil
 import socket
@@ -628,6 +629,7 @@ def record_claim(page, /, harness="claude-code", **fields):
         if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
     }
     record["generation"] = session["generation"]
+    record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
     path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)

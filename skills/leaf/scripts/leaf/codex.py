@@ -65,7 +65,7 @@ from .service import (
     restore_page_claim,
     unacknowledged,
 )
-from .state import advance_turn, flocked, write_json
+from .state import flocked, renew_turn, session_record, write_json
 from .thread import (
     DeliveryReply,
     release_delivery_reply,
@@ -900,9 +900,9 @@ class TurnFold:
     answer. The completion commits the answer, or gives the seat back, and then
     closes the turn on the page.
 
-    The fold is Leaf's one account of the turn's lifecycle on a page. `open` opens
-    the claim's turn under the provider's own turn id, which Codex's hooks name
-    too, and `close` closes that id; delivery acceptance only records which turn
+    The fold observes the session lifecycle under the provider turn id, which
+    Codex's hooks name too. `open` binds an unknown turn or matches that identity;
+    it cannot replace a newer prompt. `close` closes only that id; delivery acceptance only records which turn
     took the moves. A carrier opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
@@ -936,9 +936,9 @@ class TurnFold:
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
 
-    def open(self) -> None:
-        """Open this turn on every page its task claims."""
-        open_session_turn(self.session_id, self.turn_id)
+    def open(self) -> bool:
+        """Observe this identity without replacing a newer prompt epoch."""
+        return open_session_turn(self.session_id, self.turn_id) is not None
 
     def bind(self, delivery_id: str, reply_target: dict | None) -> None:
         """Name the delivery this turn carries, and open the reply it owes."""
@@ -1365,7 +1365,7 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
                 with flocked(lock):
                     if hook_turn(session_id) != expected:
                         return None
-                    advance_turn(session_id, turn_id, running=True)
+                    renew_turn(session_record(session_id))
                     expected = hook_turn(session_id)
                     if batch := unacknowledged(page.events, page.cursor):
                         append_batch(session_id, page_dir, page, batch)

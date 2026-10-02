@@ -2625,6 +2625,7 @@ def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
     old = service_model.page_claim(claimed)
     with service_model.PageTransaction(claimed) as transaction:
         transaction.close_turn(old["id"])
+    cleanup_model.prompt_turn("s1")
     assert service_model.claim_page(claimed)
     assert service_model.page_claim(claimed)["turn"] != old["turn"]
 
@@ -9126,7 +9127,7 @@ def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
     )
 
     assert not codex_adapter_model._recover_receipt("codex-thread")
-    assert not codex_adapter_model._has_delivery_work("codex-thread")
+    assert codex_model.delivery_records("codex-thread") == []
     assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
 
 
@@ -9304,7 +9305,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
         {**batch, "receipted": True} for batch in batches
     ]
     assert files_model.read_json(Path(pending["page"]) / "cursor.json") == {"seq": 1}
-    assert not codex_adapter_model._has_delivery_work("codex-thread")
+    assert codex_model.delivery_records("codex-thread") == []
 
 
 def test_one_thread_delivery_starts_and_receipts_its_app_server_turn(
@@ -9377,7 +9378,7 @@ def test_one_thread_delivery_starts_and_receipts_its_app_server_turn(
         "app-server-turn",
         [comment["id"]],
     )
-    assert not codex_adapter_model._has_delivery_work("codex-thread")
+    assert codex_model.delivery_records("codex-thread") == []
 
 
 def test_a_connection_failure_in_the_delivery_loop_is_retried(
@@ -10326,6 +10327,7 @@ def test_a_later_codex_start_names_the_running_transport(
                 ]
             ),
             environment,
+            app_server=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -10347,6 +10349,7 @@ def test_a_later_codex_start_names_the_running_transport(
                 ]
             ),
             environment,
+            app_server=True,
             hold_until=release_start,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -10619,7 +10622,7 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         session_model.cmd_status(page, "idle", "")
         assert codex_adapter_model.adapter_is_live("codex-thread")
         session_model.cmd_status(page, "waiting", "resumed review")
-        asked = events_model.append_event(
+        asked = append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Continue this review"}
         )
         wait_for(
@@ -11178,6 +11181,8 @@ def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
         "turn_opened",
         "turn_closed",
         "released",
+        "generation",
+        "acquisition",
     }
     assert page_state(codex_claimed_page)["agent"] == "Codex"
 
@@ -11636,7 +11641,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     first.terminate()
     first.communicate(timeout=10)
     assert not lease_path.exists()
-    assert not any(leases_model.sessions_home().iterdir())
+    assert not any(leases_model.sessions_home().rglob("*wait"))
 
 
 def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
@@ -12963,7 +12968,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     # lock.
     for unreadable in (
         {**claim, "harness": "some-host-a-later-leaf-named"},
-        {key: value for key, value in claim.items() if key != "turn_closed"},
+        {key: value for key, value in claim.items() if key != "generation"},
     ):
         cleanup_model.write_json(service_model.claim_path(stale), unreadable)
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s8"})
@@ -13097,8 +13102,9 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     other = tmp_path / "other"
     other.mkdir()
     (other / "events.jsonl").write_bytes(b"")
-    record_claim(other, id="guarded")
-    assert service_model.owned_pages("guarded") == [other.resolve()]
+    record_claim(other, id="other-guarded")
+    assert service_model.owned_pages("guarded") == []
+    assert service_model.owned_pages("other-guarded") == [other.resolve()]
 
 
 def _registered_hook_command(event):
@@ -15069,7 +15075,7 @@ def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
 
 def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     """Receipt/reply cannot cross between the hook's log and cursor reading."""
-    asked = events_model.append_event(
+    asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     [batch] = delivery_model.pending_batches("s1")
@@ -15122,7 +15128,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
 
 
 def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claimed):
-    asked = events_model.append_event(
+    asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Already handled"}
     )
     [batch] = delivery_model.pending_batches("s1")
@@ -15133,3 +15139,124 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
     before = events_model.read_events(claimed)
     hook_carrier_model.pick_up_acknowledged("s1", plans)
     assert events_model.read_events(claimed) == before
+
+
+@pytest.mark.parametrize("named", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+def test_newer_prompt_supersedes_hook_policy_before_effects(
+    claimed, monkeypatch, capsys, named, pending
+):
+    turn = "provider" if named else None
+    cleanup_model.prompt_turn("s1", turn)
+    if pending:
+        append_carried_log_record(
+            claimed, {"kind": "comment", "author": "user", "text": "For the new prompt"}
+        )
+    policy = hook_carrier_model.stop_continues
+    newer = []
+
+    def supersede(plans, *, repeated):
+        newer.append(cleanup_model.prompt_turn("s1", turn))
+        return policy(plans, repeated=repeated)
+
+    monkeypatch.setattr(hook_carrier_model, "stop_continues", supersede)
+    hooks_model.cmd_hook(
+        {
+            "hook_event_name": "Stop",
+            "session_id": "s1",
+            **({"turn_id": turn} if turn else {}),
+        }
+    )
+    assert capsys.readouterr().out == ""
+    assert cleanup_model.session_record("s1") == newer[0]
+    assert not any(
+        event["kind"] == "pickup" for event in events_model.read_events(claimed)
+    )
+    assert events_model.read_cursor(claimed) == 0
+
+
+def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
+    previous = service_model.page_claim(claimed)
+    harness = host_model.session_harness()
+    with service_model.PageTransaction(claimed) as page:
+        _, expected = page.take_claim(harness)
+        cleanup_model.prompt_turn("s1", "provider")
+        page.restore_claim(expected, previous)
+        assert page.claim["acquisition"] == previous["acquisition"]
+        _, first = page.take_claim(harness)
+        _, successor = page.take_claim(harness)
+        assert first["acquisition"] != successor["acquisition"]
+        page.restore_claim(first, previous)
+        assert page.claim["acquisition"] == successor["acquisition"]
+
+
+def test_provider_observation_cannot_replace_a_newer_prompt(claimed):
+    cleanup_model.prompt_turn("s1", "old")
+    cleanup_model.close_session_turn("s1", "old")
+    old = cleanup_model.session_record("s1")
+    cleanup_model.prompt_turn("s1", "new")
+    new = cleanup_model.session_record("s1")
+    assert not codex_model.TurnFold("s1", "old").open()
+    assert cleanup_model.session_record("s1") == new
+    assert cleanup_model.start_session_turn("s1", "late-start", old) is None
+    assert cleanup_model.session_record("s1") == new
+    adopted = cleanup_model.start_session_turn("s1", "legitimate-start", new)
+    assert adopted["turn"] == "legitimate-start"
+
+
+def test_hook_publication_precedes_receipt_without_losing_superseded_input(
+    claimed, tmp_path, monkeypatch, capsys
+):
+    sibling = tmp_path / "sibling"
+    vendoring_model.cmd_init(sibling)
+    service_model.claim_page(sibling)
+    capsys.readouterr()
+    for page in (claimed, sibling):
+        append_carried_log_record(
+            page, {"kind": "comment", "author": "user", "text": "Please answer"}
+        )
+    receive = hook_carrier_model.receive_one
+    published = []
+
+    def supersede_before_receipt(batch, sid, **kwargs):
+        if not published:
+            published.append(capsys.readouterr().out)
+            cleanup_model.prompt_turn(sid)
+        return receive(batch, sid, **kwargs)
+
+    monkeypatch.setattr(hook_carrier_model, "receive_one", supersede_before_receipt)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert published and "Please answer" in published[0]
+    assert all(events_model.read_cursor(page) == 0 for page in (claimed, sibling))
+    monkeypatch.setattr(hook_carrier_model, "receive_one", receive)
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    assert "Please answer" in capsys.readouterr().out
+    assert all(events_model.read_cursor(page) > 0 for page in (claimed, sibling))
+
+
+def test_no_page_stop_cannot_close_a_prompt_that_arrives_during_discovery(monkeypatch):
+    newer = []
+
+    def pages(_sid):
+        newer.append(cleanup_model.prompt_turn("never-claimed"))
+        return []
+
+    monkeypatch.setattr(hooks_model, "owned_pages", pages)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "never-claimed"})
+    assert cleanup_model.session_record("never-claimed") == newer[0]
+
+
+def test_first_claim_enriches_prompt_provenance_without_replacing_it(
+    page_dir, monkeypatch
+):
+    before = cleanup_model.prompt_turn("before-claim", "provider")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "before-claim")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert service_model.claim_page(page_dir)
+    after = cleanup_model.session_record("before-claim")
+    assert (after["generation"], after["turn"], after["provider"]) == (
+        before["generation"],
+        "provider",
+        True,
+    )
+    assert after["lifetime"] == {"pid": os.getpid()}

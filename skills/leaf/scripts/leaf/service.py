@@ -62,7 +62,7 @@ def claim_path(page_dir: Path) -> Path:
 # lifetime keys `claim_is_active` cascades on, and a `harness` whose value
 # `host.claim_harness` looks up in `HARNESSES`.
 CLAIM_IDENTITY = frozenset(
-    {"page", "ts", "released", "id", "harness", "agent", "generation"}
+    {"page", "ts", "released", "id", "harness", "agent", "generation", "acquisition"}
 )
 CLAIM_LIFETIMES = frozenset({"job", "activity", "pid"})
 
@@ -250,6 +250,7 @@ class PageTransaction:
             "released": None,
             "id": harness.session,
             "generation": session["generation"],
+            "acquisition": secrets.token_hex(16),
             "harness": harness.name,
             "agent": harness.agent,
             "cwd": os.getcwd(),
@@ -259,7 +260,8 @@ class PageTransaction:
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""
-        if self.claim != expected:
+        current = read_json(claim_path(self.page_dir))
+        if not current or current.get("acquisition") != expected["acquisition"]:
             return
         path = claim_path(self.page_dir)
         if previous is None:

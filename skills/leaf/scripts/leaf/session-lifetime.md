@@ -22,7 +22,7 @@ second fold.
 | the host runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the host runs for the session | removed by its SessionEnd hook |
 | acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: a Claude Code hook as it hands the envelope to the turn, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a Claude Code hook handing a delivery to the turn, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
-| page claim: session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared host lifetime is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
+| page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared host lifetime is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
@@ -155,7 +155,11 @@ unrenewed until a later turn writes it again.
 The turn id and `turn_closed` stamp a declaration is judged against are the
 session's rather than the page's: prompts and endings publish one atomic session
 record. Page claims reference its generation and derive the current turn; no
-opening or ending rewrites claims. SessionEnd marks the generation ended without
+opening or ending rewrites claims. Each acquisition has its own unique ID, so
+rollback compares claim publication rather than derived lifecycle fields or
+second-resolution timestamps. The first observed host lifetime may enrich an
+unknown prompt-created lifetime; replacing known provenance starts a generation.
+SessionEnd marks the generation ended without
 page discovery or page locks. A resumed host ID gets a new generation, leaving
 old claims inactive. Activity-backed ownership freshness remains per page: one
 visible sibling does not renew every page in a multiplexed host. Where nothing answers for the declaration, activity reports the page
@@ -189,7 +193,14 @@ itself. The hook planner reads each page once under its transaction, including
 ownership, log, cursor, status and the full served projection. Its typed input,
 response debt and carrier facts feed Stop policy before host formatting; prompt
 pickup is an explicit transition and rechecks that debt remains unsettled.
-Receipts independently revalidate current ownership and exact event identities.
+Every hook effect checks its captured session generation and revision, including
+no-ID and same-ID prompt renewal. The complete context is published and flushed
+under that epoch guard before receipts. Each receipt then independently revalidates
+the epoch, current ownership and exact event identities under page→session locks.
+A prompt arriving after publication leaves any remaining batches pending for its
+next hook, so input may repeat by identity but cannot disappear. Provider callbacks
+can only bind an unknown turn or match the known one; an App Server start result
+introduces a new identity only by comparing the epoch captured before its request.
 Codex's synchronous prompt hook records the provider turn even before a
 page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
 once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's

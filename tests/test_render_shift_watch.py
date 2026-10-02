@@ -14,6 +14,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    take_browser_errors,
 )
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
@@ -801,3 +802,171 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         )
         assert owner.bounding_box() == owner_before
         assert protected.evaluate_all(boxes) == before
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("growth", None),
+        ("words", "span#words"),
+        ("action", "button#action"),
+        ("words-hidden", "span#words"),
+        ("action-hidden", "button#action"),
+    ],
+)
+def test_reading_and_controls_keep_their_place_inside_a_stationary_parent(
+    browser, fault, protected
+):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<div style="width:300px;height:150px;position:relative">
+  <span id="words" style="position:absolute;left:10px;top:10px">Read these words.</span>
+  <button id="action" style="position:absolute;left:10px;top:50px">Act</button>
+  <div id="free" style="position:absolute;left:100px;bottom:0;width:50px;height:20px;background:gray"></div>
+</div></body>""")
+    )
+    page.evaluate(PAINTED)
+    page.evaluate(
+        """fault => {
+      if (fault === 'growth') document.querySelector('#free').style.height = '50px';
+      else document.getElementById(fault.split('-')[0]).style.left = '30px';
+    }""",
+        fault,
+    )
+    page.evaluate(PAINTED)
+    if fault.endswith("-hidden"):
+        page.locator("#" + fault.split("-")[0]).evaluate(
+            "node => node.style.visibility = 'hidden'"
+        )
+    judge_watches()
+    if protected:
+        consume_browser_errors(page, f"{protected} moved without input")
+
+
+def test_an_unpainted_roundtrip_keeps_the_visible_control_in_place(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+<button id="action" style="position:absolute;left:10px;top:50px">Act</button></body>""")
+    )
+    page.evaluate(PAINTED)
+    page.evaluate("""() => {
+      const action = document.querySelector('#action');
+      const box = action.getBoundingClientRect;
+      action.getBoundingClientRect = function() {
+        action.getBoundingClientRect = box;
+        action.style.left = '30px';
+        const transient = box.call(action);
+        action.style.left = '10px';
+        return transient;
+      };
+    }""")
+    page.evaluate(PAINTED)
+    judge_watches()
+
+
+@pytest.mark.parametrize("axis", [None, "left", "top"])
+def test_scrolling_a_sticky_owner_does_not_credit_its_controls_local_motion(
+    browser, axis
+):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<div id="scroller" style="height:300px;overflow:auto;width:400px">
+  <div style="height:50px"></div>
+  <header style="position:sticky;top:0;height:50px">
+    <button id="action" style="position:absolute;left:10px;top:10px">Act</button>
+  </header>
+  <div style="height:700px">Following reading</div>
+</div></body>""")
+    )
+    page.evaluate("document.querySelector('#scroller').scrollTop = 70")
+    page.evaluate(PAINTED)
+    page.evaluate(
+        """axis => {
+      document.querySelector('#scroller').scrollTop = 76;
+      if (axis) document.querySelector('#action').style[axis] = '30px';
+    }""",
+        axis,
+    )
+    page.evaluate(PAINTED)
+    judge_watches()
+    if axis:
+        consume_browser_errors(page, "button#action moved without input")
+
+
+def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser):
+    rows = "".join(
+        f'<div style="position:absolute;left:10px;top:{100 + i * 80}px;'
+        f'width:400px;height:60px;background:gray" data-large>Source {i}</div>'
+        for i in range(6)
+    )
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body style="margin:0">
+<textarea id="field" style="position:absolute;left:10px;top:10px;width:40px;height:12px;font:8px monospace;padding:0"></textarea>"""
+            + rows
+            + """<script>field.addEventListener('beforeinput', () => {
+          for (const node of document.querySelectorAll('[data-large]')) node.style.left = '80px';
+          field.style.left = '16px';
+        });</script></body>"""
+        )
+    )
+    page.evaluate(PAINTED)
+    page.locator("#field").fill("a")
+    judge_watches()
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+
+
+def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="action" style="position:absolute;left:10px;top:10px">Act</button>
+<p id="other" style="position:absolute;left:10px;top:150px">Following reading</p></body>""")
+    )
+    page.evaluate(PAINTED)
+    page.evaluate("""() => {
+      const owner = document.createElement('header');
+      owner.style.cssText = 'position:sticky;top:0;margin-left:40px;width:200px;height:100px';
+      owner.append(document.querySelector('#action'));
+      document.body.append(owner);
+      // Chrome treats the reparented control as inserted; another changed reading
+      // admits this painted frame, whose retained landmarks still need their history.
+      document.querySelector('#other').style.left = '30px';
+    }""")
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert any("button#action moved without input" in error for error in errors), errors
+    assert all("moved without input" in error for error in errors), errors
+
+
+@pytest.mark.parametrize("decoration", ["aria-hidden", "presentation", None])
+def test_decorative_media_is_not_an_independent_reading_landmark(browser, decoration):
+    declaration = 'aria-hidden="true"' if decoration == "aria-hidden" else ""
+    role = 'role="presentation"' if decoration == "presentation" else ""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<p>Stationary reading.</p>
+<div {declaration}>
+  <svg id="picture" {role} style="position:absolute;left:10px;top:100px;width:100px;height:60px">
+    <rect width="100" height="60" fill="blue" />
+  </svg>
+</div></body>""")
+    )
+    page.evaluate(PAINTED)
+    page.locator("#picture").evaluate("node => node.style.left = '30px'")
+    page.evaluate(PAINTED)
+    judge_watches()
+    if decoration is None:
+        consume_browser_errors(page, "svg#picture moved without input")

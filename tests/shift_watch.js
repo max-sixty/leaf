@@ -1,111 +1,59 @@
-// Watches every page for layout shifts the "Stability" rule forbids
-// (skills/leaf/assets/AGENTS.md). The browser fixture installs it after write_watch.js
-// on every ordinary test's page and on nightly tests marked watch_shifts
-// (render_harness.py, `watches_shifts`).
-// The harness binds `interactive` from runtime/control-selectors.js, so the sensor
-// and gesture owners share the definition of a control without loading the runtime.
-// Shift proof requires native browser timing: performance.now, animation frames,
-// event timestamps and LayoutShift.startTime share one monotonic timeline. A test
-// that changes message age advances Leaf's calibrated server clock, not Playwright's
-// browser clock, which replaces performance and frames but leaves native shifts alone.
+// Checks the Stability contract using protected reading/control landmarks.
+// Chrome admits painted layout transitions; a retained per-frame ledger supplies
+// their meaning. Source rectangles do not choose which landmarks get examined, so
+// anonymous sources, decorative pseudos and the five-source cap cannot excuse a
+// surviving control or reading line that was carried. Native visibility records
+// closed disclosure content correctly; sampled hidden layout is not painted text.
 //
-// Chrome's Layout Instability API is the evidence: it compares painted frames, net of
-// scrolling, so it sees a move that paints and is undone before any script could look,
-// and names the elements that moved (the five that moved most, in a frame that moved
-// more). It also says whether the user gave the page input in the half second before
-// the frame (`hadRecentInput`; a key, a press or a resize is input, a script's click or
-// a server's news is not). It credits none to a frame nested in another page, where a
-// trusted key or press in the frame's own document, or in a same-origin document
-// holding it, counts the same way. Text inserted without a key, as Playwright's `fill`
-// and `insert_text` and a committed composition do, is not input to Chrome, but its
-// trusted `beforeinput` is typing here. Two rules read the API:
+// A box may grow or shrink at one edge while text and controls remain stationary.
+// Reading text is measured with Range fragments, including text inside a stationary
+// parent. Controls and declared regions keep their actual boxes. Runtime-declared
+// bounded reflow retains its historical ownership, stationary-boundary and clipping
+// proof. Layout coordinates remove scrolling; sticky descendants retain their
+// mechanical scroller's ownership.
 //
-// - Reading content and controls do not move without input. News, a page loading, and
-//   whatever a timer or a server's answer changes may repaint a box or grow it into
-//   free room. Forbidden motion is reported for every source Chrome names, once per
-//   element, named by write_watch.js's `lfPlace`.
-//   Runtime surfaces declare bounded reflow with `data-lf-reflow`: text groups may
-//   repack inside their stationary box while contained controls stay put; control
-//   groups may repack their controls too. Both painted positions
-//   remain inside that boundary, and undeclared neighbours stay put. This covers
-//   message metadata and adaptive command bars; it is not a pixel budget.
-//   When Chrome's five-source cap is full, frame readings must also show that no
-//   other visible box was repositioned. Permitted reflow must not hide omitted protected motion.
-// - Typing never carries its field. A keystroke may grow its field, at whichever edge
-//   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
-//   never moves the field whole, as a "Draft" mark appearing in the header above a reply
-//   box once did.
+// Each trusted gesture owns its bounded rendering, including geometry motion it
+// began. News starts passive rendering except the first frame shared with the
+// gesture or continuing motion already owned by it. A typing field is observed at
+// beforeinput, independently of Chrome's clipped/shadowed source rectangles. Motion
+// already running on its ancestors belongs to the gesture that began that motion.
 //
-// Every input, a key, a press, a keystroke or a resize, has a rendering: the frames
-// from the input until the first frame after the runtime's settled reading
-// (runtime/rendering.js) says nothing it queued is waiting and no motion the input began
-// still moves a box, the first such frame on a page without the runtime, a second at
-// most, or the next input. The rendering says which frames that motion moved.
+// Chrome's paint signal and landmark poses answer distinct questions. The ledger
+// retains samples that precede the source-associated frame window and is classified
+// before paint admission, so delayed observer delivery cannot erase a sampled move.
+// A never-painted roundtrip is dismissed; matching source motion can corroborate a
+// sampled roundtrip already restored when the observer hears it. Transform-only
+// motion produces no Layout Instability event and is outside this paint signal.
+// A painted one-frame roundtrip omitted from Chrome's sources and reverted before
+// any subsequent sampled pose remains an unresolved observability limit.
 //
-// News is the page adopting a server reading (`data-lf-reading`,
-// runtime/presentation.js), the one a send of the user's returns included: what the
-// user does is drawn in the turn they do it, before the server answers. Once the page
-// has adopted news since the latest input began, every frame is without input whatever
-// Chrome's flag says, until the next input: tests deliver a reply right after a press,
-// and Chrome counts the reply's frames as the press's for half a second. Two kinds of
-// frame stay the input's. Its first frame paints what the input drew, which news
-// adopted before that frame paints beside; no reading tells the two apart, and judging
-// it news failed a thread the user opened from its notice. And a frame in which motion
-// the input began still runs, such as a panel sliding in, moves what the input asked
-// to move: motion begun after the input and before the news, which may begin its own.
-//
-// Chrome's rects are what a node paints, a focus ring or a shadow included, clipped to
-// the viewport, not the node's box. Nor are they always where it was on screen: Chrome
-// measures a node against its nearest box that clips, at that box's place after the
-// frame, and nets the scroll anchoring above that box only where every box between
-// scrolls. A box that clips without scrolling (`overflow: hidden` or `clip`, or `auto`
-// with nothing to scroll), as a diff's file does, drops it: where a reply grows a
-// thread seated in the diff above the window and the root's anchoring holds what the
-// user sees, Chrome reports the diff's rows below the thread as moved by the
-// anchoring's amount. So at the start of every frame the box of every element, in the
-// document and in every shadow tree, is read. A node Chrome reports moved without input
-// is reported here only where its box differs among the readings at the start of the
-// frame before the shift's, of the shift's own, and of the next. Neither of the first
-// two alone is the box before the shift: a task's change before the shift's frame is
-// already in the second, and what a frame callback after this one drew in the frame
-// before is missing from the first. A move such a callback drew and a task took back
-// before the next frame is in no reading. A node with no reading, as a text node, a
-// pseudo-element or a node new to the page has none, is reported on Chrome's word.
-//
-// What the API cannot say is why a frame moved. A move the step before a keystroke laid
-// out but had not yet painted, such as a widget a test removed by script, paints in the
-// keystroke's first frame and would read as the typing's. So at each keystroke, a
-// trusted `beforeinput` whose composed path names the field (a textarea, an input, or
-// the host of a `leaf-text`'s closed editor), the box of the field and of every element
-// holding it is read with a forced layout: every earlier change, and none of the
-// keystroke's own. A shift Chrome reports during the keystroke's rendering is the
-// typing's where it names one of those elements at a box, in the next frame's reading,
-// whose opposite edges both differ from the key's. The typing rule stops reading the
-// rendering early where something else may move the field: news, after which a reply
-// arriving above the box moves it for its own reason; and a scroll of the document or
-// an element holding the field, which moves every box after the reading at the key. A
-// rendering whose first frame finds still running an animation that moves a box, one
-// already running on the field or an element holding it at the key, as a panel's slide
-// is when the user types into it before it stops, is left to neither rule: that motion
-// is the gesture's that began it.
-//
-// Each finding is reported on the console as a browser problem, which fails the test
-// like any other.
+// Every finding fails the ordinary browser fixture. It installs this sensor after
+// write_watch.js and binds the canonical runtime/control-selectors.js declaration.
 (() => {
   const WINDOW = 1000;
-  const RECENT = 500;
   // How long what the observer may yet judge is kept: it hears of a frame's shifts a
   // task or more after the frame, which a loaded machine stretches.
   const KEPT = 10000;
-  const prune = (list, time = (item) => item) => {
+  const prune = (list, time = (item) => item, retain = 1) => {
     const old = performance.now() - KEPT;
-    while (list.length > 1 && time(list[0]) < old) list.shift();
+    while (list.length > retain && time(list[0]) < old) list.shift();
   };
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
   // An element's parent in the composed tree, crossing from a shadow root to its host.
   const up = (node) =>
     node.parentNode instanceof ShadowRoot ? node.parentNode.host : node.parentNode;
+  // Decorative media is not an independent reading. Hidden accessibility trees
+  // include hoisted target paint and icon faces; their retained text/controls are
+  // still measured separately, so this declaration cannot hide a moved button.
+  const readingMedia = (element) => {
+    if (!element.matches("img, svg, canvas, video, iframe, object, [role=img]"))
+      return false;
+    if (element.matches('[role="presentation"], [role="none"]')) return false;
+    for (let at = element; at instanceof Element; at = up(at))
+      if (at.getAttribute("aria-hidden") === "true") return false;
+    return true;
+  };
   const holds = (node, field) => {
     for (let at = field; at; at = up(at)) if (at === node) return true;
     return false;
@@ -157,7 +105,15 @@
     const nodes = [...document.querySelectorAll("*")];
     for (const root of roots)
       if (root.host.isConnected) nodes.push(...root.querySelectorAll("*"));
-    return nodes;
+    const words = nodes.flatMap((node) =>
+      [...node.childNodes].filter(
+        (child) =>
+          child.nodeType === Node.TEXT_NODE &&
+          child.textContent.trim() &&
+          !node.matches("script, style"),
+      ),
+    );
+    return [...nodes, ...words];
   };
   // Each frame keeps its node population; geometry and paint evidence keep changes
   // only. Later hiding, clipping, reparenting or removal cannot erase a sampled box.
@@ -179,18 +135,33 @@
         prune(scrolls, (item) => item.at);
         scrolled.set(node, scrolls);
       }
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
+      const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+      const range = node.nodeType === Node.TEXT_NODE ? document.createRange() : null;
+      if (range) range.selectNodeContents(node);
+      const rect = range ? range.getBoundingClientRect() : node.getBoundingClientRect();
+      const fragments = range ? [...range.getClientRects()] : [rect];
+      const style = getComputedStyle(element);
+      let paintedElement = element;
+      while (
+        paintedElement instanceof Element &&
+        getComputedStyle(paintedElement).display === "contents"
+      )
+        paintedElement = up(paintedElement);
+      const shown =
+        paintedElement instanceof Element &&
+        paintedElement.checkVisibility({ checkOpacity: true });
       const paint = {
         parent: up(node),
-        position: style.position,
+        position: range ? "static" : style.position,
         visibility: style.visibility,
         opacity: style.opacity,
         overflowX: style.overflowX,
         overflowY: style.overflowY,
-        reflow: node.getAttribute("data-lf-reflow"),
-        runtime: node.matches(".lf-chrome, [data-lf-runtime]"),
-        control: node.matches(interactive),
+        reflow: range ? null : node.getAttribute("data-lf-reflow"),
+        runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
+        control: !range && node.matches(interactive),
+        reading: Boolean(range) || readingMedia(element),
+        shown,
       };
       const seen = placed.get(node) ?? [];
       const last = seen.at(-1);
@@ -199,10 +170,16 @@
         last.rect.top === rect.top &&
         last.rect.right === rect.right &&
         last.rect.bottom === rect.bottom &&
-        Object.keys(paint).every((key) => last.paint[key] === paint[key])
+        Object.keys(paint).every((key) => last.paint[key] === paint[key]) &&
+        fragments.length === last.fragments.length &&
+        fragments.every((rect, i) =>
+          ["left", "top", "right", "bottom"].every(
+            (edge) => rect[edge] === last.fragments[i][edge],
+          ),
+        )
       )
         continue;
-      seen.push({ at, rect, paint });
+      seen.push({ at, rect, fragments, paint });
       prune(seen, (item) => item.at);
       placed.set(node, seen);
     }
@@ -221,6 +198,8 @@
     return ancestors;
   };
   // Layout coordinates remove scrolling, which Chrome also removes from its shifts.
+  const scrollAt = (node, at) =>
+    scrolled.get(node)?.findLast((item) => item.at <= at)?.scroll;
   const layoutAt = (node, at) => {
     const rect = boxAt(node, at);
     if (!rect) return null;
@@ -232,7 +211,7 @@
       child = parent, parent = paintAt(parent, at).parent
     ) {
       if (paintAt(child, at).position === "fixed") break;
-      const scroll = scrolled.get(parent)?.findLast((item) => item.at <= at)?.scroll;
+      const scroll = scrollAt(parent, at);
       left += scroll?.left ?? 0;
       top += scroll?.top ?? 0;
     }
@@ -295,6 +274,7 @@
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled() && !motion;
     }
+    audit();
     judge(waiting.splice(0));
     requestAnimationFrame(tick);
   };
@@ -326,21 +306,13 @@
     true,
   );
   // When the page adopted each server reading.
-  const news = [];
   new MutationObserver(() => {
     unwatch();
     if (open) open.told = true;
-    news.push(performance.now());
-    prune(news);
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
-  // Every recent key or press is kept: the observer may judge a frame after a later
-  // key.
-  const presses = [];
   const heard = (view) => (event) => {
     if (!event.isTrusted) return;
     const at = event.timeStamp + view.performance.timeOrigin - performance.timeOrigin;
-    presses.push(at);
-    prune(presses);
     begin(at);
   };
   for (let view = window; ; view = view.parent) {
@@ -354,17 +326,6 @@
       held.addEventListener(type, heard(view), true);
     if (view === view.parent) break;
   }
-  // `frame` is the start of the shift's frame.
-  const input = (entry, rendering, frame) => {
-    const at = entry.startTime;
-    const since = rendering?.start ?? -Infinity;
-    const drawn = rendering && (frame < rendering.second || frame <= rendering.moved);
-    if (!drawn && news.some((n) => n > since && n <= at)) return false;
-    return (
-      entry.hadRecentInput ||
-      presses.some((press) => press <= at && at - press < RECENT)
-    );
-  };
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;
@@ -456,113 +417,214 @@
     }
     return true;
   };
-  const confinedReflowOnly = (entry, around) => {
-    if (entry.sources.length < 5) return true;
-    if (around.length !== 3) return false;
-    const paintState = (node, rect, at) => {
-      let left = Math.max(0, rect.left),
-        top = Math.max(0, rect.top);
-      let right = Math.min(innerWidth, rect.right),
-        bottom = Math.min(innerHeight, rect.bottom);
-      for (
-        let parent = node;
-        parent instanceof Element;
-        parent = paintAt(parent, at).parent
-      ) {
-        const style = paintAt(parent, at);
-        if (
-          (parent === node && style.visibility !== "visible") ||
-          style.opacity === "0"
-        )
-          return { paintable: false, visible: false };
-        if (parent === node) continue;
-        const clip = boxAt(parent, at);
-        if (!clip) return { paintable: false, visible: false };
-        if (style.overflowX !== "visible") {
-          left = Math.max(left, clip.left);
-          right = Math.min(right, clip.right);
-        }
-        if (style.overflowY !== "visible") {
-          top = Math.max(top, clip.top);
-          bottom = Math.min(bottom, clip.bottom);
-        }
+  const paintState = (node, rect, at) => {
+    const own = paintAt(node, at);
+    if (!own.shown || own.visibility !== "visible" || own.opacity === "0")
+      return { paintable: false, visible: false };
+    let left = Math.max(0, rect.left),
+      top = Math.max(0, rect.top);
+    let right = Math.min(innerWidth, rect.right),
+      bottom = Math.min(innerHeight, rect.bottom);
+    for (
+      let parent = own.reading ? up(node) : node;
+      parent instanceof Element;
+      parent = paintAt(parent, at)?.parent
+    ) {
+      const style = paintAt(parent, at);
+      if (style.opacity === "0") return { paintable: false, visible: false };
+      if (parent === node) continue;
+      const clip = boxAt(parent, at);
+      if (!clip) return { paintable: false, visible: false };
+      if (style.overflowX !== "visible") {
+        left = Math.max(left, clip.left);
+        right = Math.min(right, clip.right);
       }
-      return { paintable: true, visible: right > left && bottom > top };
-    };
-    for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
-      const rects = around.map(({ at }) => boxAt(node, at));
-      if (!rects.every(Boolean)) continue;
-      for (const [before, after] of [
-        [0, 1],
-        [0, 2],
-        [1, 2],
-      ]) {
-        const previousRect = rects[before];
-        const currentRect = rects[after];
-        // A box entering or leaving layout has no pair of painted positions.
-        // Its zero rectangle is not a move to the viewport's origin; surviving
-        // neighbours still go through the same protected-motion check below.
-        if (
-          !previousRect.width ||
-          !previousRect.height ||
-          !currentRect.width ||
-          !currentRect.height
-        )
-          continue;
-        const from = layoutAt(node, around[before].at);
-        const to = layoutAt(node, around[after].at);
-        if (
-          (Math.abs(currentRect.left - previousRect.left) < 1 &&
-            Math.abs(currentRect.top - previousRect.top) < 1) ||
-          (Math.abs(to.left - from.left) < 1 && Math.abs(to.top - from.top) < 1)
-        )
-          continue;
-        const fromPaint = paintState(node, previousRect, around[before].at);
-        const toPaint = paintState(node, currentRect, around[after].at);
-        if (
-          // Hidden-to-shown placement is appearance, not motion. A shown box moving
-          // out of the viewport or its clip still moves; the other frame pairs catch
-          // a move that painted before the node was hidden or removed.
-          fromPaint.paintable &&
-          toPaint.paintable &&
-          (fromPaint.visible || toPaint.visible) &&
-          !permittedReflow({ node, previousRect, currentRect }, around)
-        )
-          return false;
+      if (style.overflowY !== "visible") {
+        top = Math.max(top, clip.top);
+        bottom = Math.min(bottom, clip.bottom);
       }
     }
-    return true;
+    return { paintable: true, visible: right > left && bottom > top };
   };
-  // `before` and `after` are the starts of the frames either side of the shift's.
-  // `frame` indexes the start of the shift's frame in `frames`.
-  const unasked = (entry, frame) => {
-    if (presenting(entry)) return;
-    const around = frame < 1 ? [] : frames.slice(frame - 1, frame + 2);
-    const permitted = new Set(
-      entry.sources.filter((source) => permittedReflow(source, around)),
+  // Chrome signals a changed painted frame; actual reading/control geometry decides
+  // motion. A container can grow at one edge while all protected landmarks stand.
+  // Null or decorative pseudo sources do not override those landmark readings.
+  const scrollMotion = (node, from, to) => {
+    const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+    const sticky = ancestryAt(element, to).find(
+      (owner) => paintAt(owner, to)?.position === "sticky",
     );
-    const complete = permitted.size > 0 && confinedReflowOnly(entry, around);
-    for (const source of entry.sources) {
-      const { node, previousRect, currentRect } = source;
-      const read = node ? around.map(({ at }) => boxAt(node, at)) : [];
+    const motion = { left: 0, top: 0 };
+    if (!sticky) return motion;
+    const before = boxAt(sticky, from),
+      after = boxAt(sticky, to);
+    if (!before || !after) return motion;
+    for (const axis of ["left", "top"]) {
+      const scroll = ancestryAt(sticky, to).reduce((sum, owner) => {
+        const prior = scrollAt(owner, from),
+          next = scrollAt(owner, to);
+        return sum + (prior && next ? next[axis] - prior[axis] : 0);
+      }, 0);
+      const shifted = after[axis] - before[axis];
+      // Scroll carries the sticky owner on that axis, through at most its native
+      // scroll delta. Descendants retain their local position relative to it.
       if (
-        read.length === 3 &&
-        read.every(Boolean) &&
-        !read.some((box) => moved(box, read[2]))
+        scroll &&
+        shifted >= Math.min(0, -scroll) - 1 &&
+        shifted <= Math.max(0, -scroll) + 1
       )
-        continue;
-      if (complete && permitted.has(source)) continue;
-      report(
-        `${name(node)} moved without input`,
-        by(previousRect, currentRect) + beside(entry.sources, node),
-      );
+        motion[axis] = shifted;
     }
+    return motion;
+  };
+  const pendingMotion = [];
+  const protectedMotion = (around) => {
+    for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
+      const readings = around.map(({ at }) => readingAt(node, at));
+      if (!readings.every(Boolean)) continue;
+      if (!readings.some(({ paint }) => paint.reading || paint.control || paint.reflow))
+        continue;
+      for (const [before, after] of [[0, 2]]) {
+        const prior = readings[before],
+          next = readings[after];
+        const scroll = scrollMotion(node, around[before].at, around[after].at);
+        for (
+          let i = 0;
+          i < Math.min(prior.fragments.length, next.fragments.length);
+          i++
+        ) {
+          const previousRect = prior.fragments[i],
+            currentRect = next.fragments[i];
+          if (
+            !previousRect.width ||
+            !previousRect.height ||
+            !currentRect.width ||
+            !currentRect.height
+          )
+            continue;
+          if (
+            !carried(previousRect, currentRect, "top", "bottom") &&
+            !carried(previousRect, currentRect, "left", "right")
+          )
+            continue;
+          const from = layoutAt(node, around[before].at),
+            to = layoutAt(node, around[after].at);
+          const layoutLeft = previousRect.left - prior.rect.left + from.left;
+          const layoutTop = previousRect.top - prior.rect.top + from.top;
+          const nextLeft = currentRect.left - next.rect.left + to.left;
+          const nextTop = currentRect.top - next.rect.top + to.top;
+          const x =
+            carried(previousRect, currentRect, "left", "right") &&
+            Math.abs(layoutLeft - nextLeft) >= 1 &&
+            Math.abs(currentRect.left - previousRect.left - scroll.left) >= 1;
+          const y =
+            carried(previousRect, currentRect, "top", "bottom") &&
+            Math.abs(layoutTop - nextTop) >= 1 &&
+            Math.abs(currentRect.top - previousRect.top - scroll.top) >= 1;
+          if (!x && !y) continue;
+          const fromPaint = paintState(node, previousRect, around[before].at);
+          const toPaint = paintState(node, currentRect, around[after].at);
+          if (
+            fromPaint.paintable &&
+            toPaint.paintable &&
+            (fromPaint.visible || toPaint.visible) &&
+            !permittedReflow({ node, previousRect, currentRect }, around)
+          )
+            pendingMotion.push({
+              node,
+              fragment: i,
+              previousRect,
+              currentRect,
+              before: around[before].at,
+              after: around[after].at,
+            });
+        }
+      }
+    }
+  };
+  const audit = () => {
+    prune(pendingMotion, (move) => move.after, 0);
+    if (frames.length < 2) return;
+    const at = performance.now(),
+      frame = frames.at(-1).at;
+    const rendering = renderings.findLast(({ start }) => start <= at);
+    if (rendering?.typing && at <= rendering.typing.until) return;
+    const entry = { startTime: at, sources: [] };
+    // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
+    if (
+      presenting(entry) ||
+      (rendering && (frame <= rendering.second || frame <= rendering.moved))
+    )
+      return;
+    const before = frames.at(-2),
+      after = frames.at(-1);
+    protectedMotion([before, before, after]);
+  };
+  // A painted layout transition admits the retained landmark ledger. Chrome's
+  // source list never selects which landmarks get checked; source geometry only
+  // corroborates a sampled roundtrip already undone by the time it is heard.
+  const admittedMotion = (entry, next, rendering) => {
+    if (presenting(entry)) return;
+    const admitted = pendingMotion.filter(
+      (move) => move.before <= entry.startTime && move.after <= next,
+    );
+    const inherited = rendering?.typing;
+    const belongsToPriorMotion = (move) =>
+      inherited?.free &&
+      entry.startTime <= inherited.until &&
+      inherited.moving.some((animation) => holds(animation.effect.target, move.node));
+    const groups = new Map();
+    for (const move of admitted) {
+      if (belongsToPriorMotion(move)) continue;
+      const byFragment = groups.get(move.node) ?? new Map();
+      const chain = byFragment.get(move.fragment) ?? [];
+      chain.push(move);
+      byFragment.set(move.fragment, chain);
+      groups.set(move.node, byFragment);
+    }
+    const confirms = (move) =>
+      entry.sources.some((source) => {
+        const element =
+          move.node.nodeType === Node.TEXT_NODE ? up(move.node) : move.node;
+        if (source.node !== move.node && source.node !== element) return false;
+        return (
+          Math.abs(
+            source.currentRect.left -
+              source.previousRect.left -
+              (move.currentRect.left - move.previousRect.left),
+          ) < 1 &&
+          Math.abs(
+            source.currentRect.top -
+              source.previousRect.top -
+              (move.currentRect.top - move.previousRect.top),
+          ) < 1
+        );
+      });
+    for (const [node, fragments] of groups)
+      for (const [fragment, chain] of fragments) {
+        const first = chain[0],
+          last = chain.at(-1);
+        const current = readingAt(node, next)?.fragments[fragment];
+        const net =
+          carried(first.previousRect, last.currentRect, "top", "bottom") ||
+          carried(first.previousRect, last.currentRect, "left", "right");
+        const stable = net && (!current || moved(current, first.previousRect));
+        const proof = stable
+          ? { previousRect: first.previousRect, currentRect: last.currentRect }
+          : chain.find(confirms);
+        if (proof)
+          report(
+            `${name(node)} moved without input`,
+            by(proof.previousRect, proof.currentRect) + beside(entry.sources, node),
+          );
+      }
+    for (let i = pendingMotion.length - 1; i >= 0; i--)
+      if (admitted.includes(pendingMotion[i])) pendingMotion.splice(i, 1);
   };
   // Chrome's rects are what a node paints, clipped to the viewport, so they are held
   // against the frame's own reading, never against the key's.
   const typed = (entry, typing, painted) => {
-    for (const { node } of entry.sources) {
-      const before = typing.found.get(node);
+    for (const [node, before] of typing.found) {
       const after = before && boxAt(node, painted);
       if (
         !before ||
@@ -596,8 +658,8 @@
         // A frame the typing rule stopped reading before the next one is no one's.
         if (!typing.free && frame !== -1 && next <= typing.until)
           typed(entry, typing, next);
-      } else if (!input(entry, rendering, frames[frame]?.at ?? -Infinity))
-        unasked(entry, frame);
+      }
+      admittedMotion(entry, next ?? performance.now(), rendering);
     }
   };
   const observer = new PerformanceObserver((list) => judge(list.getEntries()));
@@ -615,6 +677,7 @@
         if (judged) return;
         judged = true;
         read(performance.now());
+        audit();
         judge([...waiting.splice(0), ...observer.takeRecords()]);
         resolve();
       };

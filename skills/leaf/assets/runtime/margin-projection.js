@@ -860,6 +860,7 @@ export function createMarginProjection({
     const listRoom =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
       (preview.offsetHeight - previewList.clientHeight);
+    previewList.style.setProperty("--lf-thread-list-room", `${listRoom}px`);
     for (const input of previewList.querySelectorAll(REPLY_BOX)) {
       const row = input.closest(".lf-thread-reply");
       const thread = row.closest(".lf-page-thread");

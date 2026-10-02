@@ -34,6 +34,7 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { newsNotice } from "./held-news.js";
+import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
@@ -229,12 +230,15 @@ export class ThreadView {
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
   #lastMessage = null;
+  #continuity = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
+    if (surface === "page" || surface === "outlet" || surface === "margin")
+      this.#continuity = new ReplyContinuity(this.node);
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -283,6 +287,7 @@ export class ThreadView {
   }
 
   present(model) {
+    const bodyPlace = this.#continuity?.before();
     const prior = this.#model;
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
@@ -463,6 +468,7 @@ export class ThreadView {
             : nothing
         }
         ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
+        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : nothing}
         ${
           model.resolved && !reply && !model.folding && !marginControls
@@ -485,6 +491,7 @@ export class ThreadView {
       `,
       this.node,
     );
+    this.#continuity?.after(bodyPlace);
     this.#wireKeys();
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
@@ -765,6 +772,7 @@ export class ThreadView {
   }
 
   dispose() {
+    this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;

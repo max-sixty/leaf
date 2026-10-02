@@ -813,3 +813,9 @@ pre:hover + .lf-code-copy,
 .lf-suggest-label { color: var(--muted-2); }
 
 .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
+/* The response foot sits after flexible mechanical space in a retained flow body.
+   Details' summary is its own disclosure outside that body. */
+.lf-reply-continuity::details-content,
+.lf-reply-continuity:not(details) { display: flex; flex-direction: column;
+  min-block-size: var(--lf-thread-body-extent, 0px); }
+.lf-reply-space { flex: 1 0 0; min-block-size: 0; }

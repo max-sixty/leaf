@@ -524,28 +524,6 @@ export function createResponseSurface({
     )
       return false;
 
-    // Opening or re-seating the overlay preserves the reading position. Once it
-    // stands, growing its intrinsic content may use the reading region's remaining
-    // travel before asking the field to scroll. The placed height also changes when the
-    // target clips at a boundary; keying this to the content keeps that wheel gesture as
-    // navigation rather than undoing it on the next frame.
-    const height = fabBar.offsetHeight;
-    const contentHeight = composerOpen
-      ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
-      : fabBar.scrollHeight;
-    const contentChanged =
-      fabContentHeight !== null && Math.abs(contentHeight - fabContentHeight) > 0.5;
-    fabContentHeight = contentHeight;
-    if (
-      !unanchored &&
-      vertical(side) &&
-      contentChanged &&
-      makeRoom(side, keepClear, roomRect, height, boundary, scroller)
-    ) {
-      fabPlacement.scrolled();
-      return placeFab();
-    }
-
     const epoch = fabPosition.begin();
     const stillCurrent = () => fabPosition.current(epoch) && fabAnchor && fabFloating;
     void floatingUi()
@@ -562,6 +540,30 @@ export function createResponseSurface({
             if (!stillCurrent()) return;
             setWidth(width);
             setHeight(heightFor(placed) / scale.y);
+            // Wrapping at the fitted width determines the height that spends scroll
+            // travel. Opening or re-seating preserves the reading position; later
+            // intrinsic growth may use the reading region's remaining travel before
+            // the field scrolls. Content, rather than placed height, keeps clipping
+            // during a wheel gesture from spending that travel again.
+            const height = fabBar.offsetHeight;
+            const contentHeight = composerOpen
+              ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
+              : fabBar.scrollHeight;
+            const contentChanged =
+              fabContentHeight !== null &&
+              Math.abs(contentHeight - fabContentHeight) > 0.5;
+            fabContentHeight = contentHeight;
+            if (
+              !unanchored &&
+              vertical(placed) &&
+              contentChanged &&
+              makeRoom(placed, keepClear, roomRect, height, boundary, scroller)
+            ) {
+              fabPlacement.scrolled();
+              // The scroll changed the attachment geometry. A fresh placement
+              // supersedes this answer before its old coordinates can stand.
+              placeFab();
+            }
           },
         });
         // Held at a reading region's edge, the bar goes where the page takes the region.

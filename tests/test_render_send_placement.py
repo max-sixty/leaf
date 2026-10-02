@@ -16,6 +16,8 @@ line:
   `moves` still says whether the card took the box's side.
 - `stands`: whether it stands where that side puts it: beside the block `level with
   the words`, or `clear of the block` under or over it, else how far off.
+  The touch passage verifies either clear placement or a window-constrained frame
+  when the paragraph and frame cannot fit together; font metrics can choose either.
 - `moves`: how far the card stands from where the box stood, at the edge each holds
   (the left edge across; the top down, or the foot where the card stands above),
   bucketed `still` (the same place), `near` (a line or two) or `away`.
@@ -328,6 +330,14 @@ def sent(browser, serve, name):
     # slots around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
+    phone_room = None
+    if name == "phone-touch-passage":
+        phone_room = page.evaluate("""async () => {
+          const {commentBoundary, COMMENT_GAP} =
+            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+          const {top, bottom, height} = commentBoundary();
+          return {top, bottom, height, gap: COMMENT_GAP};
+        }""")
     scrolled = page.evaluate("scrollY")
     before = page.screenshot()
 
@@ -345,6 +355,10 @@ def sent(browser, serve, name):
     card_side = card.get_attribute("data-lf-thread-placement")
     # A card that scrolled the page is read where it stands on the page the box stood on.
     carried = page.evaluate("scrollY") - scrolled
+    if phone_room is not None:
+        assert carried == 0, (
+            "The touch handoff must keep the page and its boundary still"
+        )
     placed = {
         edge: value + (carried if edge in ("top", "bottom") else 0)
         for edge, value in page.evaluate(RECT, ".lf-margin-preview").items()
@@ -362,15 +376,34 @@ def sent(browser, serve, name):
     def allowed(side):
         return expected if side in expected.split(" or ") else side
 
+    def standing(side, rect):
+        if phone_room is None:
+            return stands(side, rect, words, block)
+        assert side in ("above", "below"), side
+        gap = (
+            block["top"] - rect["bottom"]
+            if side == "above"
+            else rect["top"] - block["bottom"]
+        )
+        if gap < 0:
+            limits = (block, rect, phone_room)
+            required = block["bottom"] - block["top"] + rect["bottom"] - rect["top"]
+            assert required + phone_room["gap"] > phone_room["height"], limits
+            edge = "top" if side == "above" else "bottom"
+            assert rect[edge] == pytest.approx(phone_room[edge], abs=0.75), limits
+        else:
+            assert gap <= NEAR, (block, rect)
+        return "clear or window-constrained"
+
     reading = {
         "expected": expected,
         "comment box": {
             "side": allowed(box_side),
-            "stands": stands(box_side, box, words, block),
+            "stands": standing(box_side, box),
         },
         "thread card": {
             "side": allowed(card_side),
-            "stands": stands(card_side, placed, words, block),
+            "stands": standing(card_side, placed),
         },
         "moves": movement(box, placed, card_side),
     }
@@ -556,7 +589,7 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
 def test_send_grows_thread_around_the_words(
     browser, serve, size, at, long, touch, again, motion, options
 ):
-    """The real draft's glyphs keep their position/wrapping/scroll through Send,
+    """The real draft's words keep their position/wrapping/scroll through Send,
     including the decoration animation and acknowledgement. Read inside the editor
     solely to measure its actual glyphs, without changing its closed-root behavior."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
@@ -586,7 +619,7 @@ def test_send_grows_thread_around_the_words(
     rendered(page)
     on.open(page, touch)
     text = (
-        "Keep the runner checkout fixed while the disposable workspace is removed. "
+        "Keep the runner checkout fixed while the disposable workspace is safely removed. "
         * (80 if long is True else 2)
     )
     if long == "paragraphs":
@@ -612,7 +645,14 @@ def test_send_grows_thread_around_the_words(
         for (const word of text.matchAll(/\\S+/g)) {
           while (at + nodes[i].length <= word.index) at += nodes[i++].length;
           const range = document.createRange();
-          range.setStart(nodes[i], word.index - at); range.setEnd(nodes[i], word.index - at + 1);
+          // CodeMirror splits long text into nodes. A split inside a ligature
+          // changes Chrome's single-character range without moving its paint;
+          // measure the complete word across those nodes instead.
+          range.setStart(nodes[i], word.index - at);
+          let j = i, endAt = at;
+          const end = word.index + word[0].length;
+          while (endAt + nodes[j].length < end) endAt += nodes[j++].length;
+          range.setEnd(nodes[j], end - endAt);
           const r = range.getBoundingClientRect();
           boxes.push([r.x,r.y,r.width,r.height]);
         }

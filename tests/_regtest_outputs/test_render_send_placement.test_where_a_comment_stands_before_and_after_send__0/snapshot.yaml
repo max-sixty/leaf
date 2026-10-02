@@ -124,10 +124,10 @@ phone-touch-passage:
   expected: below or above
   comment box:
     side: below or above
-    stands: near off the block
+    stands: clear or window-constrained
   thread card:
     side: below or above
-    stands: near off the block
+    stands: clear or window-constrained
   moves:
     across: still
     down: still

@@ -2490,7 +2490,6 @@ export function createMarginProjection({
         focusedItem && previewList.querySelector(".lf-page-thread"),
         previewClose,
       );
-      scheduleThreadPreviewPosition();
     };
     if (!arriving && previewPlace) previewPlace.around(present);
     else {
@@ -2499,6 +2498,9 @@ export function createMarginProjection({
     }
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
     if (follow) previewTranscript.scrollTop = previewTranscript.scrollHeight;
+    // Fit the new content after restoring the reader but before paint; a deferred
+    // pass exposes the previous height limit and makes a sent reply grow twice.
+    placeThreadPreview();
   }
 
   function stepPreviewThread(step) {

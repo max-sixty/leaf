@@ -18,7 +18,8 @@ module that owns the rule (`runtime/image-difference.js`), loaded into the brows
 Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
-`diff.png` outlining each region.
+`diff.png` outlining the head's own regions, a change in red and a move in blue. The
+crops cover both stills' regions.
 """
 
 import shutil
@@ -82,6 +83,12 @@ def card_reply_sent(page: Page) -> None:
     card = page.locator(".lf-margin-preview")
     card.get_by_role("button", name="Send", exact=True).click()
     card.locator(".lf-page-thread-msg.user .lf-msg-sending").last.wait_for()
+
+
+def card_reply_large(page: Page) -> None:
+    """A pasted reply exhausting the room below the thread, with its caret at the end."""
+    card_reply(page)
+    page.keyboard.insert_text("\n" + "\n".join(f"Reply line {n}" for n in range(40)))
 
 
 def threads_panel(page: Page) -> None:
@@ -164,6 +171,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_by_keyboard,
         card_reply,
         card_reply_sent,
+        card_reply_large,
         threads_panel,
         panel_reply_sent,
         composer,
@@ -195,6 +203,9 @@ STATES = (
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
+    ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
@@ -223,6 +234,23 @@ STATES = (
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
+    ),
+    State(
+        "ship-card-short-window-dark",
+        "ship-review",
+        card_by_pointer,
+        viewport=(1440, 480),
+        scheme="dark",
+    ),
+    State(
+        "ship-card-touch",
+        "ship-review",
+        card_by_pointer,
+        viewport=(390, 500),
+        touch=True,
+    ),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
@@ -294,10 +322,10 @@ def crop(folder: Path, regions: list[dict]) -> None:
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
-    for r in regions:
+    for r in (r for r in regions if r["side"] == "after"):
         draw.rectangle(
             (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
-            outline=(220, 0, 0),
+            outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
             width=2,
         )
     faded.crop(box).save(folder / "diff.png")

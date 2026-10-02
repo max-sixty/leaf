@@ -266,8 +266,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    ground its containing state paints; chrome.css says the same of the panel's card.
    It is drawn on a pseudo-element over the thread's contents rather than as the
    thread's own outline, which paints with the thread's in-flow content: a positioned
-   row inside the thread paints after that, and the margin card pins its reply row to
-   the transcript's foot on the thread's own surface, over the ring's bottom run. The
+   row inside the thread paints after that, over the ring's bottom run. The
    pseudo-element is positioned too and comes after every row in tree order, so it
    paints over them without a z-index that would also lift it over the page. */
 .lf-page-thread:is(:focus-visible, .lf-focus-visible) { outline: none; }

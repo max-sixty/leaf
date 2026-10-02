@@ -36,6 +36,7 @@ from render_cases_navigation import (
     _publish,
     compose,
     composer_quote,
+    go_to_address,
     painted,
     pending_text,
 )
@@ -125,6 +126,7 @@ def choose_comment_target(page, selector):
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("box", ["general", "reply", "composer"])
 def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
     """The shared field and both drawing-aware variants admit the smallest message.
@@ -2727,6 +2729,130 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
     expect(third.locator(".lf-composer leaf-text")).to_have_js_property("value", late)
 
 
+def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
+    """The earlier draft keeps its subject while a later keyboard landing names
+    the next comment, even though the active editor stays in the window."""
+    source = LONG_PAGE.replace(
+        "<p id='p40'>", '<p id="p40"><a id="later-link" href="#p41">Later item</a> '
+    )
+    page = open_page(browser, serve(source))
+    words = "Carry these unfinished words to the item I am at now."
+    choose_comment_target(page, "#p3")
+    write(page.locator(".lf-fab-input"), words)
+    page.keyboard.press("Shift+Tab")
+    page.locator("#later-link").scroll_into_view_if_needed()
+    go_to_address(page, "Link", "later-link")
+    expect(page.locator("#p3")).not_to_be_in_viewport()
+    earlier = page.locator(".lf-fab-input")
+    expect(earlier).to_be_in_viewport()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
+    expect(page.locator("#p41")).to_be_focused()
+
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    sent = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [(event["text"], event["anchor"]) for event in sent] == [
+        (words, {"section": "p41"})
+    ]
+
+
+@pytest.mark.parametrize("existing_reply", ["", "This thread already holds a reply."])
+def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
+    browser, serve, existing_reply
+):
+    """A chrome thread is a destination even though it is not a page element."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    if existing_reply:
+        page.keyboard.press("t")
+        page.keyboard.press("c")
+        write(thread.locator("leaf-text"), existing_reply)
+        page.keyboard.press("Escape")
+    words = "These words belong to my earlier unfinished comment."
+    choose_comment_target(page, "#p3")
+    write(page.locator(".lf-fab-input"), words)
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator("#p3")).not_to_be_in_viewport()
+    earlier = page.locator(".lf-fab-input")
+    expect(earlier).to_be_in_viewport()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
+    page.keyboard.press("c")
+    reply = thread.locator("leaf-text")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", existing_reply or words)
+    if existing_reply:
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+d")
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    else:
+        with sending(page, "carried reply"):
+            page.keyboard.press("Enter")
+        replies = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "reply"
+        ]
+        assert [event["text"] for event in replies] == [words]
+
+
+@pytest.mark.parametrize("destination", ["passage", "reply"])
+def test_a_transfer_keeps_its_persisted_source_when_the_destination_write_fails(
+    browser, serve, destination
+):
+    """A failed larger destination write cannot be followed by a smaller tombstone."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    words = "The only persisted copy must survive the transfer and reload."
+    choose_comment_target(page, "#p3")
+    write(page.locator(".lf-fab-input"), words)
+    page.evaluate(
+        """prefix => {
+          const set = Storage.prototype.setItem;
+          window.lfRefusedTransferWrites = 0;
+          Storage.prototype.setItem = function (key, value) {
+            if (key.startsWith(prefix) && !JSON.parse(value).settled) {
+              window.lfRefusedTransferWrites++;
+              throw new DOMException('full', 'QuotaExceededError');
+            }
+            return set.call(this, key, value);
+          };
+        }""",
+        draft_key(page, ""),
+    )
+    if destination == "passage":
+        page.keyboard.press("Escape")
+        choose_comment_target(page, "#p9")
+        field = page.locator(".lf-fab-input")
+    else:
+        page.keyboard.press("Shift+Tab")
+        page.keyboard.press("t")
+        page.keyboard.press("c")
+        field = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+    assert page.evaluate("() => window.lfRefusedTransferWrites") > 0
+
+    page.reload()
+    wait_until_ready(page)
+    page.keyboard.press("Escape")
+    choose_comment_target(page, "#p3")
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+
+
 def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     browser, serve, one_user
 ):
@@ -3595,16 +3721,20 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     )
     assert threads_now == threads_was, "the panel took a key aimed at the document"
 
-    # Into the panel, standing on its list rather than in a box — `g T`'s landing,
-    # which travels nothing, so the baseline below is the one the control left. The
-    # address toggles the panel it names, so from the standing one the first completion
-    # closes it and the second is the arrival.
+    # Into the panel, standing on its open thread's title rather than in a box — `g T`'s
+    # landing, which travels nothing, so the baseline below is the one the control left.
+    # The address toggles the panel it names, so from the standing one the first
+    # completion closes it and the second is the arrival.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(
+        page.locator(
+            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
+        )
+    ).to_be_focused()
 
     page_was, threads_was = offsets()
     page.keyboard.press("d")

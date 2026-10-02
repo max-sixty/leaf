@@ -281,7 +281,7 @@ def claimant_turn(
 
     The claim's stamps are the spine: the prompt hook or a carrier opens the turn,
     a prompt or delivery into an open turn renews its stamp, and the Stop hook or
-    a carrier closes it. An interrupt runs no hook, so an open stamp is believed
+    a carrier closes it. Not every host runs a hook on interruption, so an open stamp is believed
     only while something in that turn renewed it within the working grace: its
     last opening, a status written during it, or the claimant's streamed
     activity. Past that nothing says whether it runs, which reads as not

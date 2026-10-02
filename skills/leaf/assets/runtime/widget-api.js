@@ -83,6 +83,7 @@ export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 // Where two images differ, gathered into regions (image-difference.js).
 export {
   compareImages,
+  countAreas,
   describeDifference,
   differenceKind,
 } from "./image-difference.js";

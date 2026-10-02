@@ -1,4 +1,12 @@
-import { pageScroller, shownBand, TEXT_BOX, uiInside } from "/runtime/widget-api.js";
+import {
+  pageScroller,
+  readingPosture,
+  readingRegions,
+  shownBand,
+  shownRegionBounds,
+  TEXT_BOX,
+  uiInside,
+} from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -92,9 +100,7 @@ export function heldPanes() {
   return [...main.children].flatMap((body) => {
     if (body.matches("header, footer")) return [];
     const rects = [...body.children]
-      .filter((el) =>
-        el.matches('[data-lf-reading-role="pane"]:not([data-lf-generated])'),
-      )
+      .filter((el) => el.matches(AUTHORED_PANE))
       .map((pane) => pane.getBoundingClientRect())
       .filter((r) => r.width > 0 && r.height > 0);
     if (rects.length < 2) return [];
@@ -104,6 +110,37 @@ export function heldPanes() {
       ),
     );
     return [{ at: element(body), held, panes: rects.length, beside }];
+  });
+}
+const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
+
+// Each region of a screen that runs past its room. A full-height workspace is a screen
+// rather than a page to scroll (page-authoring.md, A workspace), so each region of it the
+// page wrote is meant to show what it holds: a pane the page wrote, and the body itself,
+// which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
+// declares that it scrolls, and a widget's own regions are its to hold, so neither is
+// here. A workspace the window is too small to hold flows and scrolls as a page, and is
+// no screen. Each comes back with its id, the name every finding uses, and how far its
+// body runs past its scrollport.
+export function overflowingRegions() {
+  const main = document.querySelector("body > main.layout-workspace");
+  if (
+    !main ||
+    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() !== "1"
+  )
+    return [];
+  const screenRegion = (host) =>
+    host.matches(AUTHORED_PANE) ||
+    (host.parentElement === main &&
+      getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
+        "layout");
+  return readingRegions().flatMap((region) => {
+    if (!main.contains(region.host) || !screenRegion(region.host)) return [];
+    if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
+    const over = region.body.scrollHeight - region.body.clientHeight;
+    return over > 1
+      ? [{ id: region.id, at: element(region.host), over: Math.round(over) }]
+      : [];
   });
 }
 

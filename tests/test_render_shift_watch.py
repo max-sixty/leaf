@@ -220,6 +220,25 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         consume_browser_errors(page, "moved without input")
 
 
+@pytest.mark.nightly
+@pytest.mark.watch_shifts
+def test_a_nightly_page_watches_typing_and_unasked_shifts(browser):
+    """Nightly opt-in uses the same sensor: growing a field is allowed, carrying it
+    without input is reported, and typing that carries it is reported too."""
+    page = field_page(browser, "grow")
+    page.locator("#field").fill("a")
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate("document.getElementById('above').style.height = '40px'")
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input")
+
+    carried = field_page(browser, "carry")
+    carried.locator("#field").fill("a")
+    judge_watches()
+    consume_browser_errors(carried, "typing in textarea#field moved textarea#field")
+
+
 # A composer pinned to the viewport's foot, standing partly past its right edge and
 # painting a shadow to its left, whose field grows up as a key lands in it: what Chrome
 # reports of it is clipped and shadowed, not its box.

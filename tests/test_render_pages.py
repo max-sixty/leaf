@@ -156,6 +156,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 
+@pytest.mark.watch_shifts
 def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
     """Each trace step paints inside a fixed layout at both wide pane widths."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
@@ -1044,7 +1045,12 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_have_count(0)
+    expect(reply).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
+    assert reply.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 16, "backward"]
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 

@@ -37,12 +37,12 @@
    margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
    When the target fills the viewport, the viewport still caps the field. Geometry
-   decides where the bar stands, never whether it stands: when a thread panel, a
-   pane scrolled past the target, or a closed disclosure leaves it nowhere, placement
-   withholds it, draft and anchor kept, and it stands again once there is room
-   (`standFab`). If the withheld bar held focus, the visible Threads list takes it
-   where the panel took the room, else the page; an unrelated focused control keeps
-   it. A partially exposed
+   decides where the bar stands, never whether it stands. An open editor whose
+   existing subject has no visible attachment stands in the usable window instead,
+   keeping its draft, anchor, and focus. It reattaches when the subject shows again.
+   Only when no usable window remains does placement withhold it and return focus to
+   the visible Threads list where the panel took the room, else the page; an unrelated
+   focused control keeps it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Shift+Enter
    inserts a newline; Enter sends. Tab extends the bar with the layer's reaction
    tokens. A layer with no reaction vocabulary keeps the bar's Comment and Suggest
@@ -61,8 +61,8 @@
    comment's thread will stand by is kept clear where the room past it holds a card.
    Floating UI owns coordinate conversion, overflow, and reflow updates; CSS owns
    content sizing within the width and height its middleware supplies. The viewport
-   holds the bar in only while its target is on screen, so a target scrolled away takes
-   the bar with it.
+   holds the bar in while its target is on screen. An open editor without a visible
+   attachment stays in the window until the target returns or the user puts it away.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
@@ -83,12 +83,15 @@ import {
   showBannerControl,
 } from "../banner-toolbar.js";
 import {
+  clippedContents,
+  clippedRect,
   pagePlaneRect,
   seenRect,
   shownBox,
   shownExtent,
   shownParts,
   shownRect,
+  skipped,
 } from "../geometry.js";
 import {
   passageBox,
@@ -106,8 +109,14 @@ import {
 
 import { paintReactionStanding } from "../reaction-standing.js";
 import { threadInput, standingThread } from "../thread/landing.js";
+import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
-import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
+import {
+  coveringAuxiliarySurface,
+  pageCommand,
+  pageRung,
+  pageScope,
+} from "../keyboard/register.js";
 
 import { elementById, inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
@@ -123,7 +132,7 @@ import { shadowHost, under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
-import { union } from "../rect.js";
+import { overlaps, union } from "../rect.js";
 import { anchorLabel } from "../thread/messages.js";
 
 import { reactionsAt } from "../thread/model.js";
@@ -146,12 +155,8 @@ import { marginSpot } from "../margin-layout.js";
 import { pointBand, standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
 
-// The two routes to one Comment capability: the page's own, and the Threads list's local
-// one. The destination box's placeholder names whichever of them dispatch would answer.
-const COMMENT_COMMANDS = ["comment.create", "comment.write"];
-
 export function createResponseSurface({
-  panelElements: { generalInput, panel, threadsBox },
+  panelElements: { generalInput, panel, threadsBox, inPanel },
   panelIsOpen,
   landIn,
   setPanel,
@@ -166,6 +171,7 @@ export function createResponseSurface({
   visualActionAnchor,
   hideComposer,
   openComposer,
+  carryComposerToReply,
   resetResponseOptions,
   responseOptionsAvailable,
   setResponseOptions,
@@ -392,14 +398,15 @@ export function createResponseSurface({
     if (words) return words;
     // In the page's plane, as the quoted words above are: the page's own boxes cut it (a
     // pane or a board scrolled past it), and the window does not, so an item the user
-    // scrolls off screen keeps its box and takes the bar with it rather than having none.
+    // scrolls off screen still has an attachment box. `placeFab` reads whether that
+    // attachment is visible before choosing page or window placement.
     const clips = new Map();
     const box = union(
       targetParts(found)
         .map((part) => pagePlaneRect(shownBox(part), part, clips))
         .filter(Boolean),
     );
-    // A pointed row is small enough to stand by whole, so the bar leaves with it.
+    // A pointed row is small enough to stand by whole, so it supplies the attachment.
     const point = box && fabPointIn(targetElement(found));
     return point
       ? pointBand(union(targetParts(found).map((part) => shownBox(part))), point)
@@ -411,23 +418,41 @@ export function createResponseSurface({
   // short selection cannot lend the words around it to the response field. Keep the bar
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab(target = anchorBox(fabAnchor)) {
-    if (!fabAnchor || !target) return false;
+    if (!fabAnchor) return false;
     const owner = fabTargetAt();
-    const block = fabAnchor.quote && owner;
-    const readingRegion = owner && containingReadingRegionFor(owner);
-    const boundary = floatBoundary(readingRegion && shownRegionBounds(readingRegion));
-    if (boundary.width <= 0 || boundary.height <= 0) return false;
+    // An open editor stays in front of its writer. Its subject still owns the draft
+    // when a resize, disclosure or scroll removes the subject's visible box; only its
+    // placement becomes unanchored, in the window, until that box returns.
     const clips = new Map();
+    const visible =
+      target &&
+      owner &&
+      !skipped(owner) &&
+      (fabAnchor.quote
+        ? clippedContents(target, owner, clips)
+        : clippedRect(target, owner, clips));
+    const windowBoundary = floatBoundary();
+    const unanchored = Boolean(
+      composerOpen && owner && !(visible && overlaps(visible, windowBoundary)),
+    );
+    if (!target && !unanchored) return false;
+    const block = fabAnchor.quote && owner;
+    const readingRegion = !unanchored && owner && containingReadingRegionFor(owner);
+    const boundary = readingRegion
+      ? floatBoundary(shownRegionBounds(readingRegion))
+      : windowBoundary;
+    if (boundary.width <= 0 || boundary.height <= 0) return false;
     const point = !fabAnchor.quote && owner && fabPointIn(owner);
     const holder = block || (!point && owner);
     const parts = holder ? shownParts(holder) : [];
     // Room is a reading of the whole block or element, as the card reads it; clipping
     // changes as the user scrolls. Attachment uses the visible part so the field still
     // meets what is on screen. A pointed row is read whole already.
-    const roomRect = (holder && shownExtent(holder)) || target;
-    const keepClear =
-      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
-      (block ? roomRect : target);
+    const roomRect = unanchored ? null : (holder && shownExtent(holder)) || target;
+    const keepClear = unanchored
+      ? null
+      : union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
+        (block ? roomRect : target);
     const scroller = effectiveScroller(readingRegion ?? owner);
     const verticalRoom = (side) =>
       reachableRoom(side, roomRect, boundary, scroller).reachable;
@@ -459,7 +484,7 @@ export function createResponseSurface({
     // that side cannot hold the bar, the whole boundary.
     const vertical = (side) => /^(top|bottom)$/.test(side);
     const heightFor = (side) => {
-      const room = vertical(side) ? verticalRoom(side) : 0;
+      const room = !unanchored && vertical(side) ? verticalRoom(side) : 0;
       return room >= minimumFabHeight() ? room : boundary.height;
     };
     const { side, fresh } = fabPlacement.choose({
@@ -498,6 +523,7 @@ export function createResponseSurface({
       fabContentHeight === null || Math.abs(contentHeight - fabContentHeight) > 0.5;
     fabContentHeight = contentHeight;
     if (
+      !unanchored &&
       vertical(side) &&
       contentChanged &&
       makeRoom(side, keepClear, roomRect, height, boundary, scroller)
@@ -514,8 +540,8 @@ export function createResponseSurface({
         watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
         const { reference, placement, middleware, heldIn } = fabPlacement.options(ui, {
           clear: keepClear,
-          row: target.top,
-          margin: owner && marginSpot(owner, fabPointIn(owner)),
+          row: target?.top,
+          margin: !unanchored && owner && marginSpot(owner, fabPointIn(owner)),
           boundary,
           minimum: { width: cardMinimum() },
           fit({ side: placed, width, scale }) {
@@ -526,7 +552,8 @@ export function createResponseSurface({
         });
         // Held at a reading region's edge, the bar goes where the page takes the region.
         const plane = (answer) =>
-          heldIn(answer) && heldByWindow(answer.y, answer.y + fabBar.offsetHeight, 8)
+          unanchored ||
+          (heldIn(answer) && heldByWindow(answer.y, answer.y + fabBar.offsetHeight, 8))
             ? "window"
             : "page";
         return fabPosition.position(
@@ -697,8 +724,9 @@ export function createResponseSurface({
   // Stands the bar the user already has again. Geometry says where it stands, never
   // whether: the bar goes when a gesture puts it away or when its subject leaves the
   // document, and never because a scroll, a resize, a panel or a closed disclosure left
-  // it no room. A bar with nowhere to stand is withheld, draft, anchor and all, and the
-  // next placement that finds room stands it again.
+  // it no attachment. An open editor uses the window while its subject is hidden;
+  // a bar with no usable room is withheld, draft, anchor and all, and the next
+  // placement that finds room stands it again.
   function standFab() {
     if (!anchorStands(fabAnchor)) {
       showFab(null, null, { returnFocus: "page" });
@@ -708,14 +736,12 @@ export function createResponseSurface({
     withholdFab();
     return false;
   }
-  // Hidden, keeping everything that says what it is: where its target lost its box, the
-  // side it stood on too, so that it comes back where it was. Hiding a focused bar drops the focus to nowhere, so
-  // the bar holds the user's place, caret included, whether they stand in it or a
-  // repositioning that hid it just dropped them (`holdFocus`), and takes them back when
-  // it stands again unless they have stood somewhere since. Where a covering panel took
-  // the bar's room, the Threads list takes the focus instead: the user is left in the
-  // surface in front of them. While it waits, its keys are not the user's (the
-  // composer's scope and the selection rung stand down), and `c` is the way back to it.
+  // Withholds the bar while the usable window cannot contain it, keeping its draft,
+  // anchor, side, and caret. Hiding a focused bar drops focus to nowhere, so it keeps
+  // the user's place (`holdFocus`) and returns focus when room comes back, unless they
+  // focused something else meanwhile. Where a covering panel took the room, its
+  // Threads list takes focus. While the bar waits, its composer scope and selection
+  // rung stand down; `c` brings it back.
   function withholdFab() {
     if (fabWithheld) return;
     fabWithheld = true;
@@ -1381,8 +1407,10 @@ export function createResponseSurface({
   // already crosses there. A page key that takes the user somewhere owes them an answer
   // once they are standing there.
   //
-  // One aim and then one climb, rather than four cases. The pointer's aim outranks
-  // position, being the more recent thing the user said; below it the answer walks
+  // One live aim and then one climb, rather than four cases. A selection outranks
+  // position; a captured target does too until the user stands elsewhere. The draft
+  // keeps its words independently of which target the next press names. Below the
+  // aim, the answer walks
   // outward from where they are standing — the nearest thread's box, then the nearest
   // addressable element, then the page, which is what is left when they are standing
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
@@ -1399,24 +1427,14 @@ export function createResponseSurface({
         box: selectionComment,
         go: commentOnTouchSelection,
       };
+    const here = standingElement();
     const anchor = fabAnchorAt();
-    if (anchor)
-      return {
-        ...commenting(
-          anchor.quote
-            ? "selection"
-            : addressableWord(elementById(anchor.section)) || "element",
-        ),
-        box: fabInput,
-        go: focusFabComment,
-      };
     // The thread the user is at continues where it is about what they stand on: they
     // are in it, or its target lies within the element they stand at — the Ask holding
     // focus, answered or not, else the element itself — as an Ask's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
     // about that block, so an element inside it, such as an Ask in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
-    const here = standingElement();
     const inline = threadHere();
     const target = inline && threadTarget(inline);
     const inlineBox =
@@ -1427,11 +1445,34 @@ export function createResponseSurface({
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    // A captured passage outranks the focus it preceded, but a kept draft is not a
+    // standing target. Read both page and thread standing before choosing the aim.
+    // After the user lands elsewhere, Comment names that new place;
+    // commentOnAddressable carries the old words without replacing a destination's
+    // independent draft.
+    if (
+      anchor &&
+      (pageSelection() ||
+        fabHoldsCapturedPassage() ||
+        (!said && (!here || here === fabTargetAt())))
+    )
+      return {
+        ...commenting(
+          anchor.quote
+            ? "selection"
+            : addressableWord(elementById(anchor.section)) || "element",
+        ),
+        box: fabInput,
+        go: focusFabComment,
+      };
     if (said)
       return {
         ...commenting("thread"),
         box: said.box,
-        go: () => landIn(said),
+        go: () => {
+          carryComposerToReply(replyDraftContext(said.box));
+          landIn(said);
+        },
       };
     if (here)
       return {
@@ -1456,7 +1497,7 @@ export function createResponseSurface({
   // still decides whether either row can be reached from the current scope.
   const commentHint = () => ({
     box: commentDestination().box,
-    label: activeCommandLabel(COMMENT_COMMANDS),
+    label: activeCommandLabel(["comment.create"]),
   });
 
   // c goes where commenting happens: a live selection gets the composer (what the floating
@@ -1467,9 +1508,8 @@ export function createResponseSurface({
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
-  // Standing outranks the page and not the pointer: a user who has just selected words or
-  // raised the 💬 on something has said what they mean more recently than the focus they
-  // left behind, which is the order the destination reading above uses.
+  // Standing outranks the page; a live selection or a newly captured target outranks
+  // standing. The draft stored on an earlier target supplies words, not that priority.
   pageCommand({
     id: "comment.create",
     touch: false,
@@ -1482,7 +1522,15 @@ export function createResponseSurface({
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
-    when: () => anchoringIsReady() || !pageSelection(),
+    //
+    // One row answers from the page and from the Threads panel alike, whether the panel
+    // stands beside the page or covers it: a covering surface drops every page row not
+    // marked `covering`, and a copy of this one in the panel's scope knew only the page box.
+    // Under any other covering surface there is nothing here to comment on.
+    covering: true,
+    when: () =>
+      (anchoringIsReady() || !pageSelection()) &&
+      (!coveringAuxiliarySurface() || inPanel(panelIsOpen)),
     run: () => {
       updateFab(); // the selection may be newer than the mouseup that last placed the bar
       commentDestination().go();

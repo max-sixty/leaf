@@ -20,6 +20,7 @@ import { HeldArrivals } from "./held-news.js";
 import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
 import { whenDocumentPresented } from "../semantic-state.js";
+import { retainUserIntent } from "../user-intent.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -320,22 +321,23 @@ export const heldOut = (id) =>
 
 // Shows the threads `ids` names that a widget holds out of its flow, and lands on the
 // first where its widget then draws it, since the marker the user pressed goes with
-// what it held. Returns whether a widget held any.
+// what it held, unless a newer gesture has taken them elsewhere. Returns whether a
+// widget held any.
 export function showHeld(ids) {
   for (const registration of registrations.values()) {
     const [id] = registration.held.show(ids);
     if (id) {
-      void presentHeld(registration, id);
+      void presentHeld(registration, id, retainUserIntent());
       return true;
     }
   }
   return false;
 }
 
-async function presentHeld(registration, id) {
+async function presentHeld(registration, id, mayLand) {
   await registration.invalidate();
   await whenDocumentPresented();
-  focusSurface(id, { focus: "thread" });
+  if (mayLand()) focusSurface(id, { focus: "thread" });
 }
 
 export function focusSurface(id, { focus = "reply" } = {}) {

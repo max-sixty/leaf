@@ -4305,7 +4305,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    source, target = roots[5], roots[16]
+    source, target = roots[15:17]
     source_card = page.locator(f'.lf-thread[data-id="{source}"]')
     target_card = page.locator(f'.lf-thread[data-id="{target}"]')
     target_card.evaluate(
@@ -4329,11 +4329,15 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     ), "the pointer did not begin over the card that will fold"
 
     before = page.evaluate("() => window.__lfHeld.length")
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": source},
+    # The user resolves the card through a package's control, which moves no pointer:
+    # a card news resolves stays where it stands (thread-list-view.js), and their own
+    # settlement folds it.
+    page.evaluate(
+        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
+        ".threadActions.resolve(key)",
+        source,
     )
-    told(page)
+    round_trip(page)
     assert page.evaluate("() => window.__lfHeld.length") == before + 1
     page.evaluate(
         "i => { window.__lfHeld[i].currentTime = "
@@ -4374,7 +4378,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    source, target = roots[5], roots[16]
+    source, target = roots[15:17]
     source_card = page.locator(f'.lf-thread[data-id="{source}"]')
     target_card = page.locator(f'.lf-thread[data-id="{target}"]')
     target_card.evaluate(
@@ -4389,11 +4393,15 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     page.mouse.move(*point)
 
     before = page.evaluate("() => window.__lfHeld.length")
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": source},
+    # The user resolves the card through a package's control, which moves no pointer:
+    # a card news resolves stays where it stands (thread-list-view.js), and their own
+    # settlement folds it.
+    page.evaluate(
+        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
+        ".threadActions.resolve(key)",
+        source,
     )
-    told(page)
+    round_trip(page)
     assert page.evaluate("() => window.__lfHeld.length") == before + 1
     page.evaluate(
         "i => { window.__lfHeld[i].currentTime = "

@@ -32,7 +32,6 @@ import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
 import { readApplication } from "../semantic-state.js";
-import { sentHere } from "../pending/model.js";
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
@@ -162,9 +161,14 @@ export class HeldNews {
   }
 
   #take(prior, reading, row) {
-    // A turn a seat first draws after the log answered it, as a package mirror whose
-    // render waited on work of its own does, arrives like the agent's.
-    const own = sentHere(readApplication().unresolved);
+    // A turn is the user's gesture while this page's ledger still holds its attempt, as
+    // it does in the turn they send it. Their words from another tab, or a turn a seat
+    // first draws after the log answered it, as a package mirror whose render waited
+    // on work of its own does, arrive like the agent's.
+    const ledger = new Set(
+      readApplication().unresolved.map(({ event }) => event.attempt),
+    );
+    const own = ({ author, attempt }) => author === "user" && ledger.has(attempt);
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ messages }) => messages[0] && own(messages[0])))

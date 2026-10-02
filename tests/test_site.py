@@ -700,10 +700,10 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
         page.evaluate(
             """async () => {
                   const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
-                  client.observeSession(new Response(null, {headers: {
+                  client.admitResponse(new Response(null, {headers: {
                     "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                   }}));
-                  setTimeout(() => client.observeSession(new Response(null, {headers: {
+                  setTimeout(() => client.admitResponse(new Response(null, {headers: {
                     "Leaf-Session": "active", "Leaf-Server": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                   }})), 0);
                 }"""
@@ -896,6 +896,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         servers = []
         for page in (leader, follower):
             page.route("**/api/state*", passive_session)
+            page.route("**/registry.json", passive_session)
             response = page.goto(url, wait_until="load")
             assert response
             servers.append(response.header_value("Leaf-Server"))
@@ -910,7 +911,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         leader.evaluate(
             """async server => {
               const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
-              client.observeSession(new Response(null, {headers: {
+              client.admitResponse(new Response(null, {headers: {
                 "Leaf-Session": "active", "Leaf-Server": server
               }}));
             }""",
@@ -920,6 +921,77 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     finally:
         for page in (leader, follower):
             page.unroute_all(behavior="ignoreErrors")
+
+
+def test_freshness_checks_share_session_identity_without_rebroadcasting(
+    served_example, browser
+):
+    """Learning a private identity wakes peers once; healthy looks stay quiet."""
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    page.add_init_script(
+        """const post = BroadcastChannel.prototype.postMessage;
+        window.__sessionBroadcasts = [];
+        BroadcastChannel.prototype.postMessage = function(value) {
+          if (this.name === 'leaf-session') window.__sessionBroadcasts.push(value);
+          return post.call(this,value);
+        };"""
+    )
+
+    def passive(route):
+        answer = route.fetch()
+        route.fulfill(
+            response=answer,
+            headers={**answer.headers, "leaf-session": "passive"},
+        )
+
+    looks = []
+
+    def active(route):
+        answer = route.fetch()
+        looks.append(answer)
+        route.fulfill(
+            response=answer,
+            headers={
+                **answer.headers,
+                "leaf-session": "active",
+                "leaf-server": "private-server",
+            },
+        )
+
+    page.route("**/api/state*", passive)
+    page.route("**/registry.json", passive)
+    page.route("**/api/news", active)
+    page.goto(url, wait_until="load")
+    wait_until_ready(page)
+    # An active error envelope still establishes the session and its public reference.
+    # A later successful freshness response first learns the private incarnation.
+    page.evaluate(
+        """async()=>{
+          const client=await window.__lfRuntimeImport('/runtime/layer-client.js');
+          window.__activations=0;
+          document.addEventListener('lf-session-active',()=>window.__activations++);
+          client.admitResponse(new Response('', {status:503, headers:{
+            'Leaf-Session':'active','Leaf-Session-Reference':'239383829012'
+          }}));
+        }"""
+    )
+    page.wait_for_function("window.__sessionBroadcasts.length===2")
+    for _ in range(4):
+        with page.expect_response("**/api/news", timeout=5000):
+            pass
+    assert len(looks) >= 4
+    assert page.evaluate("window.__activations") == 1
+    assert page.evaluate("window.__sessionBroadcasts") == [
+        {"active": True, "server": None},
+        {"active": True, "server": "private-server"},
+    ]
+    assert (
+        page.evaluate(
+            "async()=> (await window.__lfRuntimeImport('/runtime/context.js')).runtime.sessionReference"
+        )
+        == "239383829012"
+    )
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):

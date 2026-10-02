@@ -2593,6 +2593,45 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
 
 
+@pytest.mark.parametrize("replacement", ["envelope", "server"])
+def test_unchanged_freshness_from_a_replaced_server_reloads_the_document(
+    browser, serve, replacement
+):
+    """A body token cannot admit the envelope of a replacement server."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("window.__originalDocument = true")
+    reading = page.locator("body").get_attribute("data-lf-reading")
+    answered = []
+
+    def respond(route):
+        if answered:
+            route.continue_()
+            return
+        answer = route.fetch()
+        answered.append(answer)
+        if replacement == "server":
+            assert answer.text() == reading, "replacement changed the body token"
+            route.fulfill(response=answer)
+        else:
+            route.fulfill(
+                response=answer,
+                headers={**answer.headers, "leaf-server": "replacement-server"},
+                body=reading,
+            )
+
+    page.route("**/api/news", respond)
+    with page.expect_navigation(wait_until="load", timeout=5000):
+        if replacement == "server":
+            serve.httpd.server_id = "replacement-server"
+    wait_until_ready(page)
+    assert answered
+    assert page.evaluate("window.__originalDocument === undefined")
+    if replacement == "server":
+        expect(page.locator("script[data-lf-server]")).to_have_attribute(
+            "data-lf-server", "replacement-server"
+        )
+
+
 def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):
     """Hidden documents stop attention checks; visibility immediately catches up.
 

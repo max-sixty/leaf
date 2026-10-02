@@ -20,7 +20,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
-import { layerHeaders, reportPageError, sameDelivery } from "./layer-client.js";
+import { layerHeaders, reportPageError, admitResponse } from "./layer-client.js";
 
 export function acceptData(candidate, taken) {
   if (
@@ -257,7 +257,7 @@ export async function loadDeferred(manifest, key) {
   const response = await fetch(pageUrl(`api/deferred?${params}`), {
     headers: layerHeaders(),
   });
-  if (response.ok && !sameDelivery(response)) {
+  if (!admitResponse(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a deferred value");
   }
   const answer = await response.json().catch(() => ({}));

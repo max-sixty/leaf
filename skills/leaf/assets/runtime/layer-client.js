@@ -3,8 +3,9 @@
 
    A vendored runtime and registry are one generation. This module carries the
    `__LEAF_LAYER_GENERATION__` placeholder (quoted, once) and the registry carries the same epoch
-   after `page init`. `sameDelivery` checks every successful state read and POST response
-   against the document's layer and website release. A foreign answer is always refused;
+   after `page init`. `admitResponse` observes every response's session metadata and
+   checks every successful payload against the document's layer and website release,
+   including a freshness token whose body has not changed. A foreign answer is always refused;
    whether the page also reloads is the document source's to answer, through the same
    probe startup recovery uses, because only a source that has moved on has a different
    document to give and a page that reloads without one never stops. Active responses
@@ -135,7 +136,11 @@ export function sameLayer(generation) {
   return false;
 }
 
-export function sameDelivery(response) {
+export function admitResponse(response) {
+  observeSession(response);
+  // Failure responses still name session activation and its public reference. Their
+  // status and error body belong to the caller, not to successful-payload admission.
+  if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
@@ -148,7 +153,9 @@ export function sameDelivery(response) {
 }
 
 let sessionMode = release ? "unknown" : "active";
-let sessionServer = null;
+// A durable page names its server in the document. A released website's static
+// document names no private incarnation: only an active response can establish it.
+let sessionServer = release ? null : (runtimeScript?.dataset.lfServer ?? null);
 const sessionChannel =
   release && typeof window.BroadcastChannel !== "undefined"
     ? new window.BroadcastChannel("leaf-session")
@@ -159,24 +166,26 @@ function activateSession(broadcast, server = null) {
     reloadNow("This Leaf session restarted — reloading the page.");
     return;
   }
+  const learnedServer = server && !sessionServer;
   if (server) sessionServer = server;
   const activated = sessionMode !== "active";
   sessionMode = "active";
   if (activated) document.dispatchEvent(new Event("lf-session-active"));
-  if (broadcast) sessionChannel?.postMessage({ active: true, server });
+  if (broadcast && (activated || learnedServer))
+    sessionChannel?.postMessage({ active: true, server });
 }
 
 sessionChannel?.addEventListener("message", (event) => {
   if (event.data?.active === true) activateSession(false, event.data.server);
 });
 
-export function observeSession(response) {
+function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
   if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
-  if (mode !== "active" && mode !== "passive") return;
-  if (mode === "active") activateSession(true, response.headers.get("Leaf-Server"));
-  else if (sessionMode !== "active") sessionMode = "passive";
+  const server = response.headers.get("Leaf-Server");
+  if (mode === "active" || (!release && server)) activateSession(true, server);
+  else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
 }
 
 export const sessionIsActive = () => sessionMode === "active";
@@ -219,8 +228,7 @@ export const postEvent = async (event) => {
   } finally {
     countTraffic("acked");
   }
-  observeSession(response);
-  if (response.ok && !sameDelivery(response)) return null;
+  if (!admitResponse(response)) return null;
   return response;
 };
 
@@ -245,8 +253,7 @@ export const uploadMedia = async (file) => {
   } finally {
     countTraffic("acked");
   }
-  observeSession(response);
-  if (response.ok && !sameDelivery(response)) return null;
+  if (!admitResponse(response)) return null;
   let answer;
   try {
     answer = await response.json();

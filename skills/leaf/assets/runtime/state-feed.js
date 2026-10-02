@@ -25,9 +25,8 @@ import {
 import { applicationState } from "./semantic-state.js";
 import {
   layerHeaders,
-  observeSession,
+  admitResponse,
   reportPageError,
-  sameDelivery,
   sessionIsActive,
 } from "./layer-client.js";
 
@@ -64,8 +63,7 @@ async function readState(bound) {
       // recovery boundary.
       return null;
     }
-    if (res) observeSession(res);
-    if (res?.ok && !sameDelivery(res)) return null;
+    if (res && !admitResponse(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 403. A live server refusing the key and a dead one both leave the page
     // unreachable from here, and the terminal link is the recourse for both.
@@ -318,6 +316,9 @@ export function createStateFeed({
               globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
             ]),
           });
+          if (listening !== interval) return;
+          if (!admitResponse(response))
+            throw new Error("news belongs to another delivery");
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
           const reading = await response.text();
           if (listening === interval) {

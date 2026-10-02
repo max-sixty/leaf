@@ -32,6 +32,22 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
 
+def answer_reports(page, heard) -> None:
+    """Answer every error the page reports to its agent here, handing `heard` each
+    report's text, so a reading neither writes to the page's log nor draws the
+    refusal a read-only server gives the post. Every other event goes through."""
+
+    def report(route):
+        event = route.request.post_data_json
+        if event["kind"] != "error":
+            route.continue_()
+            return
+        heard(event["text"])
+        route.fulfill(status=204)
+
+    page.route("**/api/event", report)
+
+
 def previous_stamp(revision: int, versions: list[dict]) -> dict | None:
     """The newest stamped revision before ``revision``, if one exists."""
     earlier = [version for version in versions if version["revision"] < revision]
@@ -229,6 +245,9 @@ def _render_scheme(
 
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
+    # The runtime writes each report to the console too, which is where this reading
+    # takes it.
+    answer_reports(page, lambda text: None)
     # The console's own word for a bad response is "Failed to load resource",
     # which names nothing; carry the status and URL so a failure says what
     # went missing.

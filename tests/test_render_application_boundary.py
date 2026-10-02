@@ -580,8 +580,10 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     page.locator(".lf-threads-toggle").click()
 
     with sending(page, "a reply from the first package mirror"):
-        write(first.locator(".lf-page-thread .lf-say leaf-text"), "Shared reply")
-        first.locator(".lf-page-thread .lf-say").get_by_role(
+        write(
+            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "Shared reply"
+        )
+        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
             "button", name="Send"
         ).click()
     expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
@@ -598,8 +600,8 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     second.evaluate("node => { node.holding = true; node.consumer.update(); }")
     expect(second).to_have_attribute("data-held", "true")
     with sending(page, "a reply while a package mirror is held"):
-        write(first.locator(".lf-page-thread .lf-say leaf-text"), "While held")
-        first.locator(".lf-page-thread .lf-say").get_by_role(
+        write(first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "While held")
+        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
             "button", name="Send"
         ).click()
     expect(first.locator(".lf-page-thread")).to_contain_text("While held")
@@ -628,8 +630,10 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     second.evaluate("node => node.remove()")
     stopped_at = second_handle.evaluate("node => node.updates")
     with sending(page, "a reply after the second mirror disconnected"):
-        write(first.locator(".lf-page-thread .lf-say leaf-text"), "After removal")
-        first.locator(".lf-page-thread .lf-say").get_by_role(
+        write(
+            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "After removal"
+        )
+        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
             "button", name="Send"
         ).click()
     expect(first.locator(".lf-page-thread")).to_contain_text("After removal")
@@ -1640,7 +1644,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
-    editor = inline.locator(":scope > .lf-say leaf-text")
+    editor = inline.locator(":scope > .lf-thread-reply leaf-text")
     write(editor, "draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
     expect(editor).to_be_focused()
@@ -1663,7 +1667,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           window.keptInline = document.querySelector(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
-          window.keptEditor = keptInline.querySelector(':scope > .lf-say leaf-text');
+          window.keptEditor = keptInline.querySelector(':scope > .lf-thread-reply leaf-text');
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
@@ -1736,7 +1740,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
+            inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "list retention replaced a committed panel card, seat, or editor"
@@ -1780,7 +1784,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
+            inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
@@ -1836,7 +1840,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     panel_settled(page)
     left = page.locator(
         f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]'
-        " > .lf-say leaf-text"
+        " > .lf-thread-reply leaf-text"
     )
     went = page.locator("#other > .lf-thread-seat leaf-text")
     write(left, "where the user was")

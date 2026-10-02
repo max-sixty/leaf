@@ -1093,6 +1093,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
+    consume_browser_errors(
+        page,
+        "<lf-visual-review id=\"visual-run\"> failed: case 'run-list' focus 120,300",
+    )
     expect(case_select).to_be_visible()
     unequal_pair = changed | {
         "cases": [
@@ -1109,6 +1113,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "before is 1800px wide and after is 780px"
     )
+    consume_browser_errors(page, "before is 1800px wide and after is 780px")
     corrected = changed | {
         "cases": [
             changed["cases"][0]
@@ -6397,9 +6402,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
-    expect(inline.locator(".lf-page-thread-body")).to_have_text(
-        "Half-empty by whose reading?"
-    )
+    expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-thread .lf-quote").first
@@ -7559,7 +7562,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
-    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose leaf-text")
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-thread-reply leaf-text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)

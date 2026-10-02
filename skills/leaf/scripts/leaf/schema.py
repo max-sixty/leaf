@@ -502,10 +502,6 @@ DATA_DIR = "data"
 INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
-# One name, because there is one key (`host_key`). Cookies are scoped by host and
-# blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
-# with every other server the user has running, which is what the prefix is for.
-KEY_COOKIE = "lf_key"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
 KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60

@@ -22,6 +22,9 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
+   Contextual hints and More repack together inside the bar as the command scene
+   changes. This bounded control reflow does not move the bar or the page beside it.
+
    The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
    narrow window keeps the leading hint and a sequence too long for the window keeps its
    leading destinations. More and the current way out never leave, and the reference
@@ -93,6 +96,7 @@ import { pagePresented } from "../presentation.js";
 // a visible door to the complete list should be a door every user can work.
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
+shortcutBarEl.setAttribute("data-lf-reflow", "controls");
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
 let activateShortcutMore = null;
 

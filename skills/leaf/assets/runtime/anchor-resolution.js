@@ -34,7 +34,8 @@ import {
   TEXT_BLOCK,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { PRESSABLE, PRESSES } from "./widget-elements.js";
+import { PRESSABLE } from "./widget-elements.js";
+import { PRESSES } from "./control-selectors.js";
 import { excerptWords } from "./margin-entry-model.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after

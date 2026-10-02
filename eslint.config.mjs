@@ -9,6 +9,7 @@ const runtimePrimitives = [
   "chrome.js",
   "dom-children.js",
   "focus.js",
+  "control-selectors.js",
   "keeps.js",
   "rendering.js",
   "repaint.js",

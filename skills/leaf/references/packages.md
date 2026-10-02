@@ -491,8 +491,25 @@ outside `scope`.
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
-mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
-its reply box. A place on the page is an ordinary fragment link; Leaf follows it the
+mark and `t` make. `focus: "thread"` lands on the card or native summary;
+`focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
+surface's ordinary route: a compact passage card starts at the card, while a widget
+conversation or Threads starts at its reply. The call returns a `Promise<Element|null>`:
+the actual destination after reveal and placement, or `null` when the Thread no longer
+stands or newer input has superseded the move. Leaf owns the original gesture's
+continuity inside this route. The returned, still-focused destination is the capability
+for a continuation: a separate predicate captured on the button would reject the
+route's own move to that editor. A continuation uses the returned element only while
+it still holds focus:
+
+```js
+const editor = await openThread(thread.id, {focus: "reply"});
+if (editor?.matches(":focus") && editor.setSelectionRange) {
+  editor.setSelectionRange(0, editor.value.length);
+}
+```
+
+A place on the page is an ordinary fragment link; Leaf follows it the
 way it travels to a thread, clearing a panel that covers the page and opening whatever
 holds the element.
 
@@ -528,7 +545,8 @@ to leave, so a widget retiring one uses that constant rather than choosing a num
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
-A navigation captures `retainUserIntent()` in the gesture that starts it, before its
+A module implementing its own navigation captures `retainUserIntent()` in the gesture
+that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or
 scroll: loading a file, a deferred value, or a renderer is a wait, and a user who pressed on
 in the meantime is not moved back. A predicate taken after a wait would carry a newer
@@ -538,7 +556,9 @@ transfer without renewing the original input generation. After a wait, check the
 predicate before starting that synchronous handoff. If the synchronous work already
 moved focus, the handoff keeps and adopts that destination instead of running the old
 focus move. A skipped move returns false, so a caller that requires the surface change
-can decline; adoption alone does not report that the move ran.
+can decline; adoption alone does not report that the move ran. Leaf's navigation
+primitives own that retention already; `openThread` returns its completed destination
+as described above.
 
 When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
 `lf-reveal` on each ancestor of the target and the target itself, outermost first, with

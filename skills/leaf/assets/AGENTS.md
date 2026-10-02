@@ -337,7 +337,8 @@ Startup order is load-bearing:
 6. Publish that document contract once.
 7. Import the modules `x-upgrade` declares for the tags present, and no others.
 8. Run the dressing passes and wait for the coordinator publication.
-9. Present the optional runtime-owned page-interface region.
+9. Join optional runtime-owned page-interface imports and installation. Their contained
+   sample documents are deferred arrivals, separate from this document's semantic proof.
 10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer presents the page, or after a bounded
     wait the page presents offline and applies the answer when it lands.

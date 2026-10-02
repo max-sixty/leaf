@@ -6,7 +6,7 @@
    a blank page, and reaches the agent as the page's error; widgetController owns
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless, so upgrade order can't matter.

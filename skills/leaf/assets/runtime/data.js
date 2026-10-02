@@ -16,7 +16,7 @@ import {
   attachApplicationPresentation,
   whenApplicationRegionsPresented,
 } from "./semantic-state.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";

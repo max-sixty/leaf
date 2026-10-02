@@ -226,6 +226,7 @@ import {
 } from "./thread/workflow.js";
 import { renderedParent, shadowHost, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
+import { threadFocusDestination } from "./thread/focus.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
@@ -2556,7 +2557,7 @@ export function createMarginProjection({
               return (
                 may() &&
                 mayLand.available() &&
-                Boolean(openPageThread(thread, { focus: "thread" }))
+                Boolean(await openPageThread(thread, { focus: "thread", intent: may }))
               );
             },
           };
@@ -2846,7 +2847,7 @@ export function createMarginProjection({
         setOptionsOpen(entry, false);
       closePreview();
       leavePageMap();
-      openPageThread(sourceItem(choice.items[0]).thread.id);
+      void openPageThread(sourceItem(choice.items[0]).thread.id);
       return;
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2864,10 +2865,7 @@ export function createMarginProjection({
   // `unfold: false` is a card that accompanies where the user stands rather than one
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
-  function openInlineThread(
-    id,
-    { transition = null, onPositioned = null, unfold = true } = {},
-  ) {
+  function openInlineThread(id, { transition = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadList().find((t) => t.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2917,13 +2915,6 @@ export function createMarginProjection({
     const positioned = transition
       ? revealThread(transition, entry, initiallyPositioned)
       : initiallyPositioned;
-    if (thread && onPositioned)
-      deferThreadPreviewFocus(positioned, () => {
-        const current = [...previewList.children]
-          .find((candidate) => candidate.lfMarginItem === itemId)
-          ?.querySelector(".lf-page-thread");
-        if (current) onPositioned(current);
-      });
     return thread && { thread, presented: positioned };
   }
 
@@ -2932,37 +2923,58 @@ export function createMarginProjection({
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable thread. Callers choose only the landing within the thread;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
-  // cannot drift into different policies. The margin card always lands on the thread
-  // itself.
+  // cannot drift into different policies. Its default opens the compact margin card
+  // on the thread; an explicit reply requests its editor, and Threads defaults to reply.
+  // The promise resolves the actual destination after the selected placement lands.
   //
   // A press on marked words passes `travel: false`: the words are already under the
   // user's hand, and centring them moves everything the user was looking at. The
   // card needs no trip: it opens in the window even where its cluster is above it.
-  function openPageThread(id, { focus = "reply", travel = true } = {}) {
+  async function openPageThread(
+    id,
+    { focus = null, travel = true, intent = retainUserIntent() } = {},
+  ) {
+    if (!intent()) return null;
     if (!panelIsOpen()) {
-      // The trip starts before the surface takes focus, which scrolls it into view: the
-      // trip records the place the user leaves, so it has to find them still there.
-      const local = surfaceFocusTarget(id, { focus });
+      // Capture the departure before any selected surface moves focus. The route
+      // returns its actual destination only after the existing placement has landed.
+      const localFocus = focus ?? "reply";
+      const local = surfaceFocusTarget(id, { focus: localFocus });
       if (local) {
-        if (travel) scrollToThread(id, { focus });
-        else focusSurface(id, { focus });
-        closePreview();
-        return local;
+        intent.handoff(closePreview);
+        if (travel) {
+          if (!(await scrollToThread(id, { focus: localFocus, intent }))) return null;
+        } else if (!intent.handoff(() => focusSurface(id, { focus: localFocus })))
+          return null;
+        return surfaceFocusTarget(id, { focus: localFocus });
       }
-      const opened = openInlineThread(id, {
-        onPositioned: travel
-          ? null
-          : (thread) => {
-              focusForNavigation(thread);
-              thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-            },
-      });
+      const opened = openInlineThread(id);
       if (opened) {
-        if (travel) scrollToThread(id, { focus, presented: opened.presented });
-        return opened.thread;
+        if (travel) {
+          if (
+            !(await scrollToThread(id, {
+              focus: focus ?? "thread",
+              presented: opened.presented,
+              intent,
+            }))
+          )
+            return null;
+        } else {
+          if (!(await opened.presented) || !intent()) return null;
+          const current = threadFocusTarget(id, { focus });
+          if (
+            !current ||
+            !intent.handoff(() => {
+              focusForNavigation(current);
+              current.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+            })
+          )
+            return null;
+        }
+        return threadFocusTarget(id, { focus });
       }
     }
-    return showThread(id, { focus });
+    return showThread(id, { focus: focus ?? "reply", intent });
   }
 
   // The row's acknowledgment face is read out of the published state projection rather
@@ -3181,12 +3193,14 @@ export function createMarginProjection({
   // The page element a thread is about, resolved or not: where its anchor is placed, the
   // element its inventory entry is grouped under. A general or detached thread has none.
   const threadTarget = (id) => placedAt(id)?.element ?? null;
-  const threadFocusTarget = (id, options) =>
-    surfaceFocusTarget(id, options) ??
-    [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (thread) => thread.dataset.thread === id,
-    ) ??
-    null;
+  const threadFocusTarget = (id, { focus = null } = {}) => {
+    const surface = surfaceFocusTarget(id, { focus });
+    if (surface) return surface;
+    const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
+      (candidate) => candidate.dataset.thread === id,
+    );
+    return thread ? threadFocusDestination(thread, { focus: focus ?? "thread" }) : null;
+  };
   // The page target this owner's chrome shows (standing-target.js): a margin cluster
   // control's, the card's — its threads and its own controls — and a thread's in the
   // Threads panel. `threadHere` is the same relation read the other way.

@@ -129,7 +129,7 @@ import {
   projectCommandScope,
 } from "../keyboard/scopes.js";
 import { addressableLabel, addressableWord } from "../anchor-resolution.js";
-import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./drawer-list.js";

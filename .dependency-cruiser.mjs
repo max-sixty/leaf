@@ -156,6 +156,17 @@ export default {
       },
     },
     {
+      name: "content-layout-independent-of-annotation-layout",
+      comment:
+        "Authored residents share one content geometry owner without loading annotation geometry.",
+      severity: "error",
+      from: { path: isModule("content-layout.js") },
+      to: {
+        reachable: true,
+        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
+      },
+    },
+    {
       name: "no-cycle",
       comment:
         "A cycle has no boot order; whichever module the browser evaluates first " +

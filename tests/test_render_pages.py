@@ -3249,6 +3249,89 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 
+@pytest.mark.parametrize("rail", [True, False])
+def test_authored_residency_runs_without_annotation_geometry(browser, serve, rail):
+    """Content residency imports inertly and admits authored residents independently
+    of annotation selection. Its one document listener owns disclosure changes; RTL
+    and a removed main still complete a reading without a second layout authority."""
+    page = open_page(
+        browser, serve(leaf_page("content owner", "<h1>Content owner</h1>"))
+    )
+    asset = page.evaluate("""new URL('runtime/content-layout.js', new URL(
+      document.querySelector('script[data-lf-entry]').dataset.lfEntry, location)).href""")
+    fixture = page.evaluate("new URL('content-owner-proof', location).href")
+    page.route(
+        fixture,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<!doctype html><html><head><style>
+body { margin: 0 }
+main { width: 720px; margin: auto; position: relative;
+ inset-inline-start: var(--lf-shift, 0px);
+ --rail: 100px; --sidebar: 150px; --note: 80px }
+aside { --lf-resident: sidebar }
+aside.note { --lf-resident: note; display: none }
+</style></head><body><main><h1>Neutral authored layout</h1>
+<aside>Sidebar</aside><aside class="note">Hidden until resident note</aside>
+<details><summary>More</summary><aside class="note">Disclosed note</aside></details>
+</main></body></html>""",
+        ),
+    )
+    page.set_viewport_size({"width": 950, "height": 800})
+    loaded = []
+    page.on("request", lambda request: loaded.append(request.url))
+    page.goto(fixture)
+    reading = page.evaluate(
+        """async ({asset, rail}) => {
+      const owner = await import(asset);
+      window.residency = owner; window.completed = [];
+      owner.scheduleResidency();
+      await new Promise(requestAnimationFrame);
+      const main = document.querySelector('main');
+      const inert = !owner.residencyStarted() && !main.hasAttribute('data-lf-margin');
+      owner.openResidency({rail, onRead: changed => window.completed.push(changed)});
+      return {inert, tokens: main.getAttribute('data-lf-margin'),
+              shift: main.style.getPropertyValue('--lf-shift')};
+    }""",
+        {"asset": asset, "rail": rail},
+    )
+    expected = {
+        "inert": True,
+        "tokens": "rail note" if rail else "sidebar note",
+        "shift": "" if rail else "35px",
+    }
+    assert reading == expected
+    page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
+    page.wait_for_function("completed.length >= 2")
+    assert (
+        page.locator("main").evaluate(
+            "node => node.style.getPropertyValue('--lf-shift')"
+        )
+        == expected["shift"]
+    )
+    page.evaluate("document.querySelector('details').open = true")
+    page.wait_for_function("completed.length >= 3")
+    expect(page.locator("main")).to_have_attribute("data-lf-margin", expected["tokens"])
+    page.evaluate(
+        "document.querySelector('main').remove(); residency.scheduleResidency()"
+    )
+    page.wait_for_function("completed.length >= 4")
+    assert page.evaluate("completed.at(-1)") is False
+    assert not [
+        url
+        for url in loaded
+        if any(
+            name in url
+            for name in (
+                "margin-layout",
+                "margin-projection",
+                "annotation-layer",
+                "page-map-dialog",
+            )
+        )
+    ]
+
+
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     browser, serve
 ):

@@ -37,8 +37,8 @@ toggle left under the press, and moves nothing else.
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
-the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
-Only the left resident and the notes move the column over (`settleResidency`). A pin,
+the column, and `data-rail` on `body` withholds or reserves it (`content-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency` there). A pin,
 a passage mark, and everything else in the annotation layer is an overlay: it covers
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a

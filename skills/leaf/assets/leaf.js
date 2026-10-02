@@ -161,7 +161,8 @@ import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scope
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { layoutMarginRows, openResidency } from "./runtime/margin-layout.js";
+import { layoutMarginRows, syncMarginResidency } from "./runtime/margin-layout.js";
+import { openResidency } from "./runtime/content-layout.js";
 import {
   createNavigation,
   placeThreadEdge,
@@ -945,8 +946,8 @@ async function startPage() {
   ]);
   if (!upgraded) return;
   if (!offlineInteractive) {
-    // The margin's residents are read from the upgraded document (margin-layout.js).
-    openResidency();
+    // Authored residents are read from the upgraded document (content-layout.js).
+    openResidency({ rail: true, onRead: syncMarginResidency });
     layout.syncLayout();
     asks.buildBulkAnswers();
     asks.syncAsks();

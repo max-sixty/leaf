@@ -6670,14 +6670,6 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3: scoped board margins prevent the wide card from taking "
-        "its room, so its suggestion controls stay in the rail instead of pinning"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
     and reads as it will once the change is settled. The row is the column's own
@@ -6803,14 +6795,6 @@ def test_the_page_says_a_change_is_only_proposed(browser, serve):
         )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3: scoped board margins keep the moved card in the column "
-        "while its suggestion controls stand in the rail beyond the card"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     """The row is the column's child, not the change's, so the subtree a card
     travels in no longer carries it: a card dragged to another column, or moved by

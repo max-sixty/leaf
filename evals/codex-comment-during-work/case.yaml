@@ -1,7 +1,7 @@
 # Added with Codex async PostToolUse delivery. A comment between steps belongs to
 # the running turn; reading its pointer confirms pickup, and its plain reply is
 # still written explicitly to the page. Baseline and candidate each passed 2/2
-# on 2026-10-01; this guards behavior without separating the guidance versions.
+# on 2026-10-01; this guards behavior without separating the instructions versions.
 schema_version: '1.0'
 name: codex-comment-during-work
 description: "Codex delivery: read and answer a comment offered between tool steps in the current turn without starting another waiter or acknowledgement."
@@ -21,7 +21,7 @@ execution:
     "Keep the existing layout; only change the cache behavior."
     Its answering clause calls for a plain `leaf thread reply`.
 
-    Read whatever guidance you need. Only Skill and Read run here, so write the
+    Read whatever instructions you need. Only Skill and Read run here, so write the
     exact commands you would run next, including the reply to the page, and say
     when you would handle the comment relative to finishing the implementation.
 graders:

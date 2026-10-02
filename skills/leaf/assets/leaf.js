@@ -49,7 +49,7 @@ import {
   targetPickerHintLayer,
   pageSearchSurface,
 } from "./runtime/composing/target-picker.js";
-import { createStandingElement } from "./runtime/composing/standing.js";
+import { createStandingTarget } from "./runtime/composing/standing.js";
 import {
   createReactionController,
   reactionTokens,
@@ -322,6 +322,8 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
+  focusForNavigation: (target) => app.margin.focusForNavigation(target),
+  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
@@ -498,13 +500,13 @@ asks = createAskView({
   presentedControl: app.margin.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
-  scrollToElement: anchorTravel.scrollToElement,
+  arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
   announce,
   repaint,
 });
 
-const standingElement = createStandingElement({
+const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
 });
@@ -557,7 +559,7 @@ responseSurface = createResponseSurface({
   threadHere: () => app.margin.threadHere(),
   threadTarget: (thread) =>
     app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
-  standingElement,
+  standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
@@ -604,7 +606,7 @@ reactions = createReactionController({
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
   standingThread,
-  standingElement,
+  standingTarget,
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,

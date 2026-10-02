@@ -13,13 +13,13 @@ from functools import cached_property
 from pathlib import Path
 
 from ..data import read_data
-from ..event_log import now_iso
 from ..files import active_descriptor, list_revisions, version_descriptors
 from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, page_vocabulary
 from ..revision_artifact import read_revision
+from ..session_cleanup import now_iso
 
 
 @dataclass(frozen=True)

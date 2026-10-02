@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .activity import Turn, current_turn, transition_due
-from .event_log import now_iso, read_cursor, read_events
+from .event_log import read_cursor, read_events
 from .files import (
     entry_stamps,
     file_stamp,
@@ -35,6 +35,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
+from .session_cleanup import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. The news stream already allowed this much staleness,

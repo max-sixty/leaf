@@ -2,41 +2,75 @@
 
 On a loaded machine, rejecting the feature gallery's suggested insertion (`bg-insert`)
 can leave its Undo unreachable: the margin row that carries it stays hidden beside a
-passage that is on screen. The same defect hides the suggestion's Accept and Reject
-after an Undo. Two nightly tests show it as flakes:
+passage that is on screen. The suggestion's Accept and Reject can also disappear
+after an Undo. The gallery actions journey has failed on main, including at 1200px
+on `999e0231a`. The runtime, gallery source, and test used for the latest diagnosis
+match main `015b1b9c26c240aeaef186e5f4981fcd85a881e1`.
 
-- `test_render_margin.py::test_the_feature_gallery_keeps_its_real_actions_reachable`
-  (the Undo click times out, or Accept is not visible after the Undo);
-- `test_render_navigation.py::test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone`
-  (rarely).
+Under `/fix-ci`'s fallback for a stuck failure verified on main,
+`test_render_margin.py::test_the_feature_gallery_keeps_its_real_actions_reachable`
+is a running `xfail(strict=False)` at all four widths. It still exercises the real
+journey and can XPASS when the intermittent defect does not occur. The marker accepts
+`AssertionError` and Playwright's `TimeoutError`; fixture `SystemExit` and other
+exception types still fail. This quarantines the CI failure; it does not fix the
+zero-size rendering defect. The navigation journey
+`test_render_navigation.py::test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone`
+was implicated in the earlier investigation, but has no fresh main failure here and
+remains unmarked.
 
-They are not marked flaky or listed as known: the control really disappears.
+The narrow journey command is:
+
+```sh
+uv run pytest 'tests/test_render_margin.py::test_the_feature_gallery_keeps_its_real_actions_reachable[1200]' -q -n0
+```
+
+The initiating failure is intermittent; this command can pass.
 
 ## What fails
 
-The rows are hidden by the margin layout acting correctly on a wrong reading of the
-page's style:
+The diagnosis on main exposed both a stale style/geometry reading and a separate
+permanent parking defect:
 
 - After the reject, the Undo moves to a row anchored to the passage around the emptied
   suggestion, `span#bg-insert-line`. The layout writes `anchor-name: --lf-a15` on the
-  span and points the row at it. The browser never applies the name, so the row stands
-  at its off-screen fallback, and the layout parks it (`data-lf-parked`, withheld) for as
-  long as it anchors to that span (`margin-layout.js`, `parked`).
-- After an Undo, the suggestion's own row stays withheld while the suggestion is shown
-  again, with the suggestion's style stuck the same way.
+  span and points the row at it. Computed style still reports `none`, so the row stands
+  at its off-screen fallback. The diagnosed main layout cached that failed reading and
+  kept the row parked (`data-lf-parked`, withheld) while it anchored to the same span.
+- After an Undo, the authored suggestion state is restored and computed `display`
+  returns `inline`, but the suggestion can still have a 0x0 bounding rectangle. Its
+  Accept/Reject row stays withheld without being parked.
 
-In both, the target element's style has stopped updating. On `span#bg-insert-line` (and
-`lf-suggestion#bg-insert` inside it):
+A small fixture independently verified the parking defect: temporarily override a
+suggestion's `anchor-name` with `none`, run `layoutMarginRows()`, remove the override,
+and run layout again. The same element's anchor name returned but its row stayed parked
+and withheld; the cache cleared only when the anchor element changed. The repair
+removes that cache and reads anchor availability on each layout pass. The scope
+regression now verifies that removing an author's `anchor-scope` restores the existing
+row and clears its stranded-margin finding. This repair cannot restore the zero-size
+suggestion after Undo; that initiating failure remains quarantined.
+
+The latest live reproduction used Chromium headless shell 153.0.8010.12 at 1200px,
+normal motion and 20x CPU throttling, without the suite's write or typed-word watchers.
+The second of two fresh pages lost Undo after accepting/undoing `bg-replace` and
+rejecting `bg-insert`. Invoking the existing hidden Undo button from script restored
+state but left the suggestion and its action row at 0x0. One fresh full Chrome
+154.0.8037.97 run with the same motion, width, throttling and absent watchers passed.
+That single cross-target pass does not establish a version remedy. Replacing native
+`checkVisibility` in a separate diagnostic also left the live failure reproducible.
+
+Earlier stuck-state probes on `span#bg-insert-line` (and `lf-suggestion#bg-insert`
+inside it) recorded:
 
 - `getComputedStyle` keeps answering `anchor-name: none` with the inline style present;
 - an inline `color` or custom property written on the span, or on its `strong` child,
   never shows in `getComputedStyle`;
 - removing and re-adding the whole `style` attribute does not help;
-- a style change on the parent paragraph (`p#bg-change-forms`), such as setting a
-  custom property there, makes the span recompute, after which every write applies.
+- in earlier runs, a style change on the parent paragraph (`p#bg-change-forms`), such
+  as setting a custom property there, made the span recompute. In the latest failed
+  journey, a parent write still left the revived suggestion and controls at 0x0.
 
-`bg-replace-line`, the sibling span, is never affected. On a page at rest the same probe
-reads every write back.
+`bg-replace-line`, the sibling span, was unaffected in these runs. On a page at rest
+the same probe reads every write back.
 
 ## How it was measured
 
@@ -158,6 +192,8 @@ adopted ones as text, scripts removed), replaying exactly the DOM mutations the 
 makes under `p#bg-change-forms` (recorded with a MutationObserver: `data-lf-state`,
 `data-lf-retired`, the moved label, `anchor-name` on the span, `data-lf-user-override`),
 stuck 0 of 48 at 20x throttling. The runtime does something more around the reject.
+There is no engine-only minimal reproduction yet. The initiating cause remains
+unconfirmed.
 
 ## Next step
 

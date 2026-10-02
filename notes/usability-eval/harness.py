@@ -872,7 +872,7 @@ def ignore(directory, names):
     return {
         n
         for n in names
-        if n in ("runtime", "vendor", "widgets", "guidance", "service.json")
+        if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
         or n.endswith((".lock", ".js", ".css"))
     }
 

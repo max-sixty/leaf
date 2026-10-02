@@ -162,7 +162,7 @@ export function createResponseSurface({
   setPanel,
   threadHere,
   threadTarget,
-  standingElement,
+  standingTarget,
   composerHolds,
   responseOptionsAreOpen,
   markAt,
@@ -303,7 +303,10 @@ export function createResponseSurface({
 
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    let restoreFocus;
     if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
+      // Stopping the floating position hides the bar before moveFab can hold focus.
+      restoreFocus = holdFocus(fabBar);
       stopFabPositioning({ reset: true, repositioning: true });
       fabInlineOutlet = outlet;
       fabFloating = false;
@@ -314,6 +317,7 @@ export function createResponseSurface({
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
     stoodAgain();
+    restoreFocus?.();
     return true;
   }
 
@@ -836,10 +840,6 @@ export function createResponseSurface({
     // place a response box against. `nearest` reveals it while leaving a target already
     // in front of the user exactly where it is.
     scrollRevealedElement(addressable, "instant", "nearest");
-  }
-
-  function commentOnAddressable(addressable) {
-    commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
@@ -1427,7 +1427,7 @@ export function createResponseSurface({
         box: selectionComment,
         go: commentOnTouchSelection,
       };
-    const here = standingElement();
+    const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
     // are in it, or its target lies within the element they stand at — the Ask holding
@@ -1435,26 +1435,27 @@ export function createResponseSurface({
     // when the user holds one of its marks. A card showing an enclosing block's thread is
     // about that block, so an element inside it, such as an Ask in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
+
     const inline = threadHere();
     const target = inline && threadTarget(inline);
     const inlineBox =
       inline &&
       (!here ||
         inline.contains(focused()) ||
-        (target && under(target, heldAsk() ?? here))) &&
+        (target && under(target, heldAsk() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.
     // After the user lands elsewhere, Comment names that new place;
-    // commentOnAddressable carries the old words without replacing a destination's
+    // commentOnTarget carries the old words without replacing a destination's
     // independent draft.
     if (
       anchor &&
       (pageSelection() ||
         fabHoldsCapturedPassage() ||
-        (!said && (!here || here === fabTargetAt())))
+        (!said && (!here || here.element === fabTargetAt())))
     )
       return {
         ...commenting(
@@ -1476,9 +1477,9 @@ export function createResponseSurface({
       };
     if (here)
       return {
-        ...commenting(addressableWord(here)),
+        ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
-        go: () => commentOnAddressable(here),
+        go: () => commentOnTarget(here),
       };
     return {
       ...commenting("page"),
@@ -1596,7 +1597,6 @@ export function createResponseSurface({
     fabTargetAt,
     fabReturnTo,
     bringForward,
-    commentOnAddressable,
     commentOnTarget,
     focusFabComment,
     fabOptionsAvailable,

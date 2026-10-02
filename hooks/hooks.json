@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -n \"$CLAUDECODE\" ] || exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
             "async": true,
             "timeout": 20
           }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -n \"$CLAUDECODE\" ] || exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
             "timeout": 3
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
             "timeout": 20
           },
           {
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
             "timeout": 20
           }
         ]
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" session-end 2>/dev/null || true",
             "timeout": 3
           }
         ]

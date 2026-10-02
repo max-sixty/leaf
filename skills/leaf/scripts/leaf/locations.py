@@ -1,7 +1,5 @@
 """Filesystem path identity, containment, and overlap."""
 
-import ctypes
-import hashlib
 import os
 import sys
 from pathlib import Path
@@ -28,11 +26,6 @@ class PathLocation(NamedTuple):
 
     lineage: tuple
     tail: tuple
-
-
-def page_key(page_dir: Path) -> str:
-    """A filesystem-safe identity for state held outside one page directory."""
-    return hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()
 
 
 def path_location(path: Path) -> PathLocation:
@@ -64,6 +57,8 @@ def _filesystem_case_sensitive(path: Path) -> bool:
     """Whether new names on path's filesystem distinguish letter case."""
     if sys.platform != "darwin":
         return os.path.normcase("A") != os.path.normcase("a")
+
+    import ctypes
 
     # Darwin exposes this per volume rather than through normcase: APFS can be
     # mounted either way, and normcase leaves names unchanged in both cases.

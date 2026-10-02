@@ -99,6 +99,18 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def panel_by_keyboard(page: Page) -> None:
+    """The Threads panel with keyboard focus on its current title."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-thread-panel')?.checkVisibility()"
+    )
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-thread-summary')"
+    )
+
+
 def panel_reply_sent(page: Page) -> None:
     """A reply sent from the Threads panel's open thread, its stage on the message
     and the thread's attention on the other rows."""
@@ -138,6 +150,25 @@ def code_note(page: Page) -> None:
     )
 
 
+def code_copy_by_pointer(page: Page) -> None:
+    """Code's corner control revealed by hovering its source."""
+    code_note(page)
+    page.locator("lf-code pre").first.hover()
+
+
+def code_copy_by_keyboard(page: Page) -> None:
+    """Code's corner control with the keyboard focus ring visible."""
+    code_note(page)
+    page.keyboard.press("Tab")
+    page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
+
+
+def code_source_by_touch(page: Page) -> None:
+    """Reading code by touch, with the corner control disclosed away."""
+    code_note(page)
+    page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
+
+
 def pane_focused(page: Page) -> None:
     """A workspace pane's body focused by keyboard: a pane standing flush with the
     workspace's own scrollport, which clipped a ring drawn outside the body."""
@@ -173,10 +204,14 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_sent,
         card_reply_large,
         threads_panel,
+        panel_by_keyboard,
         panel_reply_sent,
         composer,
         card_grabbed,
         code_note,
+        code_copy_by_pointer,
+        code_copy_by_keyboard,
+        code_source_by_touch,
         pane_focused,
         element_thread,
         versions_menu,
@@ -196,6 +231,7 @@ class State:
 
 
 STATES = (
+    State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
@@ -208,6 +244,10 @@ STATES = (
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
+    State(
+        "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
+    ),
+    State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
@@ -233,6 +273,22 @@ STATES = (
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
+    State("walkthrough-copy-hover", "pr-walkthrough", code_copy_by_pointer),
+    State("walkthrough-copy-keyboard", "pr-walkthrough", code_copy_by_keyboard),
+    State(
+        "walkthrough-copy-touch",
+        "pr-walkthrough",
+        code_note,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "walkthrough-source-touch",
+        "pr-walkthrough",
+        code_source_by_touch,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("ship-thread", "ship-review", element_thread),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)

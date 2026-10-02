@@ -403,6 +403,42 @@ export class ThreadView {
           : this.#summaryRange(range, markerFor),
     );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
+    const body = html`
+      ${
+        model.quote
+          ? html`<header class="lf-thread-head">
+              <blockquote
+                class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
+                role=${model.quote.anchored ? "button" : nothing}
+                tabindex=${model.quote.anchored ? "0" : nothing}
+                aria-disabled=${model.quote.anchored ? String(!model.quote.found) : nothing}
+                title=${model.quote.title ?? nothing}
+                @click=${this.#returnToQuote}
+              >
+                <span class="lf-quote-label">${model.quote.label}</span>
+                ${
+                  model.quote.outdated
+                    ? html`<span class="lf-anchor-status">Earlier data</span>`
+                    : nothing
+                }
+              </blockquote>
+            </header>`
+          : nothing
+      }
+      ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
+      ${
+        headerActions && messages[0]
+          ? html`<div class="lf-thread-root-meta">
+              ${messages[0].header}${news} ${headerActions}
+            </div>`
+          : nothing
+      }
+      ${
+        model.surface === "margin"
+          ? html`<div class="lf-thread-transcript">${transcript}</div>`
+          : transcript
+      }
+    `;
     render(
       html`
         ${navigationSummary(navigation, model)}
@@ -425,46 +461,7 @@ export class ThreadView {
               </summary>`
             : nothing
         }
-        ${
-          model.quote
-            ? html`<header class="lf-thread-head">
-                ${
-                  model.quote
-                    ? html`<blockquote
-                        class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
-                        role=${model.quote.anchored ? "button" : nothing}
-                        tabindex=${model.quote.anchored ? "0" : nothing}
-                        aria-disabled=${
-                          model.quote.anchored ? String(!model.quote.found) : nothing
-                        }
-                        title=${model.quote.title ?? nothing}
-                        @click=${this.#returnToQuote}
-                      >
-                        <span class="lf-quote-label">${model.quote.label}</span>
-                        ${
-                          model.quote.outdated
-                            ? html`<span class="lf-anchor-status">Earlier data</span>`
-                            : nothing
-                        }
-                      </blockquote>`
-                    : nothing
-                }
-              </header>`
-            : nothing
-        }
-        ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
-        ${
-          headerActions && messages[0]
-            ? html`<div class="lf-thread-root-meta">
-                ${messages[0].header}${news} ${headerActions}
-              </div>`
-            : nothing
-        }
-        ${
-          model.surface === "margin"
-            ? html`<div class="lf-thread-transcript">${transcript}</div>`
-            : transcript
-        }
+        ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
         ${reply ? this.#reply.node : nothing}
         ${
           model.resolved && !reply && !model.folding && !marginControls
@@ -640,12 +637,15 @@ export class ThreadView {
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
-      land: () => travel.focusSurface(this.#model.id),
+      focus: "reply",
     });
   };
 
   #wireKeys() {
-    const quote = this.node.querySelector(":scope > .lf-thread-head > .lf-quote");
+    const quote = this.node.querySelector(
+      ":scope > .lf-thread-content > .lf-thread-head > .lf-quote, " +
+        ":scope > .lf-thread-head > .lf-quote",
+    );
     if (quote && !this.#keys.has(quote)) {
       this.#keys.add(quote);
       keys(quote, "On a comment's quoted passage", [

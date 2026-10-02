@@ -47,7 +47,7 @@ has tried; settle that before building it.
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
   shared data source, and calls for no new interface. Compare authoring and a feedback
-  cycle with plain HTML before improving Leaf's authoring guidance;
+  cycle with plain HTML before improving Leaf's authoring instructions;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
@@ -70,7 +70,7 @@ has tried; settle that before building it.
 ### Prose
 
 - **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** The maintainer
-  rewrite is written and awaits independent review and landing. Agent guidance is
+  rewrite is written and awaits independent review and landing. Agent instructions are
   the next phase, scored with `evals/`. Site structure, UI vocabulary and example
   selection wait on the five decisions in the note. Judge each rewrite by reader
   usefulness and preserved behavior; word counts describe the cut, not its quality.
@@ -420,15 +420,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
-- **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  and the host waits for it. In a session holding no page it costs about 50ms
-  warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
-  uv adds about 15ms, Python startup about 10ms, and importing the CLI about
-  15ms. A session holding a page adds about 0.1s to import page reading and
-  read each page's state, so its prompt and Stop hooks cost about 0.15s. That
-  cost limits what else hooks can carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
-  can answer more events itself. Rewriting the hook path in a compiled language
-  is the further step if that is not enough.
+- **Leaf hook cost with owned pages:** Stop, prompt, and Codex tool-result
+  hooks discover ownership before page reading and without importing the CLI.
+  A session holding a page still imports page reading and reads each page's
+  state before answering. Measure that cost before expanding tool observation;
+  a compiled hook path is a further step if import cleanup is insufficient.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

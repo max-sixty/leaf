@@ -39,15 +39,10 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser
 
-from leaf.files import (
-    file_stamp,
-    fsync_parents,
-    latest_revision,
-    list_revisions,
-    revision_path,
-)
+from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
+from leaf.session_cleanup import fsync_parents
 from leaf.structure import (
     SourceDocument,
     links_with_rel,

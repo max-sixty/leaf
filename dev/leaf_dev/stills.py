@@ -85,6 +85,12 @@ def card_reply_sent(page: Page) -> None:
     card.locator(".lf-page-thread-msg.user .lf-msg-sending").last.wait_for()
 
 
+def card_reply_large(page: Page) -> None:
+    """A pasted reply exhausting the room below the thread, with its caret at the end."""
+    card_reply(page)
+    page.keyboard.insert_text("\n" + "\n".join(f"Reply line {n}" for n in range(40)))
+
+
 def threads_panel(page: Page) -> None:
     """The Threads panel, opened from the banner."""
     page.locator(".lf-threads-toggle").click()
@@ -165,6 +171,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_by_keyboard,
         card_reply,
         card_reply_sent,
+        card_reply_large,
         threads_panel,
         panel_reply_sent,
         composer,
@@ -196,6 +203,9 @@ STATES = (
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
+    ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),

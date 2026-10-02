@@ -566,6 +566,7 @@ responseSurface = createResponseSurface({
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
+  carryComposerToReply: selectionComposer.carryComposerToReply,
   resetResponseOptions: selectionComposer.resetResponseOptions,
   responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
   setResponseOptions: selectionComposer.setResponseOptions,

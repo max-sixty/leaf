@@ -79,6 +79,7 @@
    Boot supplies version, map, travel, and semantic thread-render capabilities.
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
+import { replyHasWords } from "./thread/replies.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import {
   KINDS,
@@ -846,11 +847,9 @@ export function createMarginProjection({
       0,
     );
   }
-  // How many lines of the turn being answered stay in view below the fixed metadata
-  // while the reply grows and the transcript gives up room.
-  const ANSWERED_LINES = 3;
-  // The reply takes whatever room the card has left once the transcript keeps those
-  // lines, or all of itself where it is shorter, and scrolls internally only past that.
+  // The reply takes the room below the transcript without carrying the words above
+  // it. A transcript that cannot fit beside even one editor line scrolls itself;
+  // typing then uses the remaining room and scrolls inside the editor.
   function fitThreadCardEditors() {
     const listRoom =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
@@ -867,10 +866,7 @@ export function createMarginProjection({
       // left them. After a resize that editor can exceed the new card's height.
       const answered =
         (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) +
-        Math.min(
-          ANSWERED_LINES * line,
-          thread.querySelector(".lf-thread-transcript").scrollHeight,
-        );
+        thread.querySelector(".lf-thread-transcript").scrollHeight;
       const oneLine =
         input.offsetHeight -
         input.clientHeight +
@@ -939,8 +935,8 @@ export function createMarginProjection({
   // line, and its foot, with the reply row on it, while a turn joins the transcript as
   // the user drafts, whether one arrives or they sent it, so the box they type in stays
   // put and the transcript rises by the turn. A card over its target grows up from its
-  // foot. The boundary caps a card being read at the room from its held edge; one being
-  // written may take the whole boundary, rising off its top at the boundary's foot.
+  // foot. The boundary caps the card at the room from its held edge. Drafting grows the
+  // editor into that room, then scrolls its words rather than carrying the card.
   function placeThreadPreview() {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const placement = previewPlacement.begin();
@@ -1030,8 +1026,8 @@ export function createMarginProjection({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, with that edge inside the boundary as far as
-            // its last height puts it; being written and held by its top, the whole
-            // boundary, rising off its top at the boundary's foot.
+            // its last height puts it. This cap holds for reading and writing alike:
+            // a growing editor uses the room below its top, then scrolls internally.
             const last = previewHold
               ? Math.min(previewHold.foot - previewHold.top, boundary.height)
               : 0;
@@ -1042,9 +1038,7 @@ export function createMarginProjection({
               ? boundary.height
               : held === "foot"
                 ? clamp(edge, boundary.top + last, boundary.bottom) - boundary.top
-                : drafting
-                  ? boundary.height
-                  : boundary.bottom - clamp(edge, boundary.top, boundary.bottom - last);
+                : boundary.bottom - clamp(edge, boundary.top, boundary.bottom - last);
             measureThreadCard(room, cap / scale.y);
           },
           hold: () => previewHold && { [held]: previewHold[held] },
@@ -1200,7 +1194,9 @@ export function createMarginProjection({
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
-      if (thread.resolved || !thread.anchor || claimed(thread.id)) continue;
+      const drafting = replyHasWords(threadKey(thread));
+      if ((thread.resolved && !drafting) || !thread.anchor || claimed(thread.id))
+        continue;
       const id = thread.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
@@ -2529,7 +2525,7 @@ export function createMarginProjection({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
-        // A resolved thread has no margin card, so resolving closes the card and
+        // A resolved thread with no draft has no margin card, so resolving closes it and
         // hands the user to its target, and a resolve that no longer stands opens the
         // card on the thread again, while the margin is still where threads open.
         prepareLanding: () => {

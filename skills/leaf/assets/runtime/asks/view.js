@@ -87,9 +87,9 @@
 
    The sweep is the document's own blocks in document order, so an ask staged inside a
    declared shadow tree takes a heading standing over its host but not one inside that
-   tree. The travel moves the page's scroller, so the ask's own box is brought into
-   view first for the sake of an ask inside a nested scroller, which that placement
-   would never reach. An Ask whose region already stands clear of the banner, and
+   tree. Shared travel places that region through its nested scrollports, then glides
+   the owning reading region without a preliminary page jump. An Ask whose region
+   already stands clear of the banner, and
    which travel reads as whole on every edge once whatever surface hid it is cleared
    (anchor-travel.js, `trip`), is not travelled to at all: the press moves the ring and
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
@@ -1002,18 +1002,15 @@ export function createAskView({
             moving === undefined
               ? null
               : arrivalFocus(next, !unansweredIds().has(next.id)),
-          // The Ask's nested scroller reveals its own box before the context's
-          // scroller aligns the opening. A framed Ask requests no motion.
+          // Shared travel brings the arrival region through its nested scrollports
+          // in one placement. A framed Ask requests no motion.
           scroll:
             moving === undefined
               ? []
               : !box
                 ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
                 : moving
-                  ? [
-                      { at: target, behavior: "instant", block: "nearest" },
-                      { at: region, behavior: scrollBehavior(), block: "start" },
-                    ]
+                  ? [{ at: region, behavior: scrollBehavior(), block: "start" }]
                   : [],
         };
       },

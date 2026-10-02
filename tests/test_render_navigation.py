@@ -2310,6 +2310,105 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         )
 
 
+@pytest.mark.parametrize("reduced", [False, True])
+def test_an_ask_walk_across_tabs_scrolls_without_an_initial_page_jump(
+    browser, serve, reduced
+):
+    """Both directions glide the whole trip; reduced motion lands immediately."""
+    question = lambda name: (
+        f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
+        f'<lf-options id="choice-{name}" choose>'
+        f'<lf-option id="yes-{name}">Yes</lf-option>'
+        f'<lf-option id="no-{name}">No</lf-option></lf-options></lf-ask>'
+    )
+    source = leaf_page(
+        "Ask travel across tabs",
+        '<h1>Review the two proposals</h1><lf-tabs id="views">'
+        '<lf-tab id="first" label="First">'
+        '<div style="height: 1800px"></div>'
+        + question("first")
+        + '<div style="height: 1000px"></div></lf-tab>'
+        '<lf-tab id="second" label="Second">'
+        + question("second")
+        + '<div style="height: 3800px"></div></lf-tab></lf-tabs>',
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce" if reduced else "no-preference")
+    page.keyboard.press("a")
+    expect(page.locator("#ask-first")).to_be_focused()
+    scroll_settled(page)
+    for key, target, tab in [("a", "second", "Second"), ("Shift+a", "first", "First")]:
+        before = page.evaluate("scrollY")
+        page.evaluate("""() => {
+          window.askScrollTrace = [scrollY];
+          window.askTabCues = [];
+          window.askTabObserver = new MutationObserver(records => {
+            for (const {target} of records) {
+              if (target.getAttribute('aria-selected') === 'true') {
+                const name = target.querySelector('.lf-tab-name');
+                askTabCues.push(name.getAnimations().length);
+              }
+            }
+          });
+          askTabObserver.observe(document.querySelector('#views'), {
+            subtree: true, attributes: true, attributeFilter: ['aria-selected']
+          });
+          window.askScrollListener = () => askScrollTrace.push(scrollY);
+          document.addEventListener('scroll', askScrollListener);
+        }""")
+        page.keyboard.press(key)
+        expect(page.locator(f"#ask-{target}")).to_be_focused()
+        selected = page.get_by_role("tab", name=tab, exact=True)
+        expect(selected).to_have_attribute("aria-selected", "true")
+        scroll_settled(page)
+        after = page.evaluate("scrollY")
+        trace = page.evaluate("""() => {
+          document.removeEventListener('scroll', askScrollListener);
+          askTabObserver.disconnect();
+          return askScrollTrace;
+        }""")
+        assert abs(after - before) > 1000, (before, after)
+        intermediate = [
+            y for y in trace if min(before, after) + 50 < y < max(before, after) - 50
+        ]
+        assert bool(intermediate) == (not reduced), trace
+        cues = page.evaluate("askTabCues")
+        assert cues == [0 if reduced else 1], cues
+        top = page.locator(f"#ask-{target}").bounding_box()["y"]
+        edge = page.evaluate(
+            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
+        )
+        assert top == pytest.approx(edge + 5, abs=3), (top, edge)
+
+
+def test_an_ask_walk_reveals_the_owning_regions_horizontal_destination(browser, serve):
+    """Arrival keeps horizontal inspection reachable without snapping document Y."""
+    source = leaf_page(
+        "Ask in horizontal inspection",
+        '<h1>Inspect the wide proposal</h1><div id="inspection" data-bound="start" '
+        'style="width:220px; height:280px; overflow:auto">'
+        '<div style="width:1600px; padding-left:900px; box-sizing:border-box">'
+        '<lf-ask id="wide-ask"><h2>Choose the wider plan?</h2>'
+        '<lf-options id="wide-choice" choose>'
+        '<lf-option id="wide-yes">Yes</lf-option>'
+        '<lf-option id="wide-no">No</lf-option></lf-options></lf-ask>'
+        "</div></div>",
+    )
+    page = open_page(browser, serve(source))
+    inspection = page.locator("#inspection")
+    assert inspection.evaluate("el => el.scrollLeft") == 0
+    page.keyboard.press("a")
+    expect(page.locator("#wide-ask")).to_be_focused()
+    scroll_settled(page, "#inspection", axis="x")
+    assert inspection.evaluate("el => el.scrollLeft") > 500
+    visible = page.locator("#wide-ask").evaluate("""ask => {
+      const box = ask.closest('#inspection').getBoundingClientRect();
+      const target = ask.getBoundingClientRect();
+      return target.left >= box.left && target.left < box.right;
+    }""")
+    assert visible
+
+
 @pytest.mark.parametrize("intervene", [False, True])
 def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, intervene):
     source = leaf_page(

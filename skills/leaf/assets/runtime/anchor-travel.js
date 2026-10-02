@@ -344,15 +344,11 @@ export function createAnchorTravel({
     behavior = scrollBehavior(),
     block = "center",
   ) {
-    element.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-      behavior: block === "nearest" ? behavior : "instant",
-    });
-    if (block === "nearest") return;
-    // The document and nested reading regions share this path. Only the scroller that
-    // actually owns the element receives the centring move.
-    centreThrough(element, element, block, behavior);
+    if (block === "nearest") {
+      element.scrollIntoView({ block, inline: "nearest", behavior });
+      return;
+    }
+    scrollRevealedPlace(element, element, behavior, block);
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
@@ -395,33 +391,45 @@ export function createAnchorTravel({
     );
   }
 
-  function scrollRevealedRange(where, behavior = scrollBehavior()) {
-    const holder = placeHolder(where);
-    if (!holder) return;
+  // Native nearest alignment: a destination spanning both edges stays; one larger
+  // than the viewport lands its nearer edge rather than hiding its opening words.
+  function nearestBy(start, end, low, high) {
+    if (start < low && end > high) return 0;
+    const oversized = end - start > high - low;
+    if (start < low) return oversized ? end - high : start - low;
+    if (end > high) return oversized ? start - low : end - high;
+    return 0;
+  }
+
+  // Prepare only scrollports inside the owning reading region. Snapping the owning
+  // region (or the document) into view first consumes the distance the glide should
+  // travel, so a far destination appears to teleport before a tiny alignment move.
+  // Elements and passages share this placement, including horizontal inspection.
+  function scrollRevealedPlace(where, holder, behavior, block) {
     const targetScroller = scrollingBoxFor(holder);
     if (!targetScroller) return;
-    // Reveal nested scrollports without writing the document position, then glide the
-    // owning reading region once. A wide pre or diagram needs both axes settled first.
-    for (let box = holder; box && box !== targetScroller; box = renderedParent(box)) {
-      if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
-        continue;
+    // Horizontal inspection can belong to any ancestor, the owning region included.
+    // Only inner scrollports prepare Y; the region and its outers glide below.
+    let inside = true;
+    for (let box = holder; box instanceof Element; box = renderedParent(box)) {
+      if (box === targetScroller) inside = false;
       const band = landingBand(box);
       if (!band) continue;
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      let byX = 0;
-      if (destination.left < left && destination.right <= right)
-        byX = destination.left - left;
-      else if (destination.right > right && destination.left >= left)
-        byX = destination.right - right;
-      let byY = 0;
-      if (destination.top < top && destination.bottom <= bottom)
-        byY = destination.top - top;
-      else if (destination.bottom > bottom && destination.top >= top)
-        byY = destination.bottom - bottom;
+      const byX = nearestBy(destination.left, destination.right, left, right);
+      const byY = inside
+        ? nearestBy(destination.top, destination.bottom, top, bottom)
+        : 0;
       if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
+      if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
-    centreThrough(where, holder, "center", behavior);
+    centreThrough(where, holder, block, behavior);
+  }
+
+  function scrollRevealedRange(where, behavior = scrollBehavior()) {
+    const holder = placeHolder(where);
+    if (holder) scrollRevealedPlace(where, holder, behavior, "center");
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {

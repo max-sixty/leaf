@@ -29,6 +29,9 @@
  * the root set, which keeps the root's history, and Back or Forward there lands the
  * set's start when the user stood below it.
  *
+ * Travel into a hidden panel briefly highlights its selected name, without moving
+ * focus from the destination or delaying it. Reduced motion keeps the selected state
+ * without the highlight; switching again or disconnecting cancels an unfinished cue.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list's row adds the panel's `summary` under the name. While the version diff is on,
  * each tab counts the marked passages its panel holds, including inactive panels. Unupgraded,
@@ -46,6 +49,7 @@ import {
   keepsText,
   layoutChanged,
   listWalkPosition,
+  motion,
   offer,
   once,
   openingView,
@@ -91,6 +95,7 @@ customElements.define(
     #covering = false;
     #side = false;
     #pageFlow = false;
+    #revealMotion = null;
 
     connectedCallback() {
       if (!once(this)) {
@@ -239,6 +244,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.#revealMotion?.cancel();
+      this.#revealMotion = null;
       this.#diffEvents?.abort();
       this.#diffEvents = null;
       this.#historyEvents?.abort();
@@ -312,7 +319,25 @@ customElements.define(
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
         this.#active = active;
-        this.#showTab(this.#buttons.get(active));
+        const button = this.#buttons.get(active);
+        this.#showTab(button);
+        this.#revealMotion?.cancel();
+        this.#revealMotion = null;
+        // A destination walk can change tabs without touching the strip. Give its
+        // selected name one quiet highlight; focus stays on the destination, and
+        // motion's shared gate answers reduced motion and initial presentation.
+        if (previous && reason === "reveal") {
+          const name = button.querySelector(":scope > .lf-tab-name");
+          const style = getComputedStyle(name);
+          this.#revealMotion = motion(
+            name,
+            [
+              { backgroundColor: "var(--hi-tint)" },
+              { backgroundColor: style.backgroundColor },
+            ],
+            650,
+          );
+        }
         if (switched) this.#open(active, from);
         else if (reason === "history") this.#land();
         keepView(this, active);

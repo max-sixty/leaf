@@ -196,8 +196,10 @@ def host_key() -> str:
     One key for the machine rather than one per page, because every page here
     goes to the same user — the one person the agent is working with. A page
     has nothing to keep from another page's user, which is what lets the
-    `others` menu link them, and what lets the cookie jar, scoped by host and
-    blind to the port, hold one key under one name.
+    `others` menu link them with that key. Each listener's handover sets its own
+    cookie name (`PageEndpoint.key_cookie`), because temporary previews can use
+    different keys on the same host. Bare URLs then remain authorized without
+    another listener's arrival overwriting their cookie.
 
     The cost is that handing out any page's URL hands out every page on the
     machine, present and future. Leaf has one user; giving it a second

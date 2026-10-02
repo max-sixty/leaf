@@ -25,9 +25,8 @@ def preview_server(
 
     Its own key, not the machine's: this server is loopback-only and lives for the
     length of a `with`, so it neither needs nor should mint the access every page
-    here is read with. It sets that key under the one cookie name, which would sign
-    a user out of every page on 127.0.0.1 — except that both callers drive
-    Playwright, whose browser brings its own jar.
+    here is read with. The listener owns its cookie name, so opening a preview
+    does not replace another same-host server's key in the browser's jar.
 
     Like every page server it refuses a page vendored from another Leaf's runtime
     (`layer.foreign_runtime`), which the gate needs on its own account too: its probe

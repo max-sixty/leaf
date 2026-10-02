@@ -144,7 +144,7 @@ LIVE_SAMPLES_PAGE = leaf_page(
 
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
-    """Four child pages can hold different panel views and reset independently."""
+    """Child pages hold independent panel and anchored views across sample Reset."""
     gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
     page = open_page(browser, serve(gallery))
     views = {
@@ -153,7 +153,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "resolved": page.frame_locator("#resolved-sample iframe"),
         "summary": page.frame_locator("#summary-sample iframe"),
     }
-    for frame in views.values():
+    for name in ("overview", "resolved", "summary"):
+        frame = views[name]
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
         topic = frame.locator(".lf-thread[open] .lf-thread-topic")
         expect(topic).to_be_visible()
@@ -163,9 +164,13 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(
         views["overview"].locator(".lf-thread:not([open]) .lf-thread-topic").first
     ).to_be_visible()
-    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
-        "1 open thread · On you"
+    anchored = views["you"].locator(".lf-margin-preview")
+    expect(anchored).to_be_visible()
+    expect(anchored).to_have_attribute(
+        "aria-label", "Thread for Agenda and room photo."
     )
+    expect(anchored.locator(".lf-msg")).to_have_count(3)
+    expect(anchored.locator("leaf-text")).to_be_visible()
     expect(views["resolved"].locator(".lf-thread-view-summary")).to_have_text(
         "1 resolved thread"
     )
@@ -178,7 +183,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
 
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
-    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    expect(anchored).to_be_visible()
     reset = page.locator("#overview-sample").get_by_role(
         "button", name="Reset", exact=True
     )
@@ -186,6 +191,13 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(reset).to_be_enabled(timeout=30000)
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+    views["you"].get_by_role("button", name=re.compile("Open threads")).click()
+    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 open thread"
+    )
+    expect(views["you"].locator('.lf-thread[data-id="98850286"]')).to_be_visible()
 
 
 def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):

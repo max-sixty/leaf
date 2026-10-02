@@ -16,6 +16,14 @@ from leaf_dev.instructions_eval import (
 from leaf_dev.promptfoo import summarize
 
 
+@pytest.mark.parametrize("case_file", sorted((ROOT / "evals").glob("*/case.yaml")))
+def test_library_cases_supply_a_task_and_native_promptfoo_assertions(case_file):
+    case = read_case(case_file, ROOT)
+    assert case["vars"]["prompt"].strip()
+    assert case["assert"]
+    assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
+
+
 @pytest.mark.parametrize(
     ("directories", "selected"),
     [

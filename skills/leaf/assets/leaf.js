@@ -16,6 +16,7 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  whenArrived,
   pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
@@ -329,7 +330,6 @@ const anchorTravel = createAnchorTravel({
 landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  scrollToThread: anchorTravel.scrollToThread,
   revealThread: narrowing.revealThread,
   cardTarget: (thread) => app.margin.cardTarget(thread),
 });
@@ -564,7 +564,6 @@ responseSurface = createResponseSurface({
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
-  scrollRevealedElement: anchorTravel.scrollRevealedElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
@@ -905,6 +904,7 @@ async function presentPage() {
     throw error;
   }
   markPagePresented();
+  void whenArrived().then(landFragment);
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();

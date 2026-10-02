@@ -32,7 +32,9 @@
    off the presentation path — a widget's progressive upgrade, a developer surface's
    contained documents — and that work still moves boxes when it lands. `deferredArrival`
    is where such an owner says so, and the `arrived` stage of `pageReadiness` answers
-   whether any of it is still outstanding, so a reader outside the page waits on the
+   whether any of it is still outstanding. Startup waits for these arrivals before
+   its final retained fragment landing, so late geometry keeps the requested place.
+   A reader outside the page waits on the
    page rather than on a widget it had to know about. Without it the only thing outside
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
@@ -163,6 +165,11 @@ export function deferredArrival(work) {
   const landed = () => arriving.delete(work);
   work.then(landed, landed);
   return work;
+}
+
+/** Wait for declared arrivals, including any they introduce while settling. */
+export async function whenArrived() {
+  while (arriving.size) await Promise.allSettled(arriving);
 }
 
 /** Run `work` once the page has presented, as an arrival the page answers for. */

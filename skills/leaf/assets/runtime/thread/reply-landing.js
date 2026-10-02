@@ -20,7 +20,10 @@
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
    thread in a surface fixed over the page, the margin card, is shown by bringing that
-   surface back first (`off-flow.js`). */
+   surface back first (`off-flow.js`). These landings serve thread navigation,
+   sending, and editor growth. Merely entering a reply reveals its writing area
+   instead (`landing.js`): a visible pinned row or a separate transcript keeps
+   the turn the user was reading, even when it is not the latest one. */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
@@ -31,11 +34,11 @@ import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { SAYS_IN } from "./selectors.js";
 
-const REPLY_ROW = ".lf-compose, .lf-say";
+const REPLY_ROW = ".lf-thread-reply, .lf-say";
 const replyRowOf = (held, control) => {
   const reply =
     control === held
-      ? held.querySelector(":scope > .lf-compose, :scope > .lf-say")
+      ? held.querySelector(":scope > .lf-thread-reply, :scope > .lf-say")
       : control.closest(REPLY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
@@ -43,8 +46,13 @@ const replyRowOf = (held, control) => {
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end.
 const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
-const separateTranscript = (held) =>
-  held.querySelector(":scope > .lf-thread-transcript");
+// The common transcript is a separate reading region only when its container bounds it.
+const separateTranscript = (held) => {
+  const transcript = held.querySelector(":scope > .lf-thread-transcript");
+  return transcript && /^(auto|scroll)$/.test(getComputedStyle(transcript).overflowY)
+    ? transcript
+    : null;
+};
 
 const ancestors = function* (node) {
   for (let parent = renderedParent(node); parent; parent = renderedParent(parent))

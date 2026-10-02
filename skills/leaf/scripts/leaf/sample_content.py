@@ -18,7 +18,7 @@ from .event_contracts import admitted_event, command_record_schema
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
-from .registry.contract import aware_instant, schema_error
+from .registry.schema import aware_instant, schema_error
 from .session_cleanup import now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_structure

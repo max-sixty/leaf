@@ -5,8 +5,8 @@ import re
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
-from leaf.registry.contract import json_validator, registry_path, visual_parts
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import registry_path, retirement_slots, visual_parts
+from leaf.registry.schema import json_validator
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import at, structure_errors

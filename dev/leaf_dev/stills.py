@@ -82,7 +82,7 @@ def card_reply_sent(page: Page) -> None:
     card_reply(page)
     card = page.locator(".lf-margin-preview")
     card.get_by_role("button", name="Send", exact=True).click()
-    card.locator(".lf-page-thread-msg.user .lf-msg-sending").last.wait_for()
+    card.locator("[data-event].user .lf-msg-sending").last.wait_for()
 
 
 def card_reply_large(page: Page) -> None:
@@ -244,6 +244,7 @@ STATES = (
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
+    State("plan-panel-dark", "review-a-plan", threads_panel, scheme="dark"),
     State(
         "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
     ),

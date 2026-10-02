@@ -1,12 +1,17 @@
 /* One synchronous Lit owner for complete panel, page, outlet and margin threads.
 
+   Every surface uses the same metadata, transcript, message and reply vocabulary.
+   Containers own navigation and placement, including whether their transcript scrolls;
+   shadow.css owns the conversation's appearance through widget shadow boundaries.
+
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
 import { nextRender } from "../rendering.js";
-import { TEXT_FIELD, holdFocus } from "../focus.js";
+import { holdFocus } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -133,7 +138,6 @@ function navigationSummary(navigation, model) {
   const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
-  const hasMeta = draft || status || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
@@ -142,12 +146,13 @@ function navigationSummary(navigation, model) {
   // card under the reader.
   return html`<summary
     class="lf-thread-summary"
+    data-lf-reflow="text"
     title=${pendingTitle ? nothing : title}
   >
     <span class="lf-thread-topic" data-lf-pending-title=${pendingTitle ? "" : nothing}
       >${pendingTitle ? "Generating title" : title}</span
     >
-    <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
+    <span class="lf-thread-meta">
       ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status
@@ -428,16 +433,12 @@ export class ThreadView {
       ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
         headerActions && messages[0]
-          ? html`<div class="lf-thread-root-meta">
+          ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
               ${messages[0].header}${news} ${headerActions}
             </div>`
           : nothing
       }
-      ${
-        model.surface === "margin"
-          ? html`<div class="lf-thread-transcript">${transcript}</div>`
-          : transcript
-      }
+      <div class="lf-thread-transcript">${transcript}</div>
     `;
     render(
       html`
@@ -663,12 +664,12 @@ export class ThreadView {
 
   #createReply(model) {
     const panel = model.surface === "panel";
-    const row = offer("div", panel ? "lf-compose" : "lf-say");
+    const row = offer("div", "lf-thread-reply");
     // The reply is its editor on every surface, at rest too: `c`, its key badge and
     // landing all name this box, so nothing stands in for it on screen.
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
+    const send = offer("button", "lf-btn lf-thread-send", "Send");
     row.append(input, send);
     if (panel)
       input.lfRevealReply = () =>

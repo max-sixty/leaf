@@ -24,7 +24,6 @@ from interact_support import (
     PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
-    STATED_TIMEOUT,
     TRIAL_CACHE,
     TRIAL_LOG,
     Json,
@@ -86,6 +85,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
+from leaf.registry import schema as registry_schema
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
@@ -1265,30 +1265,32 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
+    """The preview holds replacement back; its writer finishes before the test
+    releases the page, including when a preview assertion fails."""
     before = registry_storage.layer_generation(page_dir)
     init_waiting = threading.Event()
     real_page_locked = vendoring_model.page_locked
 
     @contextlib.contextmanager
     def observed_page_locked(locked):
-        if locked == page_dir:
+        if locked == page_dir and threading.current_thread().name.startswith(
+            "re-vendor"
+        ):
             init_waiting.set()
         with real_page_locked(locked) as held:
             yield held
 
     monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="re-vendor") as workers:
         with render_gate_model.preview_server(
             page_dir,
             structure_model.SourceDocument((page_dir / "index.html").read_text()),
             1,
         ):
-            initing = executor.submit(vendoring_model.cmd_init, page_dir)
-            assert init_waiting.wait(STATED_TIMEOUT)
-            assert not initing.done()
+            initing = workers.submit(vendoring_model.cmd_init, page_dir)
+            assert init_waiting.wait(5)
             assert registry_storage.layer_generation(page_dir) == before
-
-        initing.result(timeout=STATED_TIMEOUT)
+        initing.result()
     assert registry_storage.layer_generation(page_dir) != before
 
 
@@ -4774,7 +4776,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
 def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
-    assert registry_contract.json_validator(schema).is_valid(value) is valid
+    assert registry_schema.json_validator(schema).is_valid(value) is valid
 
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):

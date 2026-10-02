@@ -2205,7 +2205,9 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     )
 
 
-def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(browser, serve):
+def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(
+    browser, serve
+):
     """The field follows a visible passage and stays in the window when it leaves."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()

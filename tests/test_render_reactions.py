@@ -482,8 +482,8 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
 
     Each declared emoji is its own margin entry, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
-    dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
-    in Threads.
+    dismissed, `e` is no longer a live page command. Opening Threads does not add an
+    unanchored page-wide reaction target.
     """
     page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
     select_paragraph(page, "#how-cap")

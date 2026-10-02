@@ -42,6 +42,8 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from leaf_dev import ROOT
 from leaf_dev.browser import chrome
 from leaf_dev.harness import codex_home
+from leaf_dev.startup import observe_startup as record_startup
+from leaf_dev.startup import startup_reading
 
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 # The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
@@ -97,6 +99,7 @@ def answered(response: APIResponse, url: str) -> APIResponse:
 
 def observe_startup(page: Page) -> list[str]:
     """Every verifier page records milestones and the errors that stop reaching them."""
+    record_startup(page)
     page.add_init_script(path=VERIFIER_SCRIPT)
     failures: list[str] = []
     page.on(
@@ -117,7 +120,7 @@ def await_presentation(
     try:
         page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
     except PlaywrightTimeout:
-        reached = page.evaluate("window.__leafVerifier.startupMilestones")
+        reached = page.evaluate("window.__leafStartup.milestones")
         raise RuntimeError(
             f"{url} never presented, reaching "
             f"{', '.join(reached) or 'no startup milestone'}; browser errors: {failures}"
@@ -211,7 +214,7 @@ def verify_page(
     identity = page.evaluate("window.__leafVerifier.identity")
     check(identity["release"] == release, f"{url} served release {identity['release']}")
     prefix = f"/_leaf-release/{release}/"
-    resources = page.evaluate("window.__leafVerifier.resourceNames")
+    resources = page.evaluate("window.__leafStartup.resourceNames")
     code = [
         resource
         for resource in resources
@@ -254,7 +257,7 @@ def verify_page(
         f"{url} scoped private media into the release namespace: {media['path']}",
     )
     check(not failures, f"{url} reported browser errors: {failures}")
-    startup = page.evaluate("window.__leafVerifier.startupReading")
+    startup = startup_reading(page)
     if not activate:
         context.close()
         return startup
@@ -364,13 +367,14 @@ def startup_profile(startup: dict) -> dict:
         "javascriptBytesAtPresentation": presented["js_bytes"],
         "codeRequestsAtPresentation": presented["code_requests"],
         "codeBytesAtPresentation": presented["code_bytes"],
+        "layoutShifts": startup["shifts"],
     }
 
 
 def startup_line(path: str, startup: dict) -> str:
     """Render observed startup costs without turning machine speed into a gate."""
     profile = startup_profile(startup)
-    return (
+    line = (
         f"  {path} — HTML first byte {profile['htmlFirstByteMs']:.0f} ms, "
         f"complete {profile['htmlCompleteMs']:.0f} ms; "
         "first contentful paint "
@@ -384,8 +388,25 @@ def startup_line(path: str, startup: dict) -> str:
         f"{profile['codeRequestsAtPresentation']} code / "
         f"{profile['codeBytesAtPresentation'] / 1024:.0f} KiB, "
         f"{profile['requestsAtPresentation']} total / "
-        f"{profile['bytesAtPresentation'] / 1024:.0f} KiB"
+        f"{profile['bytesAtPresentation'] / 1024:.0f} KiB; "
+        f"{len(profile['layoutShifts'])} initial layout shifts (diagnostic)"
     )
+    for shift in profile["layoutShifts"]:
+        sources = []
+        for source in shift["sources"]:
+            before, after = source["previousRect"], source["currentRect"]
+            sources.append(
+                f"{source['node']} ({before['x']:g},{before['y']:g} "
+                f"{before['width']:g}x{before['height']:g}) → "
+                f"({after['x']:g},{after['y']:g} "
+                f"{after['width']:g}x{after['height']:g})"
+            )
+        line += (
+            f"\n    {shift['startTime']:.0f} ms {shift['phase']}, "
+            f"value {shift['value']:.6g}, recent input {shift['hadRecentInput']}: "
+            + "; ".join(sources)
+        )
+    return line
 
 
 def verify_cross_tab_activation(browser, *, origin: str) -> None:
@@ -828,7 +849,7 @@ def verify_agent_turn(
     context, page, failures, url, state_url, state = agent_session(
         browser, release, origin=origin, direct_agent=direct_agent
     )
-    initial_startup = page.evaluate("window.__leafVerifier.startupReading")
+    initial_startup = startup_reading(page)
     if release is None:
         release = state.get("release")
         check(isinstance(release, str), f"{state_url} returned no release")
@@ -875,7 +896,7 @@ def verify_agent_turn(
         f"{url} did not reload after its agent turn",
     )
     await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-    startup = page.evaluate("window.__leafVerifier.startupReading")
+    startup = startup_reading(page)
     # The runtime presents without waiting for its first read, which is what brings
     # the revision back, so that follow gets its own wait and its own timing.
     followed_at = time.monotonic()

@@ -11936,10 +11936,8 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     session_model.cmd_status(sibling, "idle", "")
 
 
-def test_a_named_wait_claim_opens_the_turn_without_receiving_its_output(
-    claimed, capsys
-):
-    """Naming a page explicitly claims it for this session and starts its turn.
+def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
+    """Naming a page claims it without reopening an ended session turn.
 
     That ownership action does not confirm receipt of output: the batch remains
     pending, and no pickup is recorded until a carrier confirms it, here the Stop
@@ -11960,7 +11958,7 @@ def test_a_named_wait_claim_opens_the_turn_without_receiving_its_output(
 
     assert session_model.cmd_wait(claimed) == 0
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert service_model.page_claim(claimed)["turn_closed"]
     assert (claimed / "status.json").read_bytes() == status_before
     assert files_model.read_json(claimed / "cursor.json") is None
     assert not any(

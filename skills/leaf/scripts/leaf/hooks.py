@@ -39,6 +39,8 @@ def cmd_hook(payload: dict) -> None:
     if event == "SessionEnd":
         end_session(sid)
         return
+    if not sid:
+        return
     turn_id = payload.get("turn_id")
     if event == "UserPromptSubmit":
         prompt_turn(sid, turn_id)
@@ -88,7 +90,7 @@ def cmd_hook(payload: dict) -> None:
     # A session holding no page has no turn to open or close on one, no input to
     # carry, and nothing owed, so its prompt and Stop hooks end here.
     if not owned_pages(sid):
-        if event == "Stop" and turn_id:
+        if event == "Stop":
             close_session_turn(sid, turn_id)
         return
     # Prompt and Stop debt and delivery reading belongs to their carrier.

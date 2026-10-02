@@ -256,10 +256,6 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
             record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
         else:
             record = {**record, "lifetime": lifetime}
-            if not record["provider"] and record["turn_closed"] is not None:
-                record.update(
-                    turn=secrets.token_hex(8), turn_opened=now_iso(), turn_closed=None
-                )
         return write_session(record)
 
 

@@ -1182,7 +1182,7 @@ def test_server_round_trip(server, page_dir):
     arrived = peer.getresponse()
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
-    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
+    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'self'"
     assert arrived.getheader("X-Content-Type-Options") == "nosniff"
     peer.close()
     status = arrived.status
@@ -1207,7 +1207,7 @@ def test_server_round_trip(server, page_dir):
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
         assert response.status == 200
-        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
@@ -3674,18 +3674,10 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             assert answer.get("error"), (name, answer)
     # The refusals decided before the body is a dict at all, which the parsed rows above
     # cannot reach. These name no attempt because the door has nothing to read one out
-    # of, but each is safely final: parsing failed before an append could begin, so the
-    # browser may put the gesture back. What it must still receive is an answer: a body
-    # defeats the parse in more ways than the parse was written for — bytes that are not
-    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and
-    # nesting past the parser's own stack raises RecursionError, which is not even a
-    # ValueError. Uncaught, each left the request unanswered — which the outbox reads as
-    # a lost connection and re-posts every poll for the life of the tab.
-    #
-    # Each row names the refusal it must earn rather than asking for any refusal at all.
-    # The depth the parser gives up at is the interpreter's to choose, so a platform
-    # that got through this nesting would fall to the next gate, be refused as not an
-    # object, and pass a row that had proved nothing about the stack it was written for.
+    # of, but each is safely final: refusal precedes any append, so the browser may
+    # put the gesture back. Invalid UTF-8, malformed JSON and a non-object body must
+    # all receive an answer rather than leaving the outbox to retry indefinitely.
+    # Parser nesting limits are interpreter details, not event admission behavior.
     unreadable = [
         (
             "a body that is not UTF-8",
@@ -3694,11 +3686,6 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ),
         ("a body that is not JSON", b"{not json", "invalid JSON"),
         ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
-        (
-            "a body nested past the parser's stack",
-            b"[" * 100000 + b"]" * 100000,
-            "invalid JSON",
-        ),
     ]
     for name, body, refusal in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)

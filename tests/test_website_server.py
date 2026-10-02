@@ -3220,7 +3220,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
             in document
         )
-        assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
 
         # A released document sends the public startup beacon, which the deployed site

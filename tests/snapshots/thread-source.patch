@@ -1,3 +1,454 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 5ba94f6d4..68ad45ce1 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -90,6 +90,7 @@ dev = [
+   "leaf-dev",
+   # The Python server behind leaf.page, in `worker/`.
+   "leaf-website",
++  "pytest-image-snapshot[pixelmatch]>=0.5.3",
+ ]
+
+ # An install never syncs the members, but uv reads their `pyproject.toml` files to
+@@ -110,7 +111,7 @@ leaf-website = { workspace = true }
+ # Two workers cap the browser load when suites overlap.
+ # `-n0` to debug a single test.
+ [tool.pytest.ini_options]
+-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
++addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin"
+ markers = [
+   "nightly: a pull request can land without it; `--run-nightly` runs it",
+   "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
+diff --git a/skills/leaf/assets/leaf.js b/skills/leaf/assets/leaf.js
+index f3e1d0fff..bfe941183 100644
+--- a/skills/leaf/assets/leaf.js
++++ b/skills/leaf/assets/leaf.js
+@@ -113,20 +113,23 @@ import {
+   toggleBtn,
+ } from "./runtime/banner.js";
+
++import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
++
+ initializeServedDocument();
+ keepPageRulesOffLayer();
+ holdArrivingBounds();
+
+ // A published shell may bundle the entry without publishing its source modules beside
+ // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+-// checks can inspect either distribution without turning it into a package API. The two
+-// readings answer different questions: which readiness fact the page has yet to state
++// checks can inspect either distribution without turning it into a package API. These
++// scene readings answer different questions: which readiness fact the page has yet to state
+ // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
+-// handled since.
++// handled since, and which native layers currently expose reading and controls.
+ const validationEntry = document.querySelector("script[data-lf-entry]");
+ if (validationEntry) {
+   validationEntry.lfReadiness = pageReadiness;
+   validationEntry.lfRenderingSettled = renderingSettled;
++  validationEntry.lfNativeLayers = nativeLayers;
+ }
+ import { overflowMenu } from "./runtime/banner-toolbar.js";
+ import {
+@@ -176,7 +179,7 @@ import {
+   releaseFocus,
+   tabStops,
+ } from "./runtime/focus.js";
+-import { announce, liveEl, notice } from "./runtime/notifications.js";
++import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
+ import { mediaViewer } from "./runtime/media.js";
+ import { offer } from "./runtime/widget-elements.js";
+
+@@ -642,6 +645,7 @@ drawing = createDrawingController({
+
+ layout = createChromeLayout({
+   panelIsOpen,
++  noticeIsVisible: noticeVisible,
+   elements: {
+     panel,
+     closeBtn,
+@@ -797,6 +801,7 @@ if (!offlineInteractive) {
+   layout.mountLayoutObservers();
+   goToSequence.mountGoToSequence();
+   mountShortcutBar({
++    placeBottomStatus: layout.syncBottomStatus,
+     setGoToSequence: goToSequence.setGoToSequence,
+     setReact: reactions.setReact,
+   });
+diff --git a/skills/leaf/assets/runtime/chrome-layout.js b/skills/leaf/assets/runtime/chrome-layout.js
+index c83cb9d1f..fa27a938a 100644
+--- a/skills/leaf/assets/runtime/chrome-layout.js
++++ b/skills/leaf/assets/runtime/chrome-layout.js
+@@ -66,6 +66,7 @@ const THREAD_PANEL_PROP = "--lf-thread-panel-width";
+
+ export function createChromeLayout({
+   panelIsOpen,
++  noticeIsVisible,
+   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
+   scheduleThreadPreviewPosition,
+   bottomChromeBoxes,
+@@ -89,7 +90,6 @@ export function createChromeLayout({
+     scheduleResidency();
+     scheduleThreadPreviewPosition();
+     const panelLive = panelIsOpen() && !panelCovers();
+-    const foot = panelFoot.getBoundingClientRect();
+     // Over a live page, the thread panel owns the right of the window all the way to its
+     // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
+     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
+@@ -114,10 +114,9 @@ export function createChromeLayout({
+     // The status stands in the bottom bar (chrome.css) and rises above a covering panel's
+     // foot, which stands over the bar's right end: unlike the inert shortcut guide,
+     // notices are live feedback from the foreground action. The stylesheet places it by
+-    // the panel's modal state and this foot height. Everything the page ends above is the
+-    // bottom bar's stated height, so nothing here writes a reservation for the document or
+-    // the drawers.
+-    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${foot.height}px`);
++    // the panel's modal state and the foreground clearance below it. Transient notices
++    // also clear live reply controls; that clearance never reserves page or list room.
++    syncBottomStatus();
+     // A region gives up the part of a bottom surface that stands over it: the band from
+     // that surface's top down to the region's own foot, plus air above it. Read off the
+     // rendered box, since what crosses the panel's list is a status whose place follows
+@@ -139,6 +138,29 @@ export function createChromeLayout({
+     else threadsBox.style.removeProperty("--lf-threads-foot");
+     syncFloats();
+   }
++  // The status renderer calls this synchronously after its words arrive or expire.
++  // A notice clears the visible reply rather than changing the reply's geometry;
++  // persistent walk status keeps its existing footer seat and list reservation.
++  function syncBottomStatus() {
++    let occupied = panelFoot.getBoundingClientRect().height;
++    if (panelCovers() && noticeIsVisible()) {
++      const list = threadsBox.getBoundingClientRect();
++      const status = bottomStatusEl.getBoundingClientRect();
++      for (const reply of threadsBox.querySelectorAll(
++        ":scope > .lf-thread[open] > .lf-thread-reply",
++      )) {
++        const box = reply.getBoundingClientRect();
++        if (
++          reply.checkVisibility() &&
++          overlapsAcross(box, status) &&
++          box.bottom > list.top &&
++          box.top < list.bottom
++        )
++          occupied = Math.max(occupied, innerHeight - Math.max(box.top, list.top));
++      }
++    }
++    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${occupied}px`);
++  }
+   // The response bar lives in the viewport plane, and syncLayout is where its usable
+   // reading boundary changes shape — a resize moves every rect. Re-place it against the
+   // durable anchor so it cannot overhang the shell.
+@@ -230,6 +252,7 @@ export function createChromeLayout({
+
+   return {
+     syncLayout,
++    syncBottomStatus,
+     mountLayoutObservers,
+     landEdge,
+     commentsEdge,
+diff --git a/skills/leaf/assets/runtime/chrome.css b/skills/leaf/assets/runtime/chrome.css
+index 0057559e6..26a86ea37 100644
+--- a/skills/leaf/assets/runtime/chrome.css
++++ b/skills/leaf/assets/runtime/chrome.css
+@@ -974,9 +974,9 @@ @scope (.lf-chrome) {
+      the outcome said in paint: the box is on its way out and may not also state
+      that in metrics the fold is animating. */
+   /* One baseline separates threads without putting boxes back around them. */
+-  .lf-thread, .lf-going { --lf-thread-pad: 8px;
++  .lf-thread, .lf-going { --lf-thread-pad: 8px; --lf-thread-border: 1px;
+     font: var(--t-5)/var(--lf-ui-lh) var(--sans); color: var(--ink); position: relative;
+-    border: 1px solid transparent; border-block-end-color: var(--rule);
++    border: var(--lf-thread-border) solid transparent; border-block-end-color: var(--rule);
+     padding: var(--lf-thread-pad); margin-bottom: 16px;
+     --lf-block-frame: 1; }
+   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
+@@ -1054,8 +1054,8 @@ @scope (.lf-chrome) {
+      title the thread is a column whose free room lies between the last message and the
+      box, so later cards wait below the fold. That unused room is panel space: only
+      the title, content and reply row paint the thread surface. Where the card runs past the fold the box
+-     pins at the list's visible foot, over its foot padding, so nothing scrolls visibly
+-     beneath it and a status reserving more of that foot moves nothing; the column is
++     pins above the list's stable focus-ring inset, so native editor growth leaves
++     Send stationary while transient status reservations belong to scroll landing; the column is
+      its containing block, so it never pins over the title. Its own padding is the room
+      the field's ring needs, and its surface is the card's (`reply-landing.js` reads a
+      pinned row as shown, `thread-list.js` follows a reply to its top). The card fills
+@@ -1064,9 +1064,11 @@ @scope (.lf-chrome) {
+      in, so it lands whole. A column does not collapse margins, so the boxes that set
+      one below keep only the space above them. */
+   .lf-thread-compact > .lf-thread-reply { margin: auto 0 0; padding: 12px var(--lf-thread-inset);
+-    position: sticky; bottom: calc(-1 * var(--lf-list-foot)); }
++    position: sticky; bottom: var(--focus-ring-room); }
+   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
+     flex-direction: column; box-sizing: border-box;
++    /* The border and flow room together match the sticky row's stable inset. */
++    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border));
+     min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
+   .lf-thread-compact[open]:has(> .lf-thread-reply)::details-content { display: flex;
+     flex: 1; flex-direction: column; }
+@@ -1470,7 +1472,8 @@ @scope (.lf-chrome) {
+     overscroll-behavior: contain; padding-inline: var(--sp-2);
+     scroll-padding-block: var(--focus-ring-room); }
+   /* The field stands at the card's inset; words stand one inset inside it. */
+-  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
++  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper);
++    min-height: min(var(--lf-thread-body-extent, 0px), var(--lf-thread-list-room)); }
+   .lf-margin-thread .lf-page-thread::after { content: none; }
+   @media (forced-colors: active) {
+     .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
+diff --git a/skills/leaf/assets/runtime/keyboard/layer-stack.js b/skills/leaf/assets/runtime/keyboard/layer-stack.js
+index bdce366dc..d071674d6 100644
+--- a/skills/leaf/assets/runtime/keyboard/layer-stack.js
++++ b/skills/leaf/assets/runtime/keyboard/layer-stack.js
+@@ -3,7 +3,7 @@
+    One ordered list holds every popover and modal dialog standing over the page, oldest at
+    the bottom. Each pushes an entry as it opens, so their order against each other is
+    recorded when it happens rather than inferred from focus ancestry and open state at
+-   every read. `kind` is `popover` or `modal`; the dispatcher tiers the scopes over them
++   every read. `kind` reads the standing native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
+    and makes a modal a floor.
+
+    A layer may open through a prototype method or through declarative popover activation,
+@@ -55,7 +55,7 @@ function prune() {
+ // top: `toggle` is queued rather than synchronous, so moving a layer on that last
+ // declaration would make it the newest thing on the stack after something else opened over
+ // it. A closed entry is pruned and an actual reopening joins at the top.
+-function pushNativeLayer(node, kind) {
++function pushNativeLayer(node) {
+   const at = entries.findIndex((entry) => entry.root === node);
+   const standing = at < 0 ? null : entries[at];
+   if (standing?.active()) return;
+@@ -63,7 +63,9 @@ function pushNativeLayer(node, kind) {
+   const holding = document.activeElement;
+   entries.push({
+     root: node,
+-    kind,
++    get kind() {
++      return node.matches(":modal") ? "modal" : "popover";
++    },
+     active: () => held(node),
+     fromNowhere: !holding || holding === document.body,
+   });
+@@ -89,21 +91,23 @@ function closing(event) {
+ }
+
+ HTMLDialogElement.prototype.showModal = function () {
+-  if (!this.matches(":modal")) pushNativeLayer(this, "modal");
++  if (!this.matches(":modal")) pushNativeLayer(this);
+   return nativeDialogShowModal.call(this);
+ };
+
+ HTMLElement.prototype.showPopover = function (...args) {
+-  if (!this.matches(":popover-open")) pushNativeLayer(this, "popover");
++  if (!this.matches(":popover-open")) pushNativeLayer(this);
+   return nativePopoverShow.apply(this, args);
+ };
+
+ export function watchLayers(root) {
+   if (watchedRoots.has(root)) return;
+   watchedRoots.add(root);
++  // Native dialog commands also announce their opening here, without invoking
++  // the patched prototype. Nonmodal show() entries are pruned by held().
+   const opened = (event) => {
+-    if (event.newState === "open" && event.target?.matches?.("[popover]"))
+-      pushNativeLayer(event.target, "popover");
++    if (event.newState === "open" && event.target?.matches?.("[popover], dialog"))
++      pushNativeLayer(event.target);
+   };
+   root.addEventListener("beforetoggle", opened, true);
+   root.addEventListener("beforetoggle", closing, true);
+diff --git a/skills/leaf/assets/runtime/keyboard/shortcut-bar.js b/skills/leaf/assets/runtime/keyboard/shortcut-bar.js
+index d1b242070..3b882a98b 100644
+--- a/skills/leaf/assets/runtime/keyboard/shortcut-bar.js
++++ b/skills/leaf/assets/runtime/keyboard/shortcut-bar.js
+@@ -170,12 +170,15 @@ const shortcutBarTemplate = (model) =>
+     }`;
+
+ let bottomStatusContext = EMPTY_STATUS_CONTEXT;
++let placeBottomStatus = null;
+ const renderBottomStatus = () => {
+   const model = Object.freeze({
+     ...bottomStatusContext,
+     notice: noticeReading(),
+   });
+   render(bottomStatusTemplate(model), bottomStatusEl);
++  // Feedback reaches its geometry owner before this turn can paint it.
++  placeBottomStatus?.();
+ };
+ renderBottomStatus();
+ render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
+@@ -527,7 +530,13 @@ const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable
+
+ // Boot supplies the two transient interactions More closes. The bar renderer and its
+ // reference rows never import those command owners to draw their current declarations.
+-export function mountShortcutBar({ setGoToSequence, setReact }) {
++export function mountShortcutBar({
++  setGoToSequence,
++  setReact,
++  placeBottomStatus: place,
++}) {
++  placeBottomStatus = place;
++  placeBottomStatus();
+   activateShortcutMore = () => {
+     setGoToSequence(false);
+     setReact(false);
+diff --git a/skills/leaf/assets/runtime/margin-projection.js b/skills/leaf/assets/runtime/margin-projection.js
+index adb943f54..6e8191b9a 100644
+--- a/skills/leaf/assets/runtime/margin-projection.js
++++ b/skills/leaf/assets/runtime/margin-projection.js
+@@ -860,6 +860,7 @@ export function createMarginProjection({
+     const listRoom =
+       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
+       (preview.offsetHeight - previewList.clientHeight);
++    previewList.style.setProperty("--lf-thread-list-room", `${listRoom}px`);
+     for (const input of previewList.querySelectorAll(REPLY_BOX)) {
+       const row = input.closest(".lf-thread-reply");
+       const thread = row.closest(".lf-page-thread");
+diff --git a/skills/leaf/assets/runtime/thread/reply-continuity.js b/skills/leaf/assets/runtime/thread/reply-continuity.js
+new file mode 100644
+index 000000000..f03260ebd
+--- /dev/null
++++ b/skills/leaf/assets/runtime/thread/reply-continuity.js
+@@ -0,0 +1,64 @@
++/* Mechanical continuity of a thread's live response region in flow or a floating card.
++
++   Semantic presentation always draws only current messages. A visible response region
++   keeps the body extent it occupied before that presentation, with flexible free space
++   immediately before the reply row. Removed content becomes space; new content and
++   native editor growth consume it, with the response foot held by layout rather than
++   a later resize correction. A departed or closed region releases that mechanical
++   extent. A floating card bounds that extent by its already allocated body room.
++   No message or delivery state is retained. Panel and general footer keep their
++   separate fixed/free layout. */
++import { seenRect, whenOffScreen } from "../geometry.js";
++import { layoutPx } from "../keeps.js";
++
++export class ReplyContinuity {
++  #owner;
++  #row = null;
++  #departure = null;
++  gap = document.createElement("div");
++  constructor(owner) {
++    this.#owner = owner;
++    owner.classList.add("lf-reply-continuity");
++    this.gap.className = "lf-reply-space";
++    this.gap.setAttribute("aria-hidden", "true");
++    owner.addEventListener("toggle", () => {
++      if (!this.#visible()) this.release();
++    });
++  }
++  #visible() {
++    return (
++      this.#owner.isConnected &&
++      (this.#owner.localName !== "details" || this.#owner.open) &&
++      this.#row?.isConnected &&
++      Boolean(seenRect(this.#row, new Map()))
++    );
++  }
++  before() {
++    this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
++    if (!this.#visible()) return null;
++    const body =
++      this.#owner.localName === "details"
++        ? getComputedStyle(this.#owner, "::details-content")
++        : getComputedStyle(this.#owner);
++    return parseFloat(body.blockSize);
++  }
++  after(extent) {
++    this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
++    if (
++      extent == null ||
++      !this.#row?.isConnected ||
++      (this.#owner.localName === "details" && !this.#owner.open)
++    )
++      return this.release();
++    // Keep the prior extent before asking layout to read the changed body: scroll
++    // anchoring need not pay a temporary collapse the live response never paints.
++    this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
++    this.#departure?.();
++    this.#departure = whenOffScreen([this.#row], () => this.release());
++  }
++  release() {
++    this.#departure?.();
++    this.#departure = null;
++    this.#owner.style.removeProperty("--lf-thread-body-extent");
++  }
++}
+diff --git a/skills/leaf/assets/runtime/thread/thread-card.js b/skills/leaf/assets/runtime/thread/thread-card.js
+index bbc5308aa..2c7452dc3 100644
+--- a/skills/leaf/assets/runtime/thread/thread-card.js
++++ b/skills/leaf/assets/runtime/thread/thread-card.js
+@@ -34,6 +34,7 @@ import { ago, shortAgo } from "../presence.js";
+ import { retainUserIntent } from "../user-intent.js";
+ import { scrollThreadIntoView } from "./reply-landing.js";
+ import { newsNotice } from "./held-news.js";
++import { ReplyContinuity } from "./reply-continuity.js";
+
+ function quoteReading(thread, anchors) {
+   const placement = anchors.placedAt(thread.id);
+@@ -240,12 +241,15 @@ export class ThreadView {
+   // What a thread in the page's flow holds back says so in its control row (held-news.js).
+   #news = newsNotice();
+   #lastMessage = null;
++  #continuity = null;
+
+   constructor(surface, commands) {
+     this.#commands = commands;
+     this.node = document.createElement(
+       surface === "outlet" || surface === "panel" ? "details" : "div",
+     );
++    if (surface === "page" || surface === "outlet" || surface === "margin")
++      this.#continuity = new ReplyContinuity(this.node);
+     // A panel card's disclosure is the thread list's to write, from its one choice.
+     if (surface !== "panel") {
+       this.node.tabIndex = -1;
+@@ -294,6 +298,7 @@ export class ThreadView {
+   }
+
+   present(model) {
++    const bodyPlace = this.#continuity?.before();
+     const prior = this.#model;
+     const restoreFocus = holdFocus(this.node);
+     const standing = focused();
+@@ -474,6 +479,7 @@ export class ThreadView {
+             : nothing
+         }
+         ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
++        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
+         ${reply ? this.#reply.node : nothing}
+         ${
+           model.resolved && !reply && !model.folding && !marginControls
+@@ -496,6 +502,7 @@ export class ThreadView {
+       `,
+       this.node,
+     );
++    this.#continuity?.after(bodyPlace);
+     this.#wireKeys();
+     // A summary gathering the message the user stands on moves it; a page thread whose
+     // render took their place puts them in its reply, or on the thread itself.
+@@ -777,6 +784,7 @@ export class ThreadView {
+   }
+
+   dispose() {
++    this.#continuity?.release();
+     this.retire();
+     this.#reply?.dispose();
+     this.#reply = null;
+diff --git a/skills/leaf/assets/shadow.css b/skills/leaf/assets/shadow.css
+index b5b51c198..9ff520f3b 100644
+--- a/skills/leaf/assets/shadow.css
++++ b/skills/leaf/assets/shadow.css
+@@ -813,3 +813,9 @@ .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+ .lf-suggest-label { color: var(--muted-2); }
+
+ .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
++/* The response foot sits after flexible mechanical space in a retained flow body.
++   Details' summary is its own disclosure outside that body. */
++.lf-reply-continuity::details-content,
++.lf-reply-continuity:not(details) { display: flex; flex-direction: column;
++  min-block-size: var(--lf-thread-body-extent, 0px); }
++.lf-reply-space { flex: 1 0 0; min-block-size: 0; }
 diff --git a/tests/fixtures/pages/thread-journey-inline.data.json b/tests/fixtures/pages/thread-journey-inline.data.json
 new file mode 100644
 index 000000000..e410a66cb
@@ -48,3 +499,64 @@ index 000000000..491d6ec3d
 +@@ -1 +1 @@
 +-return "old"
 ++return "new"
+diff --git a/uv.lock b/uv.lock
+index 68bed525a..336f1c9a4 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -429,6 +429,7 @@ dev = [
+     { name = "pillow" },
+     { name = "pre-commit" },
+     { name = "pytest" },
++    { name = "pytest-image-snapshot", extra = ["pixelmatch"] },
+     { name = "pytest-regtest" },
+     { name = "pytest-xdist" },
+     { name = "pyyaml" },
+@@ -463,6 +464,7 @@ dev = [
+     { name = "pillow", specifier = ">=12.1" },
+     { name = "pre-commit", specifier = ">=4.6.2" },
+     { name = "pytest", specifier = ">=9.1" },
++    { name = "pytest-image-snapshot", extras = ["pixelmatch"], specifier = ">=0.5.3" },
+     { name = "pytest-regtest", specifier = ">=2.7" },
+     { name = "pytest-xdist", specifier = ">=3" },
+     { name = "pyyaml", specifier = ">=6" },
+@@ -640,6 +642,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/36/54/0169bc772ec491108b62f644f8ecf1fe5d8ae5ebafde2ee2142210166903/pillow-12.3.0-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:04f01d28a6aaff387bf842a13be313df23ba0597a44f1a976c9feb3c6ff4711a", size = 7231786, upload-time = "2026-07-01T11:56:35.046Z" },
+ ]
+
++[[package]]
++name = "pixelmatch"
++version = "0.4.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/b5/ef/d69a0c50f812326d3b54f8aea0536733d650cc2fb47c6510a2abe54df81d/pixelmatch-0.4.0.tar.gz", hash = "sha256:80a9ae1084941569f0e8cc7fe70b50c02312b4dbaf4b37b710e0f75f9667fa32", size = 7224, upload-time = "2026-03-07T08:55:54.81Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/f2/7e/8958796e5077a2473780c9368a0d7f360d1de62c96608b84170c916e4b23/pixelmatch-0.4.0-py3-none-any.whl", hash = "sha256:d40e49e05eab0531bc7665f40309d90f5708c3edd121b3fd63385864005b81a8", size = 9728, upload-time = "2026-03-07T08:55:53.212Z" },
++]
++
+ [[package]]
+ name = "platformdirs"
+ version = "4.11.7"
+@@ -760,6 +771,24 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
+ ]
+
++[[package]]
++name = "pytest-image-snapshot"
++version = "0.5.3"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "pillow" },
++    { name = "pytest" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/5b/1c/8d47a75f2dd3b725bd4cd285d0d359a9e00188322d1e6153beb87abdb686/pytest_image_snapshot-0.5.3.tar.gz", hash = "sha256:415832cf17482df640ecd73215d80275c55e10d1a8374653d84106fbc63fac4e", size = 7479, upload-time = "2026-06-02T16:54:15.877Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/4a/95/77d78dbaadb5eca7559d5662e72ddee9710136cc06b7da92251e695170a9/pytest_image_snapshot-0.5.3-py3-none-any.whl", hash = "sha256:69f87614e5c0d22db6ddd56e607deeacbeaaf84ae73bf51f07b53b81bed8a8a8", size = 6555, upload-time = "2026-06-02T16:54:14.54Z" },
++]
++
++[package.optional-dependencies]
++pixelmatch = [
++    { name = "pixelmatch" },
++]
++
+ [[package]]
+ name = "pytest-regtest"
+ version = "2.7.0"

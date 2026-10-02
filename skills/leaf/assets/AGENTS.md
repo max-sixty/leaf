@@ -274,7 +274,11 @@ idioms, and CSS-only widgets, and each package theme follows it; shared shadow
 rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
 component rules. In the document all of these, and each widget module's adopted
 sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
-and the page's own CSS is unlayered above both (`layer.py`, `CASCADE_LAYERS`). Each
+and `state.css` is `lf-state` above both so semantic retirement wins over package
+defaults and Layouts. The page's own CSS stays unlayered above those tiers,
+and inline widget motion outranks them (`layer.py`, `CASCADE_LAYERS`). Shared
+shadow rules use `lf-shadow` above adopted widget defaults in `lf-base`, and
+`state.css` reaches every declared shadow stage above both. Each
 package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
 several packages' widgets need is the kernel's. The page's rules skip the chrome and
 every `.lf-ui` control unless they name a widget or the layer's vocabulary

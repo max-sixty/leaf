@@ -10,6 +10,7 @@ from urllib.parse import urljoin, urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    append_carried_log_record,
     append_command,
     record_claim,
     wait_for,
@@ -1628,7 +1629,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     """Receiving state is not readiness while its message renderer is still loading."""
     url = serve(SHORT_SUGGESTION)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2477,7 +2478,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     assert page.evaluate("() => !customElements.get('lf-options')")
 
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2552,7 +2553,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         older.append(route)
 
     page.route("**/api/state*", hold_older_state)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2590,7 +2591,7 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     page.wait_for_timeout(3000)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
@@ -2670,7 +2671,7 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
     # counts as user attention. Checking immediately on visibility below must replace it.
     page.wait_for_timeout(100)
     cleanup_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
     )
@@ -2958,7 +2959,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/state" in request.url
     ):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
@@ -3000,7 +3001,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         serve.page_dir, token=TOKEN, port=port
     ).start()
     serve.servers.append(server)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
     )
@@ -3064,7 +3065,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         )
 
     def wake(text):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
@@ -3271,7 +3272,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3283,7 +3284,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     with live_watcher(d, page):
         declare("working", "revising the plan")
-        events_model.append_event(
+        append_carried_log_record(
             d, {"kind": "comment", "author": "user", "text": "A later update."}
         )
         told(page)
@@ -3422,7 +3423,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     # Once an update has waited past the pickup grace with nothing to carry it, the
     # remedy is the user's, and the reading says since when nobody has been there.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3665,7 +3666,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # New words do not detach the claim from the comment that started the work.
-    followup = events_model.append_event(
+    followup = append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3696,7 +3697,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # The answer is what ends it.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3729,7 +3730,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # A thread the user has closed asks nothing: its card, closed from another tab,
     # stays where it stands and says it is resolved.
-    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
@@ -3738,7 +3739,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
     # claiming work under a banner that says the opposite.
-    events_model.append_event(
+    append_carried_log_record(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
@@ -3759,7 +3760,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     declared overall state, then falls back to generic work when that declaration waits."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -3832,7 +3833,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     old = (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
         timespec="seconds"
     )
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3861,7 +3862,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     Re-inserting the node would lose its identity and could replay presentation."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4561,7 +4562,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     if failure != "disconnect":
         expect(broken.locator(".lf-page-thread")).to_have_count(0)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4633,7 +4634,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             widget.failure = null;
             for (const row of widget.children) row.append(row.outlet);
         }""")
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -4959,7 +4960,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
 
     # The reading that moves the source also brings a message, so applying it has
     # document work to finish; the reading behind it lands while that work is unfinished.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5008,7 +5009,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     older = page.evaluate("async () => await (await fetch('/api/state')).json()")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5065,8 +5066,13 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    """A completed crossed state read must not recalibrate the displayed clock.
+
+    Keep freshness unchanged: an origin that advertises new state but returns an
+    old reading forever asks for repair on every tick rather than aging paints.
+    """
     url = serve(LONG_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5084,11 +5090,12 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
-    with page.expect_response("**/api/state*"):
-        cleanup_model.write_json(
-            serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": cleanup_model.now_iso()},
-        )
+    page.evaluate(
+        """async () => {
+          const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+          await readAndApply();
+        }"""
+    )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
 

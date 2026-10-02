@@ -186,7 +186,7 @@ import {
 } from "./comment-placement.js";
 import { shownExtent, shownParts, shownRect, skipped } from "./geometry.js";
 import { clamp, union } from "./rect.js";
-import { passageBox } from "./resolved-target.js";
+import { passageGeometry } from "./resolved-target.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 
@@ -735,12 +735,13 @@ export function createMarginProjection({
     const clear = point ? extent : (shown ?? whole);
     const thread = threadCardThread();
     const words =
-      !point && thread?.anchor?.quote ? passageBox(placedAt(thread.id)) : null;
+      !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
     return {
       element: point ?? target,
       clear,
       extent,
-      row: (words ?? clear).top,
+      row: (words?.attachment ?? clear).top,
+      column: words?.attachment?.left ?? null,
       margin: marginSpot(target, point),
     };
   }
@@ -835,6 +836,7 @@ export function createMarginProjection({
         const { reference, placement, middleware, heldIn } = previewSide.options(ui, {
           clear: place.clear,
           row: place.row,
+          column: place.column,
           margin: place.margin,
           boundary,
           minimumWidth: cardMinimum(),

@@ -5,6 +5,7 @@
  * where panel order and attached chrome sit. */
 
 import { shownParts } from "./geometry.js";
+import { rangeOf } from "./passages.js";
 
 export const resolvedElement = ({ element, place = element, surface = null }) => ({
   exact: true,
@@ -33,14 +34,22 @@ export const targetSegments = (resolved) =>
 
 export const targetPlace = (resolved) => resolved?.place ?? null;
 
-// The box a passage's words take, from its first segment's start to its last's end.
-export function passageBox(resolved) {
+// A passage's whole box decides visibility; its first nonempty fragment attaches
+// chrome. A later line can begin further left without changing that attachment.
+// Native selections and durable passages read the same Range geometry.
+export function rangeGeometry(range) {
+  return {
+    box: range.getBoundingClientRect(),
+    attachment:
+      [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ??
+      null,
+  };
+}
+
+export function passageGeometry(resolved) {
   const segments = targetSegments(resolved);
   if (!segments.length) return null;
-  const range = document.createRange();
-  range.setStart(segments[0].node, segments[0].start);
-  range.setEnd(segments.at(-1).node, segments.at(-1).end);
-  return range.getBoundingClientRect();
+  return rangeGeometry(rangeOf(segments));
 }
 
 export const targetSurface = (resolved) =>

@@ -3496,12 +3496,16 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     resized(page, 2400, 900)
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+    ).to_be_hidden()
+    accept.hover()
+    expect(
+        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
     ).to_be_visible()
-    page.evaluate("() => document.activeElement.blur()")
+    page.mouse.move(0, 0)
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
     ).to_be_hidden()
-    accept.hover()
+    accept.focus()
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
     ).to_be_visible()

@@ -1,12 +1,12 @@
 # Issue #1455: a partial `parts` list made adjacent diagram boxes respond differently
 # to Comment. This case checks the author's choice at page creation.
-schema_version: '1.0'
-name: diagram-parts-complete
-description: "A diagram with box-level comments lists every nameable box in parts."
-tags:
-- diagram
-- comments
-execution:
+description: diagram-parts-complete
+metadata:
+  purpose: A diagram with box-level comments lists every nameable box in parts.
+  tags:
+  - diagram
+  - comments
+vars:
   prompt: |
     Write a Leaf page section for this review of a release flow. The user wants to
     comment on individual boxes in the diagram, especially the decisions, as well
@@ -17,18 +17,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: all-boxes-addressable
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: all-boxes-addressable
+  value: |
     Pass only if the HTML contains one lf-diagram whose parts attribute names all
     five flowchart nodes as node:A, node:B, node:C, node:D and node:E, and its
     Mermaid source draws those same five boxes in the stated flow. The order of

@@ -165,8 +165,8 @@ production reading.
 ## Test a terminal Codex task
 
 `uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
-this working tree installed as their plugin, through both transports of `leaf codex
-start`. It checks each comment is answered once, a comment during queue-backed
+this working tree installed as their plugin, through both transports of automatic
+server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in

@@ -251,21 +251,10 @@ class PreviewService:
         """Put the server up for the first time and report its URL and lifetime
         note. A `--user` preview claims the page for this session here, once, and
         gives the claim back if the start does not commit."""
-        from leaf.host import CodexHarness, session_harness
-        from leaf.hosting import claim_and_start, start_server
-        from leaf.service import starting_claim
+        from leaf.hosting import claim_and_start
 
         if not self.user:
             return self._serve_temporary()
-        if isinstance(session_harness(), CodexHarness):
-            from leaf.codex_adapter import cmd_codex_start
-
-            # Both parts must be ready before handing over the URL. The carrier
-            # joins an existing task-wide adapter, whose lifetime it owns itself.
-            with starting_claim(self.page):
-                started = start_server(self.page)
-                cmd_codex_start(self.page)
-                return started
         return claim_and_start(self.page)
 
     def serve_again(self) -> None:

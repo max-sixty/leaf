@@ -1347,6 +1347,11 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
+    """A Codex-owned server before delivery starts, for carrier lifecycle tests.
+
+    Public handoff connects delivery too. These tests choose their own transport
+    or exercise a direct wait, so setup takes the lower-level claim and serve.
+    """
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "codex-thread"}
 
@@ -1360,8 +1365,18 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # Captured because the URL is read back; the status is asserted here with
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
+    program = """
+import json, sys
+from pathlib import Path
+from leaf.hosting import start_server
+from leaf.service import starting_claim
+page = Path(sys.argv[1])
+with starting_claim(page):
+    url, _ = start_server(page)
+print(json.dumps({"url": url}))
+"""
     started = under_codex(
-        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
+        shlex.join([sys.executable, "-c", program, str(page)]),
         env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

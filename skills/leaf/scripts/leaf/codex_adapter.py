@@ -1,8 +1,8 @@
 """The detached process that carries Leaf delivery into later turns of one Codex task.
 
-`leaf codex start` claims a page and leaves this process running behind the turn that
-started it, so a user's later moves reach the same Codex task instead of waiting for
-the agent to ask again. It owns the session watch: it captures each batch into the
+Serving a claimed page, or explicitly running `leaf codex start`, leaves this
+process running behind the turn that started it, so a user's later moves reach
+the same Codex task instead of waiting for the agent to ask again. It owns the session watch: it captures each batch into the
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
@@ -892,6 +892,18 @@ def cmd_codex_start(
 ) -> dict:
     """Claim PAGE and start one detached delivery carrier for this task, or find
     the one already running; return which, with its task and transport."""
+    with starting_claim(page_dir):
+        return ensure_adapter(codex_path, app_server)
+
+
+def ensure_adapter(
+    codex_path: str | None = None, app_server: str | None = None
+) -> dict:
+    """Start or join this task's delivery carrier without taking a page claim.
+
+    Both explicit adapter startup and page serving prepare the same task-wide
+    route. The caller owns the claim transition and its rollback on failure.
+    """
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
@@ -904,7 +916,7 @@ def cmd_codex_start(
     if app_server is not None:
         check_app_server_endpoint(app_server)
     launch_lock = adapter_start_lock_path(session_id)
-    with starting_claim(page_dir), flocked(launch_lock):
+    with flocked(launch_lock):
         record = _running_adapter(session_id)
         if record is not None:
             running = record["app_server"]
@@ -963,7 +975,7 @@ def private_app_server(executable: str) -> Iterator[str]:
     endpoint until the block ends and the server stops.
 
     The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
-    task it runs hands its pages to this server when it runs `leaf codex start`."""
+    task it runs hands its pages to this server when it serves them."""
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"

@@ -25,7 +25,7 @@ second fold.
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
-| Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh by each `leaf codex start` | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
+| Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | once every page it names is gone, removed when the next delivery is frozen; until then every transport resolves the same immutable id |
 
 Page activity describes ownership, carrier availability, and current work. Its
@@ -375,8 +375,14 @@ thread store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process announced and the lifetime it recorded, so a killed carrier costs
-only delivery and leaves every page up. `leaf codex start` spawns its adapter the
-same way. Both go through `detached`, whose handshake makes the caller's commit the
+only delivery and leaves every page up. A claimed handoff prepares the host's
+delivery after releasing the page locks and before reporting its URL. In Codex,
+that starts or joins the task-wide adapter; an existing direct wait is honored.
+`server run` does the same before announcing a foreground or reused service.
+Standing and temporary serves prepare no delivery. `leaf codex start` explicitly
+claims a page and starts or joins the adapter without serving.
+
+The server and adapter go through `detached`, whose handshake makes the caller's commit the
 end of a start: the child announces, and the caller acknowledges as the last thing
 it does. A child whose caller leaves before acknowledging withdraws — a service
 disables the record it wrote, an adapter releases its leases — since the caller's

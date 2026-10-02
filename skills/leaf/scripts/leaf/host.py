@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran
+from leaf.leases import adapter_is_live, hooks_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
 
 
@@ -92,6 +92,13 @@ class Harness:
         process holding one lease. A carrier that has to prove more overrides
         this."""
         return listening
+
+    def ensure_delivery(self) -> None:
+        """Prepare this host's input route before handing over a served page.
+
+        Hosts whose hooks or embedding own delivery need no separate process.
+        A detached carrier starts or joins its task-wide watch here.
+        """
 
     def hooks_carry(self) -> bool:
         """Whether this session's hooks carry its input: its host runs hooks that
@@ -351,6 +358,15 @@ class CodexHarness(EnvironmentHarness):
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
     identity_variables = session_variables
+
+    def ensure_delivery(self) -> None:
+        from .codex_adapter import ensure_adapter
+
+        # A direct wait already selected by this task remains its carrier. It
+        # holds the current turn open rather than starting later turns.
+        if wait_is_live(None, self.session) and not adapter_is_live(self.session):
+            return
+        ensure_adapter()
 
     def lifetime(self) -> dict:
         """Codex states no process, so this one is discovered: the nearest

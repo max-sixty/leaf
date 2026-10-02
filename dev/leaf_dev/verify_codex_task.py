@@ -15,8 +15,8 @@ process, and stops at the first check that fails.
 
 The journey, in order:
 
-- `setup`: the user asks for a page to review; the agent serves it and hands it to
-  the adapter with `leaf codex start` using this journey's transport;
+- `setup`: the user asks for a page to review; serving it automatically connects
+  delivery using this journey's transport;
 - `idle`: a comment posted while the task is idle is answered in a turn Leaf starts;
 - `mid-turn`: a comment posted during a shell command is answered once; the queue
   task must pick it up and answer it before that turn's first final response;
@@ -36,7 +36,6 @@ check passes and kept, with its path printed, when one fails.
 import itertools
 import json
 import os
-import shlex
 import shutil
 import sys
 import tempfile
@@ -291,11 +290,7 @@ def journey(task: Task, page: Path, codex: str, transport: str) -> None:
         click.echo(f"{transport}/{name}: passed in {time.monotonic() - started:.0f} s")
 
     started = time.monotonic()
-    isolated_adapter = f"leaf codex start ./page --codex-path {shlex.quote(codex)}"
-    task.say(
-        f"{PROMPT} This isolated test has a dedicated Codex executable. "
-        f"Connect the page with `{isolated_adapter}`."
-    )
+    task.say(PROMPT)
     task.settle(
         lambda: adapter_is_live(task.thread) and running_server(page) is not None,
         "the setup turn did not serve the page and start the adapter",
@@ -387,8 +382,8 @@ def journey(task: Task, page: Path, codex: str, transport: str) -> None:
         not adapter_is_live(task.thread), "the killed adapter still holds its lease"
     )
     task.say(
-        f"The isolated test's delivery adapter stopped. Start it again with "
-        f"`{isolated_adapter}`, then {RESTART_TURN}"
+        "Serve the existing ./page again with `leaf server start ./page`, "
+        f"then {RESTART_TURN}"
     )
     task.settle(
         lambda: adapter_is_live(task.thread),
@@ -435,7 +430,9 @@ def verify_transport(codex: str, transport: str) -> None:
     page = work / "page"
     payload = root / "plugin"
     extract_payload(payload)
-    home = codex_home(root / "codex-home")
+    # Keep the journey's isolated executable on PATH; a login shell would
+    # replace it with the user's Codex and bypass the queue wrapper.
+    home = codex_home(root / "codex-home", "allow_login_shell = false\n")
     executable = task_codex(root, codex, transport)
     # This process reads the page and claim in the state home the task writes, and
     # every child inherits the throwaway Codex home, never the session running this.
@@ -443,6 +440,7 @@ def verify_transport(codex: str, transport: str) -> None:
     isolated = environment(
         XDG_STATE_HOME=str(state),
         CODEX_HOME=str(home),
+        PATH=f"{Path(executable).parent}{os.pathsep}{os.environ['PATH']}",
     )
     os.environ.clear()
     os.environ.update(isolated)

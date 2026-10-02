@@ -12830,7 +12830,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
-    tmp_path, under_codex, codex_env
+    tmp_path, under_codex, codex_env, codex_queue
 ):
     """The one word that separates the two Codex shapes, and the claim each writes.
 
@@ -12853,7 +12853,7 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
         subprocess.run([*LEAF_COMMAND, "page", "init", page], env=codex_env, check=True)
         started = under_codex(
             shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
-            codex_env | {"CODEX_THREAD_ID": name},
+            codex_env | codex_queue | {"CODEX_THREAD_ID": name},
             app_server=app_server,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

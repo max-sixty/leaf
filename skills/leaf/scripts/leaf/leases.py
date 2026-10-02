@@ -243,7 +243,7 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
-def wait_is_live(page_dir: Path, session_id: str | None) -> bool:
+def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now."""
     lease_path = waiter_lease_path(page_dir, session_id)
     return bool(lease_path and lock_is_held(lease_path))

@@ -16,7 +16,8 @@ the first frame that paints the result (an init script samples after each frame'
 paint), and a gesture's "Sent" receipt is timed the same way. Requests and bytes, the
 primary comparison, are the resource entries the page started from then until it has
 stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
-and the `api/news` stream carry no entry. Compare the numbers with the objectives in
+carry no entry. Completed finite freshness reads do, while an open SSE connection does
+not. Compare the numbers with the objectives in
 `notes/user-feedback-responsiveness.md`, and read the spread and load average before
 a median. `leaf-dev profile` drives the same transitions (`served`) under a profiler.
 """

@@ -1459,7 +1459,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     ) == [False, False, False, False]
     assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     # The positive ready edge is where each inner page would open its own news
-    # stream and two-second heartbeat. Hold through that interval: only the outer
+    # freshness checks and two-second heartbeat. Hold through that interval: only the outer
     # page and operable sample own live leases; the passive replays stop after one read.
     page.wait_for_timeout(2_200)
     assert news_frames and not any(

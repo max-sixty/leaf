@@ -227,7 +227,7 @@ def verify_page(
         not any(
             urlsplit(resource).path.endswith("/api/news") for resource in resources
         ),
-        f"{url} opened a news stream before interaction",
+        f"{url} asked for freshness before interaction",
     )
     secure = urlsplit(origin).scheme == "https"
     identity_cookie = "__Host-leaf-page" if secure else "leaf-page-local"

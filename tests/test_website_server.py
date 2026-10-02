@@ -3198,6 +3198,27 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert host.attached == []
 
 
+def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_path):
+    """One visible page cannot throttle another page's canonical user recency."""
+    site = tmp_path / "site"
+    pages = {}
+    for name in ("first", "second"):
+        published = site / "examples" / name
+        published.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(page_dir, published)
+        pages[f"/examples/{name}"] = (f"examples/{name}", "example")
+    write_manifest(site, pages)
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, None))
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        for name in ("first", "second"):
+            get(f"{root}/examples/{name}/api/news")
+            assert (
+                json.loads((site / "examples" / name / "viewed.json").read_text())["t"]
+                > 0
+            )
+
+
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
     site = tmp_path / "site"
     published = site / "examples" / "decision"

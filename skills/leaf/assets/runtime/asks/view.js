@@ -87,7 +87,7 @@
 
    The sweep is the document's own blocks in document order, so an ask staged inside a
    declared shadow tree takes a heading standing over its host but not one inside that
-   tree. Shared travel places that region through its nested scrollports, then glides
+   tree. Shared travel reveals the destination through its nested scrollports, then glides
    the owning reading region without a preliminary page jump. An Ask whose region
    already stands clear of the banner, and
    which travel reads as whole on every edge once whatever surface hid it is cleared
@@ -1002,15 +1002,22 @@ export function createAskView({
             moving === undefined
               ? null
               : arrivalFocus(next, !unansweredIds().has(next.id)),
-          // Shared travel brings the arrival region through its nested scrollports
-          // in one placement. A framed Ask requests no motion.
+          // Reveal the Ask through its own inner scrollports before aligning its
+          // context, which may stand outside them. A framed Ask requests no motion.
           scroll:
             moving === undefined
               ? []
               : !box
                 ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
                 : moving
-                  ? [{ at: region, behavior: scrollBehavior(), block: "start" }]
+                  ? [
+                      {
+                        at: target,
+                        align: region,
+                        behavior: scrollBehavior(),
+                        block: "start",
+                      },
+                    ]
                   : [],
         };
       },

@@ -8,7 +8,9 @@
  * it, a part is drawn through the one `revealAddressed`, what holds the place opens
  * through the one `reveal`, and the surface hiding it is cleared through the one
  * `clearFor`. Each route declares its fresh destination, focus target and scroll
- * placements. `arrive` completes their reveal, presentation, focus and placement
+ * placements. Each placement names its destination and may name a separate alignment
+ * context: inner scrollports reveal the destination before its context is aligned.
+ * `arrive` completes their reveal, presentation, focus and placement
  * under the original user intent; routes never perform the final handoff themselves.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
@@ -135,14 +137,14 @@ export function createAnchorTravel({
       if (!current?.where) return;
       for (const {
         at,
+        align = at,
         block = "center",
         behavior = scrollBehavior(),
         when,
       } of current.scroll) {
         if (when && !when()) continue;
         if (block === "fragment") scrollToFragment(at);
-        else if (at instanceof Range) scrollRevealedRange(at, behavior);
-        else scrollRevealedElement(at, behavior, block);
+        else scrollRevealedPlace(at, align, behavior, block);
       }
       completed = true;
     });
@@ -344,10 +346,6 @@ export function createAnchorTravel({
     behavior = scrollBehavior(),
     block = "center",
   ) {
-    if (block === "nearest") {
-      element.scrollIntoView({ block, inline: "nearest", behavior });
-      return;
-    }
     scrollRevealedPlace(element, element, behavior, block);
   }
 
@@ -405,13 +403,23 @@ export function createAnchorTravel({
   // region (or the document) into view first consumes the distance the glide should
   // travel, so a far destination appears to teleport before a tiny alignment move.
   // Elements and passages share this placement, including horizontal inspection.
-  function scrollRevealedPlace(where, holder, behavior, block) {
+  function scrollRevealedPlace(where, alignment, behavior, block) {
+    if (block === "nearest" && where instanceof Element) {
+      where.scrollIntoView({ block, inline: "nearest", behavior });
+      return;
+    }
+    const holder = placeHolder(alignment);
+    if (!holder) return;
     const targetScroller = scrollingBoxFor(holder);
     if (!targetScroller) return;
     // Horizontal inspection can belong to any ancestor, the owning region included.
     // Only inner scrollports prepare Y; the region and its outers glide below.
     let inside = true;
-    for (let box = holder; box instanceof Element; box = renderedParent(box)) {
+    for (
+      let box = placeHolder(where);
+      box instanceof Element;
+      box = renderedParent(box)
+    ) {
       if (box === targetScroller) inside = false;
       const band = landingBand(box);
       if (!band) continue;
@@ -424,12 +432,11 @@ export function createAnchorTravel({
       if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
       if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
-    centreThrough(where, holder, block, behavior);
+    centreThrough(alignment, holder, block, behavior);
   }
 
   function scrollRevealedRange(where, behavior = scrollBehavior()) {
-    const holder = placeHolder(where);
-    if (holder) scrollRevealedPlace(where, holder, behavior, "center");
+    scrollRevealedPlace(where, where, behavior, "center");
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {

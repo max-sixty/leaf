@@ -2409,6 +2409,41 @@ def test_an_ask_walk_reveals_the_owning_regions_horizontal_destination(browser, 
     assert visible
 
 
+@pytest.mark.parametrize("clipped", [False, True])
+def test_an_ask_walk_reveals_its_scrollport_before_aligning_outside_context(
+    browser, serve, clipped
+):
+    """Context above a bounded inspection never leaves its Ask clipped inside it."""
+    source = leaf_page(
+        "Ask with outside context",
+        '<h1 id="context">Review the proposed edit</h1>'
+        '<div id="inspection" data-bound="start" '
+        'style="height:180px; overflow:auto">'
+        '<div style="height:270px"></div>'
+        '<p id="edit-context">The proposed amount is '
+        '<lf-suggestion id="edit"><lf-old>ten</lf-old>'
+        "<lf-new>twelve</lf-new></lf-suggestion>.</p>"
+        '<div style="height:300px"></div></div>',
+    )
+    page = open_page(browser, serve(source))
+    if clipped:
+        page.locator("#inspection").evaluate("""box => {
+          const ask = box.querySelector('#edit').getBoundingClientRect();
+          box.scrollTop += ask.top - box.getBoundingClientRect().top + ask.height / 2;
+        }""")
+    page.keyboard.press("a")
+    expect(page.locator("#edit")).to_be_focused()
+    scroll_settled(page, "#inspection")
+    scroll_settled(page)
+    visible = page.locator("#edit").evaluate("""ask => {
+      const box = ask.closest('#inspection').getBoundingClientRect();
+      const target = ask.getBoundingClientRect();
+      return {top: target.top, bottom: target.bottom, low: box.top, high: box.bottom};
+    }""")
+    assert visible["top"] >= visible["low"], visible
+    assert visible["bottom"] <= visible["high"], visible
+
+
 @pytest.mark.parametrize("intervene", [False, True])
 def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, intervene):
     source = leaf_page(

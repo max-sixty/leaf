@@ -6,6 +6,7 @@ import { html, render } from "../vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
+import { focusDestination } from "./focus.js";
 import { reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
@@ -40,6 +41,10 @@ export function normalizeReading(reading, owner) {
   return normalized;
 }
 
+// Primary annotation and inline Thread seats share each native entry. Page Map
+// keeps its own modal projection in the presented directory below.
+const contributionControls = new WeakMap();
+let relationOrdinal = 0;
 const presented = new WeakMap();
 const records = new WeakMap();
 const controlContributions = new WeakMap();
@@ -355,4 +360,61 @@ export function contributionContains(offered, node) {
 
 export function forgetContributionControls(offered) {
   presented.delete(offered);
+}
+
+/** Activate the current record and retain focus through its current surface. */
+export function activateContributionControl(
+  { offered, entry, control, surface, event },
+  focus = focusDestination,
+) {
+  return offered.registration.activate(entry.key, {
+    origin: control,
+    surface,
+    input: event.detail === 0 ? "keyboard" : "pointer",
+    focus: (key) => {
+      const destination = offered.registration.control(key, surface, true);
+      if (!destination) return false;
+      focus(destination);
+      return true;
+    },
+  });
+}
+
+export function materializeContributionControls(source, surface, activate) {
+  let controls = contributionControls.get(source);
+  if (!controls) {
+    controls = new Map();
+    contributionControls.set(source, controls);
+  }
+  const entries = source.reading.entries.filter((entry) => entry.visible);
+  const liveKeys = new Set(entries.map((entry) => entry.key));
+  const changed = new Set();
+  for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
+  for (const entry of entries) {
+    let control = controls.get(entry.key);
+    if (!control || !contributionControlMatches(control, entry)) {
+      control = createContributionControl(entry);
+      controls.set(entry.key, control);
+      changed.add(control);
+    } else if (contributionEntryRecord(control) !== entry) changed.add(control);
+    control.onclick = (event) =>
+      activate({ offered: source, entry, control, surface, event });
+    trackContributionControl(source, surface, entry.key, control);
+  }
+  clearContributionControls(source, surface, liveKeys);
+  for (const entry of entries) {
+    const control = controls.get(entry.key);
+    const related =
+      entry.relation?.kind === "entries"
+        ? entry.relation.keys.map((key) => controls.get(key)).filter(Boolean)
+        : [];
+    related.forEach((node, index) => {
+      if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
+    });
+    if (changed.has(control))
+      presentContributionEntry(control, entry, {
+        relatedControlIds: related.map((node) => node.id),
+      });
+  }
+  return controls;
 }

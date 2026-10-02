@@ -46,6 +46,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from leaf import cli as cli_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
@@ -728,6 +729,50 @@ def heard_back(reading):
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
     _until(page, heard_back, "heard back what it sent")
+
+
+def hold_pending_thread_presentation(page):
+    """Hold the list while a new comment's pending thread is presented."""
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('.lf-threads');
+          const present = list.present;
+          const held = Promise.withResolvers();
+          list.present = model => {
+            const row = model.rows.find(row => row.kind === 'thread' &&
+              row.descriptor.id.startsWith('pending:'));
+            if (!row && !window.pendingCommentId) return present.call(list, model);
+            window.pendingCommentId ??= row.descriptor.id;
+            window.commentPresentationHeld = true;
+            return held.promise.then(() => present.call(list, model));
+          };
+          window.releaseCommentPresentation = () => {
+            list.present = present;
+            held.resolve();
+          };
+        }"""
+    )
+
+
+def admit_before_presenting_comment(page, page_dir, text):
+    """Admit the held comment before releasing its original presentation."""
+    page.wait_for_function("() => window.commentPresentationHeld === true")
+    assert page.evaluate("window.pendingCommentId").startswith("pending:")
+    round_trip(page)
+    admitted = next(
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment" and event.get("text") == text
+    )
+    page.wait_for_function(
+        """async id => {
+          const {threadList} = await window.__lfRuntimeImport('/runtime/thread/state.js');
+          return threadList().some(thread => thread.id === id);
+        }""",
+        arg=admitted["id"],
+    )
+    page.evaluate("releaseCommentPresentation()")
+    return admitted
 
 
 # A press or a click reaches the runtime inside the driver's call and posts behind it, so

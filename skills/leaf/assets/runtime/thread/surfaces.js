@@ -14,7 +14,8 @@ import { sameAnchor } from "../anchor-coordinate.js";
 import { pageText } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
-import { readThreads } from "./state.js";
+import { allThreads, readThreads } from "./state.js";
+import { threadNames } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
@@ -342,6 +343,9 @@ async function presentHeld(registration, id, mayLand) {
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
 export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
+  // Exact message navigation is the panel's; a local surface lands on its thread.
+  if (focus === "message") return null;
+  id = threadNames(allThreads()).get(id)?.id ?? id;
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
       .map((outlet) =>

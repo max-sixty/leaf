@@ -963,7 +963,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     open card it stays while they scroll it away, since another card would open in its
     place. Once they have opened another card, it goes as they scroll it out of the
     window, and scrolling back does not bring it back."""
-    url = serve(LONG_PAGE, comments=16)
+    url = serve(LONG_PAGE, comments=30)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)

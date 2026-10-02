@@ -75,7 +75,7 @@ without implying replay of arbitrary widget decisions into a rewritten page.
 Two capabilities are useful references: review of Git, Jujutsu, Perforce and
 GitButler changes, and encrypted sharing of plans. The companion
 [effective-html](https://github.com/plannotator/effective-html) skills taught
-freehand HTML composition. That guidance is worth comparing with Leaf's
+freehand HTML composition. Those instructions are worth comparing with Leaf's
 rendered-page checks; it is not a substitute for Leaf's state declarations.
 
 ## lavish-axi
@@ -85,7 +85,7 @@ Read on 2026-08-12 and 2026-09-22 from its
 Lavish served an agent-authored HTML file locally and returned queued annotations
 through a CLI poll. It deliberately injected no design system, so the file
 rendered consistently inside and outside its review chrome. Playbooks supplied
-composition guidance; native controls and action attributes supplied input.
+composition instructions; native controls and action attributes supplied input.
 
 The September read found durable conversation history, revision legends, and
 reviews that survived restart. Those additions supersede the August claim that

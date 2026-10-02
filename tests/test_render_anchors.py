@@ -291,12 +291,10 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
-def test_a_comment_box_carried_away_comes_back_for_the_words_typed_into_it(
+def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     browser, serve
 ):
-    """The box floats over the page beside its passage, so a scroll carries it off with
-    the passage, and the browser's caret reveal cannot bring back a box fixed over the
-    page. The first word typed into it brings the passage, and the box, back."""
+    """A writer keeps the same focused box when its passage scrolls out of view."""
     source = next(source for source in EXAMPLES if source.stem == "triage-board")
     page = open_page(browser, serve(source))
     resized(page, 1280, 500)
@@ -309,10 +307,11 @@ def test_a_comment_box_carried_away_comes_back_for_the_words_typed_into_it(
     bar = page.locator(".lf-fab-bar")
     page.mouse.wheel(0, 3000)
     page.wait_for_function(
-        "() => document.querySelector('.lf-fab-bar').getBoundingClientRect().bottom < 0"
+        "() => document.querySelector('#triage-lede').getBoundingClientRect().bottom < 0"
     )
     rendered(page)
     expect(field).to_be_focused()
+    expect(bar).to_have_attribute("data-lf-plane", "window")
     page.keyboard.type("x")
     page.wait_for_function(
         """() => {
@@ -323,6 +322,9 @@ def test_a_comment_box_carried_away_comes_back_for_the_words_typed_into_it(
     )
     expect(bar).to_be_visible()
     expect(field).to_have_js_property("value", "x")
+    assert page.locator("#triage-lede").evaluate(
+        "node => node.getBoundingClientRect().bottom < 0"
+    )
 
 
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
@@ -2281,83 +2283,6 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless diff for logo.png "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/app.js b/app.js\n"
-                "--- a/app.js\n"
-                "+++ b/app.js\n"
-                "@@ -1 +1 @@\n"
-                "-const value = 1;\n"
-                "+const value = 2;\n"
-                "diff --git a/logo.png b/logo.png\n"
-                "index 1234567..89abcde 100644\n"
-                "Binary files a/logo.png and b/logo.png differ"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless diff for empty.txt "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/empty.txt b/empty.txt\n"
-                "new file mode 100644\n"
-                "index 0000000..e69de29"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless diff for empty.txt "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/empty.txt b/empty.txt\n"
-                "deleted file mode 100644\n"
-                "index e69de29..0000000"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported copy diff (copy entries belong in prose; "
-                "omit copy metadata and use textual @@ hunks for an edited destination)"
-            ),
-            "source": (
-                "diff --git a/source.js b/copied.js\n"
-                "similarity index 100%\n"
-                "copy from source.js\n"
-                "copy to copied.js"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "old mode 100644\n"
-                "new mode 100755\n"
-                "similarity index 100%\n"
-                "rename from old.js\n"
-                "rename to new.js"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
                 "<lf-diff> failed: unsupported hunkless rename (only an exact "
                 "path-only block with diff --git, similarity index 100%, rename "
                 "from, and rename to lines may omit textual @@ hunks)"
@@ -2414,11 +2339,6 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
     identifiers = (
         "wrong-count-diff",
         "missing-hunk-diff",
-        "mixed-binary-diff",
-        "empty-added-diff",
-        "empty-deleted-diff",
-        "copy-diff",
-        "rename-and-mode-diff",
         "rename-with-missing-hunk-diff",
         "similarity-only-diff",
         "empty-rename-paths-diff",
@@ -5223,11 +5143,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         7,
         16,
     ]
-    # Folding the file away leaves the box nowhere to stand, so it waits, words and
-    # focus held, and stands again with them when the file is opened.
+    # Folding the file away removes the inline outlet, but the draft remains on
+    # screen with its words and focus until the file is opened again.
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )

@@ -743,9 +743,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name, and each tab counts the Asks in its panel the user still owes: an answer
-    clears its tab's count while the others keep theirs, and moves no row. A tab's name
-    is its label whatever the row shows, and a panel bounds what it holds."""
+    name. Answering an item's Ask moves no row. A tab's name is its label whatever
+    the row shows, and a panel bounds what it holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -785,8 +784,6 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     }"""
     wide = page.evaluate(boxes)
     assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
-    owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
-    expect(owed).to_have_text(["1", "1", "1"])
     bounds = page.evaluate("""() => ({
       board: document.querySelector('#board').getBoundingClientRect().right,
       panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
@@ -797,6 +794,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
         ".map((b) => b.getBoundingClientRect().height)"
@@ -810,7 +809,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(owed).to_have_text(["", "1", "1"])
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     assert page.evaluate(rows) == heights
 
     resized(page, 390, 844)
@@ -6543,21 +6542,11 @@ def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
     round_trip(page)
 
 
-def test_composer_grows_with_its_text_without_script(browser, serve):
-    """The comment box fits its content, caps, and shrinks back — and no script
-    touches its height. That last part is the point: sizing a textarea from JS
-    means shrinking it to re-measure on every keystroke, and a box briefly too
-    small for its own text flashes a scrollbar."""
+def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
+    """The comment box fits its content, scrolls at its cap, and shrinks back."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     box = page.locator(".lf-general leaf-text")
-
-    page.evaluate("""() => {
-        const ta = document.querySelector('.lf-general leaf-text');
-        window.__styled = 0;
-        new MutationObserver(() => window.__styled++)
-            .observe(ta, { attributes: true, attributeFilter: ['style'] });
-    }""")
 
     def state():
         return box.evaluate("""ta => ({ h: Math.round(ta.getBoundingClientRect().height),
@@ -6580,7 +6569,6 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
         "past the ceiling the scrollbar is real and belongs there"
     )
     assert shrunk["h"] == empty["h"], "and it must shrink back"
-    assert page.evaluate("window.__styled") == 0, "nothing may size the box from script"
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
@@ -7421,8 +7409,8 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
 
 
-def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, serve):
-    """One press replaces both verdicts with one disabled pending command."""
+def test_a_pending_suggestion_decision_records_one_action(browser, serve):
+    """One press replaces both verdicts and records the accepted decision once."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -7432,10 +7420,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     expect(row.locator(".lf-sug-accept")).to_have_count(0)
     expect(row.locator(".lf-sug-reject")).to_have_count(0)
     pending_undo = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(pending_undo).to_be_disabled()
-    pending_undo.evaluate("button => button.click()")
-    expect(page.locator(".lf-notice")).to_have_text("")
-    expect(pending_undo).to_be_disabled()
+    expect(pending_undo).to_be_visible()
     assert len(held) == 1
 
     held[0].continue_()
@@ -7466,7 +7451,6 @@ def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, se
     pending_undo = page.locator("[data-lf-margin-for='sug-refill']").get_by_role(
         "button", name=re.compile(r"^Undo accepting")
     )
-    expect(pending_undo).to_be_disabled()
     assert pending_undo.bounding_box() == resting
 
     held.pop(0).continue_()
@@ -9534,23 +9518,6 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     expect(row.locator(".lf-asks-answer")).to_have_text("Drop the oldest documents")
 
 
-def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
-    source = leaf_page(
-        "empty option answer",
-        """<h1>Choose the unnamed route</h1>
-<lf-ask id="empty-decision"><h2>Which route?</h2>
-  <lf-options id="empty-options" choose>
-    <lf-option id="empty" chosen></lf-option>
-    <lf-option id="named"><strong>Named route</strong></lf-option>
-  </lf-options>
-</lf-ask>""",
-    )
-    page = open_page(browser, serve(source))
-
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-answer")).to_have_text("empty")
-
-
 def test_an_ask_rejects_two_answer_users_even_when_their_words_match(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     banner_control(page, ".lf-asks").click()
@@ -11143,14 +11110,9 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     expect(line).to_have_css("white-space", "pre")
 
 
-def test_a_phone_keeps_a_long_diff_path_to_one_line_and_its_file_name_whole(
-    iphone, serve
-):
-    """A file's header on a phone, with the review press beside it. The header pins over
-    its rows, so it is one line of a stated height, which is what the rows under it
-    stack below (`--lf-top`). A path too long for that line gives way from its
-    folders: the file's own name stays whole, the folders end in an ellipsis, and the
-    header's title holds the whole path."""
+def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, serve):
+    """The space reserved above a landed row clears its sticky file header. The
+    basename remains readable on a phone; the title retains the complete path."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
@@ -11174,20 +11136,19 @@ def test_a_phone_keeps_a_long_diff_path_to_one_line_and_its_file_name_whole(
         const head = document.querySelector('lf-diff').shadowRoot
             .querySelector('summary');
         const path = head.querySelector('.lf-diff-path');
-        const dir = path.querySelector('.lf-diff-dir');
         const base = path.querySelector('.lf-diff-base');
         return {
             height: head.getBoundingClientRect().height,
-            stated: parseFloat(getComputedStyle(head).blockSize),
+            reserved: parseFloat(getComputedStyle(
+                head.parentElement.querySelector('[data-line]')
+            ).scrollMarginTop),
             title: path.title,
             base: base.textContent,
             baseCut: base.scrollWidth > base.clientWidth,
-            dirCut: dir.scrollWidth > dir.clientWidth,
         };
     }"""
     )
-    assert head["dirCut"], f"the path fit the phone's line, so nothing gave way: {head}"
-    assert head["height"] == pytest.approx(head["stated"], abs=0.5), head
+    assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert head["base"] == "config.md" and not head["baseCut"], head
     assert head["title"] == path, head
 

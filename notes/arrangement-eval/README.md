@@ -11,7 +11,7 @@ The committed evidence includes per-run scores, summary tables and blinded verdi
 - [r2-main-7ea3](results/r2-main-7ea3.md), with
   [scores](results/r2-main-7ea3.json) and [reviews](results/r2-main-7ea3-reviews.json).
   Phase 2 ran under the user's home and could read or change standing instructions,
-  so those results do not isolate the arm's guidance.
+  so those results do not isolate the arm's instructions.
 - [r3-main-0feb](results/r3-main-0feb.md), with
   [scores](results/r3-main-0feb.json) and [reviews](results/r3-main-0feb-reviews.json).
   This run used an isolated home.
@@ -27,8 +27,8 @@ Before a new batch, rebuild the arms and check their isolation:
 
 - `plain_arm.py` replaces the guide from "Composing a page" to "Draw the subject"
   and empties `layouts.css`. Other edits match exact text in registry entries,
-  references and package guidance, so changed wording can prevent arm construction.
-- `check_clean` checks package guidance, registries and the Layout stylesheet.
+  references and package instructions, so changed wording can prevent arm construction.
+- `check_clean` checks package instructions, registries and the Layout stylesheet.
   The plain arm can still find `lf-pane` in `references/packages.md` and Layout
   selectors in runtime or theme source. `score` reports arrangement vocabulary
   used by each authored page; inspect it before accepting the comparison.
@@ -49,8 +49,8 @@ The runner's current model and isolation contract live in `harness.py` and
 widgets, theme, runtime, render checks, skill and references.
 
 - **leaf:** the shipped Layout classes, `lf-pane`, width and rail declarations,
-  margin idioms, and "Composing a page" guidance.
-- **plain:** `plain_arm.py` removes the arrangement declarations and guidance it
+  margin idioms, and "Composing a page" instructions.
+- **plain:** `plain_arm.py` removes the arrangement declarations and instructions it
   targets, empties the Layout stylesheet, and teaches page CSS using the theme's
   published size, spacing and color tokens. The widgets and feedback mechanisms
   remain Leaf's.
@@ -79,7 +79,7 @@ checks the page again.
 CSS/JavaScript lines, vocabulary use and an independent render check. `shoot`
 captures each phase at 1440×900, 900×900 and 390×844, screen by screen. `review`
 shows the request and screenshots to a fresh judge, with neither source, arm names
-nor guidance. It records preference and whether each page meets the revision request.
+nor instructions. It records preference and whether each page meets the revision request.
 The pair's name determines which arm appears on each side.
 
 ## Running

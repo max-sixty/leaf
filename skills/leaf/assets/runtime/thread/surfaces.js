@@ -2,7 +2,12 @@
 
    A placement claims one Thread's page position, so reconciliation joins the core
    Thread presentation before the margin chooses its fallback. Ordinary mirrors live
-   in mirrors.js and cannot hold that presentation open. */
+   in mirrors.js and cannot hold that presentation open.
+
+   A thread the widget would draw in a seat it has not opened yet, while that would move
+   what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
+   held-news.js): `target` answers null for it, so the margin draws it, and `showHeld`
+   is how the margin's marker shows it. */
 import { reportPageError } from "../layer-client.js";
 import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -11,8 +16,11 @@ import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
 import { threadFocusStop } from "./focus.js";
+import { HeldArrivals } from "./held-news.js";
 import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
+import { whenDocumentPresented } from "../semantic-state.js";
+import { retainUserIntent } from "../user-intent.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -53,6 +61,10 @@ export function consumeThreads(owner, render, { invalidate, composition, reveal 
     invalidate,
     composition,
     outlets: new Set(),
+    // The datums where the widget drew a thread last, and the threads it holds out of
+    // the seats it has not opened.
+    drawn: new Set(),
+    held: new HeldArrivals(() => update(registration)),
     reconcileQueued: false,
     cancelRender: () => {},
   };
@@ -114,6 +126,8 @@ function reportFailure({ owner }, error) {
 
 function clearRegistration(registration) {
   registration.cancelRender();
+  registration.held.dispose();
+  registration.drawn = new Set();
   if (registration.outlets.has(registration.composition.outlet()))
     registration.composition.restore();
   clearOutlets(registration.outlets);
@@ -164,14 +178,22 @@ export function renderSurfaces(collection, placedAt, commands) {
           placement?.status === "exact" &&
           placement.datumElement instanceof Element &&
           under(placement.datumElement, owner);
-        const target = (key) => {
-          const thread = byKey.get(key);
-          if (!thread) return null;
+        const targets = new Map();
+        for (const thread of collection.threads) {
+          if (thread.anchor?.section !== owner.id) continue;
           const placement = placedAt(thread.id);
-          return exact(thread.anchor, placement)
-            ? { anchor: thread.anchor, placement }
-            : null;
-        };
+          if (exact(thread.anchor, placement))
+            targets.set(thread.key, { anchor: thread.anchor, placement });
+        }
+        const held = registration.held.hold(
+          [...targets].map(([key, { anchor, placement }]) => ({
+            thread: byKey.get(key),
+            datum: anchor.datum,
+            node: placement.datumElement,
+          })),
+          { drawn: registration.drawn, all: collection.threads },
+        );
+        const target = (key) => (held.has(key) ? null : (targets.get(key) ?? null));
         const anchor = activeComposition?.anchor;
         const placement =
           anchor?.datum && anchor.section === owner.id
@@ -271,6 +293,9 @@ export function renderSurfaces(collection, placedAt, commands) {
       }
       clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
       registration.outlets = new Set(byOutlet.keys());
+      registration.drawn = new Set(
+        [...byOutlet.values()].flat().map((thread) => thread.anchor.datum),
+      );
       for (const [outlet, threads] of byOutlet) {
         outlet.toggleAttribute("data-lf-thread-surface", true);
         const response =
@@ -288,6 +313,32 @@ export function renderSurfaces(collection, placedAt, commands) {
 }
 
 export const claimed = (id) => claimedIds.has(id);
+
+// Whether a widget holds the thread `id` out of its flow, so that its margin marker is
+// the notice it waits behind.
+export const heldOut = (id) =>
+  [...registrations.values()].some(({ held }) => held.holds(id));
+
+// Shows the threads `ids` names that a widget holds out of its flow, and lands on the
+// first where its widget then draws it, since the marker the user pressed goes with
+// what it held, unless a newer gesture has taken them elsewhere. Returns whether a
+// widget held any.
+export function showHeld(ids) {
+  for (const registration of registrations.values()) {
+    const [id] = registration.held.show(ids);
+    if (id) {
+      void presentHeld(registration, id, retainUserIntent());
+      return true;
+    }
+  }
+  return false;
+}
+
+async function presentHeld(registration, id, mayLand) {
+  await registration.invalidate();
+  await whenDocumentPresented();
+  if (mayLand()) focusSurface(id, { focus: "thread" });
+}
 
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.

@@ -30,10 +30,8 @@
  * set's start when the user stood below it.
  *
  * Every tab's accessible name is its label; what else the tab shows describes it. A
- * side list's row adds the panel's `summary` under the name. Every tab wears two
- * counts about what its panel holds, so neither can hide behind an inactive tab: Δ, the
- * passages the version diff marks, while the diff is on, and the Asks there the user
- * still owes, from the page's Ask selection. Unupgraded,
+ * side list's row adds the panel's `summary` under the name. While the version diff is on,
+ * each tab counts the marked passages its panel holds, including inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
@@ -46,7 +44,6 @@ import {
   keepView,
   keeps,
   keepsText,
-  openAsks,
   layoutChanged,
   listWalkPosition,
   offer,
@@ -62,7 +59,6 @@ import {
   selectableOffer,
   setRuntimeRootStyle,
   tabStore,
-  watchAsks,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -93,7 +89,6 @@ customElements.define(
     #contextObserver = null;
     #strip = null;
     #covering = false;
-    #stopAsks = null;
     #side = false;
     #pageFlow = false;
 
@@ -102,7 +97,6 @@ customElements.define(
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory();
-        this.#listenForAsks();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -118,8 +112,8 @@ customElements.define(
       // is the only place that name is written. So the name goes in its own span,
       // declared the page speaking, and the anchor pass reads it over the chrome around
       // it: a user points at a tab's name the way they point at a heading. Its own
-      // span rather than the tab's whole text, because the counts land here too and
-      // they are the runtime talking about the document.
+      // span rather than the tab's whole text, because the Δ count lands here too and
+      // it is the runtime talking about the document.
       //
       // A press is a span wearing the role rather than a <button> (see `offer`), which
       // is what makes a drag across the name possible at all.
@@ -144,13 +138,10 @@ customElements.define(
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
         }
-        // The counts, empty until there is something to count (`#marks`).
-        for (const kind of ["lf-tabdiff", "lf-tabowed"]) {
-          const chip = document.createElement("span");
-          chip.className = kind;
-          chip.setAttribute("aria-hidden", "true");
-          btn.append(chip);
-        }
+        const chip = document.createElement("span");
+        chip.className = "lf-tabdiff";
+        chip.setAttribute("aria-hidden", "true");
+        btn.append(chip);
         btn.onclick = () => this.#activate(panel, "ordinary");
         strip.append(btn);
         this.#buttons.set(panel, btn);
@@ -245,7 +236,6 @@ customElements.define(
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForDiff();
-      this.#listenForAsks();
     }
 
     disconnectedCallback() {
@@ -255,8 +245,6 @@ customElements.define(
       this.#historyEvents = null;
       this.#contextObserver?.disconnect();
       this.#contextObserver = null;
-      this.#stopAsks?.();
-      this.#stopAsks = null;
       // A revision that rebuilds the page's set disconnects this one and connects its
       // replacement in one operation, so the header is withdrawn only once that
       // operation is over and no strip has taken this one's place: withdrawn and
@@ -270,30 +258,18 @@ customElements.define(
       }
     }
 
-    #listenForAsks() {
-      if (!this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#marks());
-      this.#marks();
-    }
-
-    // Each tab's counts of what its panel holds: the passages the version diff marks
-    // while it is on, and the Asks the user still owes, from the page's one Ask
-    // selection. They are said with the summary as the tab's description.
+    // The version diff's marked passages in each panel, said with its summary as
+    // the tab's description.
     #marks() {
-      const owed = openAsks()
-        .map((ask) => document.getElementById(ask.sourceId))
-        .filter(Boolean);
       for (const [panel, btn] of this.#buttons) {
         const changed = panel.querySelectorAll(".lf-ins-block").length;
-        const asks = owed.filter((element) => panel.contains(element)).length;
-        const show = (kind, text) =>
-          keepsText(btn.querySelector(`:scope > .${kind}`), text);
-        show("lf-tabdiff", changed ? `Δ${changed}` : "");
-        show("lf-tabowed", asks ? String(asks) : "");
+        keepsText(
+          btn.querySelector(":scope > .lf-tabdiff"),
+          changed ? `Δ${changed}` : "",
+        );
         const description = [
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-          asks === 1 ? "1 Ask waits on you" : asks ? `${asks} Asks wait on you` : "",
         ]
           .filter(Boolean)
           .join(". ");
@@ -307,6 +283,7 @@ customElements.define(
       document.addEventListener("lf-comparison", () => this.#marks(), {
         signal: this.#diffEvents.signal,
       });
+      this.#marks();
     }
 
     #activate(active, reason) {

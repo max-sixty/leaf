@@ -7044,17 +7044,35 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     """Undo has the same failure lifecycle without inventing a counter-decision."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-margin-for='sug']")
-    unfolded_button(row.locator(".lf-sug-reject")).click()
-    page.route(
-        "**/api/event",
-        lambda route: route.fulfill(
+    with sending(page, "the decision to be withdrawn"):
+        unfolded_button(row.locator(".lf-sug-reject")).click()
+    decision = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["detail"]["outcome"] == "reject"
+    )
+    refused = []
+
+    def refuse_undo(route):
+        event = route.request.post_data_json
+        if event["kind"] != "undo":
+            route.continue_()
+            return
+        refused.append(event)
+        route.fulfill(
             status=400,
             json={"ok": False, "final": True, "error": "refused before append"},
-        ),
-    )
-    row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
+        )
+
+    page.route("**/api/event", refuse_undo)
+    with sending(page, "the refused withdrawal"):
+        row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
+    assert [(event["kind"], event["undoes"]) for event in refused] == [
+        ("undo", decision["id"])
+    ]
     receipt = row.locator(".lf-margin-receipt")
     expect(receipt).to_have_text("Undo failed · Rejected")
+    consume_browser_errors(page, "400")
     assert receipt.evaluate(
         """element => {
           const probe = document.createElement('span');
@@ -7075,15 +7093,9 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
         "data-lf-state", re.compile(".+")
     )
     logged = events_model.read_events(serve.page_dir)
-    decision = next(
-        event
-        for event in logged
-        if event["kind"] == "action" and event["detail"]["outcome"] == "reject"
-    )
     assert [event["undoes"] for event in logged if event["kind"] == "undo"] == [
         decision["id"]
     ]
-    consume_browser_errors(page, "400")
 
 
 # `folded` is the layer's own division of the pair rather than a convenience: accept

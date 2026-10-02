@@ -41,7 +41,14 @@ the key in the complete typed value map sent by the final `choose` action. A ran
 attribute and public `values` entry stay numeric. A range requires `max`; `min` defaults
 to zero and `step` defaults to one.
 
-Controls and presets do different jobs. Controls span the space the user explores: give
+Separate the configuration the user is choosing from the cases used to inspect it.
+Configuration controls and presets describe what to build. Give preview cases and
+inspection settings their own labeled controls and page-local state, outside the
+playground's submitted values. Changing a case preserves the configuration; applying
+a preset preserves the case; all compared candidates use the same case. When editing
+the data is itself the task, that data belongs in the configuration.
+
+Controls and presets do different jobs. Controls span the configuration space: give
 each part or parameter they might want to vary a control of its own, even when that
 makes many, and put candidates that differ only as wholes in one `choice`. Presets are
 the candidates you put forward: one for each proposal you would build, commonly three to

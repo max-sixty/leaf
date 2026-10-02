@@ -1,0 +1,53 @@
+# From Codex session 01a0fb4e-e32b-7eb2-9099-0fd0b49ecc8f: the thread
+# comparison put conversation fixtures and design settings in the same value map.
+# Replays its pre-review draft to measure whether the author separates those roles.
+# On 015b1b9c2: 0/2 baseline outputs separated the case; the configuration/case
+# paragraph passed 2/2. Both arms read the package instructions.
+schema_version: '1.0'
+name: playground-case-is-independent
+description: "Playground: switch test cases independently of the configuration being chosen."
+tags: [playground]
+execution:
+  prompt: |
+    The user asked: "Threads in the threads panel and the threads anchored on the
+    page are quite different. Research how we could unify them much more.
+    Generally I find the anchored ones look much better."
+
+    You have researched the shared renderer and built live panel samples. The
+    playground compares today's panel with a proposed panel. Both show the same
+    conversation, selected from short, long, resolved, and exchange fixtures.
+    The proposed panel can use a shared-conversation frame or a card frame.
+    The first draft declares these controls:
+      <lf-playground-control name="face" label="Conversation frame" kind="choice"
+        value="shared">...shared and card choices...</lf-playground-control>
+      <lf-playground-control name="scenario" label="Conversation" kind="choice"
+        value="exchange">...short, long, resolved, exchange choices...</lf-playground-control>
+    Its Shared conversation and Card in panel presets set only face. Its output
+    asks to build the selected frame and demonstrate it on representative threads.
+    The sample renderer takes showConversation(caseId) and setFrame(frame).
+
+    Finish the playground for handoff. Read the playground package's instructions
+    at packages/playground/instructions/author.md inside the leaf skill's base
+    directory. Reply with the HTML and page module; the page directory is not
+    reachable here. You can use placeholders for the live sample bodies.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-playground-instructions
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/packages/playground/instructions/author\.md
+- name: independent-case
+  type: llm
+  criteria: |
+    Pass only if the resulting authored UI and behavior separate the conversation
+    case selector from the design configuration controls, changing the case
+    preserves the selected design, and choosing a design preset preserves the
+    current case. Both candidates receive the same selected conversation.
+    The selected conversation is absent from the configuration's submitted values
+    and build instruction. A labeled native selector with page-local state is fine.
+    Fail if the conversation remains an lf-playground-control or a registered
+    contributor in the submitted configuration, if only prose promises separation,
+    or if fixture selection is removed altogether.

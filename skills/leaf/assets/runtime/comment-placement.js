@@ -113,10 +113,10 @@ export function reachableRoom(side, extent, boundary, scroller) {
 
 // Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
-// and the least room a surface stands in cannot show together, no scroll makes that
-// room, and the surface stands over what it is about where it is.
+// and this surface cannot show together, no scroll makes that room. The boundary
+// then holds the surface over its subject instead of scrolling the subject away.
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  if (extent.height + COMMENT_GAP + LEAST_HEIGHT > boundary.height) return false;
+  if (extent.height + COMMENT_GAP + height > boundary.height) return false;
   const overflow =
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
@@ -178,6 +178,21 @@ export function commentPlacement() {
   return {
     get side() {
       return side;
+    },
+    // Mechanical handoff between the editor's transparent frame and its sent card.
+    capture() {
+      return { side, inline, input: input?.slice() ?? null, seen };
+    },
+    take(reading) {
+      ({ side, inline, input, seen } = reading);
+    },
+    fitsBoundary(reading, boundary) {
+      return (
+        reading.input &&
+        [boundary.left, boundary.top, boundary.right, boundary.bottom].every(
+          (value, index) => Math.abs(value - reading.input[index + 1]) <= 0.5,
+        )
+      );
     },
     forget() {
       side = null;
@@ -281,6 +296,9 @@ export function commentPlacement() {
           if (!edge) return {};
           const { line, scale } = measure(state);
           return {
+            ...("left" in edge
+              ? { x: state.rects.reference.x + edge.left / scale.x }
+              : {}),
             y:
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
@@ -304,13 +322,16 @@ export function commentPlacement() {
           ...overflow,
           apply(state) {
             const { scale } = measure(state);
+            const carriedLeft = hold?.()?.left;
             const lane =
-              side === "right"
-                ? boundary.right - box.right - COMMENT_GAP
-                : side === "left"
-                  ? clear.left - boundary.left - COMMENT_GAP
-                  : boundary.right -
-                    (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
+              carriedLeft !== undefined
+                ? boundary.right - clear.left - carriedLeft
+                : side === "right"
+                  ? boundary.right - box.right - COMMENT_GAP
+                  : side === "left"
+                    ? clear.left - boundary.left - COMMENT_GAP
+                    : boundary.right -
+                      (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
             fit({
               side,
               width: Math.max(0, Math.min(state.availableWidth, lane / scale.x)),

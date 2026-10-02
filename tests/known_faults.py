@@ -65,6 +65,7 @@ KNOWN_UNASKED = {
         # The shortcut line's More as its hints change when the answer to the send lands,
         # where load puts that answer past the press's own frames.
         "test_where_a_comment_stands_before_and_after_send": r"lf-shortcut",
+        "test_send_grows_thread_around_the_words": r"lf-shortcut",
     },
     "test_website_server.py": {
         # The panel's later cards rising, and what they hold coming into view, as a card

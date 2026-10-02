@@ -46,6 +46,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    sending,
 )
 
 SHOTS = Path(__file__).resolve().parent.parent / ".tmp" / "send-placement"
@@ -322,7 +323,9 @@ def sent(browser, serve, name):
     page.keyboard.insert_text(COMMENT)
     rendered(page)
     box_side = SIDES[bar.get_attribute("data-lf-placement")]
-    box = page.evaluate(RECT, ".lf-fab-input")
+    # Both placement readings describe the complete frame, including the transparent
+    # slots around the editor. The glyph test below measures the painted words.
+    box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
     scrolled = page.evaluate("scrollY")
     before = page.screenshot()
@@ -513,3 +516,158 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         or any(abs(box_top - window_top) <= 1 for window_top in window_tops)
         for target_top, box_top in shown
     ), readings
+
+
+@pytest.mark.parametrize(
+    "size,at,long,touch,again,motion",
+    [
+        ((1440, 900), 0.4, False, False, False, "no-preference"),
+        ((900, 600), 0.85, False, False, False, "no-preference"),
+        ((390, 844), 0.12, False, False, False, "no-preference"),
+        ((900, 600), 0.4, True, False, False, "no-preference"),
+        ((1440, 900), 0.4, "paragraphs", False, False, "no-preference"),
+        ((390, 844), 0.12, False, True, False, "no-preference"),
+        ((1440, 900), 0.4, False, False, True, "no-preference"),
+        ((1440, 900), 0.4, False, False, False, "reduce"),
+        ((390, 844), 0.4, "passage", True, False, "no-preference"),
+    ],
+)
+def test_send_grows_thread_around_the_words(
+    browser, serve, size, at, long, touch, again, motion
+):
+    """The real draft's glyphs keep their position/wrapping/scroll through Send,
+    including the decoration animation and acknowledgement. Read inside the editor
+    solely to measure its actual glyphs, without changing its closed-root behavior."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(PAGE),
+        context=context,
+        init_script="""
+      window.editorRoots = new WeakMap();
+      const attach = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function(options) {
+        const root = attach.call(this, options);
+        if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+        return root;
+      };
+    """,
+    )
+    resized(page, *size)
+    page.emulate_media(reduced_motion=motion)
+    if again:
+        send_one(page, STEP, touch)
+    on = FIRST_LINE if long == "passage" else STEP
+    page.locator(on.block).evaluate(
+        "(el, at) => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * at)",
+        at,
+    )
+    rendered(page)
+    on.open(page, touch)
+    text = (
+        "Keep the runner checkout fixed while the disposable workspace is removed. "
+        * (80 if long is True else 2)
+    )
+    if long == "paragraphs":
+        text = "First paragraph.\n\nSecond paragraph."
+    page.keyboard.insert_text(text)
+    rendered(page)
+    if long == "passage":
+        assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
+    page.evaluate("""() => {
+      const input = document.querySelector('.lf-fab-input');
+      const blockRects = node => {
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        const text = nodes.map(n => n.textContent).join('');
+        const boxes = [];
+        let at = 0, i = 0;
+        for (const word of text.matchAll(/\\S+/g)) {
+          while (at + nodes[i].length <= word.index) at += nodes[i++].length;
+          const range = document.createRange();
+          range.setStart(nodes[i], word.index - at); range.setEnd(nodes[i], word.index - at + 1);
+          const r = range.getBoundingClientRect();
+          boxes.push([r.x,r.y,r.width,r.height]);
+        }
+        return boxes;
+      };
+      const rects = node => {
+        const blocks = node.matches('.cm-content') ? [...node.querySelectorAll('.cm-line')]
+          : [...node.children];
+        return blocks.flatMap(blockRects);
+      };
+      const editor = window.editorRoots.get(input).querySelector('.cm-content');
+      window.beforeWords = rects(editor);
+      window.beforeScroll = input.scrollTop;
+      window.beforePageScroll = scrollY;
+      window.sendFrames = [];
+      const sample = () => {
+        const card = document.querySelector('.lf-margin-preview');
+        const body = card?.querySelector('.lf-page-thread-body');
+        if (body && card.checkVisibility()) {
+          window.sendFrames.push({rects:rects(body), scroll:body.scrollTop, pageScroll:scrollY,
+            frame:card.getBoundingClientRect().toJSON()});
+        }
+        window.sampling = requestAnimationFrame(sample);
+      };
+      window.sampling = requestAnimationFrame(sample);
+    }""")
+    with sending(page, "comment"):
+        if touch:
+            page.locator(".lf-fab-bar").get_by_role(
+                "button", name="Comment", exact=True
+            ).tap()
+        else:
+            page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-comment-frame", "")
+    rendered(page)
+    wait_for(
+        lambda: page.evaluate(
+            "document.querySelector('.lf-margin-preview').getAnimations().length"
+        ),
+        lambda n: n == 0,
+        failure="Thread growth never finished",
+    )
+    reading = page.evaluate("""() => {
+      cancelAnimationFrame(window.sampling);
+      return {before:beforeWords,scroll:beforeScroll,pageScroll:beforePageScroll,frames:sendFrames};
+    }""")
+    assert reading["frames"]
+    for frame in reading["frames"]:
+        assert frame["frame"]["left"] >= -0.75
+        assert frame["frame"]["right"] <= size[0] + 0.75
+        assert frame["frame"]["top"] >= -0.75
+        assert frame["frame"]["bottom"] <= size[1] + 0.75
+        assert [v for r in frame["rects"] for v in r] == pytest.approx(
+            [v for r in reading["before"] for v in r], abs=0.75
+        ), reading
+        assert frame["scroll"] == pytest.approx(reading["scroll"], abs=1), reading
+        assert frame["pageScroll"] == reading["pageScroll"], reading
+    expect(
+        card.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+    expect(card.locator('leaf-text[name="reply"]')).to_be_visible()
+
+    if long is True:
+        body = card.locator(".lf-page-thread-body").first
+        body.hover()
+        page.mouse.wheel(0, -300)
+        expect(body).not_to_have_js_property("scrollTop", reading["scroll"])
+        scroll_settled(page)
+        retained = body.evaluate("el => el.scrollTop")
+        resized(page, size[0] + 1, size[1])
+        rendered(page)
+        assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
+        expect(card).to_have_attribute("data-lf-comment-frame", "")
+    if not long and not touch and not again and motion == "no-preference":
+        card.locator('leaf-text[name="reply"]').click()
+        page.keyboard.insert_text("The same placement works for a reply.")
+        with sending(page, "reply"):
+            page.keyboard.press("Enter")
+        rendered(page)
+        expect(
+            card.get_by_text("The same placement works for a reply.")
+        ).to_be_visible()
+    judge_watches()

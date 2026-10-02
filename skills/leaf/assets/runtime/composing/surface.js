@@ -19,8 +19,9 @@
    its press captures the passage, clears the native selection menu, and opens the field.
    Until that press the native handles and menu have the passage to themselves. The
    field grows in place and never transfers text into a second composer card. A
-   one-line note uses the shared action corner. A longer one widens up to a readable
-   80ch and then wraps.
+   one-line note uses the shared action corner. A longer one widens within the thread
+   card’s measure and then wraps. A transparent envelope fits the first message and
+   the card’s metadata and reply slots before typing; only the editor paints then.
 
    Where the bar stands is the rule the thread card a sent comment becomes stands by
    too (comment-placement.js), so Send changes the surface without moving it: the side
@@ -28,7 +29,7 @@
    card, else under or over them by the room the page can make, and the bar keeps it.
    Under or over a quoted passage, the field moves the reading region only enough to
    keep the passage and field visible together (`makeRoom`); it finally scrolls
-   internally. Beside a target, the field's top stays at the target's line while the
+   internally. Beside a target, the frame's top stays at the target's line while the
    field grows downward, as an editor's page does, so the lines already written stay
    where the user wrote them and Send moves down a line per wrap. Only at the visible
    boundary's foot does the field rise to stay in view, and past the whole boundary it
@@ -146,6 +147,7 @@ import {
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
 import {
   cardMinimum,
+  cardMeasure,
   commentBoundary,
   commentPlacement,
   makeRoom,
@@ -232,6 +234,14 @@ export function createResponseSurface({
 
   // Measure the compact response once per anchor/state. Expanded choices are designed to
   // wrap and therefore cannot redefine whether the response surface fits at all.
+  const fabFrameAt = () =>
+    composerOpen && fabFloating && !panelIsOpen()
+      ? {
+          box: fabBar.getBoundingClientRect().toJSON(),
+          width: parseFloat(getComputedStyle(fabBar).width),
+          placement: fabPlacement.capture(),
+        }
+      : null;
   const minimumFabWidth = () => {
     if (fabMinimumWidth === null || fabMinimumComposer !== composerOpen) {
       fabMinimumComposer = composerOpen;
@@ -471,7 +481,7 @@ export function createResponseSurface({
       const controls = Math.max(0, fabBar.offsetWidth - fabInput.offsetWidth);
       fabBar.style.setProperty(
         "--lf-response-room",
-        `${Math.max(0, width - controls)}px`,
+        `${Math.max(0, Math.min(width, cardMeasure()) - controls)}px`,
       );
     };
     const setHeight = (available) => {
@@ -1602,6 +1612,7 @@ export function createResponseSurface({
     standDown,
     fabAnchorAt,
     fabPointAt,
+    fabFrameAt,
     seatFab,
     restoreFab,
     fabInlineOutlet: () => fabInlineOutlet,

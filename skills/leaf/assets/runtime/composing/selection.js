@@ -143,6 +143,7 @@ export function createSelectionComposer({
   bringForward,
   fabAnchorAt,
   fabPointAt,
+  fabFrameAt,
   fabPositioned,
   beginFabFocus,
   endFabFocus,
@@ -652,7 +653,7 @@ export function createSelectionComposer({
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.
-        const transition = threadTransitionOrigin(composerInput, visible);
+        const transition = threadTransitionOrigin(composerInput, fabFrameAt());
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();

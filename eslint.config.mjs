@@ -47,11 +47,13 @@ const browserGlobals = Object.fromEntries(
     "HTMLSpanElement",
     "Highlight",
     "IntersectionObserver",
+    "MessageChannel",
     "MouseEvent",
     "MutationObserver",
     "Node",
     "NodeFilter",
     "OffscreenCanvas",
+    "PerformanceObserver",
     "Range",
     "Response",
     "ResizeObserver",
@@ -734,6 +736,18 @@ export default [
   {
     files: ["build/pierre/build.mjs"],
     languageOptions: { globals: { process: "readonly" } },
+  },
+  {
+    // Python executes these test expressions and modules inside the browser. Their
+    // source is linted here rather than hidden inside Python string literals.
+    files: ["tests/browser/**/*.js"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
+  },
+  {
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/bench_latency.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+    rules: { "no-undef": "error" },
   },
   {
     // The site verifier resolves the release-scoped runtime URL from the page under

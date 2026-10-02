@@ -76,7 +76,7 @@ test("a touch screen takes under wherever the page can make a surface's least ro
   assert.equal(side(under(LEAST_HEIGHT - 1), { scrolled: 2150, coarse: true }), "top");
 });
 
-test("a submitted frame adopts its place once, through scroll but not reflow", () => {
+test("a submitted frame survives supersession until it lands, then follows scroll but not reflow", () => {
   for (const unanchored of [false, true]) {
     const clear = block(300, 660, 300, 500);
     const input = {
@@ -97,11 +97,25 @@ test("a submitted frame adopts its place once, through scroll but not reflow", (
     assert.equal(opening.fresh, false);
     const top = box.top - (unanchored ? clear.bottom : clear.top);
     assert.deepEqual(opening.hold, { top, foot: top + box.height });
+    assert.deepEqual(card.choose(input).hold, opening.hold);
 
     const scrolled = block(300, 660, 200, 400);
     const reading = card.choose({ ...input, clear: scrolled, row: scrolled.top });
     assert.equal(reading.fresh, false);
-    assert.equal(reading.hold, undefined);
+    assert.deepEqual(reading.hold, opening.hold);
+    card.landed({
+      x: box.left,
+      y: box.top - 100,
+      middlewareData: {
+        scaled: {
+          scale: { x: 1, y: 1 },
+          reference: scrolled,
+          line: card.line(scrolled, scrolled.top),
+        },
+        held: { height: box.height },
+      },
+    });
+    assert.equal(card.choose({ ...input, clear: scrolled }).hold, undefined);
 
     const reflowed = block(300, 700, 200, 400);
     assert.equal(card.choose({ ...input, clear: reflowed }).fresh, true);

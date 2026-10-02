@@ -174,8 +174,9 @@ export const cardMeasure = () => rootLength("--thread-card");
 
    `capture` is an opaque reading carried inside the editor's frame, whose `box` is a
    client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
-   returns its initial `{ top, foot }` as `hold` once. The placement owns its carried
-   inline offset; `hold` supplied to `options` names only a block edge.
+   returns its initial `{ top, foot }` as `hold` until `landed` confirms a position.
+   A superseded computation retains that hold. The placement owns its carried inline
+   offset; `hold` supplied to `options` names only a block edge.
 
    `fit({ side, width, scale })` sizes the surface for the room its side gives: the width
    of its lane, in its positioning space, with the scale that space has. */
@@ -185,6 +186,7 @@ export function commentPlacement() {
   let input = null;
   let pending = null;
   let carriedInline = null;
+  let initialHold = null;
   // Whether `clear` has stood in the boundary since the side was chosen.
   let seen = false;
   const forget = () => {
@@ -193,6 +195,7 @@ export function commentPlacement() {
     input = null;
     pending = null;
     carriedInline = null;
+    initialHold = null;
     seen = false;
   };
   const line = (clear, row) =>
@@ -254,6 +257,8 @@ export function commentPlacement() {
         // starts at that frame, then follows the card's attachment from this choice.
         ({ side, inline, seen } = frame.placement);
         carriedInline = frame.box.left - (clear?.left ?? boundary.left);
+        const top = frame.box.top - line(clear, row);
+        initialHold = { top, foot: top + frame.box.height };
       } else if (
         input &&
         key.some((value, index) => Math.abs(value - input[index]) > 0.5)
@@ -261,6 +266,7 @@ export function commentPlacement() {
         side = null;
         inline = null;
         carriedInline = null;
+        initialHold = null;
         seen = false;
       }
       input = key;
@@ -275,11 +281,10 @@ export function commentPlacement() {
             scroller,
             coarse,
           });
-      const top = adopted ? frame.box.top - line(clear, row) : null;
       return {
         side,
         fresh,
-        ...(adopted ? { hold: { top, foot: top + frame.box.height } } : {}),
+        ...(initialHold ? { hold: initialHold } : {}),
       };
     },
     options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
@@ -332,10 +337,10 @@ export function commentPlacement() {
         },
       };
       const measure = (state) => state.middlewareData.scaled;
-      const holding = (hold || carriedInline !== null) && {
+      const holding = ((!across && hold) || carriedInline !== null) && {
         name: "hold",
         fn(state) {
-          const edge = hold?.();
+          const edge = !across && hold?.();
           if (!edge && carriedInline === null) return {};
           const { line, scale } = measure(state);
           const position = {};
@@ -353,8 +358,20 @@ export function commentPlacement() {
         scaled,
         ui.offset((state) => {
           const { scale } = measure(state);
+          const edge = across && hold?.();
+          // Declare the held separation to offset itself, so the attachment limiter
+          // follows the same edge instead of pulling a shorter card toward its target.
+          const top =
+            edge &&
+            ("foot" in edge
+              ? edge.foot / scale.y - state.rects.floating.height
+              : edge.top / scale.y);
           return {
-            mainAxis: COMMENT_GAP / (across ? scale.y : scale.x),
+            mainAxis: edge
+              ? side === "top"
+                ? -top - state.rects.floating.height
+                : top
+              : COMMENT_GAP / (across ? scale.y : scale.x),
             crossAxis: across
               ? state.rects.reference.width + (inline ?? -minimum.width / scale.x)
               : (row - COMMENT_GAP - box.top) / scale.y,
@@ -419,6 +436,7 @@ export function commentPlacement() {
       };
     },
     landed({ x, y, middlewareData }) {
+      initialHold = null;
       const { scale, reference, line } = middlewareData.scaled;
       if (vertical(side)) inline ??= x - (reference.x + reference.width);
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;

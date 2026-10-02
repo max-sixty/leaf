@@ -987,7 +987,11 @@ export function createMarginProjection({
       ((previewHold?.replyTurn && previewHold.replyTurn === latest.key) ||
         (turned && (drafting || (previewHold?.drafting && latest.author === "user")))),
     );
-    const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
+    // Adoption holds the message's start: expanded composer choices may add a row
+    // below it that the thread does not carry. Later placements use the card's own
+    // top/foot reading, including the normal above-side and reply-line holds.
+    const held =
+      !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;

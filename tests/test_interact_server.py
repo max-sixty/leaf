@@ -3378,9 +3378,9 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         requester.start()
         assert entered.wait(timeout=5), "the server did not accept the request"
         closer.start()
-        assert not closed.wait(
-            timeout=0.1
-        ), "close returned with a request still active"
+        assert not closed.wait(timeout=0.1), (
+            "close returned with a request still active"
+        )
         release.set()
         closer.join(timeout=5)
         requester.join(timeout=5)
@@ -5178,15 +5178,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     log.write_text("\n".join(lines), encoding="utf-8")
 
     events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == [
-        "r-kept"
-    ], "the tear took the reply with it, so nothing below is being read"
+    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
+        "the tear took the reply with it, so nothing below is being read"
+    )
     names = thread_context_model.thread_names(events)
     assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == [
-        "c-lost"
-    ], f"the two readings put the reply in different threads: {list(threads)}"
+    assert list(threads) == ["c-lost"], (
+        f"the two readings put the reply in different threads: {list(threads)}"
+    )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
     # The lost id names the thread; its root is the reply that survived, under that
     # reply's own id, because a reply or resolve addressed to the root has to name a

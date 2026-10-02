@@ -519,21 +519,41 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
 
 
 @pytest.mark.parametrize(
-    "size,at,long,touch,again,motion",
+    "size,at,long,touch,again,motion,options",
     [
-        ((1440, 900), 0.4, False, False, False, "no-preference"),
-        ((900, 600), 0.85, False, False, False, "no-preference"),
-        ((390, 844), 0.12, False, False, False, "no-preference"),
-        ((900, 600), 0.4, True, False, False, "no-preference"),
-        ((1440, 900), 0.4, "paragraphs", False, False, "no-preference"),
-        ((390, 844), 0.12, False, True, False, "no-preference"),
-        ((1440, 900), 0.4, False, False, True, "no-preference"),
-        ((1440, 900), 0.4, False, False, False, "reduce"),
-        ((390, 844), 0.4, "passage", True, False, "no-preference"),
+        ((1440, 900), 0.4, False, False, False, "no-preference", False),
+        ((900, 600), 0.85, False, False, False, "no-preference", False),
+        ((390, 844), 0.12, False, False, False, "no-preference", False),
+        ((900, 600), 0.4, True, False, False, "no-preference", False),
+        ((1440, 900), 0.4, "paragraphs", False, False, "no-preference", False),
+        ((390, 844), 0.12, False, True, False, "no-preference", False),
+        ((1440, 900), 0.4, False, False, True, "no-preference", False),
+        ((1440, 900), 0.4, False, False, False, "reduce", False),
+        ((390, 844), 0.4, "passage", True, False, "no-preference", False),
+        pytest.param(
+            (900, 600),
+            0.85,
+            False,
+            False,
+            False,
+            "no-preference",
+            True,
+            id="above-with-options-desktop",
+        ),
+        pytest.param(
+            (390, 844),
+            0.85,
+            False,
+            False,
+            False,
+            "no-preference",
+            True,
+            id="above-with-options-phone",
+        ),
     ],
 )
 def test_send_grows_thread_around_the_words(
-    browser, serve, size, at, long, touch, again, motion
+    browser, serve, size, at, long, touch, again, motion, options
 ):
     """The real draft's glyphs keep their position/wrapping/scroll through Send,
     including the decoration animation and acknowledgement. Read inside the editor
@@ -572,6 +592,11 @@ def test_send_grows_thread_around_the_words(
         text = "First paragraph.\n\nSecond paragraph."
     page.keyboard.insert_text(text)
     rendered(page)
+    if options:
+        page.locator(".lf-response-more").click()
+        rendered(page)
+        page.locator(".lf-fab-input").focus()
+        rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
     page.evaluate("""() => {

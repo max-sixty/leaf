@@ -40,7 +40,7 @@
       <tr><th scope="row">Do I need to look at it?</th><td>Open or resolved, plus unread</td><td>An open thread that owes nothing counts toward no one and never closes itself, so the list can't reach zero</td></tr>
     </tbody>
   </table>
-  <lf-diagram id="today-states" parts="node:OnAgent node:OnYou node:Nobody node:Resolved">
+  <lf-diagram id="today-states" data-height="709" parts="node:OnAgent node:OnYou node:Nobody node:Resolved">
     <pre>
 stateDiagram-v2
   state "On the agent" as OnAgent
@@ -120,6 +120,59 @@ stateDiagram-v2
     </tbody>
   </table>
   <aside class="callout" id="coordinator">The best-known attempt at explicit commitment tracking, Winograd and Flores' Coordinator (late 1980s), was rejected by its users, partly because they had to label each message as a request or a promise. Lucy Suchman went further and criticised the accounting itself as "a technology of accountability". Winograd's reply conceded that explicit structure feels like an imposition in unstructured, email-like work. Cohen et al. (2004) point out that the labelling burden "is avoided if messages can be automatically annotated by intent". In Leaf the agent is a language model that already reads every message, so it can do the labelling. Suchman's objection still applies to anything that puts the categories in front of you.</aside>
+  <details id="coordinator-detail">
+    <summary>The Coordinator modelled every request as a small state machine; loops keep its shape and drop the labelling</summary>
+    <p>Winograd and Flores built The Coordinator on their "conversation for action": the smallest unit of coordinated work is a conversation between a <em>customer</em>, who asks, and a <em>performer</em>, who does the work. The conversation moves through a fixed set of speech acts, and each act hands the next move to one side.</p>
+    <lf-diagram id="conversation-for-action" parts="node:Requested node:Promised node:Reported node:Satisfied node:Closed">
+      <pre>
+stateDiagram-v2
+  state "Requested" as Requested
+  state "Promised" as Promised
+  state "Reported done" as Reported
+  state "Satisfied" as Satisfied
+  state "Closed unsatisfied" as Closed
+  [*] --&gt; Requested: customer requests
+  Requested --&gt; Promised: performer promises, or customer accepts a counter-offer
+  Requested --&gt; Requested: performer counter-offers
+  Requested --&gt; Closed: performer declines, or customer withdraws
+  Promised --&gt; Reported: performer reports completion
+  Promised --&gt; Closed: performer reneges, or customer cancels
+  Reported --&gt; Satisfied: customer declares satisfaction
+  Reported --&gt; Promised: customer rejects the report
+  Satisfied --&gt; [*]
+  Closed --&gt; [*]
+      </pre>
+    </lf-diagram>
+    <p>Three properties of the model bear directly on Leaf:</p>
+    <ul>
+      <li><strong>Finished means nobody is waiting.</strong> Winograd (1986): there are "a few states of completion … in which it is mutually recognized that neither party is waiting for further action by the other. All other states represent an incomplete conversation." Leaf's "nobody (still open)" state is an incomplete conversation that no list shows.</li>
+      <li><strong>Only the customer declares satisfaction.</strong> The performer reports completion; the customer accepts or rejects that report. Completion is not satisfaction either: a performer who reneges completes the conversation without satisfying it. A later paper by Medina-Mora, Winograd and the Floreses (1992) recast this as four phases, request, agreement, performance and acceptance, always with "an identified customer and a performer".</li>
+      <li><strong>Silence is a move.</strong> "Declaring satisfaction may be taken for granted if some amount of time goes by without a declaration to the contrary." After a report, saying nothing counts as accepting it.</li>
+    </ul>
+    <p><strong>The product.</strong> The Coordinator was an email client sold by Action Technologies with paid training courses, and was explicitly designed to "coach" its users "to take clearer actions in declaring and following up on their commitments." Each message was sent as a typed act (request, promise, offer, counter-offer, decline, report), and the client tracked every open conversation and its deadline.</p>
+    <p><strong>Why people rejected it.</strong></p>
+    <ul>
+      <li><strong>Field trials went badly.</strong> In Carasik and Grantham's trial at Pacific Bell (CHI '88), "anecdotal evidence was far more negative" than the measured scales. The usual explanation is the work of learning it and of labelling every message by hand.</li>
+      <li><strong>Suchman objected to the accounting itself.</strong> In "Do categories have politics?" (1994) she argued that sorting speech into these categories is "an agenda of discipline and control" over the people using it, and that the system works as "a technology of accountability", like a bookkeeper's ledger.</li>
+      <li><strong>Winograd conceded where it fails.</strong> His reply agreed that "explicit representation of intentions and commitments is more appropriate in some social/organizational situations than others". It had "much greater success" with engineering change orders than among researchers, and "explicit structure is more likely to be seen as an imposition in those cases where organizational activity has been relatively unstructured (e.g., … email)." He still held that the request–promise–report structure is "implicit in all interactions where actions are being coordinated … whether or not they are stated explicitly."</li>
+    </ul>
+    <p><strong>What changed since.</strong> Cohen, Carvalho and Mitchell (2004) trained classifiers to tag email as propose, commit or deliver. They noted that the field's difficulties "are avoided if messages can be automatically annotated by intent". Their imagined assistant asks "should I add this new commitment to your todo list?" and "notices outgoing request, may take action if no answer is received promptly". In Leaf that classifier already exists: the agent is a language model that reads every message.</p>
+    <table id="coordinator-vs-loops">
+      <caption>What option C's loops take from the conversation for action, and what they leave out</caption>
+      <thead><tr><th>Conversation for action</th><th>In a loop</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Customer and performer</th><td>Kept: an ask is owed by you, a request by the agent</td></tr>
+        <tr><th scope="row">The performer reports, the customer accepts</th><td>Kept: the agent marks a request ready, and you accept it</td></tr>
+        <tr><th scope="row">Silence after a report means acceptance</th><td>Kept, and tied to evidence: reading a ready result accepts it, labelled "assumed"</td></tr>
+        <tr><th scope="row">Decline, withdraw and renege as named endings</th><td>Kept as declined (agent) and dropped (you)</td></tr>
+        <tr><th scope="row">The user labels each message</th><td>Dropped: every message is one request by default, and the agent proposes any split</td></tr>
+        <tr><th scope="row">Promise as an explicit act</th><td>Folded into the agent's <code>status --on</code> claim, which it already writes</td></tr>
+        <tr><th scope="row">Counter-offers and negotiated terms</th><td>Dropped: the agent just replies, and a reply can decline</td></tr>
+        <tr><th scope="row">Deadlines and reminders</th><td>Only Later's wake conditions (next version, a date, someday)</td></tr>
+      </tbody>
+    </table>
+    <p>Suchman's objection is the one that survives. The chips that show a split, and Close, Drop and Later, still put commitment categories in front of you. The design answer is to show them only where the default (one message, one request) is wrong. The empirical answer is to watch whether you correct chips or ignore them.</p>
+  </details>
   <ul id="lessons">
     <li><strong>"Needs you" comes in two kinds.</strong> <em>Answer</em> means a question only you can settle. <em>Review</em> means the agent reports it's done and you check. The "nobody" state is exactly where review went missing.</li>
     <li><strong>A close that drops owed work must say so.</strong> "Done", "withdrawn" and "later" are different outcomes. Resolving over a pending request is a withdrawal you never chose.</li>

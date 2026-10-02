@@ -83,7 +83,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       clear,
       boundary,
       row: clear.top,
-      minimum: { width: 320 },
+      minimumWidth: 320,
       scroller: scroller(1000),
       coarse: false,
     };

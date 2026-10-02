@@ -213,7 +213,7 @@ export function commentPlacement() {
     },
     // Mechanical handoff between the editor's transparent frame and its sent card.
     capture() {
-      return { side, inline, input: input?.slice() ?? null, seen };
+      return { side, boundary: input?.slice(1, 5) ?? null, seen };
     },
     adopt(frame) {
       forget();
@@ -229,7 +229,7 @@ export function commentPlacement() {
       extent = clear,
       boundary,
       row = clear?.top ?? boundary.top,
-      minimum,
+      minimumWidth,
       scroller,
       coarse,
     }) {
@@ -249,16 +249,16 @@ export function commentPlacement() {
       const frame = pending;
       pending = null;
       const adopted =
-        frame?.placement.input &&
+        frame?.placement.boundary &&
         key
           .slice(1, 5)
           .every(
-            (value, index) => Math.abs(value - frame.placement.input[index + 1]) <= 0.5,
+            (value, index) => Math.abs(value - frame.placement.boundary[index]) <= 0.5,
           );
       if (adopted) {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
-        ({ side, inline, seen } = frame.placement);
+        ({ side, seen } = frame.placement);
         carriedInline = frame.box.left - (clear?.left ?? boundary.left);
         const top = frame.box.top - line(clear, row);
         initialHold = { top, foot: top + frame.box.height };
@@ -266,11 +266,7 @@ export function commentPlacement() {
         input &&
         key.some((value, index) => Math.abs(value - input[index]) > 0.5)
       ) {
-        side = null;
-        inline = null;
-        carriedInline = null;
-        initialHold = null;
-        seen = false;
+        forget();
       }
       input = key;
       const fresh = side === null;
@@ -280,7 +276,7 @@ export function commentPlacement() {
             clear,
             extent,
             boundary,
-            width: minimum.width,
+            width: minimumWidth,
             scroller,
             coarse,
           });
@@ -290,12 +286,15 @@ export function commentPlacement() {
         ...(initialHold ? { hold: initialHold } : {}),
       };
     },
-    options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
+    options(
+      ui,
+      { clear, row, margin = null, boundary, minimumWidth, fit, hold = null },
+    ) {
       const across = vertical(side);
       const unanchored = !clear;
       // Floating UI reads a window attachment point for the unanchored posture,
       // sharing the same sizing, shift and coordinate conversion as an anchored box.
-      clear ??= new DOMRect(boundary.left, boundary.top, minimum.width, 0);
+      clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
       seen ||=
         !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
       // Beside on the right, the margin row is kept clear too where the room past it
@@ -304,7 +303,7 @@ export function commentPlacement() {
         side === "right" &&
         margin &&
         margin.right > clear.right + 0.5 &&
-        boundary.right - margin.right - COMMENT_GAP >= minimum.width
+        boundary.right - margin.right - COMMENT_GAP >= minimumWidth
           ? margin.right
           : null;
       const box =
@@ -376,7 +375,7 @@ export function commentPlacement() {
                 : top
               : COMMENT_GAP / (across ? scale.y : scale.x),
             crossAxis: across
-              ? state.rects.reference.width + (inline ?? -minimum.width / scale.x)
+              ? state.rects.reference.width + (inline ?? -minimumWidth / scale.x)
               : (row - COMMENT_GAP - box.top) / scale.y,
           };
         }),
@@ -393,7 +392,7 @@ export function commentPlacement() {
                   : side === "left"
                     ? clear.left - boundary.left - COMMENT_GAP
                     : boundary.right -
-                      (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
+                      (box.right + (inline ?? -minimumWidth / scale.x) * scale.x);
             fit({
               side,
               width: Math.max(0, Math.min(state.availableWidth, lane / scale.x)),

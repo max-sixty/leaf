@@ -13,9 +13,8 @@ A delivery record under the state home is the handoff between Leaf capturing a
 user's moves and a carrier taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command, or an async tool hook — so preparing, accepting, opening
-and abandoning one live
-here rather than beside either carrier. The immutable payload itself belongs to
-`delivery`; what this module keeps is which task holds it and how far it has got.
+and abandoning one live here rather than beside either carrier. The immutable
+payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
 Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
 reserves the reply seat, sends `turn/start`, and says whether a failed start may have
@@ -70,6 +69,8 @@ from .service import (
 from .session_cleanup import flocked, write_json
 from .thread import (
     DeliveryReply,
+    answered_by_reply,
+    fail_answer,
     release_delivery_reply,
     reserve_delivery_reply,
 )
@@ -279,8 +280,9 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     The seat is reserved before `turn/start` goes out, so no other writer answers
     the delivery its turn is about to answer. What happens to the seat when
     the start fails depends on what the failure says. A definitive refusal
-    (`AppServerRequestRejected`) or an answer naming no turn means no turn exists,
-    so the seat goes back before this raises. A request that went out with no answer
+    (`AppServerRequestRejected`) means no turn exists, so the seat goes back before
+    this raises. A successful answer missing the turn identity is uncertain too.
+    A request that went out with no answer
     raises `AppServerDeliveryUncertain` with the seat still reserved: a turn carrying
     this delivery may be running, and until something sees it, no other writer may
     answer for the delivery. Each carrier decides what an uncertain start means for
@@ -304,9 +306,7 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
         ) from error
     turn_id = (started.get("turn") or {}).get("id")
     if not turn_id:
-        if reply_target is not None:
-            release_delivery_reply(thread_id, payload["id"], reply_target)
-        raise RuntimeError("Codex App Server returned no turn id")
+        raise AppServerDeliveryUncertain("Codex App Server returned no turn id")
     return turn_id
 
 
@@ -910,7 +910,7 @@ class TurnFold:
 
     What differs between carriers is only how notifications reach the fold.
     `CarriedTurn` reads a connection the turn owns, from the start that made the
-    turn to its end. The adapter's `TaskObserver` reads one subscription the whole
+    turn to its end. The adapter's `TaskConnection` reads one subscription the whole
     task shares and routes each notification to the fold of the turn it names.
     That is also why the ways a read can stop other than a completion — a lost
     connection, a silence, an adapter going — belong to each carrier rather than
@@ -1127,7 +1127,7 @@ def archive_record(path: Path, record: dict) -> None:
     `history/` is read one delivery at a time, so this, its one writer, is also
     where an archived record whose pages are all gone, or that this version does
     not read, is removed."""
-    if record["state"] == "accepted" and all(
+    if record["state"] in {"accepted", "abandoned"} and all(
         batch["receipted"] for batch in record["batches"]
     ):
         history = path.parent / "history"
@@ -1153,7 +1153,7 @@ def retire_gone_task_records() -> None:
     at a time and never inside another task's, so two retiring adapters cannot wait
     on each other. A record whose page still stands stays, archived ones included,
     since a later adapter of its task may yet bind a turn that outlived the first to
-    it (`TaskObserver._reconcile`)."""
+    it (`TaskConnection._reconcile`)."""
     for directory in sessions_home().glob("*.deliveries"):
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
@@ -1432,6 +1432,108 @@ def finish_codex_batch(
             record["batches"][batch_index]["receipted"] = True
             write_record(path, record)
     return received
+
+
+UNCONFIRMED_DELIVERY = "delivery_unconfirmed"
+UNCONFIRMED_TEXT = (
+    "Leaf could not confirm this delivery and will not retry it automatically. "
+    "Send it again if you still need an answer."
+)
+
+
+def settle_answered_deliveries(session_id: str) -> bool:
+    """Retire unknown host attempts already answered manually, even while offline."""
+    with flocked(delivery_lock_path(session_id)):
+        pending = [
+            path.stem
+            for path, record in delivery_records(session_id)
+            if record["state"] == "offering"
+            and (record.get("transport") or {}).get("phase") == "starting"
+        ]
+    settled = False
+    for delivery_id in pending:
+        target = delivery_stream_reply_target(session_id, delivery_id)
+        if target is None:
+            continue
+        try:
+            with PageTransaction(Path(target["page"])) as page:
+                answered = answered_by_reply(page.events, target["responds"])
+        except FileNotFoundError:
+            continue
+        if answered:
+            abandon_uncertain_delivery(
+                session_id, read_json(delivery_path(delivery_id))
+            )
+            settled = True
+    return settled
+
+
+def abandon_uncertain_delivery(session_id: str, payload: dict) -> None:
+    """Return an unknown offer to its user without asserting a provider ending.
+
+    The abandoned record is durable before page failure receipts, so recovery
+    finishes an interrupted abandonment. Archiving retains correlation for late
+    provider evidence, and complete page receipts prevent recapturing the attempt.
+    """
+    path = record_path(session_id, payload["id"])
+    with flocked(delivery_lock_path(session_id)):
+        record = read_json(path)
+        if record is None or record["state"] not in {"offering", "abandoned"}:
+            return
+        record["state"] = "abandoned"
+        write_record(path, record)
+    for index, batch in enumerate(record["batches"]):
+        if not batch["receipted"]:
+            finish_abandoned_batch(path, index, batch)
+
+
+def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
+    """Write honest failure receipts and retire this batch under current ownership."""
+    page_dir = Path(batch["page"])
+    session_id = batch["session"]
+    # Seat release is part of this resumable receipt, not just its initiator.
+    # A crash immediately after the durable abandonment cannot strand a seat.
+    target = delivery_stream_reply_target(session_id, path.stem)
+    if target is not None:
+        release_delivery_reply(session_id, path.stem, target)
+    try:
+        # The durable abandoned record is this consumer's outcome. Validate its
+        # exact captured page input before writing any failure to that page.
+        with (
+            PageTransaction(page_dir) as page,
+            receive_batch(page, batch, session_id=session_id) as events,
+        ):
+            captured = list(events)
+        for event in captured:
+            fail_answer(
+                page_dir,
+                event["id"],
+                UNCONFIRMED_DELIVERY,
+                UNCONFIRMED_TEXT,
+                attempt=f"unconfirmed-{path.stem}-{event['id']}",
+                identity={"session": session_id},
+                only_if_unclaimed=False,
+                claimed_session=session_id,
+            )
+        with (
+            PageTransaction(page_dir) as page,
+            receive_batch(page, batch, session_id=session_id) as events,
+        ):
+            owed = current_responses(page_dir, page.events)
+            record_pickup(
+                page,
+                [event for event in events if event["id"] in owed],
+                phase="failed",
+                session=session_id,
+                failure=UNCONFIRMED_DELIVERY,
+            )
+    except (FileNotFoundError, ReceiptRefused):
+        pass
+    with flocked(delivery_lock_path(session_id)):
+        record = read_json(path)
+        if record is not None:
+            record["batches"][batch_index]["receipted"] = True
+            write_record(path, record)
 
 
 def delivery_owed_moves(payload: dict) -> list[dict]:

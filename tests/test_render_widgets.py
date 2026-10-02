@@ -10838,6 +10838,46 @@ _RING_WITHIN = """(el, frame) => {
 }"""
 
 
+@pytest.mark.parametrize(
+    "engine", ["browser", "webkit_browser"], ids=["chromium", "webkit"]
+)
+@pytest.mark.parametrize("wide_host", [False, True], ids=["code", "outer-reader"])
+def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
+    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
+    source = leaf_page(
+        "Nested patch reader",
+        '<h1>Review</h1><div id="reader" data-bound="start">'
+        '<lf-diff id="patch"><pre>'
+        "diff --git a/reading.py b/reading.py\n"
+        "--- a/reading.py\n+++ b/reading.py\n@@ -1 +1 @@\n"
+        '-return "The previous release remains available for inspection."\n'
+        '+return "The current release remains available for inspection."\n'
+        "</pre></lf-diff></div>",
+        head="<style>#reader { width: 500px; }"
+        f"#patch {{ width: {1000 if wide_host else 300}px; }}</style>",
+    )
+    driver = request.getfixturevalue(engine)
+    url = serve(source)
+    page = open_page(driver, url)
+    resized(page, 1000, 900)
+    code = page.locator("#patch code[data-code]")
+    reader = page.locator("#reader") if wide_host else code
+    assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
+    if wide_host:
+        assert code.evaluate("el => el.scrollWidth === el.clientWidth")
+    box = code.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + 120, box["y"] + 25)
+    page.mouse.wheel(200, 0)
+    page.wait_for_function(
+        "wide => { const host = document.querySelector('#patch'); "
+        "const box = wide ? document.querySelector('#reader') : "
+        "host.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }",
+        arg=wide_host,
+    )
+    assert reader.evaluate("el => el.scrollLeft") > 0
+
+
 @pytest.mark.parametrize("left", [0, 150])
 def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
     browser, serve, left

@@ -34,8 +34,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
-from websockets.sync.client import connect, unix_connect
-
 from .codex_state import (
     advance_hook_turn,
     delivery_dir,
@@ -58,8 +56,8 @@ from .delivery import (
     validate_delivery_id,
 )
 from .files import read_json
-from .host import Harness, session_harness
-from .leases import sessions_home, step_hook_ran
+from .host import Harness
+from .leases import sessions_home
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
@@ -159,6 +157,8 @@ def check_app_server_endpoint(endpoint: str) -> None:
 
 def app_server_connect(endpoint: str):
     """Open one connection to a local App Server, by socket or by loopback."""
+    from websockets.sync.client import connect, unix_connect
+
     socket_path = app_server_socket_path(endpoint)
     options = {
         "open_timeout": START_TIMEOUT,
@@ -1348,32 +1348,6 @@ def append_batch(
     return path, len(record["batches"]) - 1, entry
 
 
-def step_delivery_turn(session_id: str) -> str | None:
-    """The observed provider turn a proven step hook can deliver into.
-
-    Use the same dated activity reading as the page, so an interrupted or stale
-    turn never holds the idle queue indefinitely. A page claimed during this turn
-    may still have a local turn id: the next tool hook binds it to the observed
-    provider turn. Route eligibility therefore requires a running claimant, not
-    prior binding. Read outside the delivery lock: capture takes a page transaction
-    before that lock.
-    """
-    observed = hook_turn(session_id)
-    if not step_hook_ran(session_id) or not observed or not observed["running"]:
-        return None
-    from .presence import claimant_reading
-
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                present, turn = claimant_reading(page_dir, page.events)
-                if present["claim_session"] == session_id and turn.running:
-                    return observed["turn"]
-        except FileNotFoundError:
-            continue
-    return None
-
-
 def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
     """Offer one plain-reply pointer through an async tool hook, without receipt.
 
@@ -1420,24 +1394,6 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
         record["transport"] = {"phase": "hook", "turn": turn_id}
         write_record(prepared.record_path, record)
         return prepared.prompt
-
-
-def accept_codex_delivery_read(delivery_id: str) -> None:
-    """Use the owning task's pointer read as evidence of entry into its exact turn.
-
-    Reading an envelope alone authorizes no receipt. The hook observation is
-    rechecked under the acceptance lock, so queue reservation or a newer turn
-    invalidates this proof before any delivery record changes.
-    """
-    harness = session_harness()
-    if harness is None or (turn := step_delivery_turn(harness.session)) is None:
-        return
-    observation = hook_turn(harness.session)
-    if not observation or observation["turn"] != turn or not observation["running"]:
-        return
-    accept_codex_delivery(
-        harness.session, delivery_id, turn, hook_observation=observation
-    )
 
 
 def finish_codex_batch(

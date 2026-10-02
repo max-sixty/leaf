@@ -16,8 +16,13 @@ from leaf.events import (
     taken_back,
 )
 from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
-from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import (
+    WRITERS,
+    decides,
+    event_spec,
+    retirement_slots,
+    state_specs,
+)
 from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (

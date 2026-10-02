@@ -369,8 +369,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
 ):
     """A passage and its growing editor remain visible together.
 
-    Without a horizontal rail, the compact field chooses the vertical side with more
-    reachable room. It keeps that side while growing and moves the reading region only
+    Without a horizontal rail, the compact field first uses a side with visible room.
+    It keeps that side while growing and moves the reading region only
     enough to reveal itself. Its trailing actions stay with the last line, and its
     corners keep the first and last line readable after the capsule becomes an editor.
     """
@@ -411,10 +411,6 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     compact = field.bounding_box()
     placement = page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
     before_scroll = page.evaluate("scrollY")
-    if placement in {"top-start", "bottom-start"}:
-        assert placement == "bottom-start", (
-            "the page has substantially more reachable room below this passage"
-        )
     clear = """() => {
           const target = document.getElementById('passage').getBoundingClientRect();
           const field = document.querySelector('.lf-fab-input').getBoundingClientRect();

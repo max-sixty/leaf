@@ -37,8 +37,8 @@ toggle left under the press, and moves nothing else.
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
-the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
-Only the left resident and the notes move the column over (`settleResidency`). A pin,
+the column, and `data-rail` on `body` withholds or reserves it (`content-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency` there). A pin,
 a passage mark, and everything else in the annotation layer is an overlay: it covers
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
@@ -70,21 +70,36 @@ inspection layer.
 
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. Without a gesture, a box
-may grow or shrink into free room, but reading content and controls stay put. Passive
-message metadata may rearrange inside a stationary header when it moves no neighbour
-and stays inside the header. Its age and receipt need no reserved-width slots;
-controls and ordinary reading text never take this exception. News grows where the
-reader isn't looking: above the screen, where scroll anchoring takes the growth into
-what they scrolled past, or below it. So a thread's reply box stands at the foot of the
+may grow or shrink into free room, but reading content and controls stay put.
+Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
+region, such as a conversation header, declares its own stationary box: labels may
+repack inside it while every contained control stays put. A `controls` region,
+such as the adaptive shortcut bar, permits its hints and controls to repack inside
+its stationary box. Declare the box that owns the available room, rather than an
+auto-sized inner label group or a boxless wrapper. A nested region must hold its own
+boundary and every enclosing declaration's guarantees; it never borrows an outer
+declaration or relaxes one, including across a shadow root. Both painted positions stay inside
+that boundary, and neighbours and ordinary page reading content stay put. Typing
+still cannot carry its field.
+News grows where the reader isn't looking: above the screen, where scroll anchoring
+takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they
 open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
 thread the agent starts wait behind a notice in a row the seat already draws, and a
 thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). A region whose rows only the
-log or the clock decides, so no first paint can size it, stands at a fixed height
-and scrolls inside it, as a command's readings do (command-hub's `lf-command.js`).
+the margin behind its marker (`thread/held-news.js`). In the Threads panel, a card
+news takes out of the view, as another actor resolving its thread under Open does,
+stays where it stands, drawn as the news left it in the shape it stood in, until its
+going would move nothing the user sees or they change the view
+(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+log or the clock decides, so no first paint can size it, shows none of them until the
+reader opens them through a control of fixed size the widget already draws, as a
+command's counts open its lists; after that a change to its rows waits the same way
+while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+fixed-height box that scrolls them is no answer: nothing tells the reader a row is
+cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
@@ -149,11 +164,15 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than a colored edge: pickup colors its icon green, and working also colors
-the interior and pulses once on arrival, which a repaint never replays. User attention wears
-the same two channels in blue. Reading is bookkeeping and never moves the user.
+rather than competing with attention for color. Green marks a move the user owes;
+other thread controls stay blue. Pickup and work use status words, with one brief
+pulse when work begins that a repaint never replays. Reading is bookkeeping and
+never moves the user.
 
 ### Motion
+
+Use restrained, finite animations to acknowledge state changes. Do not animate
+continuously while a state remains unchanged.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be

@@ -4,6 +4,7 @@ import errno
 import html
 import http.client
 import http.cookiejar
+import http.cookies
 import json
 import os
 import re
@@ -18,7 +19,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -1182,7 +1183,7 @@ def test_server_round_trip(server, page_dir):
     arrived = peer.getresponse()
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
-    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
+    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'self'"
     assert arrived.getheader("X-Content-Type-Options") == "nosniff"
     peer.close()
     status = arrived.status
@@ -1207,7 +1208,7 @@ def test_server_round_trip(server, page_dir):
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
         assert response.status == 200
-        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
@@ -3161,135 +3162,32 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert calls == 2
 
 
-def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
-    page_dir, monkeypatch
-):
-    """Neighbor presence reuses its parsed event window while its files are stable."""
-    neighbour = machine_model.state_home() / "pages" / "neighbor-cache"
-    neighbour_page(neighbour, title="Cached neighbor")
-    real_read_events = presence_model.read_events
-    reads = 0
+def test_a_neighbours_row_is_its_declaration_read_afresh(page_dir):
+    """A neighbour's row reads its status file and its revision's title on every
+    scan, so a new declaration shows on the next read with nothing kept between,
+    and a page whose agent is done drops to closed."""
+    neighbour = machine_model.state_home() / "pages" / "declared"
+    neighbour_page(neighbour, title="Declared neighbor")
 
-    def counted_read_events(directory):
-        nonlocal reads
-        reads += 1
-        return real_read_events(directory)
+    def row():
+        [entry] = presence_model.other_leaves(page_dir)
+        return entry["title"], entry["activity"]["kind"], entry["activity"]["detail"]
 
-    monkeypatch.setattr(presence_model, "read_events", counted_read_events)
-    first = presence_model.other_leaves(page_dir)
-    second = presence_model.other_leaves(page_dir)
-    assert second == first
-    assert reads == 1
-
-    real_running_server = presence_model.running_server
-
-    def rotated_running_server(directory):
-        return {**real_running_server(directory), "url": "rotated-url"}
-
-    monkeypatch.setattr(presence_model, "running_server", rotated_running_server)
-    presence_model.other_leaves(page_dir)
-    assert reads == 2
-
-    event_model.append_event(
-        neighbour, {"kind": "comment", "author": "user", "text": "changed"}
-    )
-    presence_model.other_leaves(page_dir)
-    assert reads == 3
-
-
-def test_neighbor_activity_cache_expires_at_the_projected_transition(
-    page_dir, monkeypatch
-):
-    """A file-stable neighbor still advances from Sent to Waiting for pickup.
-
-    The browser asks when the canonical deadline arrives; the neighbor cache must
-    then project a fresh server answer rather than returning the pre-deadline one.
-    """
-    neighbour = machine_model.state_home() / "pages" / "neighbor-deadline"
-    neighbour_page(neighbour, title="Timed neighbor")
-    record_claim(neighbour, id="timed")
     cleanup_model.write_json(
         neighbour / "status.json",
-        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso(), "after": 0},
+        {"state": "working", "detail": "measuring", "ts": cleanup_model.now_iso()},
     )
-    status_at = datetime.fromisoformat(
-        files_model.read_json(neighbour / "status.json")["ts"]
-    )
-    comment = event_model.append_event(
-        neighbour, {"kind": "comment", "author": "user", "text": "hello"}
-    )
-    sent_at = datetime.fromisoformat(comment["ts"])
-    monkeypatch.setattr(
-        presence_model,
-        "now_iso",
-        lambda: (sent_at + timedelta(minutes=1)).isoformat(),
-    )
-
-    [before] = presence_model.other_leaves(page_dir)
-    assert before["workflows"][0]["stage"] == "sent"
-    assert before["workflows"][0]["condition"] is None
-    assert before["activity"]["next_transition_at"]
-
-    monkeypatch.setattr(
-        presence_model,
-        "now_iso",
-        lambda: (sent_at + timedelta(minutes=2)).isoformat(),
-    )
-    [after] = presence_model.other_leaves(page_dir)
-    assert after["workflows"][0]["stage"] == "sent"
-    assert after["workflows"][0]["condition"] == {
-        "kind": "stale",
-        "operation": "delivery",
-    }
-    assert (
-        after["activity"]["next_transition_at"]
-        == (status_at + timedelta(minutes=15)).isoformat()
-    )
-
-
-def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
-    page_dir, monkeypatch
-):
-    """A waiting declaration with no owner becomes unheld on its own deadline."""
-    neighbour = machine_model.state_home() / "pages" / "neighbor-status-deadline"
-    neighbour_page(neighbour, title="Timed status neighbor")
-    started = datetime.now().astimezone()
+    assert row() == ("Declared neighbor", "working", "measuring")
     cleanup_model.write_json(
         neighbour / "status.json",
-        {
-            "state": "waiting",
-            "detail": "",
-            "ts": started.isoformat(),
-            "after": 0,
-        },
+        {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
     )
-    monkeypatch.setattr(
-        presence_model,
-        "now_iso",
-        lambda: (started + timedelta(minutes=14)).isoformat(),
+    assert row() == ("Declared neighbor", "listening", "pick one")
+    cleanup_model.write_json(
+        neighbour / "status.json",
+        {"state": "idle", "detail": "done", "ts": cleanup_model.now_iso()},
     )
-
-    [before] = presence_model.other_leaves(page_dir)
-    assert (before["activity"]["kind"], before["activity"]["held"]) == (
-        "away",
-        True,
-    )
-    assert (
-        before["activity"]["next_transition_at"]
-        == (started + timedelta(minutes=15)).isoformat()
-    )
-
-    monkeypatch.setattr(
-        presence_model,
-        "now_iso",
-        lambda: (started + timedelta(minutes=15)).isoformat(),
-    )
-    [after] = presence_model.other_leaves(page_dir)
-    assert (after["activity"]["kind"], after["activity"]["held"]) == (
-        "unheld",
-        False,
-    )
-    assert after["activity"]["next_transition_at"] is None
+    assert row() == ("Declared neighbor", "closed", "")
 
 
 def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
@@ -3689,15 +3587,15 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ), (name, status, answer)
             assert answer.get("attempt") == event["attempt"], (name, answer)
             assert answer.get("error"), (name, answer)
-    # The refusals decided before the door reads the body as an event, which the parsed
-    # rows above cannot reach. These name no attempt because the door has read none,
-    # but each is safely final: it came before an append could begin, so the browser may
-    # put the gesture back. What it must still receive is a refusal: bytes that are not
-    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and a
-    # body nested a few hundred levels recurses out of the validation behind the door,
-    # which is why the door bounds nesting at all.
-    # Uncaught, either reaches the fault boundary, whose 500 withholds `final`, and the
-    # outbox re-posts it every poll for the life of the tab.
+    # These refusals come before the door reads the body as an event, so none can
+    # name an attempt. Invalid bytes and syntax earn "invalid JSON"; nesting beyond
+    # either the door's bound or the parser's own stack earns the same depth refusal.
+    # All are deterministic and final, so the outbox does not retry them forever.
+    #
+    # Request threads have more C stack than the main thread: Python 3.14 on macOS
+    # parses 100,000 levels here but refuses 200,000. One million keeps valid JSON
+    # past that stack while its 2 MB body stays below the door's 10 MiB size gate.
+    nesting_depth = 1_000_000
     unreadable = [
         (
             "a body that is not UTF-8",
@@ -3713,6 +3611,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ).encode(),
             http_model.TOO_DEEP,
         ),
+        (
+            "a body nested past the parser's stack",
+            b"[" * nesting_depth + b"]" * nesting_depth,
+            http_model.TOO_DEEP,
+        ),
     ]
     for name, body, refusal in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)
@@ -3724,7 +3627,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             refusal,
         ), (name, status, answer)
 
-    # The fifth is the header rather than the body, and no opener will send it: a
+    # This refusal concerns the header rather than the body, and no opener will send it:
     # Content-Length past what the door takes. The bound is declared rather than
     # discovered, so the refusal lands before the read and this process never waits
     # on bytes it has already decided not to accept.
@@ -3752,8 +3655,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ) == (400, False, True, "event exceeds the 10 MiB limit"), answer
     assert answered.getheader("Connection") == "close"
 
-    # The sixth declares no length at all. A chunked body is the shape that reaches the
-    # read without passing the header check, so the bound belongs to the read: the door
+    # A chunked body declares no length and reaches the read without passing the
+    # header check, so the bound belongs to the read: the door
     # stops taking chunks once they pass it rather than holding the whole stream first.
     # It answers and closes while the sender is still writing, so the writes that land
     # on the closed connection are the refusal arriving early rather than a fault.
@@ -4088,11 +3991,27 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    with opener.open(f"{server}/versions/v1.html?t={TOKEN}") as arrival:
+    # Host is client input; the bound listener still owns this cookie's identity.
+    arrival_url = urllib.request.Request(
+        f"{server}/versions/v1.html?t={TOKEN}", headers={"Host": "127.0.0.1:1"}
+    )
+    with opener.open(arrival_url) as arrival:
         assert arrival.status == 200
+        cookie = http.cookies.SimpleCookie(arrival.headers["Set-Cookie"])
+        [identity] = cookie.values()
+        assert identity["httponly"] and identity["samesite"] == "Strict"
+        assert identity["path"] == "/"
     # Persistent rather than a session cookie: the tab holds only the bare address,
     # which has to open again after the browser restarts.
     assert [(c.value, c.discard) for c in jar] == [(TOKEN, False)]
+
+    # An old global cookie is not another way through the current admission door.
+    assert (
+        fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
+            0
+        ]
+        == 403
+    )
 
     # No query this time: the runtime's own fetches never carry one.
     with opener.open(f"{server}/api/state") as polled:
@@ -4663,10 +4582,11 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
-    """The key is the machine's, so a user admitted at one page is admitted at
-    the next with no second link — cookies are scoped by host and blind to the
-    port, so the jar the first arrival filled is the jar the second is read
-    from."""
+    """One machine key admits each listener through its own handover link.
+
+    A keyed arrival sets that listener's cookie; other ports need their own
+    arrival even when their server takes the same machine key.
+    """
     second = tmp_path / "second-page"
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
@@ -4686,10 +4606,14 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
         )
         with opener.open(f"{first}/api/state?t={key}") as arrival:
             assert arrival.status == 200
-        # No query: the cookie the first page set is the whole of the second's
-        # authorization, and a 403 here raises rather than returns.
-        with opener.open(f"{other}/api/state") as onward:
+        with pytest.raises(urllib.error.HTTPError) as unvisited:
+            opener.open(f"{other}/api/state")
+        assert unvisited.value.code == 403
+        with opener.open(f"{other}/api/state?t={key}") as onward:
             assert onward.status == 200
+        for origin in (first, other):
+            with opener.open(f"{origin}/api/state") as polled:
+                assert polled.status == 200
 
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
@@ -4709,12 +4633,10 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the
-    canonical claims — titled by its active revision, and nothing else: not a
-    dead server's page or the page doing the asking. Each entry carries the same
-    presence facts the page ships about itself (`presence`), so the panel's row
-    and that page's own banner judge from one shape — where the claiming session
-    is working included, which is the one thing on a row's hover that no title
-    could ever say."""
+    canonical claims — titled by its latest revision, and nothing else: not a
+    dead server's page or the page doing the asking. Each entry is that page's
+    declaration in the shape of its activity, read from its status file alone, so
+    a neighbour whose log or claim is broken still gets its row."""
     pages = machine_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     cleanup_model.write_json(
@@ -4764,109 +4686,45 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     )
 
     state = json.loads(fetch(f"{server}/api/state")[1])
-    # A directory holding no claims at all is still a complete answer: every
-    # presence field arrives, as its absent-file default.
-    unclaimed = {
-        "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
-        "claims": [],
-        "listening": False,
-        "session_alive": None,
-        "live_turn": None,
-        "cursor": 0,
-        "pending": 0,
-        "agent": "Agent",
-        "claim_session": None,
-        "claim_turn": None,
-        "turn_closed": None,
-        "turn_opened": None,
-        "turn_takes_input": False,
-        "viewed": None,
-        "session_cwd": None,
-        "workflows": [],
-        "activity": {
-            "kind": "closed",
-            "held": True,
-            "dropped": False,
-            "detail": "",
-            "observed": "",
-            "observed_kind": None,
-            "counts": {
-                "active": 0,
-                "handling": 0,
-                "queued": 0,
-                "picked_up": 0,
-                "pending": 0,
-                "overdue": 0,
-                "total": 0,
-            },
-            "ts": None,
-            "next_transition_at": None,
-            "obligations": [],
+    closed = {
+        "kind": "closed",
+        "held": True,
+        "dropped": False,
+        "detail": "",
+        "observed": "",
+        "observed_kind": None,
+        "counts": {
+            "active": 0,
+            "handling": 0,
+            "queued": 0,
+            "picked_up": 0,
+            "pending": 0,
+            "overdue": 0,
+            "total": 0,
         },
+        "ts": None,
+        "next_transition_at": None,
+        "obligations": [],
     }
     [malformed_row] = [
         row for row in state["others"] if row["title"] == "Malformed status"
     ]
-    assert malformed_row["status"]["state"] == "working"
-    assert malformed_row["claims"] == [] and malformed_row["workflows"] == []
+    assert (malformed_row["activity"]["kind"], malformed_row["activity"]["detail"]) == (
+        "working",
+        "unknown",
+    )
     assert [row for row in state["others"] if row is not malformed_row] == [
-        {
-            "title": "A corrupted page",
-            "url": corrupt_url,
-            **unclaimed,
-        },
-        {
-            "title": "Nothing to link",
-            "url": draft_url,
-            **unclaimed,
-        },
-        {
-            "title": "scratch",
-            "url": claimed_url,
-            **unclaimed,
-            "agent": "Claude",
-            "session_alive": False,
-            "claim_session": "s1",
-            "claim_turn": "turn-1",
-            "turn_opened": "2026-01-01T00:00:00-08:00",
-            "session_cwd": str(Path.cwd()),
-            "activity": {**unclaimed["activity"], "held": False},
-        },
+        {"title": "A corrupted page", "url": corrupt_url, "activity": closed},
+        {"title": "Nothing to link", "url": draft_url, "activity": closed},
+        {"title": "scratch", "url": claimed_url, "activity": closed},
         {
             "title": "The other page",
             "url": live_url,
-            **unclaimed,
-            "status": {
-                "state": "working",
-                "detail": "measuring",
-                "ts": "2026-01-01T00:00:00-08:00",
-                "after": 0,
-            },
-            "agent": "Codex",
-            "session_alive": True,
-            "claim_session": "s9",
-            "claim_turn": "turn-1",
-            "turn_opened": "2026-01-01T00:00:00-08:00",
-            "session_cwd": "/work/api",
             "activity": {
-                "kind": "away",
-                "held": True,
-                "dropped": False,
+                **closed,
+                "kind": "working",
                 "detail": "measuring",
-                "observed": "",
-                "observed_kind": None,
-                "counts": {
-                    "active": 0,
-                    "handling": 0,
-                    "queued": 0,
-                    "picked_up": 0,
-                    "pending": 0,
-                    "overdue": 0,
-                    "total": 0,
-                },
                 "ts": "2026-01-01T00:00:00-08:00",
-                "next_transition_at": None,
-                "obligations": [],
             },
         },
     ]

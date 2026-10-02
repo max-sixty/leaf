@@ -30,7 +30,7 @@ import {
   visualParts,
   visualSelector,
 } from "./anchor-resolution.js";
-import { registerMarginContribution } from "./margin-entries.js";
+import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
@@ -246,7 +246,7 @@ export function createAnchorControls({
       kept.add(at);
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
       if (!record.margin)
-        record.margin = registerMarginContribution({
+        record.margin = registerContribution({
           key: "standing-reactions",
           target: at,
           read: () => ({

@@ -242,6 +242,9 @@ lf-playground-control > wa-switch::part(switch) {
 lf-playground-control > wa-switch::part(label) {
   margin: 0;
   line-height: 1.35;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 lf-playground-control > wa-switch::part(control),

@@ -73,7 +73,6 @@ from .samples import Samples
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
-    KEY_COOKIE,
     KEY_COOKIE_MAX_AGE,
     NO_KEY,
     REVISION_NAME,
@@ -220,9 +219,6 @@ class PageEndpoint:
     is the page's own boundary — selection, the key, the layer gate, and the faults a
     banner has to be able to show.
     """
-
-    # A page refuses every frame; `SampleEndpoint` answers into its parent page's.
-    frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def __init__(
         self,
@@ -491,6 +487,17 @@ class PageEndpoint:
             # status left to say it with.
             return
 
+    @property
+    def key_cookie(self) -> str:
+        """One cookie per served origin, using the bound port rather than Host.
+
+        Cookies already distinguish hosts, but ignore ports and schemes. Naming
+        those here keeps independent listeners' keys from overwriting each other;
+        every same-host server still receives the cookies, so this is no access
+        boundary against a malicious server on another port.
+        """
+        return f"lf_key_{self.request.url.scheme}_{self.server.server_address[1]}"
+
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are
@@ -502,8 +509,8 @@ class PageEndpoint:
             self.set_cookie = True
         else:
             jar = SimpleCookie(self.headers.get("Cookie", ""))
-            if KEY_COOKIE not in jar or not secrets.compare_digest(
-                jar[KEY_COOKIE].value, self.token
+            if self.key_cookie not in jar or not secrets.compare_digest(
+                jar[self.key_cookie].value, self.token
             ):
                 return False
         return True
@@ -525,7 +532,7 @@ class PageEndpoint:
                 headers["Leaf-Release"] = self.release
         if self.set_cookie:
             headers["Set-Cookie"] = (
-                f"{KEY_COOKIE}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
+                f"{self.key_cookie}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
                 "HttpOnly; SameSite=Strict"
             )
         if self.body_unread:
@@ -541,7 +548,7 @@ class PageEndpoint:
         is_html = ctype.startswith("text/html")
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
         if is_html:
-            headers["Content-Security-Policy"] = self.frame_ancestors_policy
+            headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
 
     def _json(self, obj, status: int = 200) -> Response:
@@ -1101,9 +1108,6 @@ class PageEndpoint:
 
 class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
-
-    # Drawn in a frame on its parent page, which is the same origin.
-    frame_ancestors_policy = "frame-ancestors 'self'"
 
     def authorized(self) -> bool:
         return True

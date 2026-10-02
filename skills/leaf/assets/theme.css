@@ -153,7 +153,6 @@
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-surface: 8900;           /* a standing drawer or thread panel */
-  --lf-z-thread-transition: 8910; /* a thread moving between the card and the panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
@@ -186,9 +185,8 @@
      scheme's accent is a pale tint a white glyph cannot stand on, so there the pin
      takes a deeper one. */
   --pin-fill: light-dark(var(--accent), #4d74a8);
-  /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
-     white glyph in the dark scheme. */
-  --pin-working: light-dark(#2f7d45, #2d8047);
+  /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
+  --pin-on-user: light-dark(#2f7d45, #2d8047);
   --r: 6px;
   /* The compact label every layer draws a small fact in: .tag here, lf-chip and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
@@ -397,18 +395,10 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* A thread whose next word is the user's. The green below says the agent has
-     this one, so the user's own turn has to be a hue apart from it, and apart again
-     from the violet a comment mark already wears. Blue is where the page's pointing
-     already lives; the wash is mixed to the same strength as --ok-wash so the two
-     states read as one pair rather than two decorations.
-     TODO: this is a first colour, not a settled scheme. A margin entry can now stand in
-     three states — on the agent, on the user, on neither — and they have not been
-     designed together. Decide whether the user's turn deserves a hue of its own
-     rather than the accent's, and whether "on neither" should say so at all. */
-  --turn-tint: light-dark(#dbe6f4, #1a2533);
-  --turn-wash: color-mix(in srgb, var(--turn-tint) 52%, var(--paper));
-  --turn-ink: var(--accent);
+  /* Green identifies the user's next move. Unread and agent progress keep the blue
+     accent, so neither can be mistaken for a request to the user. */
+  --turn-wash: var(--ok-wash);
+  --turn-ink: var(--ok-ink);
   --warn-tint: light-dark(#f7ecd2, #322715);   --warn-ink: light-dark(#8a5a12, #e2bb75);
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
@@ -1685,7 +1675,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
 /* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
-   through marginEntry(); this declaration owns every visual and interactive
+   through contributionEntry(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family.
 
    In the theme rather than in chrome.css, where it was, because a margin entry stands
@@ -1725,9 +1715,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   border-color: var(--rule); color: var(--ink-2);
   box-shadow: none; cursor: default;
 }
-/* Tone colours the icon until pickup uses that channel; then tone moves to the
-   control's existing contour. Category keeps its weight and shadow, and working owns
-   the fill, so the meanings remain simultaneous without drawing another ring. */
+/* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
 .lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
@@ -1774,63 +1762,36 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   border-width: 2px; border-color: var(--border-2); color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-/* Agent work on a margin carrier. A margin entry and its row in the Page Map
-   (chrome.css) are one carrier drawn twice, so they wear one reading of it, stated here
-   for both. Pickup colors the carrier's glyph; working also washes its interior. A
-   thread whose next word is the user's wears the same two channels in blue. Agent
-   workflow outranks it, because a carrier the agent has picked up or is working on is
-   reporting something happening now, and one interior cannot carry two washes.
-
-   The wash is a token rather than a background: each carrier's resting ground and its
-   hover read --lf-entry-tint, so the Page Map row, whose face the adopted sheet states,
-   takes the wash without a copy of these rules beside it. The entry's own contour still
-   says what the press does. */
-:is(.lf-margin-entry, .lf-page-map-action):is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)
+/* Margin and Page Map share the same attention reading. Blue is the ordinary
+   thread and work cue; green means the user owes a move, even when another thread
+   on the same carrier has active agent work. Progress stays in the status words and
+   the one arrival pulse rather than competing for the attention color. */
+:where(.lf-margin-entry[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"],
+    .lf-margin-entry[data-lf-agent-workflow],
+    .lf-page-map-action[data-lf-agent-workflow])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--ok-ink);
+  color: var(--accent);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-workflow="working"] {
-  --lf-entry-tint: var(--ok-wash);
-}
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
-  [data-lf-agent-workflow]
-)
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--turn-ink);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
-  [data-lf-agent-workflow]
-) {
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {
   --lf-entry-tint: var(--turn-wash);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
 }
 @keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
-  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
-  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent); }
   100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
 }
-/* An entry's tone moves from its glyph to its contour once pickup takes the glyph, and
-   an action keeps its lower shadow under the arrival pulse. */
-.lf-margin-entry:is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)[data-lf-tone="positive"] {
-  border-color: var(--ok-ink);
-}
-.lf-margin-entry:is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)[data-lf-tone="negative"] {
-  border-color: var(--danger-ink);
-}
+/* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
@@ -1897,9 +1858,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    under a finger, so what the user sees is what they press.
 
    The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   other channels, in the rail's order: a thread on the user carries a ring of the fill
-   outside the edge; pickup turns the edge green; working turns the fill green and
-   outranks both. A read-only status keeps the rail's paper face, since a fill would say
+   attention color: a thread on the user has a green fill, while every other thread
+   stays blue. Work progress keeps the same fill and reports its stage in words.
+   A read-only status keeps the rail's paper face, since a fill would say
    it can be pressed. Stated after the entry's states, whose hover and focus contours it
    has to outrank. */
 .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
@@ -1913,8 +1874,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
-  box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
-    0 1px 2px var(--shade), 0 3px 8px var(--shade); }
+  box-shadow: 0 1px 2px var(--shade), 0 3px 8px var(--shade); }
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
@@ -1926,12 +1886,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, [aria-expanded="true"]),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
   background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
-  --lf-pin-halo: 0 0 0 4px color-mix(in srgb, var(--pin-fill) 45%, transparent); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="picked_up"] {
-  --lf-pin-edge: var(--pin-working); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
-  --lf-pin-face: var(--pin-working); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"] {
+  --lf-pin-face: var(--pin-on-user); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
   box-shadow: 0 0 0 2px var(--paper); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }

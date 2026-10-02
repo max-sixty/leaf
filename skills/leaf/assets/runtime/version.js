@@ -1842,8 +1842,9 @@ export function createVersionController({
   // lands it at parse time, before a widget hides the tabs around it, collapses a
   // disclosure over it, or declares a strip that covers it, and before presentation
   // adds controls above it; so the arrival lands it again at each step that changes
-  // the page's geometry: once widgets upgrade, before the first state read, and once
-  // the page presents. Each landing is the browser's own rule (`scrollToFragment`), the
+  // the page's geometry: once widgets upgrade, before the first state read, once
+  // the page presents, and after declared deferred arrivals settle. Each landing is
+  // the browser's own rule (`scrollToFragment`), the
   // target's start at its scroller's landing edge, taken in the geometry of that step,
   // so a target nothing moved stays where it is. The fragment is read before widgets
   // upgrade, since a widget may write its own view into the URL (a root tab set names

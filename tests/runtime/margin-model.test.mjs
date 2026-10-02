@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   KINDS,
-  marginEntry,
-  normalizeMarginReading,
-} from "../../skills/leaf/assets/runtime/margin-entry-model.js";
+  contributionEntry,
+  normalizeContributionReading,
+} from "../../skills/leaf/assets/runtime/contribution-model.js";
 import {
   canFold,
   clusterProjection,
@@ -21,9 +21,12 @@ import {
 import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
 
 const control = (key, options = {}) =>
-  marginEntry({ key, glyph: "+", label: key, ...options });
+  contributionEntry({ key, glyph: "+", label: key, ...options });
 const offer = (key, entries, options = {}) => {
-  const { readings, ...reading } = normalizeMarginReading({ entries, ...options }, key);
+  const { readings, ...reading } = normalizeContributionReading(
+    { entries, ...options },
+    key,
+  );
   return Object.freeze({
     key,
     reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
@@ -119,7 +122,7 @@ test("a folded contribution with no kind is an action, and an unknown kind refus
   assert.equal(clusterProjection(plain, { folded: true }).toggle.icon, "dot");
   assert.throws(
     () => offer("widget", [control("accept")], { kind: "suggestion" }),
-    /Unknown margin kind "suggestion"/,
+    /Unknown contribution kind "suggestion"/,
   );
 });
 
@@ -379,8 +382,17 @@ test("reading IDs belong to their contribution in both margin and Page Map", () 
 test("contribution admission rejects missing and duplicate reading identities", () => {
   for (const readings of [[{}], [{ id: "" }], [{ id: "same" }, { id: "same" }]]) {
     assert.throws(
-      () => normalizeMarginReading({ readings }, "owner"),
-      /Margin reading IDs must be nonempty and unique/,
+      () => normalizeContributionReading({ readings }, "owner"),
+      /Contribution reading IDs must be nonempty and unique/,
     );
   }
+});
+
+test("contribution reading projections contain data while producers retain activation", () => {
+  const activate = () => {};
+  const declaration = { readings: [{ id: "reading", text: "Open details", activate }] };
+  const reading = normalizeContributionReading(declaration, "owner");
+  assert.deepEqual(reading.readings, [{ id: "reading", text: "Open details" }]);
+  assert.equal(declaration.readings[0].activate, activate);
+  assert.ok(Object.isFrozen(reading.readings[0]));
 });

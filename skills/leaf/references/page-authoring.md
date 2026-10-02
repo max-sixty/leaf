@@ -478,12 +478,16 @@ particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-
 rules keep authored controls correct after reconnection and thread quoting.
 
 `leaf page check` runs a page's own code, a script or a page widget the
-document places, once in the host's browser: through upgrade, presentation, and one
-frame after it. It fails on every error the page would report to you through the
-watcher, an uncaught exception or a rejected promise with the source location it came
-from, so a module that throws on its first paint is found before the URL goes out.
-Code that runs only after a gesture or a timer is not reached; operate it in the
-pre-handover review. A page with no code of its own is checked without a browser.
+document places, once in the host's browser, and a page with a data widget such as a
+chart or a diagram, whose body only its module can read: through upgrade,
+presentation, and one frame after it. It fails on every error the page would report to
+you through the watcher, an uncaught exception or a rejected promise with the source
+location it came from, or a widget that could not draw its body, so a module that
+throws on its first paint or a chart that does not parse is found before the URL goes
+out. Code that runs only after a gesture or a timer is
+not reached; operate it in the pre-handover review. A page with neither is checked
+without a browser. On a host with no browser the run is skipped with a note; the page
+still reports those errors to you once a browser draws it.
 
 `page/registry.json` may contribute declarations using the package registry language.
 Its element entry replaces the selected layer's complete entry; shared `$` declarations
@@ -590,6 +594,13 @@ Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.
 
+An ordinary served Leaf page can appear in a plain `<iframe src="…">`, keeping
+that page's durable history. Use its existing served URL. The parent and child
+must share the browser origin: scheme, hostname, and port. Another local port
+is a different origin. Leaf blocks cross-origin parents so another site cannot
+place an authenticated Leaf control beneath a misleading interface. Framing
+does not copy or reset the page.
+
 ## Stable anchors
 
 Give each section, major block, and Leaf element a stable, meaningful `id` at the
@@ -689,7 +700,6 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
-run `leaf page check <page>` for the markup and report the render check as
-unfinished; for a page with code of its own, that check needs the browser too, so
-report the run of its code as unfinished as well. A text reading does not establish
+it says so and goes on: report the render check as unfinished, and, where it also
+says the page's code was not run, that run as well. A text reading does not establish
 layout or interaction quality.

@@ -616,7 +616,7 @@ def served_preview(tmp_path, preview_slot, spawn):
 
 
 def test_a_user_preview_restarts_under_its_original_codex_claim(
-    tmp_path, preview_slot, codex_program, codex_env, spawn
+    tmp_path, preview_slot, codex_program, codex_env, codex_queue, spawn
 ):
     """The claim names the Codex task above the preview, and survives each restart.
 
@@ -648,6 +648,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             "--user",
         ],
         env=codex_env
+        | codex_queue
         | {
             "CODEX_THREAD_ID": "preview-codex",
             "PYTHONHOME": sys.base_prefix,
@@ -1916,7 +1917,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
+    expect(thread.locator(".lf-msg-body")).to_be_visible()
     assert (
         thread.locator(
             "button:visible, leaf-text:visible, .lf-msg-sending:visible"

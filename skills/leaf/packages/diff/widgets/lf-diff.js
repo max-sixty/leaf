@@ -9,6 +9,7 @@ import {
   failSoft,
   focusDestination,
   inChrome,
+  inBaseLayer,
   commands,
   keeps,
   keepsText,
@@ -23,6 +24,7 @@ import {
   relabel,
   retainUserIntent,
   scrollBehavior,
+  scrollIntoReadingBand,
   shadowStage,
   notice,
   widgetController,
@@ -427,6 +429,8 @@ async function renderFile(file, sharedStyles, open) {
   for (const style of [...rendered.children].filter(
     (child) => child.localName === "style",
   )) {
+    // Vendor sublayers stay inside widget defaults, below Leaf's shared shadow rules.
+    style.textContent = inBaseLayer(style.textContent);
     const kind = style.hasAttribute("data-core-css") ? "core" : "theme";
     if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
     else style.remove();
@@ -1374,23 +1378,11 @@ customElements.define(
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //
-    // A landing moves the reading down, never sideways. A row is as wide as its file's
-    // longest line, so where one line ran past the code box, "nearest" on the inline
-    // axis scrolled that box to put the row's start at its edge: the width of the line
-    // numbers, which stand over the code there, so every line in the file lost its
-    // change marker and first characters under them. Each box between the target and
-    // the shadow root keeps the sideways place the user left it at.
+    // The shared reading-region landing moves only vertically, including through
+    // the shadow host. Neither the file nor a region around it loses its sideways place.
     land(box, node = box) {
       if (node.tabIndex < 0) keeps(node, "tabindex", -1);
-      const sideways = [];
-      for (let el = box.parentElement; el; el = el.parentElement)
-        if (el.scrollWidth > el.clientWidth) sideways.push([el, el.scrollLeft]);
-      box.scrollIntoView({
-        behavior: scrollBehavior(),
-        block: "start",
-        inline: "nearest",
-      });
-      for (const [el, left] of sideways) el.scrollLeft = left;
+      scrollIntoReadingBand(box, box, "start", scrollBehavior());
       node.focus({ preventScroll: true });
     }
 
@@ -1430,7 +1422,7 @@ customElements.define(
         if (!mayLand()) return;
       }
       const target = entry.details?.firstElementChild ?? entry.review;
-      target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
+      scrollIntoReadingBand(target, target, "center", scrollBehavior());
       target.focus({ preventScroll: true });
       this.markFileWalk("diff-unreviewed", "unreviewed");
       notice(`Next unreviewed file: ${entry.record.path}`);

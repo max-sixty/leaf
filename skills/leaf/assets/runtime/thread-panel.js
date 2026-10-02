@@ -11,6 +11,8 @@ import { handBack, letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
+import { closestAcross } from "./passages.js";
+import { declareSide } from "./standing-target.js";
 
 export function createThreadPanelController({
   auxiliarySurfaces,
@@ -18,12 +20,19 @@ export function createThreadPanelController({
   key = "threads",
   narrowing,
   threadHere,
+  placedAt,
   showThread,
   refreshThread,
   closeReactionMode,
   closePreview,
   syncGeneral,
 }) {
+  const stopSide = declareSide((node) => {
+    const listed = panel.contains(node)
+      ? closestAcross(node, ".lf-thread[data-id]")
+      : null;
+    return listed ? (placedAt(listed.dataset.id)?.element ?? null) : null;
+  });
   const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
   // so the invoker has to be given its focus back: raising the panel is not a request to
@@ -157,6 +166,7 @@ export function createThreadPanelController({
   );
 
   function dispose() {
+    stopSide();
     if (mounted) {
       toggleBtn.removeEventListener("pointerdown", rememberInlineThread);
       if (toggleBtn.onclick === toggle) toggleBtn.onclick = null;

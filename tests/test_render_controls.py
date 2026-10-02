@@ -5,6 +5,7 @@ import re
 
 import pytest
 from interact_support import (
+    append_carried_log_record,
     append_command,
     record_claim,
 )
@@ -2895,7 +2896,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2934,7 +2935,7 @@ def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_con
     )
     url = serve(REPLAYED_PAGE)
     for ident in ("approach", "col-doing"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3041,7 +3042,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     for what, drive, arrived in [
         (
             "a tenth comment arrives",
-            lambda: events_model.append_event(
+            lambda: append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -3618,6 +3619,53 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
     destination = rows.nth(1).get_attribute("href")
     assert destination is not None and destination.startswith(f"{second_url}/?t=")
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+
+
+def test_a_removed_leaf_hands_focus_on_without_revealing_the_old_reading(
+    browser, serve, other_leaf
+):
+    """A disappearing focused row preserves the later rows reached with the wheel."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.evaluate(
+        "document.querySelector('.lf-others-panel').getAnimations().forEach(a => a.finish())"
+    )
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          const row = list.model.rows.find(row => !row.self);
+          window.auditLeaves = Array.from({length: 30}, (_,index) => ({
+            ...row, key: `audit-${index}`, href: `${row.href}&audit=${index}`,
+            title: `Live leaf ${index}`,
+          }));
+          await list.present({...list.model, rows: window.auditLeaves});
+        }"""
+    )
+    page.keyboard.press("Home")
+    rows = page.locator("a.lf-others-row")
+    expect(rows.first).to_be_focused()
+    box = page.locator("lf-leaves-list")
+    area = box.bounding_box()
+    assert area is not None
+    page.mouse.move(area["x"] + 50, area["y"] + 100)
+    page.mouse.wheel(0, 700)
+    page.wait_for_function("document.querySelector('lf-leaves-list').scrollTop > 500")
+    scroll_settled(page, "lf-leaves-list")
+    expect(rows.first).to_be_focused()
+    reading = rows.nth(15).bounding_box()
+    assert reading is not None
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          await list.present({...list.model, rows: window.auditLeaves.slice(1)});
+        }"""
+    )
+    expect(rows.first).to_be_focused()
+    after = rows.nth(14).bounding_box()
+    assert after is not None
+    assert abs(after["y"] - reading["y"]) <= 1
 
 
 def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
@@ -4697,7 +4745,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     expect(diagram).to_have_attribute("tabindex", "0")
     expect_comment_notes(page, "#flow", 0)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4734,7 +4782,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4748,7 +4796,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -4772,6 +4820,53 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         " return Math.round(viewport.scrollWidth - viewport.clientWidth); }"
     )
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
+
+
+def test_the_accessibility_audit_reads_exposed_frames_and_their_names(browser, serve):
+    """Hidden documents are absent; exposed documents and frame names are audited."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame audit",
+                """<h1>Frame audit</h1>
+<iframe id="hidden-frame" title="Hidden practice" hidden srcdoc="<button></button>"></iframe>
+<iframe title="Hidden from assistive technology" aria-hidden="true" tabindex="-1"
+  srcdoc="<button></button>"></iframe>
+<iframe id="shown-frame" title="Visible practice"
+  srcdoc="<html lang='en'><title>Practice</title><body><main><h1>Practice</h1>
+    <button></button></main></body></html>"></iframe>
+""",
+            )
+        ),
+    )
+    shown = page.locator("#shown-frame")
+    child = shown.element_handle().content_frame()
+    child.evaluate("""async () => {
+      const frame = document.createElement('iframe');
+      frame.id = 'nested-frame';
+      frame.title = 'Nested practice';
+      frame.srcdoc = `<html lang="en"><title>Nested practice</title><body><main>
+        <h1>Nested practice</h1><button></button></main></body></html>`;
+      const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once:true}));
+      document.body.append(frame);
+      await loaded;
+    }""")
+    violations, _ = serious_axe_violations(page)
+    assert [violation["id"] for violation in violations] == ["button-name"]
+    assert len(violations[0]["nodes"]) == 2, "both exposed documents must be audited"
+
+    child.locator("button").evaluate("button => button.textContent = 'Continue'")
+    child.frame_locator("#nested-frame").locator("button").evaluate(
+        "button => button.textContent = 'Continue'"
+    )
+    shown.evaluate("frame => frame.removeAttribute('title')")
+    violations, _ = serious_axe_violations(page)
+    assert [violation["id"] for violation in violations] == ["frame-title"]
+
+    shown.evaluate("frame => frame.title = 'Visible practice'")
+    violations, report = serious_axe_violations(page)
+    assert violations == [], report
 
 
 def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):

@@ -10,8 +10,10 @@ from urllib.parse import urljoin, urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    append_carried_log_record,
     append_command,
     record_claim,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -23,8 +25,11 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import session_cleanup as cleanup_model
+from leaf import user_views as user_views_model
+from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.reading import page_reading, source_readings
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1552,6 +1557,9 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         error for error in errors if "interaction gallery failed to start" in error
     ]
     assert len(matching) == 1, errors
+    assert (
+        len([error for error in errors if "optional sibling failed" in error]) == 1
+    ), errors
 
 
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
@@ -1621,7 +1629,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     """Receiving state is not readiness while its message renderer is still loading."""
     url = serve(SHORT_SUGGESTION)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2470,7 +2478,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     assert page.evaluate("() => !customElements.get('lf-options')")
 
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2545,7 +2553,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         older.append(route)
 
     page.route("**/api/state*", hold_older_state)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2574,13 +2582,8 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
 
 
-def test_a_page_hears_news_without_asking_for_it(browser, serve):
-    """The page asks for state when its news stream says the page has moved, and
-    otherwise not at all. A quiet page therefore makes no request — the poll made
-    one every two seconds whether or not anything had happened — and an append
-    reaches it in the time the stream takes to look (fifty milliseconds, where the
-    poll left it up to two seconds), which `told` below waits through. The quiet
-    three seconds are the half of this no faster poll could pass."""
+def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
+    """Quiet freshness looks do not rebuild state; an external append does."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2588,7 +2591,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     page.wait_for_timeout(3000)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
@@ -2597,12 +2600,59 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
 
 
-def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, serve):
-    """Visibility is the user lease on a live page. A hidden tab closes its standing
-    request and neither hears a changed reading nor polls for one; becoming visible opens
-    one new stream, whose first word catches the page up. The overridden platform reading
-    is the lifecycle input Chromium's headless shell cannot otherwise produce — all of
-    its tabs report visible even when another is brought to the front."""
+def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
+    """The process may change while this page's document and log still stand."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Durable draft",
+                '<h1>Durable draft</h1><lf-draft id="draft"><pre>Original</pre></lf-draft>',
+            )
+        ),
+    )
+    page.set_default_timeout(5000)
+    page.locator("#draft .lf-draft-body").dblclick()
+    editor = page.locator("#draft textarea")
+    write(editor, "An unfinished durable draft")
+    editor.press("Home")
+    editor.press("Shift+ArrowRight")
+    editor.press("Shift+ArrowRight")
+    before = editor.evaluate(
+        "el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]"
+    )
+    page.evaluate("window.__originalDocument = true")
+    reading = page.locator("body").get_attribute("data-lf-reading")
+    looks = []
+
+    def read_news(route):
+        answer = route.fetch()
+        looks.append((answer.headers, answer.text()))
+        route.fulfill(response=answer)
+
+    page.route("**/api/news", read_news)
+    serve.httpd.server_id = "replacement-server"
+    with page.expect_response("**/api/news", timeout=5000):
+        pass
+    page.unroute("**/api/news", read_news)
+    assert looks[-1][0]["leaf-server"] == "replacement-server"
+    assert looks[-1][1] == reading
+    page.wait_for_timeout(500)
+    assert page.evaluate("window.__originalDocument === true")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate("el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]")
+        == before
+    )
+    expect(editor).to_have_value("An unfinished durable draft")
+
+
+def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):
+    """Hidden documents stop attention checks; visibility immediately catches up.
+
+    The overridden platform reading is the lifecycle input Chromium's headless
+    shell cannot otherwise produce: all its tabs report visible.
+    """
     page = open_page(browser, serve(LONG_PAGE))
     asked = _traffic(page).asked
 
@@ -2616,18 +2666,16 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
           document.dispatchEvent(new Event('visibilitychange'));
         }"""
     )
-    # Once the server has observed the closed socket, a forced opportunity to bump
+    # Once a canceled request has drained, a forced opportunity to bump
     # presence must leave the sentinel alone: a hidden, still-open tab no longer
-    # counts as user attention. Reopening the stream below must replace it.
+    # counts as user attention. Checking immediately on visibility below must replace it.
     page.wait_for_timeout(100)
     cleanup_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
-    serve.httpd.viewed_at = 0
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
     )
-    # The server checks its stream reading every 50ms. Ten checks give the news ample
-    # opportunity to expose a stream the hidden page failed to release.
+    # Two 250ms opportunities expose a hidden page that failed to stop checking.
     page.wait_for_timeout(500)
     assert _traffic(page).asked == asked, (
         "a hidden page still heard or polled for state"
@@ -2647,10 +2695,72 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
 
 
+def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, serve):
+    """Live feeds leave HTTP slots available for startup, gestures and revisions."""
+    url = live_url(serve(LONG_PAGE))
+    with browser.new_context() as context:
+        pages = [open_page(browser, url, context=context) for _ in range(8)]
+        last = pages[-1]
+        last.locator(".lf-threads-toggle").click()
+        write(last.locator(".lf-general leaf-text"), "All eight views are live.")
+        with sending(last, "the eighth view's comment"):
+            last.locator(".lf-general button").click()
+        assert any(
+            event.get("text") == "All eight views are live."
+            for event in events_model.read_events(serve.page_dir)
+        )
+        (serve.page_dir / "index.html").write_text(
+            LONG_PAGE.replace(">Long<", ">Updated across tabs<")
+        )
+        for page in pages:
+            told(page)
+            expect(page.locator("#t")).to_have_text("Updated across tabs")
+
+
+def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
+    browser, serve
+):
+    """A short-lived real wait lease inside a state read cannot strand its answer.
+
+    Presence may return to the same cached freshness token after state captured a
+    different live lock observation. The shared recovery clock must reconcile the
+    mismatch even though no page file or subsequent token changes.
+    """
+    url = live_url(serve(LONG_PAGE))
+    lease_path = waiter_lease_path(serve.page_dir, None)
+    with take_lease(lease_path) as lease:
+        page = open_page(browser, url)
+        runtime = page.evaluate_handle("""async () =>
+          (await window.__lfRuntimeImport('/runtime/context.js')).runtime""")
+        assert runtime.evaluate("root => root.state.listening") is True
+        # Let the freshness reader observe the original held lease too.
+        page.wait_for_timeout(700)
+        crossed = []
+
+        def crossing(route):
+            if urlparse(route.request.url).path != "/api/state" or crossed:
+                route.continue_()
+                return
+            with take_lease(lease_path):
+                response = route.fetch()
+                assert response.json()["listening"] is True
+            crossed.append(response.json()["reading"])
+            route.fulfill(response=response)
+
+        page.route("**/api/state*", crossing)
+        lease.close()
+        page.wait_for_function(
+            "root => root.state.listening === false", arg=runtime, timeout=6000
+        )
+        assert crossed, "the state read did not cross the temporary lease"
+        told(page)
+        page.unroute_all(behavior="wait")
+
+
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     """Rapid status.json writes do not build a queue of state requests.
 
-    The news stream may announce several new readings while the container is still
+    Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
     """
     page = open_page(browser, serve(LONG_PAGE))
@@ -2769,7 +2879,7 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
 def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
     """The user's page arrives on the runtime's wait, not on the container's answer.
 
-    Presentation is where durable controls, the heartbeat and the news stream open, so a
+    Presentation is where durable controls, the heartbeat and freshness checks open, so a
     container that accepts the connection and says nothing would otherwise decide whether
     the user gets a usable page at all — and the read's own bound is set outside what a
     live container takes, which is far past anyone's patience for a page. The wait ends
@@ -2837,8 +2947,8 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
-    """A wake-up the page could not act on is not lost. The stream says when the
-    page has moved and cannot say it twice, so a read that failed — refused here, a
+    """A wake-up the page could not act on is not lost. A freshness answer says when the
+    page has moved wakes state once per changed reading, so a read that failed — refused here, a
     dropped request in the world — is asked again on the page's own tick, the
     spacing a failed exchange has always had. Without that a page would sit under
     an offline banner until something else happened to it."""
@@ -2849,13 +2959,18 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/state" in request.url
     ):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
+    # A failed answer does not turn every unchanged freshness look into another
+    # expensive state read. At most one recovery tick fits in this interval.
+    asked = _traffic(page).asked
+    page.wait_for_timeout(1000)
+    assert _traffic(page).asked <= asked + 1
     page.unroute("**/api/state*")
     told(page)
     expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
@@ -2866,9 +2981,9 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
 
 def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     """A server is stopped and started under an open tab whenever its layer is
-    re-vendored, and the tab finds the new one on its own: the stream it held ended
-    with the old server, and the browser reopens it. The page says the server is
-    gone while it is, and reads again when the stream comes back, because the last
+    re-vendored, and the tab finds the new one on its own: its freshness read fails
+    with the old server, and the browser keeps asking. The page says the server is
+    gone while it is, and reads again when the server comes back, because the last
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
@@ -2886,7 +3001,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         serve.page_dir, token=TOKEN, port=port
     ).start()
     serve.servers.append(server)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
     )
@@ -2950,7 +3065,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         )
 
     def wake(text):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
@@ -3157,7 +3272,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3169,7 +3284,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     with live_watcher(d, page):
         declare("working", "revising the plan")
-        events_model.append_event(
+        append_carried_log_record(
             d, {"kind": "comment", "author": "user", "text": "A later update."}
         )
         told(page)
@@ -3308,7 +3423,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     # Once an update has waited past the pickup grace with nothing to carry it, the
     # remedy is the user's, and the reading says since when nobody has been there.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3551,7 +3666,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # New words do not detach the claim from the comment that started the work.
-    followup = events_model.append_event(
+    followup = append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3582,7 +3697,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # The answer is what ends it.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3615,7 +3730,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # A thread the user has closed asks nothing: its card, closed from another tab,
     # stays where it stands and says it is resolved.
-    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
@@ -3624,7 +3739,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
     # claiming work under a banner that says the opposite.
-    events_model.append_event(
+    append_carried_log_record(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
@@ -3645,7 +3760,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     declared overall state, then falls back to generic work when that declaration waits."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -3718,7 +3833,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     old = (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
         timespec="seconds"
     )
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3747,7 +3862,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     Re-inserting the node would lose its identity and could replay presentation."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4447,7 +4562,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     if failure != "disconnect":
         expect(broken.locator(".lf-page-thread")).to_have_count(0)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4519,7 +4634,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             widget.failure = null;
             for (const row of widget.children) row.append(row.outlet);
         }""")
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -4845,7 +4960,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
 
     # The reading that moves the source also brings a message, so applying it has
     # document work to finish; the reading behind it lands while that work is unfinished.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4894,7 +5009,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     older = page.evaluate("async () => await (await fetch('/api/state')).json()")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4951,8 +5066,13 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    """A completed crossed state read must not recalibrate the displayed clock.
+
+    Keep freshness unchanged: an origin that advertises new state but returns an
+    old reading forever asks for repair on every tick rather than aging paints.
+    """
     url = serve(LONG_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4970,11 +5090,12 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
-    with page.expect_response("**/api/state*"):
-        cleanup_model.write_json(
-            serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": cleanup_model.now_iso()},
-        )
+    page.evaluate(
+        """async () => {
+          const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+          await readAndApply();
+        }"""
+    )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
 
@@ -5524,3 +5645,147 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):
+    """Optional view context cannot turn a failed module request into page debt."""
+    page = browser.new_page()
+    page.route("**/runtime/user-view.js", refuse)
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/runtime/user-view.js"),
+    ):
+        page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    wait_until_ready(page)
+    with sending(page, "the suggestion decision"):
+        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert not page.lf_errors
+
+
+def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
+    """The effective document scheme can override the user's OS preference."""
+    source = leaf_page(
+        "Forced scheme",
+        '<h1 id="heading">A dark document</h1>',
+        head="<style>:root { color-scheme: only dark; }</style>",
+    )
+    context = browser.new_context(color_scheme="light")
+    open_page(browser, serve(source), context=context)
+    observed = wait_for(
+        lambda: user_views_model.read_user_views(serve.page_dir, 1)["sessions"],
+        lambda records: bool(records) and records[0]["checks"] is not None,
+        failure="the forced document scheme never reached the agent view",
+    )[0]
+    assert observed["color_scheme"] == "dark"
+    assert observed["checks"]["color_scheme"] == "dark"
+
+
+def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):
+    """Agent context names each actual document and its checks, even when a tab
+    keeps an earlier revision. Observations never become decisions or freshness
+    changes, and hidden reports release their own view without hiding another."""
+    source = leaf_page(
+        "View observation",
+        '<h1 id="view-heading">Service capacity</h1>'
+        '<svg id="capacity-drawing" class="drawing" viewBox="0 0 1200 80">'
+        '<text x="20" y="40" font-size="12">Ten thousand requests</text></svg>',
+    )
+    url = serve(source)
+    directory = serve.page_dir
+    first = open_page(browser, url)
+
+    def views():
+        return user_views_model.read_user_views(
+            directory, files_model.latest_revision(directory)
+        )["sessions"]
+
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 1 and records[0]["checks"] is not None,
+        failure="the live document never reported its view and checks",
+    )
+    identity = seen[0]["session"]
+    assert seen[0]["visible"] and seen[0]["freshness"] == "fresh"
+    assert seen[0]["checks"]["matches_view"]
+    assert seen[0]["checks"]["reading"]["checks"]["shrunk_labels"]["drawings"]
+    file_reading = page_reading(directory)
+    source_reading = source_readings(directory)
+    asked = _traffic(first).asked
+
+    first.set_viewport_size({"width": 600, "height": 720})
+    first.emulate_media(color_scheme="dark", reduced_motion="reduce")
+    changed = wait_for(
+        views,
+        lambda records: (
+            records[0]["viewport"]["width"] == 600
+            and records[0]["color_scheme"] == "dark"
+            and records[0]["checks"]["matches_view"]
+        ),
+        failure="resizing and changing scheme did not reach the agent view",
+    )[0]
+    assert changed["session"] == identity
+    assert changed["reduced_motion"]
+    assert changed["checks"]["viewport"] == {"width": 600, "height": 720}
+    assert page_reading(directory) == file_reading
+    assert source_readings(directory) == source_reading
+    assert _traffic(first).asked == asked
+
+    second = open_page(browser, live_url(url))
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 2 and all(r["checks"] for r in records),
+        failure="the second document replaced the first view",
+    )
+    assert len({r["session"] for r in seen}) == 2
+    assert {r["viewport"]["width"] for r in seen} == {
+        600,
+        second.viewport_size["width"],
+    }
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(directory)])
+    assert state.exit_code == 0, state.output
+    assert len(json.loads(state.output)["user_views"]["sessions"]) == 2
+    assert "user_views" not in second.evaluate(
+        "async () => await (await fetch(new URL('api/state', document.querySelector('link[rel=canonical]').href))).json()"
+    )
+
+    # Headless Chrome cannot naturally hide one tab, so deliver the platform
+    # lifecycle input used by the existing news visibility regression above.
+    first.evaluate(
+        """() => {
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, value: 'hidden',
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }"""
+    )
+    hidden = wait_for(
+        views,
+        lambda records: any(
+            r["session"] == identity and not r["visible"] for r in records
+        ),
+        failure="hiding one document did not release its view",
+    )
+    assert sum(r["visible"] for r in hidden) == 1
+
+    (directory / "index.html").write_text(
+        source.replace("Service capacity", "Updated capacity")
+    )
+    told(second)
+    seen = wait_for(
+        views,
+        lambda records: any(
+            r["revision"] == 2 and r["checks"] and r["checks"]["matches_view"]
+            for r in records
+        ),
+        failure="the new revision never reached its visible document's reading",
+    )
+    old = next(r for r in seen if r["session"] == identity)
+    current = next(r for r in seen if r["session"] != identity)
+    assert old["revision"] == 1 and not old["matches_active_revision"]
+    assert current["revision"] == 2 and current["matches_active_revision"]

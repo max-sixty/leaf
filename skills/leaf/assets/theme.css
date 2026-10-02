@@ -993,59 +993,7 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-a { color: var(--accent); text-underline-offset: var(--link-underline-offset);
-    text-decoration-color: var(--link-underline); }
-a:hover { text-decoration-color: currentColor; }
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
-/* An identifier breaks where it must. A test name or a path is one word to the line
- * breaker, and a word a box cannot hold is either drawn past the box or holds the
- * box to its own width — in a table cell the latter: a column of 79-character test
- * names beside a column of prose held its column at 583px of the 720px measure, the
- * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
- * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
- * because only `anywhere` counts the break when a box's minimum is measured, and a
- * table's columns are sized from exactly that: with it the same table stood
- * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
- * because a cell's minimum is its longest word, and that is what keeps a column of
- * row names from being squeezed under the prose beside it — with every cell
- * breakable the same table's row names measured 55px. The minimum is what every
- * shrinking box is sized from, so a flex item or a grid track holding a long name
- * hands room to its neighbour the same way (a flex item measured 691px to 359px).
- * A block (pre) wraps nothing, so this reaches nothing there.
- *
- * Slice the decoration across lines so side padding belongs only to the span's
- * start and end. Cloning each fragment adds padding after line breaking and can
- * paint past the column. */
-code { background: var(--code-bg); border-radius: var(--code-inline-r);
-       padding: var(--code-inline-pad); font-size: var(--code-inline-size);
-       font-family: var(--mono); overflow-wrap: anywhere;
-       box-decoration-break: slice; }
-/* A code block is sized by how many characters it takes across, which is why its size
- * is off the serif ladder above. At --code-size, the column keeps comfortably more
- * than the 80 characters most source is written to.
- *
- * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
- * shadow tree must keep one density through upgrade. */
-pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
-      padding: 12px var(--pre-inset); overflow-x: auto; font-size: var(--code-size);
-      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none;
-      /* A block that scrolls its own lines never sizes what holds it: without this a
-       * long line is every flex item's and grid track's minimum up the tree. */
-      contain: inline-size; }
-pre code { background: none; padding: 0; font-size: 100%; }
-/* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
-   wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
-   makes for its rows. `anywhere` because what runs long in source is paths, URLs and
-   minified data, none of which offer the line box a break to find. `overflow-x` is left
-   alone: once the line wraps there is nothing to scroll, and releasing the clip would
-   only let what cannot wrap paint out through the block's own border. A rule that
-   restates `white-space` for its own box states the paper half beside itself, because
-   naming that box here would tie on specificity and lose on source order, and `@media`
-   contributes nothing to break the tie. */
-@media print {
-  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-}
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
    tokenizer's scopes into six of leaf's own first. Styled at document level like
@@ -1064,9 +1012,6 @@ pre code { background: none; padding: 0; font-size: 100%; }
    half-width band. */
 [data-lf-syn="ins"] { color: var(--ok-ink); }
 [data-lf-syn="del"] { color: var(--danger-ink); }
-blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
-             border-left: var(--quote-rule); color: var(--muted);
-             font-style: var(--quote-style); --lf-block-frame: 1; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -1519,21 +1464,15 @@ lf-new { background: var(--add-tint); }
  * slot reads as block there. No shipped script-free page stages one, and the price of
  * keeping that case was the closed list itself.
  *
- * In :where(), because :not() and :has() both take the specificity of the most specific
- * thing inside them, and a bare attribute selector is a whole class-column above the type
- * names it stands among. The list is a question about the content, not a claim on the
- * cascade, and the answer wearing a class column outranked the marks that answer over it:
- * this rule's own block display beat [data-lf-retired]'s `display: none`, so a decided
- * suggestion kept the slot it had just retired on the page. :where() zeroes that argument
- * and leaves the list weighing what the tag names weighed.
+ * The content-shape test stays in :where() so this default is as easy to override
+ * as the slots' ordinary tag rules. Semantic retirement belongs to state.css.
  *
  * The platform half is HTML's phrasing-content set quoted whole, `link` and `meta`
  * included, which no slot will ever hold and which render nothing if one does. CSS
  * cannot derive the category, so the selector keeps the literal, and nothing checks
  * it: a name dropped from it blockizes any slot holding that element, with no test
- * reading a slot's form to say so. What the browser does answer for is the marker
- * half, through lf-compare's copy of the list, and the :where() argument, through a
- * decided block slot keeping nothing it retired.
+ * reading a slot's form to say so. The browser tests exercise the marker half
+ * through lf-compare's copy of the list.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
  * reads as a stack. That was once the only room the slots could ask for: while the
@@ -1582,16 +1521,6 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
 lf-old, lf-new { transition: padding .22s ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
-/* A slot the standing decision retired, marked by the runtime from the registry's own
- * relation (data-lf-retired, leaf.js renderRetired). One rule for every family, so a
- * holder a project declares hides what a settlement removes the day it declares it —
- * the by-name pair that stood here was the closed list wearing CSS's clothes. A
- * module's fold outranks this with its inline display for the length of the motion.
- * What no
- * relation can say stays the family's own, like the emptied wrapper below. */
-[data-lf-retired] { display: none; }
-lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
-lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* The margin projection is a retained projection with one cluster per page target. Its
  * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
  * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by

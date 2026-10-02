@@ -105,7 +105,10 @@ def answer_meaning(
     else:
         reading = readings.thread
         byid = reading.by_id
-    candidate = {**event, "id": "pending", "seq": len(readings.events) + 1}
+    candidate = {
+        **event,
+        "seq": readings.events[-1]["seq"] + 1 if readings.events else 1,
+    }
     projection = with_action(
         reading.projection, candidate, entry["x-state"][event["action"]]
     )

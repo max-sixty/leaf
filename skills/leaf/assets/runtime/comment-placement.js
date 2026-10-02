@@ -5,12 +5,14 @@
    placing (floating.js): this module chooses the side and names the boxes, and
    Floating UI's offset, size and shift do the rest.
 
-   A comment stands by what it is about, read four ways. `clear` is the box it keeps
+   A comment stands by what it is about. `clear` is the box it keeps
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
    row a pointing gesture named in it (pointed-place.js). `extent` is that box whole,
    however much of it a scroll has clipped, which is what the room around it is measured
    from. `row` is the line it stands level with beside `clear`: a passage's first line,
-   else `clear`'s top. `margin` is where across the page the margin row for it stands,
+   else `clear`'s top. `column` is the passage's inline start when it quotes words;
+   without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
+   across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. An existing subject
    with no visible attachment supplies `clear: null`: its open editor stands in the
@@ -36,8 +38,8 @@
    thread has or will have stays in view, at the cost of the card's width; where it
    does not, the surface stands over the row. Neither choice reads the surface's own
    width or height, so the box and the card make the same one. Under or over, its inline
-   start is where the card's minimum width would end on `clear`'s right edge, and it
-   keeps that start as it widens.
+   start follows `column`, independently of the block it keeps clear, and it keeps
+   that start as it widens.
 
    It grows away from what it is about, down beside or under and up over it (floating.js,
    `held`), and the boundary holds it in only while what it stands by is in the window:
@@ -181,8 +183,11 @@ export const cardMeasure = () => rootLength("--thread-card");
    A superseded computation retains that hold. The placement owns its carried inline
    offset; `hold` supplied to `options` names only a block edge.
 
-   `fit({ side, width, scale })` sizes the surface for the room its side gives: the width
-   of its lane, in its positioning space, with the scale that space has. */
+   `fit({ side, width, scale })` sizes the surface for the room its side gives, in its
+   positioning space. Its declared minimum is limited only by the boundary, never by
+   its passage's column.
+   The intended inline start caps growth, before a restored draft's own width can
+   shift it; a landed adjustment then keeps that start as typing widens the field. */
 export function commentPlacement() {
   let side = null;
   let inline = null;
@@ -213,7 +218,7 @@ export function commentPlacement() {
     },
     // Mechanical handoff between the editor's transparent frame and its sent card.
     capture() {
-      return { side, inline, input: input?.slice() ?? null, seen };
+      return { side, boundary: input?.slice(1, 5) ?? null, seen };
     },
     adopt(frame) {
       forget();
@@ -229,7 +234,7 @@ export function commentPlacement() {
       extent = clear,
       boundary,
       row = clear?.top ?? boundary.top,
-      minimum,
+      minimumWidth,
       scroller,
       coarse,
     }) {
@@ -249,16 +254,16 @@ export function commentPlacement() {
       const frame = pending;
       pending = null;
       const adopted =
-        frame?.placement.input &&
+        frame?.placement.boundary &&
         key
           .slice(1, 5)
           .every(
-            (value, index) => Math.abs(value - frame.placement.input[index + 1]) <= 0.5,
+            (value, index) => Math.abs(value - frame.placement.boundary[index]) <= 0.5,
           );
       if (adopted) {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
-        ({ side, inline, seen } = frame.placement);
+        ({ side, seen } = frame.placement);
         carriedInline = frame.box.left - (clear?.left ?? boundary.left);
         const top = frame.box.top - line(clear, row);
         initialHold = { top, foot: top + frame.box.height };
@@ -266,11 +271,7 @@ export function commentPlacement() {
         input &&
         key.some((value, index) => Math.abs(value - input[index]) > 0.5)
       ) {
-        side = null;
-        inline = null;
-        carriedInline = null;
-        initialHold = null;
-        seen = false;
+        forget();
       }
       input = key;
       const fresh = side === null;
@@ -280,7 +281,7 @@ export function commentPlacement() {
             clear,
             extent,
             boundary,
-            width: minimum.width,
+            width: minimumWidth,
             scroller,
             coarse,
           });
@@ -290,12 +291,24 @@ export function commentPlacement() {
         ...(initialHold ? { hold: initialHold } : {}),
       };
     },
-    options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
+    options(
+      ui,
+      {
+        clear,
+        row,
+        column = null,
+        margin = null,
+        boundary,
+        minimumWidth,
+        fit,
+        hold = null,
+      },
+    ) {
       const across = vertical(side);
       const unanchored = !clear;
       // Floating UI reads a window attachment point for the unanchored posture,
       // sharing the same sizing, shift and coordinate conversion as an anchored box.
-      clear ??= new DOMRect(boundary.left, boundary.top, minimum.width, 0);
+      clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
       seen ||=
         !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
       // Beside on the right, the margin row is kept clear too where the room past it
@@ -304,13 +317,16 @@ export function commentPlacement() {
         side === "right" &&
         margin &&
         margin.right > clear.right + 0.5 &&
-        boundary.right - margin.right - COMMENT_GAP >= minimum.width
+        boundary.right - margin.right - COMMENT_GAP >= minimumWidth
           ? margin.right
           : null;
       const box =
         past === null
           ? clear
           : new DOMRect(clear.left, clear.top, past - clear.left, clear.height);
+      const inlineStart = unanchored
+        ? boundary.left
+        : (column ?? box.right - minimumWidth);
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
@@ -328,7 +344,7 @@ export function commentPlacement() {
           return {
             data: {
               scale,
-              reference: rects.reference,
+              column: rects.reference.x + (inlineStart - box.left) / scale.x,
               line:
                 side === "bottom"
                   ? rects.reference.y + rects.reference.height
@@ -376,7 +392,7 @@ export function commentPlacement() {
                 : top
               : COMMENT_GAP / (across ? scale.y : scale.x),
             crossAxis: across
-              ? state.rects.reference.width + (inline ?? -minimum.width / scale.x)
+              ? measure(state).column - state.rects.reference.x + (inline ?? 0)
               : (row - COMMENT_GAP - box.top) / scale.y,
           };
         }),
@@ -388,15 +404,17 @@ export function commentPlacement() {
             const lane =
               carriedInline !== null
                 ? boundary.right - clear.left - carriedInline
-                : side === "right"
-                  ? boundary.right - box.right - COMMENT_GAP
-                  : side === "left"
-                    ? clear.left - boundary.left - COMMENT_GAP
-                    : boundary.right -
-                      (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
+                : across
+                  ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
+                  : side === "right"
+                    ? boundary.right - box.right - COMMENT_GAP
+                    : clear.left - boundary.left - COMMENT_GAP;
             fit({
               side,
-              width: Math.max(0, Math.min(state.availableWidth, lane / scale.x)),
+              width: Math.max(
+                Math.min(minimumWidth, boundary.width) / scale.x,
+                Math.min(state.availableWidth, lane / scale.x),
+              ),
               scale,
             });
           },
@@ -440,8 +458,8 @@ export function commentPlacement() {
     },
     landed({ x, y, middlewareData }) {
       initialHold = null;
-      const { scale, reference, line } = middlewareData.scaled;
-      if (vertical(side)) inline ??= x - (reference.x + reference.width);
+      const { scale, column, line } = middlewareData.scaled;
+      if (vertical(side)) inline ??= x - column;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       return {
         scale,

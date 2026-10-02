@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command, record_claim
+from interact_support import append_carried_log_record, append_command, record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -2675,7 +2675,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     nothing else in the suite renders a sample there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2685,7 +2685,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
             "text": "What would the alternative look like?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -2770,7 +2770,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     same in a cell and is the actual regression to fear."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2780,7 +2780,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "text": "What are the ceilings?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",

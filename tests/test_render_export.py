@@ -17,7 +17,7 @@ from typing import NamedTuple
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import install_payload, wait_for
+from interact_support import append_carried_log_record, install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -562,7 +562,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
     assert page_dir not in service_model.owned_pages(session)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
@@ -1112,7 +1112,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     assert server_model.running_server(directory)
     assert waiter.poll() is None, waited.read_text()
 
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "comment",
@@ -1712,11 +1712,11 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "<pre>print('hi')</pre></lf-code>",
         )
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Sketch it?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1885,7 +1885,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         '<rect width="24" height="24" fill="navy"/></svg>'
     )
     _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1915,7 +1915,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         )
         assert result.exit_code == 0, result.output
     if resolved:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )

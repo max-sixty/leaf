@@ -1,6 +1,6 @@
-/* Layouts: starting points a page pulls on by class. They are plain CSS in the last of
- * Leaf's cascade layers, above the layer the kernel and every package share (lf-base),
- * and below the page's own stylesheet, which is unlayered. So a Layout
+/* Layouts: starting points a page pulls on by class. They are plain CSS above the
+ * layer the kernel and every package share (lf-base), below semantic state and the
+ * page's own stylesheet, which is unlayered. So a Layout
  * resets what the base and widgets set on the boxes it arranges, and a page adjusts a
  * Layout with ordinary rules or writes its own; nothing reads a Layout back. The layer
  * merge appends this file after every package (layer.py, composed_sheets). */

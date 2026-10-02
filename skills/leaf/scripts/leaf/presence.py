@@ -23,6 +23,8 @@ from .revision_artifact import revision_title
 from .schema import (
     INTERACTIONS_FILE,
     UNNAMED_AGENT,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
     VIEWED_FILE,
     WAITER_LOCK,
 )
@@ -39,8 +41,8 @@ from .service import (
 from .session_cleanup import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
-# without touching a page file. The news stream already allowed this much staleness,
-# so sharing one observation across streams does not change what a user can learn.
+# without touching a page file. Readers share one observation for two seconds, while
+# a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
 # (state-home stamp, resolved candidate pages): the machine's, so one slot.
 _candidates = ((), ())
@@ -50,7 +52,7 @@ _candidates_lock = threading.Lock()
 class _Presence:
     """What a page keeps of its presence between readings.
 
-    The lock is held through a whole observation, so concurrent news streams on the
+    The lock is held through a whole observation, so concurrent freshness readers on the
     page share one reading rather than racing into one parse each."""
 
     def __init__(self) -> None:
@@ -64,7 +66,9 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
 
     `viewed.json` counts here, where the page's own reading leaves it out: whether a
     tab is looking is part of what presence reports."""
-    entries = tuple(entry_stamps(page_dir, {INTERACTIONS_FILE}))
+    entries = tuple(
+        entry_stamps(page_dir, {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
+    )
     claim_stamp = file_stamp(claim_path(page_dir))
     if claim and claim.get("id"):
         # A host wait lease is outside the page, and its lock state has no file
@@ -162,7 +166,7 @@ def live_facts(page_dir: Path, claim: dict | None) -> dict:
     at this moment: whether the claimant's wait lease is held, whether its
     lifetime stands, and what its host says of its turn (`Harness.live_turn`).
     File stamps cannot say when these move, so every cache of a presence reading
-    keys on them, and the news stream's token carries them."""
+    keys on them, and the freshness token carries them."""
     active = claim if claim_is_active(claim) else None
     return {
         "listening": wait_is_live(page_dir, active["id"] if active else None),
@@ -237,9 +241,9 @@ def presence_with_activity(
         "turn_opened": claim.get("turn_opened") if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).hooks_carry()),
         # When a browser last had the page visible (the server bumps viewed.json,
-        # throttled, while a visible tab's news stream stands), or None for a page
+        # throttled, while a visible tab asks for news), or None for a page
         # nobody has ever viewed — which used to be indistinguishable from one the
-        # user studied and left. Hidden tabs release their stream, so this records
+        # user studied and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
         # Where the claimant is working (claim_page), for the drawer's hover: what
@@ -283,12 +287,12 @@ def presence_fingerprint(present: dict, others: list) -> str:
 
 
 def presence_reading(page_dir: Path) -> str:
-    """The presence token shared by streams for one bounded freshness interval.
+    """The presence token shared by readers for one bounded freshness interval.
 
     Page-file stamps invalidate it immediately; process and lock leases are refreshed
     when the interval expires. The three facts are read the way `presence` and
-    `full_state` read them, so the stream and the state it prompts name the same
-    reading once the stream's existing interval has elapsed.
+    `full_state` read them, so a freshness answer and the state it prompts name the same
+    reading once the bounded cache interval has elapsed.
     """
     claim = page_claim(page_dir)
     stamp = _page_stamp(page_dir, claim)
@@ -299,7 +303,7 @@ def presence_reading(page_dir: Path) -> str:
         if held and held[0] == stamp and now < held[1]:
             return held[2]
 
-        # Keep the lock while observing the neighbours. Concurrent news streams
+        # Keep the lock while observing the neighbours. Concurrent freshness reads
         # then share one complete reading instead of racing into one each; the
         # lock and pid checks remain part of this fresh observation.
         reading = presence_fingerprint(

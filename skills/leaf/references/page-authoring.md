@@ -434,6 +434,15 @@ leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
 
+Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
+or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
+language from `$languages.names`. Format illustrative code with the language's usual
+indentation and line breaks, preserving its behavior when you reformat an example.
+Keep brevity in the surrounding prose rather than packing distinct statements or
+fields onto a line. The runtime colors the declared language and preserves authored
+whitespace. Verbatim source quotations keep their exact text; logs and transcripts
+stay literal and uncolored when they are not source code.
+
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves drawer, and active-asks drawer, which lists the page's open Asks.
 Do not duplicate that chrome or keep a second list of the Asks in the page.

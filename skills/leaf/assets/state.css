@@ -1,0 +1,11 @@
+/* Semantic presentation above widget defaults and Layouts (layer.py, CASCADE_LAYERS).
+ * A standing decision retires the slots its registry relation names, regardless of
+ * their package's default display. Inline widget motion may keep a slot visible
+ * until it settles; authored unlayered styles retain the page's final say. */
+@layer lf-state {
+  [data-lf-retired] { display: none; }
+
+  /* A suggestion with no surviving slot has no body to display. */
+  lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
+  lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
+}

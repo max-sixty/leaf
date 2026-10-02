@@ -9,10 +9,11 @@
    below can pin. Both clip a rounded corner identically; only `hidden` also makes the
    box a scroll container, and a sticky child is held by the nearest scrolling ancestor —
    which would be this box, which never scrolls, so the header stuck to nothing and
-   scrolled away with its rows. `:where` scopes the rule without outranking the review
-   press's later negative-margin placement. */
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details,
-:scope:host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
+   scrolled away with its rows. The host condition is a default at zero specificity:
+   native :scope must not make this margin reset outrank the action row's placement,
+   for either a source file or a rename. */
+:where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
+:where(:scope:host(.lf-rendered)) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
@@ -277,9 +278,14 @@
    unwrapped self at max-content, so a floor left in place would size the column to the
    very line the user asked to have wrapped. */
 :scope:host(.lf-rendered) code[data-code] {
+                          /* A file can sit inside another horizontal reader. Pierre's
+                             overscroll trap swallows that reader's gesture even when
+                             every line fits this file, so let the native scroll chain
+                             reach the enclosing box when this one has no more room. */
+                          overscroll-behavior-x: auto;
                           --diffs-code-grid: var(--diffs-grid-number-column-width)
                                              minmax(var(--lf-diff-row-fill, max-content), 1fr); }
-:scope:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
+:scope:host(.lf-rendered) .lf-diff-fold > pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */

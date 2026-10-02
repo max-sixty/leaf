@@ -254,6 +254,8 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
         if record is None or record["ended"] is not None:
             record = new_session(session_id, lifetime)
             record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
+        elif record["lifetime"] == lifetime:
+            return record
         else:
             record = {**record, "lifetime": lifetime}
         return write_session(record)
@@ -329,7 +331,8 @@ def end_session(session_id: str) -> None:
         return
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id) or new_session(session_id, {})
-        write_session({**record, "ended": now_iso(), "turn_closed": now_iso()})
+        ended = now_iso()
+        write_session({**record, "ended": ended, "turn_closed": ended})
         for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
 

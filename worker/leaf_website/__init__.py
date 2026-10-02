@@ -27,6 +27,7 @@ from pathlib import Path
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
 # one binding: whatever takes a turn's readings there takes the host's too.
 from leaf import codex
+from leaf.state import close_session_turn
 from leaf.codex import (
     LEAF_THREAD_CONFIG,
     CarriedTurn,
@@ -56,7 +57,6 @@ from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
     PageTransaction,
-    close_session_turn,
     page_claim,
     restore_page_claim,
 )

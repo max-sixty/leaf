@@ -1535,7 +1535,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
 @pytest.mark.parametrize("active_ask", [True, False])
 def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
     """An old tab validates under its capture and changes the current page's debt."""
-    from leaf.session_cleanup import write_json
+    from leaf.state import write_json
 
     layer = deepcopy(registry_storage.load_registry(page_dir))
     awaits = layer["lf-options"].pop("x-awaits")

@@ -49,7 +49,8 @@ from leaf.revision_artifact import Resource
 from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt, open_session_turn
+from leaf.service import delivery_reply_attempt
+from leaf.state import open_session_turn
 from leaf.state import flocked
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, startup, verify_site
@@ -1503,9 +1504,9 @@ module.main()
     assert adapter.wait(timeout=STATED_TIMEOUT) == -signal.SIGTERM
     deadline = time.monotonic() + STATED_TIMEOUT
     while pid_alive(app_server):
-        assert time.monotonic() < deadline, (
-            "the App Server outlived the adapter that started it"
-        )
+        assert (
+            time.monotonic() < deadline
+        ), "the App Server outlived the adapter that started it"
         time.sleep(0.05)
     assert not (socket_dir / "app-server.sock").exists()
 

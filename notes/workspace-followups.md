@@ -2,7 +2,7 @@
 
 Briefs for the remaining workspace items in [TODO.md](../TODO.md). IDs are stable
 references; their order here is not a priority ranking. The authoring comparison in
-#19 precedes the guidance experiment in #20. The recurring-use study in #23 requires
+#19 precedes the instructions experiment in #20. The recurring-use study in #23 requires
 Max's real tasks.
 
 ## Keyboard and accessibility
@@ -34,7 +34,7 @@ Max's real tasks.
   Leaf's complete authoring and feedback cycle over plain HTML.
 
   Assess usable output independently and retain failures, time/tokens, custom CSS
-  and repair iterations. Use those results to choose which guidance or primitive to
+  and repair iterations. Use those results to choose which instructions or primitive to
   improve. Keep render-check defects and Layout choices in [TODO.md](../TODO.md),
   rather than treating a historical judge's finding as a current defect here.
 
@@ -42,16 +42,16 @@ Max's real tasks.
 
 - **#20 — Teach the compositions that prove useful.** After #19, test short
   composition suggestions against its observed failures with an unfamiliar author.
-  Keep widget-specific advice in `x-guidance`, cross-widget compositions in package
-  guidance, and general selection principles in the authoring reference.
+  Keep widget-specific advice in `x-instructions`, cross-widget compositions in package
+  instructions, and general selection principles in the authoring reference.
 
   The optional `code-review` package already suggests behavior comparisons; whether
-  a cold author discovers and uses that guidance remains unmeasured. Test discovery
-  before package selection and through `leaf page guidance PAGE author`. Compare
+  a cold author discovers and uses those instructions remains unmeasured. Test discovery
+  before package selection and through `leaf page instructions PAGE author`. Compare
   process simplification, structural change and an unchanged system: judge whether
   the user can identify the differences, rather than requiring a diagram everywhere.
 
-  Keep guidance only when it improves the task without duplicated state or runtime
+  Keep instructions only when they improve the task without duplicated state or runtime
   internals. Add a discovery route only if the current routes fail that test.
 
 ## Recurring use

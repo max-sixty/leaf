@@ -14,7 +14,7 @@ from leaf_dev.corpus import corpus
 from leaf_dev.delivery_eval import delivery_eval
 from leaf_dev.example_previews import refresh_previews
 from leaf_dev.flake import flake
-from leaf_dev.guidance_eval import guidance_eval
+from leaf_dev.instructions_eval import instructions_eval
 from leaf_dev.keydocs import keydocs
 from leaf_dev.leaf_assets import fetch_assets
 from leaf_dev.page_fixtures import publish_media
@@ -38,7 +38,7 @@ cli.add_command(corpus)
 cli.add_command(keydocs)
 cli.add_command(bugback)
 cli.add_command(flake)
-cli.add_command(guidance_eval)
+cli.add_command(instructions_eval)
 cli.add_command(probe)
 cli.add_command(stills)
 cli.add_command(site)

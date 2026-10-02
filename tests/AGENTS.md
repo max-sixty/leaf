@@ -45,7 +45,7 @@ names by node id.
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
 never for instruction text. Review the affected recordings when changing interaction
-guidance, and after an intentional change reset only the affected test and read the
+instructions, and after an intentional change reset only the affected test and read the
 diff.
 
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base

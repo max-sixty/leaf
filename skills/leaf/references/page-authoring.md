@@ -13,25 +13,40 @@
 
 ## Read the registry
 
+Run `leaf page instructions <page>` and read the shared `author` instructions
+when listed before choosing widgets. Shared composition rules guide that choice.
+
 `<page>/registry.json` is the vocabulary `page init` vendored; a
 `page/registry.json` the page writes adds to it or replaces its entries ("Page
-behavior"). List the vendored keys without printing the entries:
+behavior"). Discover widgets by their short purpose and use case:
 
 ```bash
 registry="<page>/registry.json"
-jq 'keys' "$registry"
+jq 'with_entries(select(.key | startswith("lf-")))
+    | map_values(.description)' "$registry"
 ```
 
-For a tag whose shape the page is copying, the worked example and the attribute
-schema are enough to write the markup, at a fraction of the reading cost. Ask for
-a group's parent and child together, because the parent's example is the one that
-shows both:
+Once you select a widget, read its attribute schema and worked example. Ask for
+a group's parent and child together, because the parent's example shows both:
 
 ```bash
 registry="<page>/registry.json"
 jq '{"lf-options": .["lf-options"], "lf-option": .["lf-option"]}
     | map_values({"x-example", properties, required})' "$registry"
 ```
+
+Before writing the markup, list the selected widgets' instruction audiences and
+read `author` when listed, including when you copy their examples:
+
+```bash
+leaf page instructions <page> --widget lf-options
+leaf page instructions <page> author --widget lf-options
+```
+
+The command includes shared package instructions and the instructions for the
+selected widgets, their required members, custom tags in their examples, and
+declared data contracts. Select each additional widget the page uses with another
+`--widget`. A widget's `x-instructions` guides how to use it after selection.
 
 Read the complete entry wherever the page does more than the example shows, and
 for every `$` fact:
@@ -41,13 +56,13 @@ registry="<page>/registry.json"
 jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
 ```
 
-The field the short query leaves out is `description`, and it carries what no
-schema can state: what may go inside the tag, what the widget does when the
-user acts on it, and how to word the question it puts. Package-defined tags and
-`$` facts join the same key list. `leaf page guidance <page>` lists the composed
-guidance audiences and `leaf page guidance <page> <audience>` prints one guide;
-read `author` when it is present, and the assigned audience before acting in any
-other role.
+`description` identifies a widget's purpose and when it helps. The schema and
+`x-example` state its form; `x-instructions` carries authoring choices and
+obligations the schema cannot express. Implementation contracts live beside
+their owning modules. Package-defined tags and `$` facts join the same registry.
+`leaf page instructions <page>` lists available audiences; read the assigned
+audience before acting in another role, selecting the widgets or data contracts
+that work uses. "Package contract" in `packages.md` defines the command.
 
 ## Document scaffold
 
@@ -113,6 +128,12 @@ the stack from these:
 
 A page grows without changing its Layout: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
+
+Use `lf-roster` when one orchestrator publishes the page and multiple workers
+report to it. On a one-agent page, the banner carries that activity. A revisited
+page with several contributors, such as a working board, command hub, or long
+review, can use `lf-activity` to show recent changes; a read-once page needs no
+activity feed.
 
 The banner and the bottom bar at the foot of the window are fixed reservations, so
 the room a page has depends only on the window, and nothing Leaf draws moves the page's
@@ -580,6 +601,10 @@ state, over a list, a table, or a board that speaks for itself.
 Write for what the user has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
 claim they could doubt, and drop the journey once the conclusion replaces it.
+
+Use `lf-gloss` for a local term, acronym, or premise the reader can open beside a
+phrase. Citations remain links; argument-bearing qualifications remain visible.
+Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 

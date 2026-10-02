@@ -1,6 +1,7 @@
 {
   "lf-margin-entry-gallery": {
-    "description": "The developer gallery's exhibit of page-edge action controls, disclosure controls, and status indicators across every rank, tone, face, agent workflow stage, user interaction state, and compact-to-Page-Map projection. It renders canonical controls through the runtime's margin-entry helpers; its live samples change only local exhibit state and record no gestures. Use it only in the feature gallery; ordinary pages demonstrate these states through the live widgets that own them.",
+    "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
+    "x-instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
     "type": "object",
     "properties": {
       "id": {

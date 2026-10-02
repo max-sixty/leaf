@@ -3740,7 +3740,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       });
     }""")
 
-    detail = "Checking the return visit, dispatching the diagram guidance review, and comparing every scheduling alternative before preparing the updated recommendation."
+    detail = "Checking the return visit, dispatching the diagram instructions review, and comparing every scheduling alternative before preparing the updated recommendation."
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
@@ -9670,8 +9670,8 @@ CELL_TARGET_PAGE = leaf_page(
 <table id="phases">
 <thead><tr><th>Phase</th><th>Contents</th><th>Choice</th></tr></thead>
 <tbody>
-<tr id="phase-1"><td>1</td><td>Maintainer guidance rewritten.</td><td>Committed</td></tr>
-<tr id="phase-2"><td>2</td><td>Agent guidance rewritten.</td><td>Delivery depth</td></tr>
+<tr id="phase-1"><td>1</td><td>Maintainer instructions rewritten.</td><td>Committed</td></tr>
+<tr id="phase-2"><td>2</td><td>Agent instructions rewritten.</td><td>Delivery depth</td></tr>
 </tbody>
 </table>
 """,

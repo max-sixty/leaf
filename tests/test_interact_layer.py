@@ -49,12 +49,16 @@ from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.page import page_instructions
 from leaf.registry import contract as registry_contract
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
+from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
+from leaf.revisioning import activate_source
 from leaf_dev.page_fixtures import package_selection_args
+from model_folds import leaf_page
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -375,7 +379,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     `test_receipt_settles_one_known_request_once` holds the receipt's, since it needs
     a page with a request seat.
 
-    The default layer declares no guidance audiences, which is why the page is
+    The default layer declares no instructions audiences, which is why the page is
     built here rather than taken from the packaged fixture.
     """
     monkeypatch.chdir(tmp_path)
@@ -400,7 +404,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     ]
     (page_dir / "index.html").write_text(PAGE)
 
-    audiences = runner.invoke(cli_model.cli, ["page", "guidance", str(page_dir)])
+    audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
     assert audiences.exit_code == 0, audiences.output
     assert json.loads(audiences.output) == []
 
@@ -3028,12 +3032,12 @@ def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch
     assert after == before
 
 
-def test_init_refuses_non_utf8_package_guidance_before_revendoring(
+def test_init_refuses_non_utf8_package_instructions_before_revendoring(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    package = tmp_path / ".leaf" / "guidance"
+    package = tmp_path / ".leaf" / "instructions"
     package.mkdir(parents=True)
     source = package / "author.md"
     source.write_text("# Project author\n")
@@ -3042,7 +3046,7 @@ def test_init_refuses_non_utf8_package_guidance_before_revendoring(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    before = (page / "guidance" / "author.md").read_bytes()
+    before = (page / "instructions" / "author.md").read_bytes()
 
     source.write_bytes(b"\xff")
 
@@ -3051,15 +3055,15 @@ def test_init_refuses_non_utf8_package_guidance_before_revendoring(
     )
 
     assert result.exit_code != 0
-    assert "guidance/author.md must be UTF-8" in result.output
-    assert (page / "guidance" / "author.md").read_bytes() == before
+    assert "instructions/author.md must be UTF-8" in result.output
+    assert (page / "instructions" / "author.md").read_bytes() == before
 
 
-def test_init_refuses_a_noncanonical_guidance_audience(tmp_path, monkeypatch):
+def test_init_refuses_a_noncanonical_instructions_audience(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    guidance = tmp_path / ".leaf" / "guidance"
-    guidance.mkdir(parents=True)
-    malformed = guidance / "Project Lead.md"
+    instructions = tmp_path / ".leaf" / "instructions"
+    instructions.mkdir(parents=True)
+    malformed = instructions / "Project Lead.md"
     malformed.write_text("Use the project package.\n")
     page = tmp_path / "page"
 
@@ -3184,7 +3188,7 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     [
         ("theme.css", True),
         ("registry.json", True),
-        ("guidance", False),
+        ("instructions", False),
         ("widgets", False),
         ("vendor", False),
     ],
@@ -3360,7 +3364,7 @@ def test_package_command_accepts_the_root_of_a_standalone_package_repo(
     assert result.exit_code == 0, result.output
     assert (package / "registry.json").is_file()
     assert (package / "theme.css").is_file()
-    assert (package / "guidance").is_dir()
+    assert (package / "instructions").is_dir()
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
 
@@ -3478,7 +3482,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     assert installed.exit_code == 0, installed.output
     assert json.loads(installed.output) == {"package": str(stored)}
     assert sorted(path.name for path in stored.iterdir()) == [
-        "guidance",
+        "instructions",
         "registry.json",
         "runtime",
         "theme.css",
@@ -3595,7 +3599,7 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert theme.read_text() == ":root { --accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
-    (layer / "guidance" / "author.md").write_text("Keep me.\n")
+    (layer / "instructions" / "author.md").write_text("Keep me.\n")
     before = {
         path.relative_to(layer): path.read_bytes()
         for path in layer.rglob("*")
@@ -3692,8 +3696,8 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert initialized.exit_code == 0, initialized.output
     existing = add_test_widget(package, "lf-existing")
-    guidance = package / "guidance" / "author.md"
-    guidance.write_text("Keep this package guidance.\n")
+    instructions = package / "instructions" / "author.md"
+    instructions.write_text("Keep this package instructions.\n")
     helper = package / "runtime" / "existing-helper.js"
     helper.write_text("export const existing = true;\n")
     theme = (package / "theme.css").read_bytes()
@@ -3708,7 +3712,7 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
     assert (package / "theme.css").read_bytes() == theme
-    assert guidance.read_text() == "Keep this package guidance.\n"
+    assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
 
@@ -3885,12 +3889,12 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     package = tmp_path / ".leaf"
     assert json.loads((package / "registry.json").read_text()) == {}
     assert (package / "theme.css").is_file()
-    assert list((package / "guidance").iterdir()) == []
+    assert list((package / "instructions").iterdir()) == []
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
 
     entry = add_test_widget(package, "lf-callout", upgrade=True)
-    (package / "guidance" / "author.md").write_text(
+    (package / "instructions" / "author.md").write_text(
         "# Callouts\n\nUse them for short notices.\n"
     )
     (package / "widgets" / "callout-format.js").write_text(
@@ -3916,7 +3920,8 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
-        "Use them for short notices." in (page / "guidance" / "author.md").read_text()
+        "Use them for short notices."
+        in (page / "instructions" / "author.md").read_text()
     )
     assert (page / "widgets" / "lf-callout.js").is_file()
     assert (page / "widgets" / "callout-format.js").read_text() == (
@@ -3930,7 +3935,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-callout id="custom-note">'
-            "<strong>Heads up</strong> Custom project guidance."
+            "<strong>Heads up</strong> Custom project instructions."
             "</lf-callout>",
         )
     )
@@ -4210,16 +4215,16 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         "export const ready = (el) => { el.dataset.ready = '1'; };\n"
     )
     (widget_package / "vendor" / "solo.json").write_text('{"accent":"plum"}\n')
-    (widget_package / "guidance").mkdir()
-    (widget_package / "guidance" / "author.md").write_text("Use one solo.\n")
-    (widget_package / "guidance" / "worker.md").write_text("Report the result.\n")
+    (widget_package / "instructions").mkdir()
+    (widget_package / "instructions" / "author.md").write_text("Use one solo.\n")
+    (widget_package / "instructions" / "worker.md").write_text("Report the result.\n")
 
     theme_package = tmp_path / "night"
     theme_package.mkdir()
     (theme_package / "theme.css").write_text(":root { --solo-night: 1; }\n")
-    (theme_package / "guidance").mkdir()
-    (theme_package / "guidance" / "author.md").write_text("Use after dusk.\n")
-    (theme_package / "guidance" / "reviewer.md").write_text("Check the contrast.\n")
+    (theme_package / "instructions").mkdir()
+    (theme_package / "instructions" / "author.md").write_text("Use after dusk.\n")
+    (theme_package / "instructions" / "reviewer.md").write_text("Check the contrast.\n")
 
     page = tmp_path / "page"
     initialized = CliRunner().invoke(
@@ -4248,29 +4253,29 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert theme.index(
         "lf-solo:where(lf-solo, :is(lf-solo) *) { --lf-block-frame: 1; }"
     ) < theme.index(":root { --solo-night: 1; }")
-    guidance = (page / "guidance" / "author.md").read_text()
-    assert guidance == (
+    instructions = (page / "instructions" / "author.md").read_text()
+    assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
     )
-    assert "Report the result." in (page / "guidance" / "worker.md").read_text()
-    assert "Check the contrast." in (page / "guidance" / "reviewer.md").read_text()
+    assert "Report the result." in (page / "instructions" / "worker.md").read_text()
+    assert "Check the contrast." in (page / "instructions" / "reviewer.md").read_text()
 
-    audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(page)])
+    audiences = CliRunner().invoke(cli_model.cli, ["page", "instructions", str(page)])
     worker = CliRunner().invoke(
-        cli_model.cli, ["page", "guidance", str(page), "worker"]
+        cli_model.cli, ["page", "instructions", str(page), "worker"]
     )
     assert audiences.exit_code == 0, audiences.output
     assert json.loads(audiences.output) == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
     assert worker.output == "# Package `solo`\n\nReport the result.\n"
     author = CliRunner().invoke(
-        cli_model.cli, ["page", "guidance", str(page), "author"]
+        cli_model.cli, ["page", "instructions", str(page), "author"]
     )
     assert author.exit_code == 0, author.output
     assert author.output.endswith(
-        "# Other audiences\n\nThis page also carries guidance for `reviewer` "
+        "# Other audiences\n\nThis selection also carries instructions for `reviewer` "
         "and `worker`. Whoever takes one of those roles, you or an agent you assign, "
-        "reads `leaf page guidance <page> <audience>` before acting in it.\n"
+        "reads `leaf page instructions <page> <audience>` before acting in it.\n"
     )
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
@@ -4315,16 +4320,29 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert packaged_registry["$layer"]["packages"] == ["command-hub"]
     assert not (plain / "widgets" / "lf-command.js").exists()
     assert (command / "widgets" / "lf-command.js").is_file()
-    assert list((plain / "guidance").iterdir()) == []
-    assert "# Package `command-hub`" in (command / "guidance" / "author.md").read_text()
+    assert list((plain / "instructions").iterdir()) == []
+    assert (
+        "# Package `command-hub`"
+        in (command / "instructions" / "author.md").read_text()
+    )
     plain_audiences = CliRunner().invoke(
-        cli_model.cli, ["page", "guidance", str(plain)]
+        cli_model.cli, ["page", "instructions", str(plain)]
     )
     assert plain_audiences.exit_code == 0, plain_audiences.output
     assert json.loads(plain_audiences.output) == []
-    audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
+    audiences = CliRunner().invoke(
+        cli_model.cli, ["page", "instructions", str(command)]
+    )
     coordinator = CliRunner().invoke(
-        cli_model.cli, ["page", "guidance", str(command), "coordinator"]
+        cli_model.cli,
+        [
+            "page",
+            "instructions",
+            str(command),
+            "coordinator",
+            "--widget",
+            "lf-worktree",
+        ],
     )
     assert audiences.exit_code == 0, audiences.output
     assert json.loads(audiences.output) == ["author", "coordinator", "worker"]
@@ -4332,7 +4350,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert "# Package `command-hub`" in coordinator.output
     assert "# Data contract `lf-worktree`" in coordinator.output
     assert (
-        packaged_registry["$data"]["contracts"]["lf-worktree"]["guidance"][
+        packaged_registry["$data"]["contracts"]["lf-worktree"]["instructions"][
             "coordinator"
         ]
         in coordinator.output
@@ -4353,7 +4371,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-command" not in removed_registry
     assert not (command / "widgets" / "lf-command.js").exists()
-    assert list((command / "guidance").iterdir()) == []
+    assert list((command / "instructions").iterdir()) == []
 
 
 def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
@@ -4416,7 +4434,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
     assert widget["x-thread-surface"] is True
     assert "visual-run" in registry["$data"]["contracts"]
     assert (page / "widgets" / "lf-visual-review.js").is_file()
-    assert (page / "guidance" / "author.md").is_file()
+    assert (page / "instructions" / "author.md").is_file()
 
 
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
@@ -4635,8 +4653,8 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
 
-def test_producer_guidance_names_a_package_script_the_run_door_reaches(tmp_path):
-    """A reader of `leaf page guidance` with no skill loaded, such as a worker the
+def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):
+    """A reader of `leaf page instructions` with no skill loaded, such as a worker the
     author assigns, gets a pipeline it can run as printed: the producer names a
     package and a script, and `package run` finds that script by the same lookup
     `--package` resolves through, with no path on this machine in the text."""
@@ -4646,7 +4664,8 @@ def test_producer_guidance_names_a_package_script_the_run_door_reaches(tmp_path)
     )
     assert initialized.exit_code == 0, initialized.output
     producer = CliRunner().invoke(
-        cli_model.cli, ["page", "guidance", str(page), "producer"]
+        cli_model.cli,
+        ["page", "instructions", str(page), "producer", "--contract", "unified-diff"],
     )
     assert producer.exit_code == 0, producer.output
     [(package, script)] = re.findall(
@@ -4798,3 +4817,193 @@ def test_the_suite_pins_every_bundled_script_dependency():
         for requirement in sorted(declared)
         if f'  "{requirement}",' not in pyproject
     ] == []
+
+
+@pytest.fixture
+def instruction_page(tmp_path: Path):
+    page = tmp_path / "page"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    assert result.exit_code == 0, result.output
+    # Initialization provides the layer; authoring has not started.
+    assert not (page / "index.html").exists()
+    registry_path = page / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    owner = element_declaration("lf-instruction-owner")
+    owner.update(
+        {
+            "x-content": "members",
+            "x-instructions": "Choose the owner's inputs before composing it.",
+            "x-example": '<lf-instruction-owner id="owner"><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
+            "x-required-members": {"lf-instruction-member": {"one-each": "kind"}},
+            "x-data": {
+                "records": {"contract": "instruction-records", "source": "source"}
+            },
+        }
+    )
+    owner["properties"]["source"] = {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}
+    registry["lf-instruction-owner"] = owner
+    member = element_declaration("lf-instruction-member")
+    member.update(
+        {
+            "x-owners": ["lf-instruction-owner"],
+            "x-instructions": "Declare each member's kind.",
+        }
+    )
+    member["properties"]["kind"] = {"type": "string", "enum": ["first", "second"]}
+    member["required"].append("kind")
+    registry["lf-instruction-member"] = member
+    for tag, text in (
+        ("lf-instruction-example", "Preserve the copied example's companion."),
+        ("lf-instruction-unused", "This optional alternative is unused."),
+    ):
+        entry = element_declaration(tag)
+        entry["x-instructions"] = text
+        entry["x-owners"] = ["lf-instruction-owner"]
+        registry[tag] = entry
+    registry["$data"]["contracts"].update(
+        {
+            "instruction-records": {
+                "description": "Records for the selected widget.",
+                "schema": {"type": "object"},
+                "instructions": {
+                    "author": "Bind a named records source.",
+                    "producer": "Supply records in one snapshot.",
+                },
+            },
+            "instruction-unused": {
+                "description": "A different source.",
+                "schema": {"type": "object"},
+                "instructions": {"producer": "Unused producer instructions."},
+            },
+        }
+    )
+    registry_path.write_text(json.dumps(registry))
+    directory = page / "instructions"
+    directory.mkdir(exist_ok=True)
+    (directory / "author.md").write_text("Shared composition instructions.\n")
+    (directory / "coordinator.md").write_text("Assign the selected work.\n")
+    return page
+
+
+def test_selected_instructions_cover_dependencies_without_loading_unused_vocabulary(
+    instruction_page,
+):
+    shared = page_instructions(instruction_page)
+    assert set(shared) == {"author", "coordinator"}
+    assert "Widget" not in shared["author"]
+    assert "Data contract" not in shared["author"]
+
+    selected = page_instructions(instruction_page, widgets=("lf-instruction-owner",))
+    assert set(selected) == {"author", "coordinator", "producer"}
+    author = selected["author"]
+    assert "Shared composition instructions." in author
+    assert "Bind a named records source." in author
+    assert "Choose the owner's inputs" in author
+    assert "Declare each member's kind." in author
+    assert "Preserve the copied example's companion." in author
+    assert "unused" not in author
+    assert selected["producer"] == (
+        "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
+    )
+    assert "--widget lf-instruction-owner" in author
+    assert author.count("# Widget `<lf-instruction-owner>`") == 1
+
+
+def test_cli_selection_and_role_pointer_preserve_the_reading(instruction_page):
+    runner = CliRunner()
+    selection = [
+        "--widget",
+        "lf-instruction-owner",
+        "--contract",
+        "instruction-records",
+    ]
+    audiences = runner.invoke(
+        cli_model.cli, ["page", "instructions", str(instruction_page), *selection]
+    )
+    assert audiences.exit_code == 0, audiences.output
+    assert json.loads(audiences.output) == ["author", "coordinator", "producer"]
+    author = runner.invoke(
+        cli_model.cli,
+        ["page", "instructions", str(instruction_page), "author", *selection],
+    )
+    assert author.exit_code == 0, author.output
+    assert (
+        "leaf page instructions <page> <audience> --widget lf-instruction-owner --contract instruction-records"
+        in author.output
+    )
+    producer = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "instructions",
+            str(instruction_page),
+            "producer",
+            "--contract",
+            "instruction-records",
+        ],
+    )
+    assert producer.exit_code == 0, producer.output
+    assert (
+        producer.output
+        == "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
+    )
+    for option, value, message in (
+        ("--widget", "lf-absent", "unknown instructions widget"),
+        ("--contract", "absent", "unknown instructions data contract"),
+    ):
+        result = runner.invoke(
+            cli_model.cli,
+            ["page", "instructions", str(instruction_page), "author", option, value],
+        )
+        assert result.exit_code != 0
+        assert message in result.output
+    old = runner.invoke(cli_model.cli, ["page", "guidance", str(instruction_page)])
+    assert old.exit_code != 0
+    assert "No such command" in old.output
+
+
+def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
+    entry = element_declaration("lf-instruction-test")
+    for key, value in (
+        ("x-instructions", ""),
+        ("x-instructions", " \n\t"),
+        ("x-instructions", {"author": "Use this."}),
+        ("x-guidance", {"author": "Use this."}),
+    ):
+        malformed = {**entry, key: value}
+        with pytest.raises(
+            registry_contract.RegistryError, match="registry extensions are invalid"
+        ):
+            registry_widgets.validate_widget_schemas(
+                {"lf-instruction-test": malformed}, {"contracts": {}}, "registry.json"
+            )
+    registry_widgets.validate_widget_schemas(
+        {"lf-instruction-test": {**entry, "x-instructions": "Use this."}},
+        {"contracts": {}},
+        "registry.json",
+    )
+
+
+def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
+    instruction_page,
+):
+    source = instruction_page / "index.html"
+    source.write_text(
+        leaf_page("Instructions", '<p id="intro">A minimal document.</p>')
+    )
+    activation = activate_source(instruction_page)
+    assert activation.error is None, activation.error
+    original_html = source.read_text()
+
+    path = instruction_page / "registry.json"
+    registry = json.loads(path.read_text())
+    registry["lf-instruction-owner"]["x-instructions"] = (
+        "Use the new candidate contract."
+    )
+    path.write_text(json.dumps(registry))
+    instructions = page_instructions(
+        instruction_page, widgets=("lf-instruction-owner",)
+    )
+    assert "Use the new candidate contract." in instructions["author"]
+    assert "Choose the owner's inputs" not in instructions["author"]
+    assert source.read_text() == original_html

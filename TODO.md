@@ -59,7 +59,7 @@ has tried; settle that before building it.
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
   shared data source, and calls for no new interface. Compare authoring and a feedback
-  cycle with plain HTML before improving Leaf's authoring guidance;
+  cycle with plain HTML before improving Leaf's authoring instructions;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
@@ -82,7 +82,7 @@ has tried; settle that before building it.
 ### Prose
 
 - **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** The maintainer
-  rewrite is written and awaits independent review and landing. Agent guidance is
+  rewrite is written and awaits independent review and landing. Agent instructions are
   the next phase, scored with `evals/`. Site structure, UI vocabulary and example
   selection wait on the five decisions in the note. Judge each rewrite by reader
   usefulness and preserved behavior; word counts describe the cut, not its quality.

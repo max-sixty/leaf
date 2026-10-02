@@ -28,7 +28,7 @@ abandoned (`screen-workspace-review`, October 2026): it gave the list and the op
 item separate scrollers, routed the reading keys to the item, and stacked queue and
 item on a phone. It bound the workspace's behavior to one widget and spent its
 weight on scrolling, so none of it shipped except the overflow advice and the
-guidance above.
+instructions above.
 
 ## Still open
 

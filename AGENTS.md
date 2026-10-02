@@ -66,7 +66,7 @@ better app, and say in the commit which behavior moved.
 
 The written contracts do not constrain new code either. No package, host, or
 integration exists outside this repository, so every reader of
-`skills/leaf/references/`, a package's guidance, or a protocol sidecar is in
+`skills/leaf/references/`, a package's instructions, or a protocol sidecar is in
 this tree. What those files state is what the code does now, and a promise to
 nobody. When a change is simpler under a different contract, whether that is
 an id's form, an event's shape, a command's output, or what a host is told
@@ -128,7 +128,7 @@ and Codex install the tracked tree whole.
 - `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/hooks.json`: the shared host hooks;
-- `evals/`: cases a headless agent answers, scoring the shipped guidance;
+- `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
@@ -158,7 +158,7 @@ For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
 for agents that use Leaf or extend its package interface.
 
-### Where guidance lives
+### Where instructions lives
 
 The sections above **Repository map** are the maintainer's direction; change them
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
@@ -296,10 +296,10 @@ Before finishing a feature:
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
-  other references point at that section by name. Shipped guidance sets goals
+  other references point at that section by name. Shipped instructions sets goals
   for the user's experience and names the surface they read on; it leaves
   format and phrasing to the agent. Score the change with `evals/` before and
-  after (`/developing-leaf`, "Score a guidance change").
+  after (`/developing-leaf`, "Score an instruction change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and

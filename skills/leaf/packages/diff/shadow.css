@@ -284,7 +284,7 @@
                           overscroll-behavior-x: auto;
                           --diffs-code-grid: var(--diffs-grid-number-column-width)
                                              minmax(var(--lf-diff-row-fill, max-content), 1fr); }
-:scope:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
+:scope:host(.lf-rendered) .lf-diff-fold > pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */

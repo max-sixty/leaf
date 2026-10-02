@@ -328,9 +328,71 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-head .lf-edited { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
+/* Prose faces reach the document and the layer's reading regions in declared
+ * shadow trees. A widget's own source or controls keep its own sheet. */
+:where(:root, .lf-thread-transcript) a { color: var(--accent); text-underline-offset: var(--link-underline-offset);
+    text-decoration-color: var(--link-underline); }
+:where(:root, .lf-thread-transcript) a:hover { text-decoration-color: currentColor; }
+/* An identifier breaks where it must. A test name or a path is one word to the line
+ * breaker, and a word a box cannot hold is either drawn past the box or holds the
+ * box to its own width — in a table cell the latter: a column of 79-character test
+ * names beside a column of prose held its column at 583px of the 720px measure, the
+ * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
+ * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
+ * because only `anywhere` counts the break when a box's minimum is measured, and a
+ * table's columns are sized from exactly that: with it the same table stood
+ * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
+ * because a cell's minimum is its longest word, and that is what keeps a column of
+ * row names from being squeezed under the prose beside it — with every cell
+ * breakable the same table's row names measured 55px. The minimum is what every
+ * shrinking box is sized from, so a flex item or a grid track holding a long name
+ * hands room to its neighbour the same way (a flex item measured 691px to 359px).
+ * A block (pre) wraps nothing, so this reaches nothing there.
+ *
+ * Slice the decoration across lines so side padding belongs only to the span's
+ * start and end. Cloning each fragment adds padding after line breaking and can
+ * paint past the column. */
+/* Inline code keeps the line's flow and can fragment with its words. Declared
+   widget trees may carry a source renderer's bare code reset (Pierre's base layer
+   sets block display, content containment and isolation); this reading face owns
+   those properties too. */
+:where(:root, .lf-thread-transcript) code { background: var(--code-bg); border-radius: var(--code-inline-r);
+       padding: var(--code-inline-pad); font-size: var(--code-inline-size);
+       font-family: var(--mono); overflow-wrap: anywhere;
+       box-decoration-break: slice; display: inline; contain: none; isolation: auto; }
+/* A code block is sized by how many characters it takes across, which is why its size
+ * is off the serif ladder above. At --code-size, the column keeps comfortably more
+ * than the 80 characters most source is written to.
+ *
+ * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
+ * shadow tree must keep one density through upgrade. */
+:where(:root, .lf-thread-transcript) pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
+      padding: 12px var(--pre-inset); overflow-x: auto; font-size: var(--code-size);
+      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
+      font-variant-ligatures: none;
+      /* A block that scrolls its own lines never sizes what holds it: without this a
+       * long line is every flex item's and grid track's minimum up the tree. */
+      contain: inline-size; }
+:where(:root, .lf-thread-transcript) pre > code { background: none; padding: 0; font-size: 100%; }
+/* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
+   wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
+   makes for its rows. `anywhere` because what runs long in source is paths, URLs and
+   minified data, none of which offer the line box a break to find. `overflow-x` is left
+   alone: once the line wraps there is nothing to scroll, and releasing the clip would
+   only let what cannot wrap paint out through the block's own border. A rule that
+   restates `white-space` for its own box states the paper half beside itself, because
+   naming that box here would tie on specificity and lose on source order, and `@media`
+   contributes nothing to break the tie. */
+@media print {
+  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
+:where(:root, .lf-thread-transcript) blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
+             border-left: var(--quote-rule); color: var(--muted);
+             font-style: var(--quote-style); --lf-block-frame: 1; }
 /* Messages share their reading hierarchy and compact Markdown on every surface,
    including a thread seated inside a widget's shadow tree. */
-  .lf-msg-body { --quote-inset: 10px; --pre-inset: 10px; min-width: 0; font-size: var(--t-5); margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
+  :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
+  .lf-msg-body { min-width: 0; font-size: var(--t-5); margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
   .lf-msg-text { display: contents; }
   .lf-msg-text > :first-child { margin-top: 0; }
   .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }

@@ -275,10 +275,15 @@ customElements.define(
 
     #watchDraft() {
       if (quoted(this) || !this.#margin) return;
-      this.#stopDraft ??= watchDraft(ctx(this.id), (text) => {
-        if (text === null) this.#close(false);
-        else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
-      });
+      this.#stopDraft?.();
+      this.#stopDraft = watchDraft(
+        ctx(this.id),
+        (text) => {
+          if (text === null) this.#close(false);
+          else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
+        },
+        { input: this.#ta },
+      );
     }
 
     #offer() {
@@ -620,6 +625,7 @@ customElements.define(
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
       this.#ta = ta;
+      this.#watchDraft();
       commands(ta, this.#commandScope);
       this.#body.after(ta);
       this.#refreshMargin();
@@ -646,6 +652,7 @@ customElements.define(
         this.#margin?.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
+      this.#watchDraft();
       this.#failed = false;
       this.#refreshMargin({
         immediate: stood,

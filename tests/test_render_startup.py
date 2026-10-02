@@ -1552,6 +1552,9 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         error for error in errors if "interaction gallery failed to start" in error
     ]
     assert len(matching) == 1, errors
+    assert (
+        len([error for error in errors if "optional sibling failed" in error]) == 1
+    ), errors
 
 
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(

@@ -48,7 +48,7 @@ import { pageScroller } from "./scrolling.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
 import { reveal } from "./widget-elements.js";
-import { retainUserIntent } from "./user-intent.js";
+import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { standingPoint } from "./pointed-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
@@ -70,9 +70,9 @@ export function createAnchorTravel({
   announce,
 }) {
   let travelIntent = 0;
-  const retainTravel = () => {
+  const retainTravel = (retained = retainUserIntent()) => {
     const intent = ++travelIntent;
-    return retainUserIntent({ available: () => intent === travelIntent });
+    return restrictUserIntent(retained, () => intent === travelIntent);
   };
 
   // A push leaves the current scroll position on the entry it leaves, and Back
@@ -395,9 +395,9 @@ export function createAnchorTravel({
 
   async function scrollToThread(
     id,
-    { focus = null, keep = false, presented = null } = {},
+    { focus = null, keep = false, presented = null, intent } = {},
   ) {
-    const mayArrive = retainTravel();
+    const mayArrive = retainTravel(intent);
     const thread = currentThreads().find((candidate) => candidate.id === id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;

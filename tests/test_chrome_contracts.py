@@ -7,6 +7,7 @@ import time
 from urllib.parse import urljoin
 
 import pytest
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
 from leaf.render_checks import rendered
@@ -26,7 +27,7 @@ from render_cases_layout import (
     token_colour,
     with_one_ask,
 )
-from render_cases_navigation import _publish
+from render_cases_navigation import _publish, source_revision
 from render_harness import (
     LONG_PAGE,
     CutOff,
@@ -41,6 +42,7 @@ from render_harness import (
     panel_settled,
     resized,
     scroll_settled,
+    select,
     sending,
     told,
     watched,
@@ -2006,7 +2008,11 @@ FACE = [
 ]
 
 
-def test_a_draft_wears_the_faces_its_sent_message_wears(browser, serve):
+@pytest.mark.parametrize("surface", ["general", "panel", "margin", "outlet"])
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_draft_wears_the_faces_its_sent_message_wears(
+    browser, serve, surface, scheme
+):
     """The composer's Markdown preview draws each construct the way the message will.
 
     The preview stands in the field's closed shadow root, where the theme's element
@@ -2015,16 +2021,68 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(browser, serve):
     heavy dark rule was sent italic with a light one, and code sat a size and a chip
     shape away from how it arrived. DevTools reads the closed root, as it reads any.
     """
-    url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, MARKDOWN, {"section": "p0"})
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").first.click()
-    body = page.locator(".lf-msg-body").first
+    if surface == "outlet":
+        url = serve(
+            leaf_page(
+                "Draft faces",
+                "<h1>Draft faces</h1>"
+                '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+            )
+        )
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "review-patch",
+            """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+        )
+        anchor = {
+            "section": "patch",
+            "datum": '["app.py","new",1]',
+            "source": "review-patch",
+            "source_revision": source_revision(serve.page_dir, "review-patch"),
+        }
+    else:
+        url = serve(LONG_PAGE)
+        anchor = {"section": "p0"}
+    panel_comment(serve.page_dir, MARKDOWN, anchor)
+    page = open_page(browser, url, color_scheme=scheme)
+    if surface == "outlet":
+        thread = page.locator("#patch .lf-page-thread")
+        box_selector = "#patch .lf-thread-reply leaf-text"
+    elif surface == "margin":
+        resized(page, 1440, 900)
+        page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+        thread = page.locator(".lf-margin-preview .lf-page-thread")
+        box_selector = ".lf-margin-preview .lf-thread-reply leaf-text"
+    else:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        page.locator(".lf-thread-summary").first.click()
+        thread = page.locator(".lf-thread[open]")
+        box_selector = (
+            ".lf-general leaf-text"
+            if surface == "general"
+            else ".lf-thread[open] .lf-thread-reply leaf-text"
+        )
+    body = thread.locator(".lf-msg-body").first
     expect(body.locator("blockquote")).to_be_visible()
-    box = page.locator(".lf-general leaf-text")
+    # A source renderer can leave the code's colors correct while turning an inline
+    # phrase into a separate block. Read its line beside the preceding prose too.
+    flow = body.locator("p code").evaluate("""code => {
+      const words = document.createRange();
+      words.selectNode(code.previousSibling);
+      return {words: words.getBoundingClientRect().top,
+              code: code.getBoundingClientRect().top};
+    }""")
+    assert flow["code"] == pytest.approx(flow["words"], abs=4), flow
+    box = page.locator(box_selector)
     write(box, MARKDOWN)
+    box.evaluate("box => box.id = 'draft-face-editor'")
 
     sent = body.evaluate(
         """(body, [faces, face]) => Object.fromEntries(Object.entries(faces)
@@ -2039,13 +2097,10 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(browser, serve):
     cdp.send("DOM.enable")
     cdp.send("CSS.enable")
     document = cdp.send("DOM.getDocument", {"depth": -1, "pierce": True})["root"]
-    host = cdp.send(
-        "DOM.querySelector",
-        {"nodeId": document["nodeId"], "selector": ".lf-general leaf-text"},
-    )["nodeId"]
 
     def find(node):
-        if node["nodeId"] == host:
+        attrs = node.get("attributes", [])
+        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
             return node
         for child in node.get("children", []) + node.get("shadowRoots", []):
             if found := find(child):
@@ -2090,6 +2145,37 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(browser, serve):
         for name in FACES
     }
     assert not any(differ.values()), differ
+
+
+def test_words_in_a_threaded_page_element_stay_selectable_beside_threads(
+    browser, serve
+):
+    """Selecting annotated page text outranks the panel's selected thread.
+
+    The panel's thread highlight must not reclaim focus during a native drag. The
+    resulting passage, rather than that selected thread, is what c comments on.
+    """
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Discuss this paragraph.", {"section": "p0"})
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.click()
+    paragraph = page.locator("#p0")
+    rect = paragraph.bounding_box()
+    select(
+        page,
+        (rect["x"] + 2, rect["y"] + 8),
+        (rect["x"] + min(rect["width"] - 2, 250), rect["y"] + 8),
+    )
+    selected = page.evaluate("getSelection().toString()")
+    assert selected.strip() and selected in paragraph.inner_text()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text(selected)
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
 
 
 # A wide page of a body and its side track: a long body beside a short side track, the

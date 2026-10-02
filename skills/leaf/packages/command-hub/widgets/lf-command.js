@@ -3,15 +3,15 @@
  * one answer about progress and workers.
  *
  * The three readings are panels that stand open, each titled by what it counts. They
- * head the command, or fill the lf-command-readings that names it, so a wide page lays the
- * tree in its body and the readings in the rail beside it. The command owns the panels
- * it drew wherever they stand: each paint puts them at the head of the current seat, so
- * a seat that arrives or leaves moves them rather than stranding one copy and drawing
- * another, and a seat tells its command when it connects or disconnects. A command
- * that disconnects takes its panels with it, so a seat never holds a departed
- * command's readings beside its replacement's. The seat is
- * looked up in the command's own authored document, so a message quoting a seat does
- * not take the page's readings. */
+ * fill a seat: the lf-command-readings the command's `readings` names, so a wide page
+ * lays the tree in its body and the readings in the rail beside it, or else one the
+ * command draws at its own head (`band`). The command owns the panels it drew wherever
+ * they stand: each paint puts them at the head of the current seat, so a seat that
+ * arrives or leaves moves them rather than stranding one copy and drawing another, and
+ * a seat tells its command when it connects or disconnects. A command that disconnects
+ * takes its panels with it, so a seat never holds a departed command's readings beside
+ * its replacement's. The seat is looked up in the command's own authored document, so
+ * a command quoted in a message does not take the page's seat. */
 import {
   PRESS,
   threadBox,
@@ -78,14 +78,41 @@ function draw(plan, cls, box) {
   drawn.get(plan).set(cls, box);
 }
 
-// Where the readings stand: the lf-command-readings naming this command in its own
-// document, or the command.
-const home = (plan) =>
-  authoredScope(plan).querySelector(`lf-command-readings[for="${plan.id}"]`) ?? plan;
+// The seat a command draws at its own head when the page places none. Which goals are
+// stopped and which workers live or have gone quiet is the log's and the clock's to say,
+// so no first paint knows the readings' size: the theme holds every seat at one fixed
+// height from the first paint, scrolling inside it, so readings arriving move nothing
+// (assets/AGENTS.md, "Stability"). The scrolling is the layer's bound, which the tag
+// declares (x-bound): delivery paints it on a seat the page places, and the command
+// paints it here on the one it makes.
+const bands = new WeakMap();
 
-// Put the drawn panels, in reading order, at the head of their home. A panel already in
-// place is not moved, so a paint that changes nothing about the seat moves nothing.
+function band(plan) {
+  if (!bands.has(plan)) {
+    const box = document.createElement("lf-command-readings");
+    box.dataset.lfGen = "1";
+    keeps(box, "data-lf-bound", declarationFor(box, "x-bound"));
+    bands.set(plan, box);
+  }
+  return bands.get(plan);
+}
+
+// Where the readings stand: the lf-command-readings this command's `readings` names in
+// its own document, or else the band at its head.
+function home(plan) {
+  const id = plan.getAttribute("readings");
+  const named =
+    id && authoredScope(plan).querySelector(`lf-command-readings[id="${id}"]`);
+  return named || band(plan);
+}
+
+// Put the drawn panels, in reading order, at the head of their home, and the band at
+// the head of the command only while it is that home. Nothing already in place is
+// moved, so a paint that changes nothing about the seat moves nothing.
 function seat(plan, at = home(plan)) {
+  const own = band(plan);
+  if (at !== own) own.remove();
+  else if (plan.firstChild !== own) plan.prepend(own);
   let cursor = at.firstChild;
   for (const cls of VIEWS) {
     const box = view(plan, cls);
@@ -563,10 +590,10 @@ customElements.define(
     disconnectedCallback() {
       this.#stop?.();
       this.#stop = null;
-      if (drawn.has(this)) seat(this, this);
+      if (drawn.has(this)) seat(this, band(this));
     }
 
-    // A seat naming this command connected or disconnected in its document.
+    // The seat this command's `readings` names connected or disconnected.
     reseat() {
       if (!this.isConnected || !drawn.has(this)) return;
       const restoreFocus = projectionFocus(this);

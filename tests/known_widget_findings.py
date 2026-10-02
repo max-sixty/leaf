@@ -7,14 +7,6 @@ deletes its entry, so the list only shrinks. A widget joins only as a defect to 
 never as behavior to keep."""
 
 KNOWN = {
-    # A command's readings hold a row for each stopped goal and each live worker, and a
-    # tile for quiet ones. The command model reads which goals are stopped and which
-    # workers live from the log (reports, open Asks, held threads) and which are quiet
-    # from the clock. First paint has neither, so it cannot hold the readings' room.
-    "command-hub": {
-        ("lf-command", "keeps-first-box"),
-        ("lf-command-readings", "keeps-first-box"),
-    },
     "default": {
         # What these draw is the page's state, which arrives with the first state
         # answer after the first paint and which the served document does not carry:

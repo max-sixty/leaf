@@ -5466,7 +5466,12 @@ stateDiagram-v2
 
       <section class="panel" id="hub-tree">
         <h2>Plan</h2>
-        <lf-command id="hub-plan" label="One clean shadow week" phase="week 3 of 6">
+        <lf-command
+          id="hub-plan"
+          label="One clean shadow week"
+          phase="week 3 of 6"
+          readings="hub-readings"
+        >
           <lf-agent id="atlas-lead" state="working">
             <strong>atlas-lead</strong> Coordinates the whole rewrite: routes decisions,
             watches progress, and changes focus wherever the tree needs it. Its
@@ -5715,7 +5720,7 @@ stateDiagram-v2
       </section>
 
       <aside id="hub-rail">
-        <lf-command-readings id="hub-readings" for="hub-plan"></lf-command-readings>
+        <lf-command-readings id="hub-readings"></lf-command-readings>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
           <p>

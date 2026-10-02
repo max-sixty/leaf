@@ -326,19 +326,18 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="hub">'
+        '<lf-command id="hub" readings="goal">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
         "</lf-agent></lf-task></lf-command>"
-        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='command'" in errors[1]
+    assert "$command.widgets widget where role='readings'" in errors[0]
+    assert "$command.widgets widget where role='goal'" in errors[1]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -724,6 +723,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
     subjects = (
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+        '<lf-command-readings id="seat"></lf-command-readings>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -749,11 +749,11 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
+    swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='command'" in swapped.output
+    assert "where role='readings'" in swapped.output
 
-    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
+    valid = reply('<lf-command id="quoted" readings="seat"></lf-command>')
     assert valid.exit_code == 0, valid.output
 
 

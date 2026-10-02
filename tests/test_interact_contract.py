@@ -1596,6 +1596,78 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         assert vocabulary["lf-local"] == declaration
 
 
+@pytest.mark.parametrize("active_ask", [True, False])
+def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
+    """An old tab validates under its capture and changes the current page's debt."""
+    from leaf.session_cleanup import write_json
+
+    layer = deepcopy(registry_storage.load_registry(page_dir))
+    awaits = layer["lf-options"].pop("x-awaits")
+
+    def publish_choice(has_ask, version):
+        vocabulary = deepcopy(layer)
+        if has_ask:
+            vocabulary["lf-options"]["x-awaits"] = awaits
+        write_json(page_dir / "registry.json", vocabulary)
+        group = (
+            '<lf-options id="choice" choose>'
+            '<lf-option id="first">First</lf-option>'
+            '<lf-option id="second">Second</lf-option></lf-options>'
+        )
+        if has_ask:
+            group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
+        (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
+        publish(page_dir, version=version)
+
+    publish_choice(not active_ask, 1)
+    original = files_model.latest_revision(page_dir)
+    publish_choice(active_ask, 2)
+    assert files_model.latest_revision(page_dir) > original
+
+    action = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": original,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["first"]},
+        },
+    )
+    assert action["attention"] is active_ask
+    assert ("answer" in action["meaning"]) is not active_ask
+    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
+        [action] if active_ask else []
+    )
+
+
+def test_wakeup_uses_the_recorded_identity_after_an_undo(page_dir):
+    publish(page_dir)
+    reaction = append_command(
+        page_dir,
+        {
+            "id": "pending",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+        },
+    )
+    append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": reaction["id"]}
+    )
+    fresh = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Fresh input"},
+    )
+    assert fresh["id"] != reaction["id"]
+    assert fresh["attention"]
+    assert service_model.unacknowledged(
+        events_model.read_events(page_dir), fresh["seq"] - 1
+    ) == [fresh]
+
+
 def test_page_registry_cache_follows_layer_and_widget_files(page_dir):
     first = registry_storage.read_page_registry(page_dir)
     assert registry_storage.read_page_registry(page_dir) is first

@@ -88,7 +88,8 @@ Admission stamps `attention`: whether the input changes the agent's pending
 Asks and textual prompts, pending answers, effective subject claims and their
 standing inputs, or sign-off approval.
 `workflows.obligation_reading` compares those canonical readings before and after
-the gesture, while the append transaction still holds the current claims. The
+the gesture under the active revision's vocabulary, while the append transaction
+still holds the current claims. The
 decision survives later replies, versions and status writes: a cancellation
 already delivered to the carrier stays input even after the work it withdrew ends.
 Reports and errors always carry attention; agent messages do not. `leaf wait`,
@@ -107,7 +108,8 @@ and the transcript.
 `event_contracts.append_admitted` admits every writer's event under the page
 transaction's lease. It returns an accepted retry without repeating the gesture;
 otherwise it reads the named revision's vocabulary, checks that the kind is
-declared, runs its gates against the page and standing log, derives server-owned
+declared, allocates the event's unique identity, runs its gates against the page
+and standing log, derives server-owned
 meaning and `attention`, and validates the record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
 A refusal returns a command error or a final HTTP 400. A fault raises instead, since

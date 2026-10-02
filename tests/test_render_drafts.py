@@ -196,7 +196,7 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
 ):
     """A message's public widget keeps its native input across the thread's pointer-up."""
     url = serve(LONG_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -205,7 +205,7 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "text": "Review the patch.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -225,7 +225,7 @@ diff --git a/reading.py b/reading.py
         },
     )
     for index in range(8):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -4490,7 +4490,7 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     told(page)
     before_reading = page.locator("body").get_attribute("data-lf-reading")
     page.route("**/api/state**", hold_later_readings)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "id": "installation-evidence",

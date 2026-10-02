@@ -10,7 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
-from leaf.event_log import EventRefused, Refusal
+from leaf.event_log import EventRefused, Refusal, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -42,10 +42,9 @@ from leaf.structure import review_mode
 from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
-# record, so it supplies placeholders for the three fields that cannot exist
-# until the write: an id proved unique against this log, the moment it landed,
-# and its line number. A caller that supplies one of them is held to the
-# contract's own reading of it.
+# record, so pre-admission shape checks supply representative envelope fields.
+# Semantic admission allocates the real identity before folding the candidate.
+# A caller supplying an envelope field is held to the contract's reading of it.
 APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
 
 
@@ -624,6 +623,8 @@ def admitted_event(view, events: list, event: dict) -> dict:
     kind = event.get("kind")
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
+    if "id" not in event:
+        event = {**event, "id": new_event_id(events)}
     readings = AdmissionReadings(view, events, registry)
     if error := admission_error(view, events, event, registry, readings):
         raise EventRefused(error)
@@ -647,8 +648,14 @@ def admitted_event(view, events: list, event: dict) -> dict:
             "seq": events[-1]["seq"] + 1 if events else 1,
         }
         claims = view.claims
-        attention = obligation_reading(readings, claims) != obligation_reading(
-            AdmissionReadings(view, [*events, candidate], registry), claims
+        # The sender's vocabulary validates its command; the active vocabulary
+        # decides what that command changes for the page the agent owes now.
+        revisions = view.revisions
+        active_registry = view.registry(revisions[-1] if revisions else None)
+        before = AdmissionReadings(view, events, active_registry)
+        after = AdmissionReadings(view, [*events, candidate], active_registry)
+        attention = obligation_reading(before, claims) != obligation_reading(
+            after, claims
         )
     event = {**event, "attention": attention}
     return event

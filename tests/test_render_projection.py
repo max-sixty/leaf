@@ -1956,7 +1956,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
         + "</p></main>",
     )
     url = serve(source)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2017,7 +2017,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
     kept()
 
     reply = "\n\n".join(["The first job needs a careful explanation."] * 12)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

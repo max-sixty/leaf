@@ -39,7 +39,13 @@ from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
+from .revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    authored_imports,
+    bind_imports,
+    rewrite_css,
+)
 from .schema import (
     BROWSER_DIRS,
     DECLARED_MARKS,
@@ -380,6 +386,28 @@ def deliver_resource(resource: Resource, logical_path: str, address: Address) ->
             "utf-8"
         )
     return resource.data
+
+
+def delivered_resource(
+    artifact: RevisionArtifact, logical_path: str, address: Address
+) -> Resource | None:
+    """One resource as an HTTP or static host serves it, including widget aliases.
+
+    Aliases re-export the addressed captured implementation rather than copying
+    its module: loading either path then shares one module instance. Ordinary
+    resources are rebased against their own captured path, and a missing path
+    remains absent for the transport to report.
+    """
+    source = artifact.widget_aliases.get(logical_path, logical_path)
+    if source != logical_path:
+        return Resource(
+            f"export * from {json.dumps(address(source))};\n".encode(),
+            "application/javascript",
+        )
+    resource = artifact.resources.get(source)
+    if resource is None:
+        return None
+    return Resource(deliver_resource(resource, source, address), resource.mime)
 
 
 def delivery_identity(

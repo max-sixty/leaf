@@ -138,6 +138,19 @@ class RevisionArtifact:
         return json.loads(self.manifest)["implementations"]
 
     @cached_property
+    def widget_aliases(self) -> dict[str, str]:
+        """The loader's widget module paths, mapped to their captured implementations.
+
+        A page-owned implementation lives under `/page/`, but every widget is
+        loaded through `/widgets/<tag>.js`. HTTP, publication and offline export
+        read these aliases from the same captured provenance.
+        """
+        return {
+            f"/widgets/{tag}.js": implementation["path"]
+            for tag, implementation in self.implementations.items()
+        }
+
+    @cached_property
     def executable(self) -> str | None:
         """What this revision is as executable code, or nothing where it predates the field.
 

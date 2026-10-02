@@ -158,6 +158,8 @@ ACTION_CREATES = {
 # One package-neutral relation shape for authored attributes. An empty object accepts
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
+# `owns` makes the relation one-to-one within a document: the referrer fills its
+# target (`validation.instances.reference_errors`).
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -176,8 +178,9 @@ REFERENCE_SCHEMA = {
                     "type": ["string", "number", "boolean", "null"]
                 },
             },
+            "owns": {"const": True},
         },
-        "dependentRequired": {"via": ["where"], "where": ["via"]},
+        "dependentRequired": {"via": ["where"], "where": ["via"], "owns": ["via"]},
         "additionalProperties": False,
     },
 }
@@ -243,12 +246,12 @@ AWAITS_SCHEMA = {
     },
     "additionalProperties": False,
 }
-# A list of the widget's own attribute names. One shape for the three keys that hold
-# one, since the shape is a consequence of what they name rather than three decisions.
-GUIDANCE_SCHEMA = {
+# Package and data-contract instructions address their declared audiences. Widget
+# authoring instructions have one reader and therefore use a plain string below.
+INSTRUCTIONS_SCHEMA = {
     "type": "object",
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {"type": "string", "minLength": 1},
+    "additionalProperties": {"type": "string", "pattern": r"\S"},
 }
 DATA_INPUTS_SCHEMA = {
     "type": "object",
@@ -316,7 +319,7 @@ EXTENSION_SCHEMA = {
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
-        "x-guidance": GUIDANCE_SCHEMA,
+        "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
@@ -467,12 +470,12 @@ BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
-GUIDANCE_DIR = "guidance"
-PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+INSTRUCTIONS_DIR = "instructions"
+PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
 # package is installed or bundled. A page never vendors them: they are the agent's.
 SCRIPTS_DIR = "scripts"
-GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
+INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
@@ -543,7 +546,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
-# and event-backed version addresses. Agent-side guidance stays vendored but is read
+# and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.

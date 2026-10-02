@@ -988,10 +988,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-block-end-color: transparent; margin-bottom: 0; }
   /* The summary is the thread's title and focus stop in both disclosure states. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
-    background: var(--card); border-radius: 0; }
+    --lf-thread-surface: var(--card); background: transparent; border-radius: 0; }
+  .lf-thread-compact > :is(.lf-thread-summary, .lf-thread-content),
+  .lf-thread-compact > :is(.lf-compose, .lf-thread-actions) { background: var(--lf-thread-surface); }
+  .lf-thread-compact[open]:has(> .lf-compose) > .lf-thread-content {
+    display: flex; flex-direction: column; }
   .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     align-items: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
-    padding: 4px 8px; background: transparent; color: var(--ink);
+    padding: 4px 8px; background: var(--lf-thread-surface); color: var(--ink);
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
   .lf-thread-summary::-webkit-details-marker { display: none; }
@@ -1030,16 +1034,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-recency { font-size: 10px; }
   /* One inset serves the quote, messages and composer. Author, time and delivery
      form one quiet header. */
-  .lf-thread-compact > .lf-thread-head { margin: 12px 8px; }
-  .lf-thread-compact > .lf-thread-root-meta { margin: 12px 8px 0; }
-  .lf-thread-compact > .lf-msg { margin: 16px 8px; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px 8px; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-root-meta { margin: 12px 8px 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-msg { margin: 16px 8px; }
   .lf-thread-compact .lf-msg-head { display: flex; align-items: baseline; gap: 8px; }
   .lf-thread-root-meta { display: flex; align-items: center; gap: 8px; }
   .lf-thread-root-meta > .lf-msg-head { display: contents; }
   .lf-thread-root-meta > b { color: var(--ink); font-size: 11px; font-weight: 600; }
   /* The root message's header stands in the row above, so its body's own top margin is
      the space under that row, whether or not it collapses through the message. */
-  .lf-thread-root-meta + .lf-msg { margin-top: 0; }
+  .lf-thread-compact .lf-thread-root-meta + .lf-msg { margin-top: 0; }
   .lf-thread-compact .lf-msg-head > b { color: var(--ink); font-size: 11px;
     font-weight: 600; overflow-wrap: anywhere; }
   /* The panel's own header may wrap its labels over the accordion's narrow column.
@@ -1077,7 +1081,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      It stands at the list's foot, and replies grow above it: news never moves it or the
      caret in it. An open card fills the list's landing band at least, and under its
      title the thread is a column whose free room lies between the last message and the
-     box, so later cards wait below the fold. Where the card runs past the fold the box
+     box, so later cards wait below the fold. That unused room is panel space: only
+     the title, content and reply row paint the thread surface. Where the card runs past the fold the box
      pins at the list's visible foot, over its foot padding, so nothing scrolls visibly
      beneath it and a status reserving more of that foot moves nothing; the column is
      its containing block, so it never pins over the title. Its own padding is the room
@@ -1087,15 +1092,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      would resize it for news, and rounds down to the whole pixels the band is measured
      in, so it lands whole. A column does not collapse margins, so the boxes that set
      one below keep only the space above them. */
-  .lf-thread-compact > .lf-compose { margin: auto 8px 0; padding: 16px 0 8px;
-    position: sticky; bottom: calc(-1 * var(--lf-list-foot)); background: inherit; }
+  .lf-thread-compact > .lf-compose { margin: auto 0 0; padding: 16px 8px 8px;
+    position: sticky; bottom: calc(-1 * var(--lf-list-foot)); }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-compose) { display: flex;
     flex-direction: column; box-sizing: border-box;
     min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
   .lf-thread-compact[open]:has(> .lf-compose)::details-content { display: flex;
-    flex: 1; flex-direction: column; background: inherit; }
+    flex: 1; flex-direction: column; }
   .lf-thread-compact[open]:has(> .lf-compose)
-    > :is(.lf-thread-head, .lf-msg, .lf-thread-checkpoint) { margin-block-end: 0; }
+    > .lf-thread-content > :is(.lf-thread-head, .lf-msg, .lf-thread-checkpoint) { margin-block-end: 0; }
   .lf-thread-compact > .lf-compose .lf-compose-field {
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
   }
@@ -1116,7 +1121,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the bounded panel representation of that passage; painting the card made a long
      thread one off-screen wash. The fallback keeps a custom theme without the
      middle ramp token legible at its strongest mark wash. */
-  .lf-thread.lf-mark-hover > .lf-thread-head > .lf-quote {
+  .lf-thread.lf-mark-hover > .lf-thread-content > .lf-thread-head > .lf-quote {
     background: var(--mark-hover, var(--mark-strong));
   }
   .lf-quote-label { min-width: 0; }
@@ -1141,7 +1146,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
   /* The card of the comment the user is standing in, which is the panel's half of
      the pair the page paints as lf-mark-here. A thread is a composite region: the
-     quiet ground says the user is in this card, whichever control inside it holds
+     quiet ground on its content says the user is in this card, whichever control inside it holds
      focus and whether they arrived by key or pointer, so :focus-within paints it and
      keeps the two halves paired. The card itself holding the keyboard's focus is the
      walk's landing and the card's own presses — Enter, r — act on it, so it wears the
@@ -1149,7 +1154,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      over that same ground. */
   .lf-thread:is(:focus-within, .lf-focus-within) {
     outline: none;
-    background: var(--focus-surface);
+    --lf-thread-surface: var(--focus-surface);
   }
   .lf-quote { margin: 0 0 12px; padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2); color: var(--muted);

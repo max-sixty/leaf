@@ -3042,7 +3042,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     first.locator(".lf-thread-summary").click()
     page.mouse.move(2, 2)
     expect(first).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
-    first_quote = first.locator(":scope > .lf-thread-head > .lf-quote")
+    first_quote = first.locator(".lf-thread-head > .lf-quote")
     resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
     quote_resting = first_quote.evaluate(
         "element => getComputedStyle(element).backgroundColor"
@@ -3112,7 +3112,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
     thread.locator(".lf-thread-summary").click()
     page.mouse.move(2, 2)
     expect(thread).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
-    quote = thread.locator(":scope > .lf-thread-head > .lf-quote")
+    quote = thread.locator(".lf-thread-head > .lf-quote")
     card_resting = thread.evaluate(
         "element => getComputedStyle(element).backgroundColor"
     )
@@ -4421,12 +4421,11 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("t")
+    comment_note(page, "#p").press("Enter")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
-    # The pointer opened this view and the walk stepped within it, so the walk made no
-    # frame and the Page Map rung is the way out; a sequence armed afterwards is an inner
-    # interaction and Escape cancels that sequence first.
+    # The note reopened this view without a trip, so the Page Map rung is the way out.
+    # A sequence armed afterward is an inner interaction; Escape cancels it first.
     page.keyboard.press("g")
     assert "cancel" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
@@ -4442,7 +4441,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("t")
+    comment_note(page, "#p").press("Enter")
     expect(thread).to_be_focused()
     page.keyboard.press("t")
     expect(second).to_be_focused()
@@ -4456,7 +4455,11 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("Shift+t")
+    # Enter the known source before testing the directional walk. After Escape,
+    # that walk starts from the visible passage rather than a saved card cursor.
+    comment_note(page, "#p").press("Enter")
+    expect(thread).to_be_focused()
+    page.keyboard.press("t")
     expect(second).to_be_focused()
     page.keyboard.press("Shift+t")
     expect(thread).to_be_focused()
@@ -4490,8 +4493,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
               const blocks = [...thread.querySelectorAll(
-                ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
-                ':scope > .lf-msg .lf-msg-text > *'), compose]
+                ':scope > *, :scope > .lf-thread-content > *, .lf-msg .lf-msg-body > *, ' +
+                '.lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
                   top: block.getBoundingClientRect().top,

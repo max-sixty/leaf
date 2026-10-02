@@ -17,7 +17,7 @@ execution:
     http://127.0.0.1:8123/?t=abc. Now hand it off, following the leaf skill for this
     host; the user expects to comment a few hours from now.
 
-    Read whatever guidance you need. Only Skill and Read run here, so write out each
+    Read whatever instructions you need. Only Skill and Read run here, so write out each
     other tool call you would make before your closing message, as the tool's name
     and its full JSON input, then give the closing message itself.
 graders:

@@ -3419,13 +3419,14 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
     };
   })"""
 
-# Each disclosure and whether the sheet shows what it holds.
+# Each disclosure and whether the sheet shows its authored content. Injected controls
+# may sit beside that content for keyboard order, but are intentionally absent on paper.
 DISCLOSURES = """() => [...document.querySelectorAll('details')]
   .filter(d => !d.closest('.lf-chrome'))
   .map(d => ({
     open: d.open,
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY')
+    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
   }))"""
 

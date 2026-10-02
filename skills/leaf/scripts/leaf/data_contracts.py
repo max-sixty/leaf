@@ -60,7 +60,7 @@ def declared_data_bindings(
 def _contract_semantics(registry: dict, contract: str) -> tuple[dict, dict | None]:
     """The validation and record meaning of one contract.
 
-    Descriptions and agent guidance may improve without changing what a source value
+    Descriptions and agent instructions may improve without changing what a source value
     means to a pinned document. JSON Schema and the record declaration may not: an
     old document keeps consuming the page's replaceable current value through the
     registry captured with that document.

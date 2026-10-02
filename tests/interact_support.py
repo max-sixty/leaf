@@ -456,15 +456,15 @@ def declare_data_input(
     contract="test-data",
     tag="lf-test-data",
     input_name="data",
-    guidance=None,
+    instructions=None,
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
-    if guidance:
-        declaration["guidance"] = guidance
+    if instructions:
+        declaration["instructions"] = instructions
     registry["$data"]["contracts"][contract] = declaration
     registry[tag] = {
         "description": "A test widget with one external-data input.",

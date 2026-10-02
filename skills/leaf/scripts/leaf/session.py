@@ -1,8 +1,8 @@
 """Agent status and the `leaf wait` watch.
 
-A watch revives the server of a live page it finds dead, so this module sits
-above the HTTP servers (`hosting`). Receipt, which every carrier shares, is
-`delivery`'s, so a host hook confirms input without importing a server."""
+A watch discovers its pages before loading delivery or page projections, and
+loads the HTTP server only to revive a dead one. Status writes use those same
+projections without importing a server. Receipt remains `delivery`'s."""
 
 import contextlib
 import json
@@ -12,23 +12,17 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .activity import blocking_obligations, unanswered
-from .delivery import batch_data, freeze_delivery, receive_delivery
 from .detached import StartRefused
-from .event_endpoint import nudge_unwatched
 from .event_log import read_events
 from .files import file_stamp, next_reading, read_json
 from .host import Harness, claim_harness, session_harness
-from .hosting import start_server
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
-from .revisioning import activate_source
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     SERVICE_FILE,
 )
-from .served_state.page import full_state
 from .served_state.reading import page_reading
 from .server import running_server
 from .service import (
@@ -39,7 +33,6 @@ from .service import (
     requires_agent_attention,
     unacknowledged,
 )
-from .work import standing_work_claims, work_subject
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -79,11 +72,16 @@ def cmd_status(
             "working needs a detail naming the work and its subject, such as "
             '"running the browser suite against the new banner"'
         )
+    from .revisioning import activate_source
+    from .served_state.page import full_state
+
     with PageTransaction(page_dir) as page:
         activate_source(page_dir)
         work = None
         if on is not None:
             check_local_claim(state)
+            from .work import standing_work_claims, work_subject
+
             work = work_subject(
                 page_dir,
                 page.events,
@@ -110,6 +108,9 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
     # never took.
     if on is not None:
         check_local_claim("idle")
+    from .activity import blocking_obligations, unanswered
+    from .served_state.page import full_state
+
     with PageTransaction(page_dir) as page:
         events = page.events
         state = full_state(page_dir, events)
@@ -252,6 +253,8 @@ class Watch:
                 continue
 
             try:
+                from .hosting import start_server
+
                 started = start_server(page_dir, revive=True)
             except StartRefused as error:
                 print(error, file=sys.stderr)
@@ -375,6 +378,8 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
 def delivery_json(reading: PageTick, harness: Harness | None) -> str:
     """Freeze and serialize a watcher reading as one delivery envelope."""
+    from .delivery import batch_data, freeze_delivery
+
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         carrier="wait",
@@ -497,7 +502,11 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     """
     if page_dir is not None and ack is not None:
         raise ValueError("PAGE and --ack cannot be used together")
-    received = receive_delivery(ack) if ack is not None else []
+    received = []
+    if ack is not None:
+        from .delivery import receive_delivery
+
+        received = receive_delivery(ack)
     if page_dir is not None:
         claim_page(page_dir)
     harness = session_harness()
@@ -610,5 +619,7 @@ def watch_between_turns(harness: Harness) -> str | None:
                 requires_agent_attention(event)
                 for event in unacknowledged(page.events, page.cursor)
             ):
+                from .event_endpoint import nudge_unwatched
+
                 nudge_unwatched(page)
     return None

@@ -5466,7 +5466,12 @@ stateDiagram-v2
 
       <section class="panel" id="hub-tree">
         <h2>Plan</h2>
-        <lf-command id="hub-plan" label="One clean shadow week" phase="week 3 of 6">
+        <lf-command
+          id="hub-plan"
+          label="One clean shadow week"
+          phase="week 3 of 6"
+          readings="hub-readings"
+        >
           <lf-agent id="atlas-lead" state="working">
             <strong>atlas-lead</strong> Coordinates the whole rewrite: routes decisions,
             watches progress, and changes focus wherever the tree needs it. Its
@@ -5715,7 +5720,7 @@ stateDiagram-v2
       </section>
 
       <aside id="hub-rail">
-        <lf-command-readings id="hub-readings" for="hub-plan"></lf-command-readings>
+        <lf-command-readings id="hub-readings"></lf-command-readings>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
           <p>
@@ -6294,7 +6299,7 @@ expire old keys</code></pre>
                       </li>
                     </ul>
                   </nav>
-                  <section id="queue-guidance">
+                  <section id="queue-instructions">
                     <h4>Queue order</h4>
                     <p>
                       Staff accounts lead. Regional free cohorts follow before paid
@@ -6879,9 +6884,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. The first item's row counts the Ask
-              inside it until you answer; narrow the window below the set's 36rem and
-              the list becomes a row above the item.
+              Walk it with the up and down arrows. Open an item to answer its Ask;
+              narrow the window below the set's 36rem and the list becomes a row above
+              the item.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab

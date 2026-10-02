@@ -14,6 +14,7 @@ from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
+from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel, script_kind
 from leaf.styles import (
@@ -22,7 +23,7 @@ from leaf.styles import (
     inline_style_at,
     scroller_css_advice,
 )
-from leaf.thread_context import sample_events, thread_ids, thread_structure
+from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
@@ -288,12 +289,17 @@ def check_source(
             # A template may precede its seed log, and the selection reads against
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
-            child_events = [
-                {**event, "seq": index}
-                for index, event in enumerate(
-                    sample_events(parent, parent_events, selected), 1
+            try:
+                child_events = (
+                    initial_sample_events(
+                        page_dir, parent, parent_events, sample, registry, contracts
+                    )
+                    if registry is not None
+                    else []
                 )
-            ]
+            except ValueError as error:
+                errors.append(name + str(error))
+                child_events = []
             documents.append((child, child_events, name))
             child_readings = initial_data_document_readings(
                 child.lf_elements, child_events, registry
@@ -305,7 +311,7 @@ def check_source(
                 registry,
                 contracts,
                 child_readings,
-                selected,
+                selected | thread_ids(child_events),
             )
             transition = transition_reading(
                 SourceReading(child, registry), child_events, NO_PREDECESSOR

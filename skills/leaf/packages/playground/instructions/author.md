@@ -15,10 +15,11 @@ body is the playground's Ask, where the stage grows to the window's height. Draw
 candidates on the stage without a card of their own; the stage is their surface.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
-mounted in that preview and renders both from one interaction state, so each control
-edit or custom gesture reaches both. The user should not have to reproduce a drag,
-scroll, reorder, or input sequence in two separate previews. Put measurements that
-affect the decision beside their candidates and derive them from that same state.
+mounted there with the same configuration and starting content. When the candidates
+render one custom input model, apply each drag, scroll, reorder, or edit once and draw
+both from that state; derive their measurements beside them. Live Leaf samples share
+the configuration and authored starting history, while practice gestures belong to
+each child's independent log. Reset brings a sample back to that starting history.
 
 Start from the real artifact. Wrap the existing component, document, or generated output
 instead of rebuilding its appearance in page-local markup. A companion package may carry
@@ -118,15 +119,26 @@ custom property is a quoted CSS string; its data attribute contains the unquoted
   [data-candidate="status strip"] { outline: 2px solid var(--accent); }
 ```
 
-A candidate that restyles a whole page, such as Leaf's own Asks, focus rings, or chrome,
-or a library whose stylesheet is global, needs a page of its own: put an `lf-sample` in
-the preview (`references/page-authoring.md`, "Live samples"), a `window` one when the
-candidate reaches Leaf's chrome, and the candidate's CSS in a `<style>` inside its
-template, keyed on the child's root
-(`:root[data-playground-format="status strip"]`). Each child the sample presents,
-including after Reset, wears the same properties and attributes on its root from its
-first paint. The surrounding page holds the playground the user is operating, so its
-root and stylesheets never carry a candidate.
+When a playground studies Leaf's live interface, embed each candidate in an
+`lf-sample window` inside the preview. The surrounding page owns the design controls,
+the implementation request, and feedback to the author; each child owns its product
+content and practice interactions. Comments and decisions inside a candidate stay
+there, and Reset returns it to the same starting state. Keep comparison labels and
+host controls outside the samples.
+
+Start fictional threads or decisions with `data-sample-events`, naming one inert JSON
+history in the parent; samples can share it without sharing subsequent gestures.
+`references/page-authoring.md`, "Live samples", owns this declaration and its event
+commands. Keep fixture anchors in the child template. Do not copy fictional history
+into the outer page's log or post it with a setup script.
+
+A candidate that restyles a whole page or uses a global stylesheet also needs a
+live sample; `window` includes Leaf's chrome, while an ordinary live sample grows
+with its content. Put each candidate's CSS in a `<style>` inside its template, keyed
+on the child's root (`:root[data-playground-format="status strip"]`). Every child,
+including after Reset, wears the playground's properties and attributes from its
+first paint. The outer root and stylesheet belong to the review page. A static
+sketch or snippet can stay directly in the preview.
 
 The output is the instruction the user copies and the host receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
@@ -170,7 +182,8 @@ Before handoff, manually operate every custom gesture the page claims. Check tha
 candidates reach the same input state, the measurements update, the complete typed value
 map is still present, and the copied instruction can be acted on without the preview.
 Operate every control and preset, then reset, restore, copy, and submit. Check wide,
-narrow, and short viewports plus the exported file.
+narrow, and short viewports. Check an exported file too when the page has no live
+samples; live samples need a server.
 
 ## Task-shaped recipes
 

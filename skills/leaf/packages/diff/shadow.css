@@ -277,6 +277,11 @@
    unwrapped self at max-content, so a floor left in place would size the column to the
    very line the user asked to have wrapped. */
 :scope:host(.lf-rendered) code[data-code] {
+                          /* A file can sit inside another horizontal reader. Pierre's
+                             overscroll trap swallows that reader's gesture even when
+                             every line fits this file, so let the native scroll chain
+                             reach the enclosing box when this one has no more room. */
+                          overscroll-behavior-x: auto;
                           --diffs-code-grid: var(--diffs-grid-number-column-width)
                                              minmax(var(--lf-diff-row-fill, max-content), 1fr); }
 :scope:host(.lf-rendered) .lf-diff-fold > pre { margin: 0; border: none; border-top: 1px solid var(--code-border);

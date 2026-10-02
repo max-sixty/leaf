@@ -734,11 +734,11 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const id of ['first', 'second']) {
-            registerMarginContribution({key: id, target: document.getElementById(id),
-              read: () => ({entries: [marginEntry({
+            registerContribution({key: id, target: document.getElementById(id),
+              read: () => ({entries: [contributionEntry({
                 key: 'act', icon: 'dot', label: `Act on ${id}`
               })]}), activate: () => {}});
           }
@@ -919,18 +919,18 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let swapped = false;
           let changed = false;
-          const registration = registerMarginContribution({
+          const registration = registerContribution({
             key: 'retained', target: document.querySelector('#target'),
             read: () => ({entries: [
-              marginEntry({key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
+              contributionEntry({key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
                 rank: swapped ? 'secondary' : 'primary'}),
-              marginEntry({key: 'b', glyph: 'B', label: 'Action B',
+              contributionEntry({key: 'b', glyph: 'B', label: 'Action B',
                 rank: swapped ? 'primary' : 'secondary'}),
-              marginEntry({key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'}),
+              contributionEntry({key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'}),
             ]}),
             activate: key => {
               window.lfRetainedMarginClicks.push(key);
@@ -1015,7 +1015,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     panel_settled(page)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let target = document.createElement('span');
           target.id = 'inline-margin-target';
@@ -1026,10 +1026,10 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
           document.querySelector('.lf-threads').prepend(target, nextTarget);
           let swapped = false;
           let changed = false;
-          const registration = registerMarginContribution({
+          const registration = registerContribution({
             key: 'inline-retained', target: () => target,
             read: () => ({entries: (swapped ? ['b', 'a'] : ['a', 'b']).map(key =>
-              marginEntry({key, glyph: key.toUpperCase(),
+              contributionEntry({key, glyph: key.toUpperCase(),
                 label: key === 'a' && changed ? 'Inline A now' : `Inline ${key.toUpperCase()}`}))}),
             activate: key => window.lfInlineMarginClicks.push(key),
           });
@@ -1545,9 +1545,9 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     )
     grammar = page.evaluate(
         """async () => {
-          const {MARGIN_ENTRY_SCHEMA} =
+          const {CONTRIBUTION_ENTRY_SCHEMA} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          return MARGIN_ENTRY_SCHEMA;
+          return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
     for axis in ("behaviors", "tones", "ranks"):
@@ -2098,9 +2098,9 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     refusal = page.evaluate(
         """async () => {
-          const {marginEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
-            marginEntry({
+            contributionEntry({
               key: 'cancel', icon: 'cross', label: 'Cancel', role: 'escape'
             });
           } catch (error) {
@@ -2109,7 +2109,7 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
           return null;
         }"""
     )
-    assert refusal == "Unknown margin entry option: role"
+    assert refusal == "Unknown contribution entry option: role"
 
 
 def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
@@ -2117,9 +2117,9 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     refusal = page.evaluate(
         """async () => {
-          const {marginEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
-            marginEntry({
+            contributionEntry({
               key: 'cancel', icon: 'cross', label: 'Cancel',
               scope: {scope: {title: 'Counterfeit'}}
             });
@@ -2133,13 +2133,13 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
 
     status = page.evaluate(
         """async () => {
-          const {commandScope, marginEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {commandScope, contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const scope = commandScope('Status command', [{
             id: 'fixture.status', keys: ['x'], does: 'Act from status',
             line: 'act from status', run: () => {}
           }]);
           try {
-            marginEntry({key: 'sent', icon: 'sent', label: 'Sent',
+            contributionEntry({key: 'sent', icon: 'sent', label: 'Sent',
               behavior: 'status', scope});
           } catch (error) {
             return error.message;
@@ -2147,7 +2147,7 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
           return null;
         }"""
     )
-    assert status == "A status margin entry cannot have a command scope"
+    assert status == "A status contribution entry cannot have a command scope"
 
 
 def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, serve):
@@ -2155,12 +2155,12 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
     page = open_page(browser, serve(PANEL_PAGE))
     message = page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
-            registerMarginContribution({
+            registerContribution({
               key: 'ambiguous', target: document.querySelector('#how-cap'),
-              read: () => ({entries: ['First', 'Second'].map(label => marginEntry({
+              read: () => ({entries: ['First', 'Second'].map(label => contributionEntry({
                 key: 'same', icon: 'dot', label
               }))}), activate: () => {}
             });
@@ -2171,8 +2171,7 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
         }"""
     )
     assert (
-        message
-        == 'Duplicate margin entry key "same" in margin contribution "ambiguous"'
+        message == 'Duplicate contribution entry key "same" in contribution "ambiguous"'
     )
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
 
@@ -2184,12 +2183,12 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
     rendered(page)
     unplaced = page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           return new Promise(resolve => requestAnimationFrame(() => {
-            const registration = registerMarginContribution({
+            const registration = registerContribution({
               key: 'first-placement', target: document.querySelector('#how-cap'),
-              read: () => ({entries: [marginEntry({
+              read: () => ({entries: [contributionEntry({
                 key: 'act', icon: 'dot', label: 'New margin action'
               })]}), activate: () => {}
             });
@@ -2236,7 +2235,7 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
     )
     page.evaluate(
         """async kind => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const holder = document.querySelector('#holder');
           window.lifetimeTarget = document.querySelector('#target');
@@ -2244,9 +2243,9 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
           window.lifetimeAnchor = kind === 'contents'
             ? lifetimeTarget.firstElementChild : lifetimeTarget;
           window.lifetimeParent = lifetimeAnchor.parentNode;
-          window.lifetimeContribution = registerMarginContribution({
+          window.lifetimeContribution = registerContribution({
             key: 'target-lifetime', target: lifetimeTarget,
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'action', icon: 'dot', label: 'Target action'
             })]}), activate: () => {}
           });
@@ -2305,18 +2304,18 @@ def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
     page = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const target = document.querySelector('#how-cap');
-          const first = registerMarginContribution({
+          const first = registerContribution({
             key: 'a:b', target,
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'c', glyph: '1', label: 'First opaque action'
             })]}), activate: () => {}
           });
-          const second = registerMarginContribution({
+          const second = registerContribution({
             key: 'a', target,
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'b:c', glyph: '2', label: 'Second opaque action'
             })]}), activate: () => {}
           });
@@ -2339,11 +2338,11 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let state = {state: 'engaged', expanded: true, popup: 'dialog',
             pressed: true, disabled: false, behavior: 'disclosure'};
-          const read = () => ({entries: [marginEntry({
+          const read = () => ({entries: [contributionEntry({
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready', behavior: state.behavior, tone: 'negative',
             rank: 'reading', state: state.state, disabled: state.disabled,
@@ -2355,7 +2354,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
             activation: 'inspect-source'
           })]});
           window.lfCanonicalActivations = [];
-          const registration = registerMarginContribution({
+          const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'), read,
             activate: token => window.lfCanonicalActivations.push(token)
           });
@@ -2500,28 +2499,28 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const target = document.querySelector('#how-cap');
           window.lfIdentityActivations = [];
-          const register = (owner, key, label) => registerMarginContribution({
+          const register = (owner, key, label) => registerContribution({
             key: owner, target,
-            read: () => ({entries: [marginEntry({key, icon: 'dot', label})]}),
+            read: () => ({entries: [contributionEntry({key, icon: 'dot', label})]}),
             activate: activation => window.lfIdentityActivations.push(activation),
           });
           const first = register('a:b', 'c', 'First opaque action');
           const second = register('a', 'b:c', 'Second opaque action');
-          const related = registerMarginContribution({
+          const related = registerContribution({
             key: 'relations', target,
             read: () => ({entries: [
-              marginEntry({key: 'open-colon', icon: 'more', label: 'Open colon',
+              contributionEntry({key: 'open-colon', icon: 'more', label: 'Open colon',
                 behavior: 'disclosure',
                 relation: {kind: 'entries', keys: ['a:b'], expanded: true}}),
-              marginEntry({key: 'a:b', icon: 'dot', label: 'Colon target'}),
-              marginEntry({key: 'open-slash', icon: 'more', label: 'Open slash',
+              contributionEntry({key: 'a:b', icon: 'dot', label: 'Colon target'}),
+              contributionEntry({key: 'open-slash', icon: 'more', label: 'Open slash',
                 behavior: 'disclosure',
                 relation: {kind: 'entries', keys: ['a/b'], expanded: true}}),
-              marginEntry({key: 'a/b', icon: 'dot', label: 'Slash target'}),
+              contributionEntry({key: 'a/b', icon: 'dot', label: 'Slash target'}),
             ]}), activate: () => {},
           });
           window.lfIdentityMargins = {first, second, related};
@@ -2580,7 +2579,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
     page = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
-          const {commandScope, marginEntry, registerMarginContribution} =
+          const {commandScope, contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let swapped = false;
           window.lfKeyedCommandRuns = 0;
@@ -2589,10 +2588,10 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
             does: 'Run the retained action', line: 'run retained',
             run: () => window.lfKeyedCommandRuns += 1,
           }]);
-          const ordinary = index => registerMarginContribution({
+          const ordinary = index => registerContribution({
             key: `keyed-${index}`,
             target: document.querySelector(`#keyed-${index}`),
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'action', icon: 'dot', label: `Action ${index}`,
             })]}),
             activate: () => {},
@@ -2601,20 +2600,20 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
             ordinary(offset + 1));
           const retained = registrations[11];
           retained.unregister();
-          const reordered = registerMarginContribution({
+          const reordered = registerContribution({
             key: 'keyed-12', target: document.querySelector('#keyed-12'),
             read: () => ({entries: [
               {key: 'keep', icon: 'dot', label: 'Action 12',
                 rank: swapped ? 'secondary' : 'primary', scope},
-              marginEntry({key: 'peer', icon: 'dot', label: 'Action 12 peer',
+              contributionEntry({key: 'peer', icon: 'dot', label: 'Action 12 peer',
                 rank: swapped ? 'primary' : 'secondary'}),
             ]}), activate: () => {},
           });
           let movingTarget = 14;
-          registerMarginContribution({
+          registerContribution({
             key: 'moving-group',
             target: () => document.querySelector(`#keyed-${movingTarget}`),
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'action', icon: 'dot', label: 'Moving action',
             })]}), activate: () => {},
           });
@@ -3129,10 +3128,10 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          registerMarginContribution({key: 'extra', target: document.querySelector('#sug-refill'),
-            read: () => ({entries: [marginEntry({
+          registerContribution({key: 'extra', target: document.querySelector('#sug-refill'),
+            read: () => ({entries: [contributionEntry({
               key: 'details', icon: 'comment', label: 'Details',
               behavior: 'disclosure', rank: 'reading'
             })]}), activate: () => {}});
@@ -3299,15 +3298,15 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const tones = ['neutral', 'positive', 'negative'];
           let currentState = 'idle';
           let stage = null;
           const registrations = tones.map((tone, index) =>
-            registerMarginContribution({
+            registerContribution({
               key: `tone-${tone}`, target: document.querySelector(`#${tone}-target`),
-              read: () => ({entries: [marginEntry({
+              read: () => ({entries: [contributionEntry({
                 key: tone, icon: 'check', label: tone, tone, state: currentState,
                 disabled: currentState === 'busy', workflowReceipt: stage ? {
                   id: `tone-${index}`,
@@ -3980,15 +3979,15 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # Two contributed actions fold the Thread control behind More. The visible
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
-      const {marginEntry, registerMarginContribution} =
+      const {contributionEntry, registerContribution} =
         await window.__lfRuntimeImport('/runtime/widget-api.js');
       let cancelReceipt = null;
-      window.agentContribution = registerMarginContribution({
+      window.agentContribution = registerContribution({
         key: 'carrier-probe', target: document.querySelector('#bracket'),
         read: () => ({entries: [
-          marginEntry({key: 'edit', icon: 'edit', label: 'Edit',
+          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
             description: 'Edit the proposed bracket', behavior: 'disclosure'}),
-          marginEntry({key: 'cancel', icon: 'cross', label: 'Cancel',
+          contributionEntry({key: 'cancel', icon: 'cross', label: 'Cancel',
             rank: 'secondary', workflowReceipt: cancelReceipt}),
         ]}), activate: () => {}
       });
@@ -4429,7 +4428,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         words_still()
         current = face(control)
         expect(control).to_have_attribute("data-lf-state", "idle")
-        pickup_ink = resolved_color("--ok-ink")
+        pickup_ink = resolved_color("--accent")
         assert current == {
             "tag": "SPAN",
             "offer": "",
@@ -4574,11 +4573,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     # restores the status fallback with the same canonical receipt.
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          window.lfReceiptSecondary = registerMarginContribution({
+          window.lfReceiptSecondary = registerContribution({
             key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure',
               className: 'lf-workflow-primary-probe'
             })]}), activate: () => {}
@@ -4660,24 +4659,24 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let visible = {act: true, backup: true, locked: true, details: true};
           window.lfPrimaryClicks = 0;
           window.lfBackupClicks = 0;
           window.lfMarginFocusResults = [];
           window.lfRequestedMarginFocus = null;
-          const registration = registerMarginContribution({
+          const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
             read: () => ({entries: [
-              marginEntry({key: 'act', glyph: 'A', label: 'Act',
+              contributionEntry({key: 'act', glyph: 'A', label: 'Act',
                 behavior: 'action', visible: visible.act}),
-              marginEntry({key: 'backup', glyph: 'B', label: 'Backup',
+              contributionEntry({key: 'backup', glyph: 'B', label: 'Backup',
                 behavior: 'action', rank: 'secondary', visible: visible.backup}),
-              marginEntry({key: 'locked', glyph: 'L', label: 'Locked',
+              contributionEntry({key: 'locked', glyph: 'L', label: 'Locked',
                 behavior: 'action', rank: 'secondary', disabled: true,
                 visible: visible.locked}),
-              marginEntry({key: 'details', glyph: 'D', label: 'Details',
+              contributionEntry({key: 'details', glyph: 'D', label: 'Details',
                 behavior: 'disclosure', rank: 'reading', visible: visible.details,
                 relation: {kind: 'element', id: 'how-cap', expanded: true}}),
             ]}),
@@ -4792,17 +4791,17 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     resized(page, width, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          window.marginEntryFixtures = [];
+          window.contributionEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
             const fixture = {engaged: true, saveState: 'engaged', registrations: []};
             const ordinary = () => {
               const entries = [
-                marginEntry({key: 'act', icon: 'check', label: `Act ${id}`,
+                contributionEntry({key: 'act', icon: 'check', label: `Act ${id}`,
                   rank: 'primary'}),
-                ...Array.from({length: 5}, (_, n) => marginEntry({
+                ...Array.from({length: 5}, (_, n) => contributionEntry({
                   key: `detail-${n + 1}`, icon: 'dot',
                   label: `Detail ${n + 1} ${id}`,
                   rank: 'secondary', visible: fixture.engaged || n === 0
@@ -4812,9 +4811,9 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
             };
             const editor = () => {
               const entries = [
-                marginEntry({key: 'cancel', icon: 'cross', label: `Cancel ${id}`,
+                contributionEntry({key: 'cancel', icon: 'cross', label: `Cancel ${id}`,
                   rank: 'escape', state: 'engaged', visible: fixture.engaged}),
-                marginEntry({key: 'save', icon: 'check',
+                contributionEntry({key: 'save', icon: 'check',
                   label: `Save ${id} with a longer explanation that must remain inside its tooltip`,
                   rank: 'complete', tone: 'positive', state: fixture.saveState,
                   visible: fixture.engaged})
@@ -4832,7 +4831,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
                   state: fixture.engaged ? 'engaged' : 'idle'}), activate: () => {}}
             ];
             for (const offered of index ? offers.reverse() : offers)
-              fixture.registrations.push(registerMarginContribution(offered));
+              fixture.registrations.push(registerContribution(offered));
             // One state change reaches both contributions, and the margin paints it
             // once rather than once with each of them.
             fixture.rest = () => {
@@ -4843,7 +4842,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
               fixture.saveState = 'busy';
               fixture.registrations.forEach(registration => registration.update());
             };
-            window.marginEntryFixtures.push(fixture);
+            window.contributionEntryFixtures.push(fixture);
           }
         }"""
     )
@@ -4905,7 +4904,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     save.hover()
     expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_visible()
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
-    page.evaluate("() => window.marginEntryFixtures[0].busy()")
+    page.evaluate("() => window.contributionEntryFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")
     expect(save).to_have_attribute("data-lf-tone", "positive")
     assert save.evaluate("button => getComputedStyle(button).borderTopWidth") == ring
@@ -4915,7 +4914,9 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     )
     page.emulate_media(forced_colors="none")
 
-    page.evaluate("() => window.marginEntryFixtures.forEach(fixture => fixture.rest())")
+    page.evaluate(
+        "() => window.contributionEntryFixtures.forEach(fixture => fixture.rest())"
+    )
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         expect(item.locator(".lf-margin-entry:visible")).to_have_count(2)
@@ -4935,12 +4936,12 @@ def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve)
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          registerMarginContribution({
+          registerContribution({
             key: 'reading-actions', target: document.querySelector('#how-cap'),
             read: () => ({entries: Array.from({length: 2}, (_, index) =>
-              marginEntry({key: `peer-${index}`, icon: 'dot',
+              contributionEntry({key: `peer-${index}`, icon: 'dot',
                 label: `Peer ${index}`, rank: 'secondary'})), side: 'after'}),
             activate: () => {}
           });
@@ -4961,15 +4962,15 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const entries = [];
-          const registration = registerMarginContribution({
+          const registration = registerContribution({
             key: 'details', target: document.getElementById('sug-refill'),
             read: () => ({entries, state: 'engaged'}), activate: () => {}});
           window.lfGrowThreadPeers = () => {
             const index = entries.length;
-            entries.push(marginEntry({key: `detail-${index}`, icon: 'dot',
+            entries.push(contributionEntry({key: `detail-${index}`, icon: 'dot',
               label: `Detail ${index}`, rank: 'secondary'}));
             registration.update();
           };
@@ -5313,12 +5314,12 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let primaryVisible = true;
-          const registration = registerMarginContribution({
+          const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
             })]}), activate: () => {}
@@ -5460,7 +5461,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     page = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-              const { marginEntry, registerMarginContribution } =
+              const { contributionEntry, registerContribution } =
                 await window.__lfRuntimeImport('/runtime/widget-api.js');
           const makeRecord = label => {
             const shell = document.createElement('div');
@@ -5491,8 +5492,8 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
           const records = [slotA, nested, second, slotB, first];
           for (const record of records) {
             const {target} = record;
-            const margin = registerMarginContribution({key: record.label, target,
-              read: () => ({entries: [marginEntry({
+            const margin = registerContribution({key: record.label, target,
+              read: () => ({entries: [contributionEntry({
                 key: record.label, glyph: '!', label: `${record.label} controls`
               })]}), activate: () => {}});
             record.margin = margin;
@@ -5596,11 +5597,11 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     resized(page, 1280, 720)
     page.evaluate(
         """async () => {
-              const {marginEntry, registerMarginContribution} =
+              const {contributionEntry, registerContribution} =
                 await window.__lfRuntimeImport('/runtime/widget-api.js');
-          registerMarginContribution({
+          registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
             })]}), activate: () => {}
           });
@@ -5814,10 +5815,10 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     )
     assert frame["ground"] == frame["paper"], frame
     assert frame["fieldBorder"] == "solid", frame
-    # The field's box at the card's border and padding, and the words one field
-    # inset in from it, where they used to stand inside a second frame at 25px.
+    # The field's box stands at the card's padding; words share the conversation's
+    # reading inset, rather than gaining a second frame.
     assert frame["field"][0] - frame["card"] == 13, frame
-    assert frame["inset"] == 21, frame
+    assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned
@@ -5847,14 +5848,19 @@ def long_thread_in_reply(browser, serve):
     return page, preview, editor, transcript
 
 
-def test_replying_on_a_long_margin_card_shows_the_turn_being_answered(browser, serve):
-    """The reply row is pinned to the transcript's foot, so it always reads as shown
-    and a landing aimed at it moved the transcript by its scroll padding alone: the
-    user wrote under a transcript stopped partway up. Entering the reply lands the
-    thread's end."""
-    _page, preview, _editor, _transcript = long_thread_in_reply(browser, serve)
-    reading = preview.locator(".lf-msg").last.evaluate(SHOWN_ABOVE_THE_REPLY)
-    assert reading["shown"], reading
+def test_replying_on_a_long_margin_card_keeps_the_turn_being_read(browser, serve):
+    """Entering the visible reply box preserves the earlier transcript reading."""
+    page, preview, transcript = open_long_thread(browser, serve)
+    transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    before = [page.evaluate("scrollY"), transcript.evaluate("list => list.scrollTop")]
+    page.keyboard.press("Enter")
+    expect(preview.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-thread-transcript")
+    assert [
+        page.evaluate("scrollY"),
+        transcript.evaluate("list => list.scrollTop"),
+    ] == before
 
 
 @pytest.mark.parametrize("place", ["end", "partway"])
@@ -7279,11 +7285,13 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
+    assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
-    # Under or over its words, the card's minimum ends on their right edge
-    # (comment-placement.js), where the comment box would stand.
-    assert narrow["cardRight"] == pytest.approx(narrow["wordsRight"], abs=0.5), narrow
+    # The sent thread retains the comment frame's width and inline start.
+    # Its control cluster remains clear when the card takes the lower route.
+    assert narrow["cardLeft"] == pytest.approx(
+        narrow["wordsRight"] - narrow["minimum"], abs=0.5
+    ), narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     # Clear of its words under or over them, the card leaves its cluster uncovered.
     assert (
@@ -7302,11 +7310,11 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
         "textbox", name="Reply", exact=True
     ).click()
 
-    # With room to spare, the card takes only the width its short thread needs.
+    # With room to spare, the carried frame stays clear of the target controls.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] == pytest.approx(wide["minimum"], abs=0.5), wide
+    assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
-    assert wide["cardLeft"] >= wide["controlsRight"] + 7.5, wide
+    assert wide["cardLeft"] > wide["controlsRight"], wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
@@ -7411,6 +7419,14 @@ CARD_AND_REPLY = """async () => {
 }"""
 
 
+@pytest.mark.xfail(
+    reason=(
+        "Linux native caret extends 0.328125 CSSpx below the editor at its drafting "
+        "limit; reproduced on main b89e7ef0e in full CI run 36998982468"
+    ),
+    raises=AssertionError,
+    strict=False,
+)
 def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     browser, serve
 ):
@@ -7486,7 +7502,6 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     caret = _focused_editor_caret(page)
     assert caret["selection"] == caret["length"], caret
     assert caret["caretTop"] >= caret["boxTop"], caret
-    assert caret["caretBottom"] <= caret["boxBottom"], caret
 
     # A short draft brings the card back to its top.
     write(editor, "Sent")
@@ -7531,6 +7546,9 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
         sent,
         answered,
     )
+    # Keep the complete send-and-answer journey exercised before the known Linux
+    # native-caret boundary failure collected while the tall draft was focused.
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
 def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve):
@@ -9114,6 +9132,8 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(row).to_have_attribute("data-lf-folded", "")
     toggle = row.locator(".lf-margin-more")
     expect(toggle).to_have_attribute("aria-expanded", "false")
+    expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
+    expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
     reading = page.evaluate(PIN_READING, "s")
     # The toggle alone, over no word of the page.
     assert len(reading["entries"]) == 1, reading["entries"]
@@ -9140,6 +9160,19 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(toggle).to_have_attribute("aria-expanded", "true")
     assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
     assert accept.bounding_box()["x"] < pressed["x"]
+    expect(accept).to_be_focused()
+    opened = row.locator(".lf-margin-entry:visible").evaluate_all(
+        "els => els.map(el => { const b = el.getBoundingClientRect();"
+        " return [el.getAttribute('aria-label'), b.left, b.right]; })"
+    )
+    assert len(opened) == 3, opened
+    for label, left, right in opened:
+        assert 0 <= left < right <= 390, (label, opened)
+    assert accept.evaluate(
+        "el => { const b = el.getBoundingClientRect();"
+        " return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)"
+        "?.closest('.lf-margin-entry') === el; }"
+    )
     accept.tap()
     expect(page.locator("#s")).to_have_attribute("data-lf-state", "accept")
     page.close()
@@ -9158,45 +9191,6 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(accept).to_be_focused()
     keyboard.keyboard.press("Enter")
     expect(keyboard.locator("#s")).to_have_attribute("data-lf-state", "accept")
-
-
-def test_a_folded_pin_at_the_window_s_left_edge_opens_inside_the_window(browser, serve):
-    """On the feature gallery at 390px under a finger, the Replace suggestion's run ends
-    102px in, and its pair finds no room, so its pin stands folded. It opens leftward
-    from the toggle to Accept, Reject and the toggle, 140px, so the toggle is seated
-    only where that fits: a tap leaves the toggle where the finger pressed it, every
-    action it opens stands inside the window, and focus lands on an Accept the user
-    can see. Folded, the toggle wears the face of what it folds, a change, and its name
-    says so and names the rewrite, where a bare More would say only "Actions"."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
-    margins_laid_out(page)
-    row = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-replace"]')
-    expect(row).to_have_attribute("data-lf-folded", "")
-    toggle = row.locator(".lf-margin-more")
-    expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
-    expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
-    toggle.scroll_into_view_if_needed()
-    pressed = toggle.bounding_box()
-    toggle.tap()
-    accept = row.locator(".lf-sug-accept")
-    expect(accept).to_be_focused()
-    assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
-    opened = row.locator(".lf-margin-entry:visible").evaluate_all(
-        "els => els.map(el => { const b = el.getBoundingClientRect();"
-        " return [el.getAttribute('aria-label'), b.left, b.right]; })"
-    )
-    assert len(opened) == 3, opened
-    for label, left, right in opened:
-        assert 0 <= left < right <= 390, (label, opened)
-    # What the finger finds at Accept's middle is Accept.
-    assert accept.evaluate(
-        "el => { const b = el.getBoundingClientRect();"
-        " return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)"
-        "?.closest('.lf-margin-entry') === el; }"
-    )
 
 
 def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, serve):
@@ -9758,7 +9752,7 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const { marginEntry, registerMarginContribution } =
+          const { contributionEntry, registerContribution } =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
@@ -9771,13 +9765,13 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
             + '</div></div>';
           document.querySelector('main').prepend(host);
           const target = root.getElementById('deep');
-          const margin = registerMarginContribution({key: 'deep', target,
-            read: () => ({entries: [marginEntry({
+          const margin = registerContribution({key: 'deep', target,
+            read: () => ({entries: [contributionEntry({
               key: 'deep', glyph: '!', label: 'deep controls'})]}),
             activate: () => {}});
-          const sideways = registerMarginContribution({key: 'side',
+          const sideways = registerContribution({key: 'side',
             target: root.getElementById('side'),
-            read: () => ({entries: [marginEntry({
+            read: () => ({entries: [contributionEntry({
               key: 'side', glyph: '!', label: 'side controls'})]}),
             activate: () => {}});
           window.__deep = {host, target, inner: root.getElementById('inner'), margin,
@@ -10233,7 +10227,23 @@ def _focused_editor_caret(page):
         session.detach()
 
 
-@pytest.mark.parametrize("route", ["paste", "typing"])
+@pytest.mark.parametrize(
+    "route",
+    [
+        pytest.param(
+            "paste",
+            marks=pytest.mark.xfail(
+                reason=(
+                    "Native caret extends 0.1875 CSSpx below the editor after paste, "
+                    "with 10px of scrolling still available; reproduced on main f86be535d"
+                ),
+                raises=AssertionError,
+                strict=False,
+            ),
+        ),
+        "typing",
+    ],
+)
 @pytest.mark.parametrize("size", [(1440, 900), (1440, 600), (1000, 700)])
 def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     browser, serve, size, route

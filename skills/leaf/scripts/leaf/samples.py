@@ -17,6 +17,7 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 
 from .data import source_file
+from .page_memory import PageMemory, memory_of
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
@@ -32,6 +33,9 @@ class Sample:
     layer: dict
     passive: bool
     asset_root: str
+    # Held for the sample's life, so the sample keeps its readings however many
+    # sibling samples push it out of the process's recent pages (`page_memory`).
+    memory: PageMemory
     lock: Lock = field(default_factory=Lock)
     closed: bool = False
 
@@ -131,7 +135,12 @@ class Samples:
         identity = secrets.token_hex(16)
         with self.lock:
             self.pages[identity] = Sample(
-                temporary, parent, artifact.registry["$layer"], passive, asset_root
+                temporary,
+                parent,
+                artifact.registry["$layer"],
+                passive,
+                asset_root,
+                memory_of(child),
             )
         return identity
 

@@ -42,6 +42,7 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -1146,6 +1147,17 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
                 hosting_model.cmd_stop(lease.parent)
 
 
+@contextmanager
+def fresh_process():
+    """What a newly started process holds of every page: nothing (`page_memory`)."""
+    kept = page_memory_model._memories
+    page_memory_model._memories = page_memory_model.PageMemories()
+    try:
+        yield
+    finally:
+        page_memory_model._memories = kept
+
+
 def neighbour_page(directory, title=None, dead=False, published=True):
     """A page with desired service state and, unless dead, a live lease."""
     directory.mkdir(parents=True)
@@ -1254,6 +1266,39 @@ def codex_program(tmp_path_factory):
     program = tmp_path_factory.mktemp("codex-program") / "codex"
     shutil.copy(sys.executable, program)
     return program
+
+
+@pytest.fixture
+def codex_queue(tmp_path):
+    """Replace the external queue CLI while exercising real preview delivery.
+
+    The executable acknowledges help and records submitted arguments. Tests may
+    set PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation.
+    This is separate from codex_program, which models kernel process ancestry.
+    """
+    executable = tmp_path / "queue-bin" / "codex"
+    executable.parent.mkdir()
+    queued = tmp_path / "queued.json"
+    executable.write_text(
+        f"""#!{sys.executable}
+import json
+import os
+import sys
+from pathlib import Path
+
+if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
+    print("queue unsupported", file=sys.stderr)
+    sys.exit(1)
+if sys.argv[1:] != ["queue", "--help"]:
+    Path(os.environ["PREVIEW_QUEUE_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print("queued")
+"""
+    )
+    executable.chmod(0o755)
+    return {
+        "PATH": f"{executable.parent}{os.pathsep}{os.environ['PATH']}",
+        "PREVIEW_QUEUE_RECORD": str(queued),
+    }
 
 
 @pytest.fixture
@@ -1503,7 +1548,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     registry_path.write_text(json.dumps(registry, indent=2))
     with (package / "theme.css").open("a") as theme:
         theme.write(
-            f"\n{tag} {{\n"
+            f"\n:scope:is({tag}) {{\n"
             "  display: block;\n"
             "  margin: var(--sp-3) 0;\n"
             "  padding: var(--sp-3);\n"

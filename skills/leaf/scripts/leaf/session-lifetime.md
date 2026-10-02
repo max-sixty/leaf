@@ -3,9 +3,12 @@
 `status.json` is a declaration, not current agent state. The current state is
 `activity`, one server projection over that declaration and the page's stronger
 evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
-and unsettled user moves. `/api/state`, neighboring-page entries, and
-agent-facing page state all carry this same projection. Browser code paints it
-and requests another reading at its next deadline; it does not run a second fold.
+and unsettled user moves. `/api/state` and agent-facing page state carry this
+same projection. A neighboring-page entry carries only the declaration, in the
+same shape (`activity.declared_activity`), until each page's judgment is shared
+rather than repeated by every server (`presence.other_leaves`). Browser code
+paints it and requests another reading at its next deadline; it does not run a
+second fold.
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
@@ -48,8 +51,9 @@ turn also proves generic activity before its first work declaration; the receipt
 itself remains Picked up. `counts.overdue` counts the owed moves that stalled with
 the agent to act, still Sent past the pickup grace or left by a turn that ended or
 was interrupted before answering; over an `away` page they are when the banner asks
-the user to nudge the session. The banner and Leaves drawer consume this same reading
-and present delivery counts separately.
+the user to nudge the session. The banner consumes this same reading and presents
+delivery counts separately; the Leaves drawer's row for another page reads only that
+page's declaration.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
 work. Each entry names its `input` event when it has one, its `thread` or `widget`

@@ -4,11 +4,11 @@
 
 import {
   spokenSubject,
-  compareMarginEntryRecords,
-  visibleMarginEntryLabel,
-} from "./margin-entry-model.js";
+  compareContributionEntryRecords,
+  visibleContributionEntryLabel,
+} from "./contribution-model.js";
 
-import { marginItemKey } from "./margin-entry-model.js";
+import { contributionItemKey } from "./contribution-model.js";
 
 function dialogControls(entry) {
   const records = entry.offers
@@ -17,12 +17,12 @@ function dialogControls(entry) {
         .filter((record) => record.visible)
         .map((record) => Object.freeze({ record, offered })),
     )
-    .sort(compareMarginEntryRecords);
+    .sort(compareContributionEntryRecords);
   return records;
 }
 
 const dialogItemKey = (entry, item) =>
-  JSON.stringify(["item", entry.key, marginItemKey(item)]);
+  JSON.stringify(["item", entry.key, contributionItemKey(item)]);
 
 function dialogControlKey(entry, offered, record) {
   return JSON.stringify(["control", entry.key, offered.key, record.key]);
@@ -66,7 +66,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
           icon: record.icon,
           glyph: record.glyph,
           label: record.accessibleLabel,
-          visibleLabel: visibleMarginEntryLabel(record),
+          visibleLabel: visibleContributionEntryLabel(record),
           context: record.context,
         })),
       ];

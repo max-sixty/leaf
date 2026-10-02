@@ -6,15 +6,15 @@ with it, and is refused otherwise, leaving the active revision live. A source
 whose artifact is the active revision's is no candidate, and `check_source` judges
 no transition for it (see its gate on `PredecessorReading.unchanged`).
 
-Every state read asks for activation first, so each page holds its last answer,
-keyed on the page's stamps as `served_state.reading.source_readings` splits them.
-A save moves the source reading, and the next read validates it and turns it into
-a revision, which is what makes an edited `index.html` reach an open tab. An
-answer that found the source to be the active revision holds until the source
-moves: the log can grow under it without changing it, since the door judged every
-event against the revision it names. A refusal holds only until either reading
-moves, because an event can clear it, as resolving the thread on an id the save
-dropped does.
+Every state read asks for activation first, so the page's memory keeps its last
+answer (`page_memory`), keyed on the page's stamps as
+`served_state.reading.source_readings` splits them. A save moves the source reading,
+and the next read validates it and turns it into a revision, which is what makes an
+edited `index.html` reach an open tab. An answer that found the source to be the
+active revision holds until the source moves: the log can grow under it without
+changing it, since the door judged every event against the revision it names. A
+refusal holds only until either reading moves, because an event can clear it, as
+resolving the thread on an id the save dropped does.
 """
 
 from pathlib import Path
@@ -22,6 +22,7 @@ from typing import NamedTuple
 
 from leaf.event_log import read_events
 from leaf.files import list_revisions
+from leaf.page_memory import memo
 from leaf.revision_artifact import read_revision, write_artifact
 from leaf.served_state.reading import source_readings
 from leaf.validation.source import SourceCheck, check_source
@@ -33,14 +34,16 @@ class Activation(NamedTuple):
     created: bool
 
 
-class _Held(NamedTuple):
+class _Answer(NamedTuple):
     source: str
     history: str
     activation: Activation
 
 
-_CACHE_LIMIT = 64
-_held: dict[Path, _Held] = {}
+class _Held:
+    """The page's last activation answer and the readings it was given under."""
+
+    answer: _Answer | None = None
 
 
 def activate_source(page_dir: Path) -> Activation:
@@ -50,23 +53,20 @@ def activate_source(page_dir: Path) -> Activation:
     the check moves the page past the answer held here and the next call checks
     again. An activation that wrote a revision is held as the answer the next call
     would give: the source is now the active revision, and nothing was created."""
-    key = page_dir.resolve()
     source, history = source_readings(page_dir)
-    held = _held.get(key)
+    held = memo(page_dir, _Held)
+    answer = held.answer
     if (
-        held
-        and held.source == source
-        and (held.activation.error is None or held.history == history)
+        answer
+        and answer.source == source
+        and (answer.activation.error is None or answer.history == history)
     ):
-        return held.activation
+        return answer.activation
     activation = activate_checked_source(
         page_dir, check_source(page_dir, read_events(page_dir), allow_transition=False)
     )
-    _held.pop(key, None)
     settled = activation._replace(created=False) if activation.created else activation
-    _held[key] = _Held(source, history, settled)
-    if len(_held) > _CACHE_LIMIT:
-        del _held[next(iter(_held))]
+    held.answer = _Answer(source, history, settled)
     return activation
 
 

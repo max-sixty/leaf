@@ -69,12 +69,12 @@ export {
 export { repaint } from "./repaint.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export {
-  MARGIN_ENTRY_SCHEMA,
-  marginEntry,
-  presentMarginEntry,
-  registerMarginContribution,
-} from "./margin-entries.js";
+  contributionEntry,
+  presentContributionEntry,
+} from "./contribution-controls.js";
+export { registerContribution } from "./contributions.js";
 export {
   inlineMarkdownFragment,
   loadMarkdown,

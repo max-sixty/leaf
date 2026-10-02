@@ -8,6 +8,7 @@ import shutil
 import textwrap
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
@@ -50,6 +51,7 @@ from interact_support import (
     declare_data_input,
     element_declaration,
     fetch,
+    fresh_process,
     live_versions,
     publish,
     published,
@@ -57,6 +59,7 @@ from interact_support import (
     stamp_activation,
     styled,
     trial_version,
+    wait_for,
     yaml_block,
     yaml_document,
 )
@@ -1264,39 +1267,36 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
+    """The preview holds replacement back; its writer finishes before the test
+    releases the page, including when a preview assertion fails."""
     before = registry_storage.layer_generation(page_dir)
     init_waiting = threading.Event()
     real_page_locked = vendoring_model.page_locked
 
     @contextlib.contextmanager
     def observed_page_locked(locked):
-        if locked == page_dir and threading.current_thread().name == "re-vendor":
+        if locked == page_dir and threading.current_thread().name.startswith(
+            "re-vendor"
+        ):
             init_waiting.set()
         with real_page_locked(locked) as held:
             yield held
 
     monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    errors = []
-
-    def revendoring():
-        try:
-            vendoring_model.cmd_init(page_dir)
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    with render_gate_model.preview_server(
-        page_dir,
-        structure_model.SourceDocument((page_dir / "index.html").read_text()),
-        1,
-    ):
-        initing = threading.Thread(target=revendoring, name="re-vendor")
-        initing.start()
-        assert init_waiting.wait(5)
-        assert registry_storage.layer_generation(page_dir) == before
-
-    initing.join(timeout=5)
-    assert not initing.is_alive()
-    assert errors == []
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="re-vendor") as workers:
+        with render_gate_model.preview_server(
+            page_dir,
+            structure_model.SourceDocument((page_dir / "index.html").read_text()),
+            1,
+        ):
+            initing = workers.submit(vendoring_model.cmd_init, page_dir)
+            wait_for(
+                init_waiting.is_set,
+                bool,
+                failure="Re-vendoring did not attempt the preview lock",
+            )
+            assert registry_storage.layer_generation(page_dir) == before
+        initing.result()
     assert registry_storage.layer_generation(page_dir) != before
 
 
@@ -4416,10 +4416,6 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     from leaf.validation import source as source_model
 
     assert revisioning_model.activate_source(page_dir).error is None
-    # What a newly started server holds: none of this process's readings.
-    registry_storage._registries.clear()
-    registry_storage._read_page_registry_stamped.cache_clear()
-    revisioning_model._held.clear()
     validated, linted = [], []
     real_validate = registry_page.validate_registry
     real_lint = source_model.css_syntax_errors
@@ -4436,7 +4432,9 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
         lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
     )
 
-    assert revisioning_model.activate_source(page_dir).error is None
+    # What a newly started server holds: none of this test's readings.
+    with fresh_process():
+        assert revisioning_model.activate_source(page_dir).error is None
     assert validated == []
     assert linted == ["page <style>"]
 

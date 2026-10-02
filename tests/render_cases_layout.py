@@ -19,6 +19,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
+from leaf import server as server_model
 from leaf import session_cleanup as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
@@ -31,7 +32,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     SHELL_BOX,
-    TOKEN,
     banner_control,
     leaf_page,
     stamp_page,
@@ -1263,8 +1263,10 @@ def live_leaf(tmp_path, monkeypatch):
             id=f"s-{name}",
             cwd=str(tmp_path / f"{name}-work"),
         )
+        # Served under the machine's key, which the URL its neighbours link to
+        # carries (`server.running_server`), as a real server is.
         httpd = hosting_model.LeafHTTPServer(
-            ("127.0.0.1", 0), http_model.page_endpoint(d, TOKEN)
+            ("127.0.0.1", 0), http_model.page_endpoint(d, server_model.host_key())
         )
         servers.enter_context(running_http_server(httpd))
         port = httpd.server_address[1]
@@ -1383,7 +1385,19 @@ def serious_axe_violations(page):
         },
         "resultTypes": ["violations"],
     }
-    results = [(frame.url, Axe().run(frame, options=options)) for frame in page.frames]
+
+    # A hidden iframe can still have an about:blank document. Inspect only
+    # documents the reader can reach, including through visible parent frames.
+    def visible(frame):
+        return frame == page.main_frame or (
+            frame.frame_element().is_visible() and visible(frame.parent_frame)
+        )
+
+    results = [
+        (frame.url, Axe().run(frame, options=options))
+        for frame in page.frames
+        if visible(frame)
+    ]
     violations = [
         {**violation, "document": url}
         for url, result in results

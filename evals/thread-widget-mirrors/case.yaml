@@ -14,6 +14,9 @@ execution:
     display the matching Threads as complete Leaf conversation views inside its own
     element. Both must update when a Thread changes, and removing one must leave the
     other working. Keep the Threads at their original page or margin position too.
+    Beside each mirrored conversation, add a "Continue in page" button that takes the
+    user to the canonical reply editor and selects its current draft only once that
+    editor has actually arrived. A later user move must keep its focus.
 
     The page directory is not reachable from here. Reply with the JavaScript module
     for the custom element, rather than writing a file.
@@ -40,3 +43,8 @@ graders:
     `surfaces.render(thread.key, outlet)` for matching Threads. It must unregister on
     disconnect, and must not create another Leaf instance, post raw Thread events, or
     use `surfaces.place` (which would take a Thread away from its margin position).
+    The continuation must await `openThread(thread.id, {focus: "reply"})`, use its
+    actual returned element for selection, and check that it still holds focus.
+    It must not search for any visible mirrored editor or focus again after awaiting.
+    A separate button-source intent predicate checked after `openThread` rejects the
+    route's own editor focus and incorrectly skips selection; that response fails.

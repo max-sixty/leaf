@@ -43,8 +43,8 @@ content-addressed over the document and its resources.
 
 The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
 with no interaction sleeps after ten idle minutes. After any page in a session is
-active, a visible active page holds its container through Leaf's news stream; a passive
-page opens no stream. Hidden tabs close their streams, so the idle timer can begin after
+active, a visible active page holds its container through Leaf's finite freshness requests; a passive
+page makes none. Hidden tabs stop these requests, so the idle timer can begin after
 the browser session has no visible active Leaf page. This is resource lifetime, not a
 persistence guarantee: Cloudflare can replace an active instance, and each site release
 deliberately gets a fresh one. Durable website sessions will require a durable

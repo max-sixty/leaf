@@ -388,6 +388,10 @@ if (enabled) {
       for (const resource of list.getEntries()) {
         if (resource.name.startsWith(url)) continue;
         const resourceUrl = new URL(resource.name);
+        // Freshness is transport housekeeping; failed reads are explained by the
+        // server diagnostic and the state read they prompt. Logging each look
+        // would turn its quiet clock into a second diagnostic request clock.
+        if (pagePath(resourceUrl.pathname) === "/api/news") continue;
         enqueue({
           type: "resource",
           path: pagePath(resourceUrl.pathname),

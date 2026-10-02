@@ -147,14 +147,26 @@ export default {
       to: { path: isModule("keyboard/page.js") },
     },
     {
-      name: "contributions-independent-of-annotation-layout",
+      name: "annotation-services-independent-of-overlay",
       comment:
-        "Shared contribution records, activation and controls do not choose annotation geometry.",
+        "Shared inventory, activation, controls and Page Map do not load overlay geometry.",
       severity: "error",
-      from: { path: isOneOf(["contributions.js", "contribution-controls.js"]) },
+      from: {
+        path: isOneOf([
+          "contributions.js",
+          "contribution-controls.js",
+          "annotation-inventory.js",
+          "inline-contributions.js",
+          "page-map-dialog.js",
+        ]),
+      },
       to: {
         reachable: true,
-        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
+        path: isOneOf([
+          "margin-layout.js",
+          "margin-projection.js",
+          "margin-cluster-view.js",
+        ]),
       },
     },
     {

@@ -59,6 +59,7 @@ from interact_support import (
     stamp_activation,
     styled,
     trial_version,
+    wait_for,
     yaml_block,
     yaml_document,
 )
@@ -1289,7 +1290,11 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
             1,
         ):
             initing = workers.submit(vendoring_model.cmd_init, page_dir)
-            assert init_waiting.wait(5)
+            wait_for(
+                init_waiting.is_set,
+                bool,
+                failure="Re-vendoring did not attempt the preview lock",
+            )
             assert registry_storage.layer_generation(page_dir) == before
         initing.result()
     assert registry_storage.layer_generation(page_dir) != before

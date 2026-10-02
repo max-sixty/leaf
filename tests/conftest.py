@@ -484,6 +484,19 @@ def browser(_browser, request):
 
 
 @pytest.fixture
+def webkit_browser(_playwright, request):
+    """Desktop WebKit, where wheel gestures can exercise nested scroll boundaries."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    webkit = _playwright.webkit.launch()
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(webkit)
+    finally:
+        webkit.close()
+
+
+@pytest.fixture
 def iphone(_playwright, request):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone

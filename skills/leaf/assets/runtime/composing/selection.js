@@ -497,7 +497,12 @@ export function createSelectionComposer({
     // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.
     if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
-    else if (drawingSupplied) saveComposerDraft();
+    else if (
+      drawingSupplied &&
+      JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
+        JSON.stringify(pendingDrawing)
+    )
+      saveComposerDraft();
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
@@ -506,26 +511,30 @@ export function createSelectionComposer({
   let composerWatch = null;
   function watchComposer() {
     composerWatch?.();
-    composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
-      // Settled, not discarded. A send masks its generation and leaves the record
-      // standing, because a refusal has to give the words back; discarding here would
-      // tombstone them first and there would be nothing left to give.
-      if (value === null) return settleComposer();
-      const { text, suggest, about, drawing = null } = JSON.parse(value);
-      if (syncComposer.value() !== text) {
-        syncComposer.load(text);
-        // Whatever stood here is another tab's words now, not this box's machine seed.
-        seededQuote = "";
-      }
-      // The whole record, not the words alone: the mode a draft was written in rides with
-      // it (pendingAbout, above), so a box taking up those words sends them under the word
-      // they were written with. Design mode is this tab's and the draft's about is not.
-      pendingAbout = about;
-      pendingDrawing = validDrawing(drawing) ? drawing : null;
-      suggestCheck.checked = Boolean(suggest);
-      syncSuggestMode();
-      refreshThread();
-    });
+    composerWatch = watchDraft(
+      composerCtx(pendingAnchor),
+      (value) => {
+        // Settled, not discarded. A send masks its generation and leaves the record
+        // standing, because a refusal has to give the words back; discarding here would
+        // tombstone them first and there would be nothing left to give.
+        if (value === null) return settleComposer();
+        const { text, suggest, about, drawing = null } = JSON.parse(value);
+        if (syncComposer.value() !== text) {
+          syncComposer.load(text);
+          // Whatever stood here is another tab's words now, not this box's machine seed.
+          seededQuote = "";
+        }
+        // The whole record, not the words alone: the mode a draft was written in rides with
+        // it (pendingAbout, above), so a box taking up those words sends them under the word
+        // they were written with. Design mode is this tab's and the draft's about is not.
+        pendingAbout = about;
+        pendingDrawing = validDrawing(drawing) ? drawing : null;
+        suggestCheck.checked = Boolean(suggest);
+        syncSuggestMode();
+        refreshThread();
+      },
+      { input: fabInput },
+    );
   }
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box
   // either way: a marked passage with no composer on screen points at nothing.

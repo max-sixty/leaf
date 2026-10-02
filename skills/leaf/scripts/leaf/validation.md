@@ -176,9 +176,10 @@ revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new qu
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked.
 
-Immutable inputs are read once per process. A stored revision's document, captured
-vocabulary, and passage readings live on its one `RevisionReading`
-(`revision_artifact.read_revision`); a candidate's live on the one `SourceReading`
-its check takes, which the revision activation writes from it adopts. Each logged
-markup fragment is parsed once (`thread_context.logged_fragment`), while markup a
-writer hands in is parsed afresh at its gate.
+Immutable inputs are read once for as long as the page's owner holds its memory
+(`page_memory`). A stored revision's document, captured vocabulary, and passage
+readings live on its one `RevisionReading` (`revision_artifact.read_revision`); a
+candidate's live on the one `SourceReading` its check takes, which the revision
+activation writes from it adopts. Each logged markup fragment is parsed once
+(`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh at
+its gate.

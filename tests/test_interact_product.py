@@ -31,6 +31,7 @@ from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import layer as layer_model
+from leaf import page_memory as page_memory_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
@@ -147,8 +148,8 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
             "text": "one more on the flow",
         },
     )
-    revisioning_model._held.clear()
-    settled = revisioning_model.activate_source(page_dir)
+    with page_memory_model.holding(page_dir, page_memory_model.PageMemory()):
+        settled = revisioning_model.activate_source(page_dir)
     assert settled.error is None and settled.revision == 2 and not settled.created
     assert check(page_dir).exit_code == 0
 

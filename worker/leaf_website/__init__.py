@@ -9,6 +9,7 @@ state store or event semantics.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import re
@@ -20,7 +21,7 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
-from functools import cache, partial
+from functools import partial
 from html import escape
 from pathlib import Path
 
@@ -46,6 +47,7 @@ from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.page_memory import PageMemories, Slot
 from leaf.registry.storage import layer_metadata
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -243,10 +245,9 @@ def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
     return {"eventIds": event_ids}
 
 
-@cache
-def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
-    """Read immutable delivery metadata once per published page and process."""
-    return layer_metadata(page_dir), preview_metadata(page_dir)
+class _Binding(Slot):
+    """A published page's immutable delivery metadata, read once while the site
+    keeps the page's memory."""
 
 
 def site_metadata(page_root: str, page: dict) -> str:
@@ -784,9 +785,11 @@ class WebsiteCodexHost:
                 follow = before_close(socket, result, pending)
                 if follow is not None:
                     self.following_threads.add(follow.session_id)
+                    # In this request's context, so the follower reads its page
+                    # through the memory the site keeps of it (`leaf.page_memory`).
                     threading.Thread(
-                        target=self._run_follow_turn,
-                        args=(follow,),
+                        target=contextvars.copy_context().run,
+                        args=(self._run_follow_turn, follow),
                         daemon=True,
                     ).start()
                     followed = True
@@ -1304,12 +1307,14 @@ class WebsitePageEndpoint(PageEndpoint):
         *,
         site_root: Path,
         pages: dict,
+        memories: PageMemories,
         release: str,
         agent_host: WebsiteCodexHost,
     ) -> None:
         super().__init__(request, server, release=release)
         self.site_root = site_root
         self.pages = pages
+        self.memories = memories
         self.agent_host = agent_host
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -1403,8 +1408,11 @@ class WebsitePageEndpoint(PageEndpoint):
         if not (page_dir / "events.jsonl").is_file():
             return self._not_found()
 
-        identity, preview = page_binding(page_dir)
         self.page_dir = page_dir
+        self.memory = self.memories.of(page_dir)
+        identity, preview = self.memory.memo(_Binding).get(
+            None, lambda: (layer_metadata(page_dir), preview_metadata(page_dir))
+        )
         self.layer_identity = identity
         self.preview = preview
         self.publication = {**PUBLICATION, "kind": kind}
@@ -1417,13 +1425,16 @@ def site_endpoint(
     site_root: Path,
     agent_host: WebsiteCodexHost | None = None,
 ) -> partial[WebsitePageEndpoint]:
-    """Bind every page directory in one site build to the endpoint a request becomes."""
+    """Bind every page directory in one site build to the endpoint a request becomes,
+    and to the memories the site keeps of the pages it served most recently
+    (`leaf.page_memory`)."""
     root = site_root.resolve()
     manifest = json.loads((root / SITE_MANIFEST).read_text(encoding="utf-8"))
     return partial(
         WebsitePageEndpoint,
         site_root=root,
         pages=manifest["pages"],
+        memories=PageMemories(),
         release=manifest["release"],
         agent_host=agent_host or website_codex_host(),
     )

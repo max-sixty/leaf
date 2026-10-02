@@ -15,6 +15,7 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
+from leaf import page_memory as page_memory_model
 from leaf import session_cleanup as cleanup_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import sync_playwright
@@ -368,6 +369,15 @@ def isolated_session(tmp_path_factory, monkeypatch):
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
     return machine_model.state_home()
+
+
+@pytest.fixture(autouse=True)
+def command_memory():
+    """A test reads pages the way one `leaf` command does: it keeps what it reads of
+    the pages it read most recently until it ends, and no longer (`page_memory`). A
+    server it starts keeps its own page's memory, which ends with that server."""
+    with page_memory_model.holding_pages(page_memory_model.PageMemories()):
+        yield
 
 
 @pytest.fixture

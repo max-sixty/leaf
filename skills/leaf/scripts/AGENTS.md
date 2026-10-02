@@ -15,6 +15,8 @@ subpackage's initializer is only a marker, never a second API.
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
+- `page_memory`: how long a process keeps what it read of a page, which is as long
+  as the page's owner runs: a server, a sample, or a command;
 - `page`: vendored page instructions;
 - `event_log`: append-only JSONL storage and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through;

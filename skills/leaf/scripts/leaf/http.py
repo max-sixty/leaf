@@ -51,6 +51,7 @@ from .interaction_log import append_interactions, client_records, now_iso
 from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
+from .page_memory import PageMemory, holding
 from .passages import SourceReading
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
@@ -206,6 +207,7 @@ class PageEndpoint:
         server,
         *,
         page_dir: Path | None = None,
+        memory: PageMemory | None = None,
         token: str | None = None,
         layer_identity: dict | None = None,
         preview: dict | None = None,
@@ -223,10 +225,13 @@ class PageEndpoint:
         # own address, while the query it arrived with is untouched either way.
         self.path = request.url.path
         self.query = parse_qs(request.url.query)
-        # The page this request is against. A one-page server binds it here for the
-        # life of the server, through `page_endpoint`; a multiplexed transport binds
-        # each request in `_select_page`, from the address it arrived at.
+        # The page this request is against, and the memory its owner keeps of it
+        # (`page_memory`). A one-page server binds both here for the life of the
+        # server, through `page_endpoint`; a multiplexed transport binds each request
+        # in `_select_page`, from the address it arrived at. A request bound to no
+        # owner's memory keeps its readings for itself alone.
         self.page_dir = page_dir
+        self.memory = memory or PageMemory()
         self.token = token
         self.layer_identity = layer_identity
         self.preview = preview
@@ -440,12 +445,16 @@ class PageEndpoint:
                     reading = self.page_snapshot.reading
                     files = served_reading.reading_files(reading)
                 else:
-                    files = served_reading.page_reading(self.page_dir)
-                    # Presence is re-read on its own clock, and again whenever the files
-                    # move. The state answer and this token must describe the same view.
-                    if files != files_said or now - looked >= PRESENCE_S:
-                        presence = presence_model.presence_reading(self.page_dir)
-                        looked = now
+                    # Bound per look rather than around the stream, since a binding
+                    # must not span the awaits between looks.
+                    with holding(self.page_dir, self.memory):
+                        files = served_reading.page_reading(self.page_dir)
+                        # Presence is re-read on its own clock, and again whenever the
+                        # files move. The state answer and this token must describe
+                        # the same view.
+                        if files != files_said or now - looked >= PRESENCE_S:
+                            presence = presence_model.presence_reading(self.page_dir)
+                            looked = now
                     reading = served_reading.join_reading(files, presence)
                 # Before the word goes out, so a listener that has heard the first
                 # one is a browser the page already counts as holding it open.
@@ -618,26 +627,28 @@ class PageEndpoint:
         reason: every request passes through, so there is one gate rather than one
         per method, and a route added later cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
-        choose a body-read cost.
+        choose a body-read cost. Everything after selection reads the page through
+        its owner's memory.
         """
         prepared = False
         try:
             answered = self._select_page()
             if answered is not None:
                 return answered
-            if prepare:
-                self.posted, self.posted_error = {}, None
-            if not self.authorized():
+            with holding(self.page_dir, self.memory):
                 if prepare:
-                    self.body_unread = True
-                return self._refuse(NO_KEY, 403)
-            sample_answer = self._sample_request()
-            if sample_answer is not None:
-                return sample_answer
-            if prepare:
-                self.posted, self.posted_error = prepare()
-                prepared = True
-            return route()
+                    self.posted, self.posted_error = {}, None
+                if not self.authorized():
+                    if prepare:
+                        self.body_unread = True
+                    return self._refuse(NO_KEY, 403)
+                sample_answer = self._sample_request()
+                if sample_answer is not None:
+                    return sample_answer
+                if prepare:
+                    self.posted, self.posted_error = prepare()
+                    prepared = True
+                return route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
             # Not a refusal: a fault may have landed either side of the append, so the
             # browser must retry the same attempt instead of putting its gesture back.
@@ -673,6 +684,7 @@ class PageEndpoint:
             self.request,
             self.server,
             page_dir=sample.directory,
+            memory=sample.memory,
             layer_identity=sample.layer,
             page_root=f"{self.page_root}/api/samples/{identity}",
         )
@@ -1113,7 +1125,9 @@ def page_endpoint(
     """Bind one page, publication view, and key to the endpoint each request becomes.
 
     The layer identity and the preview reading are read once here rather than per
-    request: they are facts about the vendored page this server was started over. So
+    request: they are facts about the vendored page this server was started over. The
+    page's memory is made here too, so the server keeps what it reads of the page for
+    as long as it serves it, and no longer (`page_memory`). So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and exits naming the re-vendor when
     the page's runtime came from another Leaf (`foreign_runtime`).
@@ -1130,6 +1144,7 @@ def page_endpoint(
     return partial(
         endpoint,
         page_dir=page_dir,
+        memory=PageMemory(),
         token=token,
         layer_identity=identity,
         preview=preview_metadata(page_dir),

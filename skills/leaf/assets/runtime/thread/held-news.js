@@ -353,9 +353,9 @@ export class HeldArrivals {
     for (const { thread, datum } of threads) {
       const held = this.#held.get(thread.key);
       if (!held) continue;
-      if (thread.settling || turns(thread).some(own) || drawn.has(datum))
-        this.#held.delete(thread.key);
-      else held.datum = datum;
+      held.datum = datum;
+      if (thread.settling || turns(thread).some(own)) this.#held.delete(thread.key);
+      else if (drawn.has(datum)) this.#lapse((each) => each === held);
     }
     const arrived = threads.filter(({ thread }) => !this.#known.has(thread.key));
     // A thread the user starts at a datum is their gesture, and the threads held there
@@ -366,10 +366,20 @@ export class HeldArrivals {
     for (const { thread, datum, node } of arrived) {
       // A datum with a thread drawn has a seat, and one whose growth would not be seen
       // draws its threads together.
-      if (started.has(datum) || drawn.has(datum) || !growthAfterIsSeen(node))
-        this.#release((held) => held.datum === datum);
+      if (started.has(datum)) this.#release((held) => held.datum === datum);
+      else if (drawn.has(datum) || !growthAfterIsSeen(node))
+        this.#lapse((held) => held.datum === datum);
       else this.#held.set(thread.key, { key: thread.key, id: thread.id, datum });
     }
+  }
+
+  // Releases what `which` picks for a reason other than a gesture of the user's. A
+  // thread the user stands in, in the margin's card, stays there with them, since its
+  // release would take the card, and the reply they may be writing, away; it shows
+  // when they press its marker, or the next time its datum leaves the window.
+  #lapse(which) {
+    const standing = closestAcross(focused(), THREAD)?.dataset.thread;
+    return this.#release((held) => which(held) && held.id !== standing);
   }
 
   // One watch for each datum holding a thread, on the node it stands at now.
@@ -384,13 +394,8 @@ export class HeldArrivals {
     for (const datum of holding) {
       if (this.#watching.has(datum)) continue;
       const node = nodes.get(datum);
-      // A thread the user stands in, in the margin's card, stays there with them until
-      // the datum next leaves the window: its release would take the card, and the
-      // reply they may be writing, away.
       const leave = () => {
-        const standing = closestAcross(focused(), THREAD)?.dataset.thread;
-        const leaves = (held) => held.datum === datum && held.id !== standing;
-        if (this.#release(leaves)) this.#changed();
+        if (this.#lapse((held) => held.datum === datum)) this.#changed();
       };
       this.#watching.set(datum, { node, stop: whenOffScreen(node, leave) });
     }

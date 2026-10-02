@@ -1258,6 +1258,30 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         )
         expect(box).to_be_focused()
         expect(outlet).to_have_count(0)
+        # A second thread on the line, off screen, shows; the one the user writes in
+        # stays with them in the card.
+        second = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "text": "And should the alias warn?",
+                "anchor": {
+                    "section": "patch",
+                    "datum": ROUTE_LINE,
+                    "source": "review-patch",
+                    "source_revision": source_revision(serve.page_dir, "review-patch"),
+                },
+            },
+        )["id"]
+        told(page)
+        expect(outlet.locator(".lf-page-thread")).to_have_count(1)
+        expect(outlet.locator(".lf-page-thread")).to_have_attribute(
+            "data-thread", second
+        )
+        expect(box).to_be_focused()
         return
     elif end == "clicked":
         marker.click()

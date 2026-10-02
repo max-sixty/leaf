@@ -160,6 +160,14 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     def observe(stage):
         rendered(page)
         wait_for_probe(page, "pageSettled")
+        # A held appearance follows its finite entry motion. Observe geometry here,
+        # before screenshot's animation handling can move the captured region.
+        page.wait_for_function(
+            """node => !node.getAnimations({subtree: true}).some(move =>
+              move.playState !== 'finished' && move.playState !== 'idle'
+                && Number.isFinite(move.effect.getComputedTiming().endTime))""",
+            arg=shown.region.element_handle(),
+        )
         reading = {
             "intent": intent,
             "region": shown.region.bounding_box(),

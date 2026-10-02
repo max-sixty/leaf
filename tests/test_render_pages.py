@@ -3396,42 +3396,35 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
 def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
     """Cookie names distinguish real ports in one browser's shared cookie jar."""
     first_url = serve(INLINE_PAGE)
-    with TemporaryPageServer(serve.page_dir, token="another-listener-key") as other:
-        with browser.new_context() as context:
-            first = open_page(browser, first_url, context=context)
-            second = open_page(browser, other.url, context=context)
-            for page in (first, second):
-                assert (
-                    page.evaluate("() => fetch('/api/state').then(r => r.status)")
-                    == 200
-                )
-                page.reload()
-                wait_until_ready(page)
-                assert "?t=" not in page.url
-                assert (
-                    page.evaluate("() => fetch('/api/state').then(r => r.status)")
-                    == 200
-                )
-            cookies = context.cookies()
-            assert len({cookie["name"] for cookie in cookies}) == 2
-            assert all(
-                cookie["httpOnly"] and cookie["sameSite"] == "Strict"
-                for cookie in cookies
-            )
-            assert first.evaluate("document.cookie") == ""
+    with (
+        TemporaryPageServer(serve.page_dir, token="another-listener-key") as other,
+        browser.new_context() as context,
+    ):
+        first = open_page(browser, first_url, context=context)
+        second = open_page(browser, other.url, context=context)
+        for page in (first, second):
+            assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+            page.reload()
+            wait_until_ready(page)
+            assert "?t=" not in page.url
+            assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+        cookies = context.cookies()
+        assert len({cookie["name"] for cookie in cookies}) == 2
+        assert all(
+            cookie["httpOnly"] and cookie["sameSite"] == "Strict" for cookie in cookies
+        )
+        assert first.evaluate("document.cookie") == ""
 
-            # Native keyboard sends still use relative API requests after both arrivals.
-            first.keyboard.press("c")
-            first.keyboard.type("Both tabs remain usable")
-            with sending(first, "comment"):
-                first.keyboard.press("Control+Enter")
-            assert any(
-                event.get("text") == "Both tabs remain usable"
-                for event in events_model.read_events(serve.page_dir)
-            )
-            assert (
-                second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
-            )
+        # Native keyboard sends still use relative API requests after both arrivals.
+        first.keyboard.press("c")
+        first.keyboard.type("Both tabs remain usable")
+        with sending(first, "comment"):
+            first.keyboard.press("Control+Enter")
+        assert any(
+            event.get("text") == "Both tabs remain usable"
+            for event in events_model.read_events(serve.page_dir)
+        )
+        assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
 
 # Everything an injected control still draws once the medium has taken the press away.

@@ -1093,6 +1093,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
+    consume_browser_errors(
+        page,
+        "<lf-visual-review id=\"visual-run\"> failed: case 'run-list' focus 120,300",
+    )
     expect(case_select).to_be_visible()
     unequal_pair = changed | {
         "cases": [
@@ -1109,6 +1113,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "before is 1800px wide and after is 780px"
     )
+    consume_browser_errors(page, "before is 1800px wide and after is 780px")
     corrected = changed | {
         "cases": [
             changed["cases"][0]

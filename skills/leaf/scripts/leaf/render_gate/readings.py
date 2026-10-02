@@ -236,7 +236,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     errors = context.errors
     resize_notices = context.resize_notices
     unsettled = context.unsettled
-    failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
@@ -351,11 +350,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
     found = [f"[{scheme}] console: {e}" for e in errors]
-    for failure in failsoft:
-        owner = f"<{failure['tag']}" + (
-            f" id={failure['id']!r}>" if failure["id"] else ">"
-        )
-        found.append(f"[{scheme}] {owner} failed soft: {failure['message']}")
     for paint in invalid_paints:
         owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
         part = f" for data-id={paint['part']!r}" if paint["part"] else ""

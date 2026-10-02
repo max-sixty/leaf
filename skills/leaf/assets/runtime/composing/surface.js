@@ -521,7 +521,7 @@ export function createResponseSurface({
       clear: keepClear,
       extent: roomRect,
       boundary,
-      minimum: { width: cardMinimum() },
+      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
@@ -551,7 +551,7 @@ export function createResponseSurface({
           row: target?.top,
           margin: !unanchored && owner && marginSpot(owner, fabPointIn(owner)),
           boundary,
-          minimum: { width: cardMinimum() },
+          minimumWidth: cardMinimum(),
           fit({ side: placed, width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width);

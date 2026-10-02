@@ -80,8 +80,9 @@ scroller that shows the thread, in the Threads panel as in the margin card, and 
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they
 open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws
-(`thread/held-news.js`). A change the user requested may reflow the
+thread the agent starts wait behind a notice in a row the seat already draws, and a
+thread that would open a seat of its own, as on a diff line with no thread, waits in
+the margin behind its marker (`thread/held-news.js`). A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The

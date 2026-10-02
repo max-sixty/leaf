@@ -187,7 +187,7 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed, focusSurface } from "./thread/surfaces.js";
+import { claimed, focusSurface, showHeld } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -2846,6 +2846,13 @@ export function createMarginProjection({
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
+    // A thread a widget holds out of its flow, so as to move nothing the user reads,
+    // has this marker for its notice: pressing it shows the thread where the widget
+    // draws it, and lands the user there (thread/held-news.js).
+    if (showHeld(choice.items.map((item) => sourceItem(item).thread.id))) {
+      closePreview();
+      return;
+    }
     togglePinned(entry, button);
   }
 

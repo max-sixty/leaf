@@ -1183,7 +1183,7 @@ def test_server_round_trip(server, page_dir):
     arrived = peer.getresponse()
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
-    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
+    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'self'"
     assert arrived.getheader("X-Content-Type-Options") == "nosniff"
     peer.close()
     status = arrived.status
@@ -1208,7 +1208,7 @@ def test_server_round_trip(server, page_dir):
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
         assert response.status == 200
-        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.

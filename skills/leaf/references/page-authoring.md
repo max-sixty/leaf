@@ -594,6 +594,13 @@ Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.
 
+An ordinary served Leaf page can appear in a plain `<iframe src="…">`, keeping
+that page's durable history. Use its existing served URL. The parent and child
+must share the browser origin: scheme, hostname, and port. Another local port
+is a different origin. Leaf blocks cross-origin parents so another site cannot
+place an authenticated Leaf control beneath a misleading interface. Framing
+does not copy or reset the page.
+
 ## Stable anchors
 
 Give each section, major block, and Leaf element a stable, meaningful `id` at the

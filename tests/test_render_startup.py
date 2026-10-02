@@ -67,6 +67,7 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
+    CORPUS_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -127,12 +128,14 @@ VISUAL_ACTION_TIMING = """
 """
 
 
-def test_a_live_page_cannot_be_framed_or_run_its_data(browser, serve):
-    """Another site cannot put a live Leaf under its own controls, and a data route
-    never runs as a script, whatever the page's own code tries."""
+def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, serve):
+    """A same-origin frame is an ordinary operable page; data never runs as code."""
     source = leaf_page(
         "Boundaries",
-        '<h1 id="h">Boundaries</h1>',
+        """<h1 id="h">Boundaries</h1>
+<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
+</lf-options></lf-ask>""",
         head="""<script type="module">
 window.authoredModuleRan = true;
 </script>""",
@@ -152,6 +155,8 @@ window.authoredModuleRan = true;
         )
         == "blocked"
     )
+    errors = consume_browser_errors(page, 'MIME type of "application/json"')
+    assert any('MIME type of "application/json"' in error for error in errors), errors
     framed = page.locator("body").evaluate(
         """async (body, url) => {
               const frame = document.createElement('iframe');
@@ -167,12 +172,131 @@ window.authoredModuleRan = true;
             }""",
         page.url,
     )
-    assert framed is None
-    errors = consume_browser_errors(
-        page, "Content Security Policy", 'MIME type of "application/json"'
+    assert framed == "Boundaries"
+    frame = page.frame_locator("#framed-leaf")
+    expect(frame.locator("body")).to_have_attribute("data-lf-presented", "1")
+    frame.locator("#yes").click()
+    page.wait_for_function(
+        "() => document.querySelector('#yes')?.hasAttribute('chosen')"
     )
-    assert any("frame-ancestors 'none'" in error for error in errors), errors
-    assert any('MIME type of "application/json"' in error for error in errors), errors
+    assert any(
+        event.get("kind") == "action"
+        and event.get("widget") == "pick"
+        and event.get("detail") == {"options": ["yes"]}
+        for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
+    """Authored iframe markup opens a durable version rather than a practice copy."""
+    url = live_url(serve(FEATURE_GALLERY))
+    page = open_page(browser, url + "#bg-durable-embedding")
+    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
+    page.locator("#bg-durable-frame-open").click()
+    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+    frame.locator(".lf-threads-toggle").click()
+    expect(frame.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    frame.goto(frame.url)
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+
+
+def test_a_composed_page_does_not_offer_history_it_does_not_have(browser, serve):
+    """Corpus composition preserves markup, not another page's durable versions."""
+    page = open_page(browser, live_url(serve(CORPUS_PAGE)))
+    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
+    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
+    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
+    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
+
+
+def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
+    """SameSite cookies do not isolate ports, so a different origin can authenticate
+    the frame even without knowing its key. CSP blocks disguising its controls."""
+    context = browser.new_context()
+    child = open_page(
+        browser,
+        live_url(serve(leaf_page("Child", '<h1 id="h">Child</h1>'))),
+        context=context,
+    )
+    child_url = child.url
+    parent_url = live_url(serve(leaf_page("Parent", '<h1 id="parent">Parent</h1>')))
+    assert urlparse(child_url).port != urlparse(parent_url).port
+    parent = open_page(browser, parent_url, context=context)
+    with parent.expect_response(child_url) as loaded:
+        parent.locator("body").evaluate(
+            """async (body, url) => {
+                const frame = document.createElement('iframe');
+                frame.id = 'blocked-leaf';
+                frame.src = url;
+                const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+                body.append(frame);
+                await loaded;
+            }""",
+            child_url,
+        )
+    response = loaded.value
+    assert response.status == 200
+    assert TOKEN in response.request.all_headers()["cookie"]
+    assert "t=" not in response.url
+    errors = consume_browser_errors(parent, "Content Security Policy")
+    assert any("frame-ancestors 'self'" in error for error in errors), errors
+    assert parent.locator("#blocked-leaf").evaluate(
+        "frame => frame.contentDocument === null"
+    )
+
+
+def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
+    """The page-interface barrier includes loading its optional owner's module."""
+    source = leaf_page(
+        "Deferred gallery",
+        """<h1>Deferred gallery</h1>
+<section data-interaction-gallery data-interaction-viewport="2">
+  <lf-tabs id="gallery-tabs"><lf-tab id="demo" label="Accept a suggestion">
+    <figure data-interaction-demo="accept">
+      <template id="sample-page" data-sample>
+        <p>The importer <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>.</p>
+      </template>
+      <div class="interaction-stage">
+        <iframe data-interaction-frame title="Contained suggestion"></iframe>
+        <span class="interaction-pointer" hidden></span>
+      </div>
+    </figure>
+  </lf-tab></lf-tabs>
+</section>
+<div style="height: 1000px"></div>
+<section id="destination"><h2>Requested destination</h2><p>Read this next.</p></section>""",
+    )
+    page = browser.new_page()
+    watched(page)
+    page.add_init_script(
+        "document.addEventListener('lf-page-interface', () => { window.interfaceStarted = true; });"
+    )
+    held = []
+    page.route("**/runtime/interaction-gallery.js", lambda route: held.append(route))
+    page.goto(live_url(serve(source)) + "#destination", wait_until="domcontentloaded")
+    page.wait_for_function("() => window.interfaceStarted === true")
+    assert held, "the positive control did not hold the optional owner import"
+    page.evaluate(
+        """async () => {
+          const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
+        }"""
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    held.pop().continue_()
+    wait_until_ready(page)
+    expect(page.locator("[data-interaction-ready]")).to_have_count(1)
+    expect(page.locator("#destination")).to_be_in_viewport()
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):

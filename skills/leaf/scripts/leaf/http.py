@@ -220,9 +220,6 @@ class PageEndpoint:
     banner has to be able to show.
     """
 
-    # A page refuses every frame; `SampleEndpoint` answers into its parent page's.
-    frame_ancestors_policy = FRAME_ANCESTORS_CSP
-
     def __init__(
         self,
         request: Request,
@@ -551,7 +548,7 @@ class PageEndpoint:
         is_html = ctype.startswith("text/html")
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
         if is_html:
-            headers["Content-Security-Policy"] = self.frame_ancestors_policy
+            headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
 
     def _json(self, obj, status: int = 200) -> Response:
@@ -1111,9 +1108,6 @@ class PageEndpoint:
 
 class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
-
-    # Drawn in a frame on its parent page, which is the same origin.
-    frame_ancestors_policy = "frame-ancestors 'self'"
 
     def authorized(self) -> bool:
         return True

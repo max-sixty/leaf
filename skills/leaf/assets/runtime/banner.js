@@ -38,15 +38,14 @@ toggleBtn.setAttribute("aria-expanded", "false");
 let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
-  keepsText(
-    toggleBtn,
-    openThreads === null ? "Threads" : `Open threads: ${openThreads}`,
-  );
+  const label = openThreads === null ? "Threads" : `Threads: ${openThreads}`;
+  const accessible = openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
+  keepsText(toggleBtn, label);
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
     : null;
-  keeps(toggleBtn, "aria-label", unread && `${toggleBtn.textContent}, ${unread}`);
+  keeps(toggleBtn, "aria-label", unread ? `${accessible}, ${unread}` : accessible);
   keeps(
     toggleBtn,
     "data-lf-key-title",
@@ -677,7 +676,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
 // taken from the document each time rather than kept beside it. The control stands for
-// the declaration alone, which the banner's rows follow too (theme.css): a control a
+// the declaration alone; the banner's allocation is independent of it: a control a
 // stamp put up would be news taking room on the row. Before a stamp the press is refused
 // with its reason (paintApproval) instead.
 export function stateSignoff(next, syncLayout, paintApproval) {
@@ -695,7 +694,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(toggleBtn, ["Threads", "Open threads: 999"]);
+  reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 
 let approving = false;

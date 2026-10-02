@@ -25,8 +25,9 @@ settling, after that proof. They do not claim to capture the insertion instant.
     uv run pytest -n0 tests/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots accept
 
-Review actual/expected/diff images and observations.json in the failure's Evidence
-folder before accepting. Acceptance changes the ordinary text source pin/patch;
+Each failure names its stage, expected/actual/diff paths and observations.json;
+CI retains the same folders. Review those images and summarize the changed
+checkpoints before accepting. Acceptance changes the ordinary text source pin/patch;
 prepare and re-run the test, then commit them with the intentional UI change. Missing source,
 failed generation and changed cached bytes fail instead of silently accepting.
 Setup co-renders the approved source; ordinary tests read its verified cache only.
@@ -47,6 +48,7 @@ from pathlib import Path
 import click
 from PIL import Image
 from playwright.sync_api import Page
+from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT
 
@@ -208,13 +210,18 @@ class SnapshotRun:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.
             self.compare(Image.open(io.BytesIO(png)), expected, threshold=0.01)
-        except AssertionError as error:
-            self.failures.append(f"{stage}: {error}")
+        except ImageMismatchError:
+            self.failures.append(
+                f"{stage}: appearance changed\n"
+                f"Expected: {expected}\nActual: {actual}\n"
+                f"Diff: {expected.with_suffix('.diff.png')}"
+            )
 
     def finish(self) -> None:
         """Report every changed checkpoint together after the journey completes."""
         assert not self.failures, (
-            "\n".join(self.failures) + f"\nEvidence: {self.output}"
+            "\n".join(self.failures)
+            + f"\nReadings: {self.output / 'observations.json'}\nEvidence: {self.output}"
         )
 
 

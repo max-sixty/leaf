@@ -110,10 +110,31 @@ def append_command(page_dir, command):
     """Seed a widget command through the real append door.
 
     A test of raw storage or retired vocabulary passes an explicitly admitted
-    event, including meaning, to event_log.append_event instead.
+    event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)
+
+
+def append_carried_log_record(page_dir, event):
+    """Seed already-interpreted input for a storage or transport test.
+
+    These tests declare input the carrier must deliver, without a document that
+    could decide its meaning. Semantic attention cases use `append_command`.
+    A raw fixture can explicitly declare `attention=False` for quiet input.
+    """
+    from leaf.registry.kernel import bookkeeping_kinds
+
+    return events_model.append_event(
+        page_dir,
+        {
+            "attention": (
+                event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
+            )
+            or event["kind"] in {"report", "error"},
+            **event,
+        },
+    )
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -214,6 +235,10 @@ class ModelPage:
             "what a page still owes is read from its claims and its deliveries, "
             "which a stated page has none of: put that refusal on `page_dir`"
         )
+
+    @property
+    def claims(self) -> list:
+        return []
 
 
 def spawn_probe(spawn, page_dir, body, **environment):
@@ -503,7 +528,7 @@ def publish(d, version=1):
     can only ever be made against one the server exposed."""
     activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "note",
@@ -1199,7 +1224,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         {"state": "idle", "detail": "", "ts": None, "after": 0},
     )
     if published:
-        events_model.append_event(
+        append_carried_log_record(
             directory,
             {
                 "kind": "note",
@@ -1249,7 +1274,7 @@ def comment_once_served():
         def post():
             while not stopped.wait(0.1):
                 if server_model.running_server(page_dir):
-                    events_model.append_event(
+                    append_carried_log_record(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )
                     return

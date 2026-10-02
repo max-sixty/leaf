@@ -61,7 +61,8 @@ delivered at prompt:
           h3: >-
             Your reply renders as Markdown, so show code or markup in a fenced block.
         events:
-          - kind: comment
+          - attention: true
+            kind: comment
             author: user
             revision: 1
             text: >-
@@ -104,6 +105,7 @@ answer:
     I will add the camera first.
   responds: event-2
   id: event-4
+  attention: false
   ts: <time>
   seq: 4
 

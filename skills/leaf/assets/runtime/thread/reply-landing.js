@@ -31,11 +31,11 @@ import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { SAYS_IN } from "./selectors.js";
 
-const REPLY_ROW = ".lf-compose, .lf-say";
+const REPLY_ROW = ".lf-thread-reply, .lf-say";
 const replyRowOf = (held, control) => {
   const reply =
     control === held
-      ? held.querySelector(":scope > .lf-compose, :scope > .lf-say")
+      ? held.querySelector(":scope > .lf-thread-reply, :scope > .lf-say")
       : control.closest(REPLY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
@@ -43,8 +43,13 @@ const replyRowOf = (held, control) => {
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end.
 const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
-const separateTranscript = (held) =>
-  held.querySelector(":scope > .lf-thread-transcript");
+// The common transcript is a separate reading region only when its container bounds it.
+const separateTranscript = (held) => {
+  const transcript = held.querySelector(":scope > .lf-thread-transcript");
+  return transcript && /^(auto|scroll)$/.test(getComputedStyle(transcript).overflowY)
+    ? transcript
+    : null;
+};
 
 const ancestors = function* (node) {
   for (let parent = renderedParent(node); parent; parent = renderedParent(parent))

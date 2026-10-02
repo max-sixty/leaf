@@ -69,8 +69,8 @@ const threadLandingStart = (held, target, threadsBox) => {
   const last = target === held ? targetBox.bottom : targetBox.top;
   const candidates = [
     ...held.querySelectorAll(
-      ":scope > *, :scope > .lf-msg .lf-msg-body > *, " +
-        ":scope > .lf-msg .lf-msg-text > *",
+      ":scope > *, :scope > .lf-thread-transcript .lf-msg .lf-msg-body > *, " +
+        ":scope > .lf-thread-transcript .lf-msg .lf-msg-text > *",
     ),
     target,
   ]
@@ -424,7 +424,8 @@ async function showThreadNow(id, focus, revealThread, threadsBox) {
           : "nearest",
   });
   const revealed =
-    (aim.block === "end" && thread.querySelector(":scope > .lf-compose")) || target;
+    (aim.block === "end" && thread.querySelector(":scope > .lf-thread-reply")) ||
+    target;
   revealed.classList.toggle("grow", false);
   revealed.classList.toggle("flash", true);
   setTimeout(() => revealed.classList.toggle("flash", false), 1300);

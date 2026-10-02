@@ -979,7 +979,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(inline.locator(".lf-page-thread-body")).to_have_text("candidate root")
+    expect(inline.locator(".lf-msg-body")).to_have_text("candidate root")
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
         expect(composer).to_have_js_property("value", words)
@@ -1007,7 +1007,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     )
     page = open_page(browser, live_url(url))
     thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
-    reply = thread.locator(":scope > .lf-say leaf-text")
+    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
     expect(reply).to_be_focused()

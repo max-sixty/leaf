@@ -2080,7 +2080,7 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
         )
         expect(source).to_be_focused()
 
-    message = source.locator(".lf-msg.agent, .lf-page-thread-msg.agent")
+    message = source.locator(".lf-msg.agent")
     message.get_by_text("Consider this reference.", exact=True).click()
     assert message.evaluate("el => el.contains(getSelection()?.focusNode)")
     link = message.get_by_role("link", name="Read the conclusion")
@@ -3322,7 +3322,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(second).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 2 of 2")
-    expect(second.locator(".lf-page-thread-msg").first).to_be_visible()
+    expect(second.locator(".lf-msg").first).to_be_visible()
     preview_room = page.evaluate(
         """() => ({
           previewTop: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
@@ -4315,7 +4315,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const head = headNode.getBoundingClientRect();
           const author = headNode.querySelector('b').getBoundingClientRect();
           const bodyNode = el.querySelector(
-            ':scope .lf-page-thread-msg > .lf-page-thread-body'
+            ':scope .lf-msg > .lf-msg-body'
           );
           const body = bodyNode.getBoundingClientRect();
           return {actionsTop: actions.top, actionsBottom: actions.bottom,
@@ -4478,23 +4478,25 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel_thread = threads.first
-    panel_reply = panel_thread.locator(":scope > .lf-compose leaf-text")
+    panel_reply = panel_thread.locator(":scope > .lf-thread-reply leaf-text")
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(panel_reply).to_be_focused()
-    in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
+    in_threads_scrollport(
+        page, ".lf-threads > .lf-thread:first-of-type .lf-thread-reply"
+    )
     if reply_paragraphs:
         landing = page.evaluate(
             """() => {
               const list = document.querySelector('.lf-threads');
               const thread = list.querySelector('.lf-thread:first-of-type');
-              const compose = thread.querySelector(':scope > .lf-compose');
+              const compose = thread.querySelector(':scope > .lf-thread-reply');
               const view = list.getBoundingClientRect();
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
               const blocks = [...thread.querySelectorAll(
-                ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
-                ':scope > .lf-msg .lf-msg-text > *'), compose]
+                ':scope > *, :scope > .lf-thread-transcript > .lf-msg .lf-msg-body > *, ' +
+                ':scope > .lf-thread-transcript > .lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
                   top: block.getBoundingClientRect().top,
@@ -11121,7 +11123,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     page.locator(".lf-threads-toggle").click()
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()
-    box = thread.locator(":scope > .lf-compose leaf-text")
+    box = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(box, "First point. " * 5 + "\n\nSecond point. " * 4)
     box.press("Enter")
     round_trip(page)
@@ -11145,10 +11147,12 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     assert shown["top"] >= shown["textTop"] - 1, shown
     assert shown["bottom"] <= shown["bandBottom"] + 1, shown
     expect(thread.locator(".lf-thread-summary")).to_be_focused()
-    in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-compose leaf-text')
+    in_threads_scrollport(
+        page, f'.lf-thread[data-id="{root}"] .lf-thread-reply leaf-text'
+    )
 
     write(box, "Long reply. " * 90)
-    thread.locator(":scope > .lf-compose .lf-thread-send").click()
+    thread.locator(":scope > .lf-thread-reply .lf-thread-send").click()
     round_trip(page)
     long_message = thread.locator(".lf-msg.user").last
     expect(long_message).to_contain_text("Long reply.")
@@ -11447,7 +11451,7 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     page.keyboard.press("r")
     round_trip(page)
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
-    expect(reopened.locator(":scope > .lf-compose leaf-text")).to_be_focused()
+    expect(reopened.locator(":scope > .lf-thread-reply leaf-text")).to_be_focused()
     expect(line).to_contain_text("back to thread")
     page.keyboard.press("Escape")
     expect(reopened.locator(":scope > .lf-thread-summary")).to_be_focused()
@@ -11501,7 +11505,7 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
 
     # The reply box is in the thread too, and its typing claim stands first.
     card(0).locator(".lf-thread-summary").click()
-    box = card(0).locator(":scope > .lf-compose leaf-text")
+    box = card(0).locator(":scope > .lf-thread-reply leaf-text")
     box.click()
     page.keyboard.press("r")
     expect(box).to_have_js_property("value", "r")
@@ -11868,7 +11872,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(
-        page.locator(f'.lf-thread[data-id="{live}"] > .lf-compose leaf-text')
+        page.locator(f'.lf-thread[data-id="{live}"] > .lf-thread-reply leaf-text')
     ).to_be_focused()
 
     # And Esc gives that press back: the thread, then the panel. In the panel the old
@@ -11975,7 +11979,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     second.focus()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
-    expect(second.locator("> .lf-say leaf-text")).to_be_focused()
+    expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()
 
     # And Esc hands back the press that got them there, which is the keyboard-is-a-stack
     # rule read on the page rather than in the panel. The box asked for `.lf-thread` and

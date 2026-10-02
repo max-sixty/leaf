@@ -5690,16 +5690,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(news).to_be_visible()
     news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
-        active = view.locator(
-            f'.lf-page-thread-msg[{message_attr}="{question["id"]}"] '
-            if message_attr == "data-event"
-            else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
-        sent = view.locator(
-            f'.lf-page-thread-msg[{message_attr}="{followup["id"]}"] '
-            if message_attr == "data-event"
-            else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
+        active = view.locator(f'.lf-msg[{message_attr}="{question["id"]}"] ').locator(
+            ":scope > .lf-msg-head .lf-msg-sending"
+        )
+        sent = view.locator(f'.lf-msg[{message_attr}="{followup["id"]}"] ').locator(
+            ":scope > .lf-msg-head .lf-msg-sending"
+        )
         expect(active).to_have_text("Working")
         expect(active).to_have_attribute(
             "title", "Working · checking the inline placement"
@@ -5710,9 +5706,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    strip = thread.locator(
-        f'.lf-page-thread-msg[data-event="{reply["id"]}"] .lf-react-strip'
-    )
+    strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
     trigger = strip.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
     expect(trigger).to_have_attribute("aria-label", "Add reaction")
@@ -5773,7 +5767,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     assert summary_box["position"] == "static"
     assert summary_box["paddingLeft"] == summary_box["paddingRight"]
-    expect(thread.locator(".lf-page-thread-msg").first).to_be_hidden()
+    expect(thread.locator(".lf-msg").first).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     # The status narrowing is a group of toggles, so the standing member wears its own
@@ -5784,7 +5778,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
-    expect(thread.locator(".lf-page-thread-msg").first).to_be_visible()
+    expect(thread.locator(".lf-msg").first).to_be_visible()
 
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
@@ -5794,10 +5788,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    watch_message_arrival(thread, ".lf-page-thread-msg")
+    watch_message_arrival(thread, ".lf-msg")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the inline reply")
-    pending = thread.locator('.lf-page-thread-msg[aria-busy="true"]')
+    pending = thread.locator('.lf-msg[aria-busy="true"]')
     expect(pending).to_contain_text("Confirmed from the inline thread.")
     assert page.evaluate("window.__messageArrival") == 0.5
     expect(pending).to_have_css("opacity", "0.5")
@@ -5811,7 +5805,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "Confirmed from the inline thread.",
     )
     expect(thread).to_contain_text("Confirmed from the inline thread.")
-    accepted = thread.locator(f'.lf-page-thread-msg[data-event="{sent["id"]}"]')
+    accepted = thread.locator(f'.lf-msg[data-event="{sent["id"]}"]')
     expect(accepted).not_to_have_attribute("aria-busy", "true")
     expect(accepted).to_have_css("opacity", "1")
 

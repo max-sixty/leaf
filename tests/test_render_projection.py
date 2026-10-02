@@ -8303,8 +8303,8 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
     decide their rows, so on screen they stand once a count opens them and the outcome
     alone holds the seat's room until then; paper prints them whole. Once open, a goal
     stopping while the lists show waits: the list stands as drawn, its count says so,
-    and nothing below the seat moves. The new row shows once the seat leaves the
-    window."""
+    and nothing below the seat moves, while the fleet, whose rows stay, repaints a
+    worker's new state in place. The new row shows once the seat leaves the window."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     page = open_page(browser, url)
@@ -8327,7 +8327,11 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
     expect(lists.last).to_be_visible()
     page.evaluate("() => scrollTo(0, 0)")
     expect(stopped).to_be_in_viewport()
-    below = record.evaluate("node => node.getBoundingClientRect().top + scrollY")
+
+    def below():
+        return record.evaluate("node => node.getBoundingClientRect().top + scrollY")
+
+    standing = below()
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -8342,9 +8346,22 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
     expect(stopped.locator(":scope > h2")).to_have_text(
         "Stopped work · 5, oldest first"
     )
-    assert (
-        record.evaluate("node => node.getBoundingClientRect().top + scrollY") == below
+    assert below() == standing
+
+    # The fleet keeps its rows, so a worker's new state repaints in place while the
+    # stopped list waits.
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(d), "w-1", "state", "state=waiting", "doing=parked"],
     )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    fleet = seat.locator(":scope > .lf-fleet-view")
+    expect(fleet.locator("li", has_text="§ w-1")).to_contain_text("waiting")
+    workers = seat.get_by_role("button", name="5 workers")
+    expect(workers).not_to_have_attribute("data-lf-news", "")
+    expect(stopped.locator("li")).to_have_count(5)
+    assert below() == standing
 
     page.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
     expect(stopped.locator("li")).to_have_count(6)

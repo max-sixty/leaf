@@ -76,7 +76,6 @@ function descendants(plan, source) {
 }
 
 const VIEWS = ["lf-command-head", "lf-stopped-view", "lf-fleet-view"];
-const LISTS = VIEWS.slice(1);
 
 // The panels each command drew, by reading, wherever they currently stand.
 const drawn = new WeakMap();
@@ -127,21 +126,25 @@ function seat(plan, at = home(plan)) {
   }
 }
 
-// The commands whose lists a count has opened on screen, and the hold on their rows
-// from then on. A reading of the lists is which rows each draws; one with the same rows
-// draws at the same size, so it repaints in place.
+// The commands whose lists a count has opened on screen, and the hold on each list from
+// then on. A list's reading is which rows it draws, so one with the same rows draws at
+// the same size and repaints in place, while the other list waits. Rows that change in
+// the stopped list move the fleet list under it as well.
 const opened = new WeakSet();
 const holders = new WeakMap();
 
-function holder(plan) {
-  if (!holders.has(plan))
-    holders.set(
-      plan,
-      new HeldReading(
-        () => LISTS.map((cls) => view(plan, cls)).filter(Boolean),
-        () => render(plan),
-      ),
-    );
+function holds(plan) {
+  if (!holders.has(plan)) {
+    const lists =
+      (...names) =>
+      () =>
+        names.map((cls) => view(plan, cls));
+    const changed = () => render(plan);
+    holders.set(plan, {
+      stopped: new HeldReading(lists("lf-stopped-view", "lf-fleet-view"), changed),
+      fleet: new HeldReading(lists("lf-fleet-view"), changed),
+    });
+  }
   return holders.get(plan);
 }
 
@@ -154,20 +157,15 @@ function listRows(snapshot) {
     fleet: [mode, ...fleetWorkers(snapshot).map((worker) => worker.element.id)].join(
       " ",
     ),
-    mode,
   };
 }
-
-const sameRows = (a, b) => a.stopped === b.stopped && a.fleet === b.fleet;
 
 // A count whose list holds news says so: a mark the theme paints on its tile, and the
 // same said to a listener.
 function markNews(plan, shown, rows) {
   const news = new Set();
-  if (shown && shown !== rows) {
-    if (shown.stopped !== rows.stopped) news.add("stopped");
-    if (shown.fleet !== rows.fleet) news.add(FLEET_TILE[rows.mode]);
-  }
+  if (shown.stopped !== rows.stopped) news.add("stopped");
+  if (shown.fleet !== rows.fleet) news.add(FLEET_TILE[fleetModes.get(plan) ?? "all"]);
   const head = view(plan, "lf-command-head");
   for (const tile of head.querySelectorAll("[data-lf-view]")) {
     const held = news.has(tile.dataset.lfView);
@@ -313,7 +311,7 @@ function showView(box) {
 // the user asked.
 function openLists(plan) {
   opened.add(plan);
-  holder(plan).show();
+  for (const held of Object.values(holds(plan))) held.show();
 }
 
 function openStopped(plan) {
@@ -457,6 +455,8 @@ function renderHeader(snapshot) {
   );
   const facts = document.createElement("div");
   facts.className = "lf-command-facts";
+  // Every count stands whatever it says, so the clock making a worker quiet tints a tile
+  // rather than adding one the row would have to find room for.
   facts.append(
     countTile(snapshot.running.length, "running", "running", () =>
       openFleet(plan, "running"),
@@ -464,18 +464,13 @@ function renderHeader(snapshot) {
     countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
       openFleet(plan, "all"),
     ),
-  );
-  if (snapshot.quiet.length)
-    facts.append(
-      countTile(
-        snapshot.quiet.length,
-        "quiet",
-        "quiet",
-        () => openFleet(plan, "quiet"),
-        "warn",
-      ),
-    );
-  facts.append(
+    countTile(
+      snapshot.quiet.length,
+      "quiet",
+      "quiet",
+      () => openFleet(plan, "quiet"),
+      snapshot.quiet.length ? "warn" : "",
+    ),
     countTile(
       snapshot.stopped.length,
       "stopped",
@@ -642,11 +637,14 @@ function paint(plan) {
   for (const goal of snapshot.goals) renderGoal(goal);
   renderHeader(snapshot);
   const rows = listRows(snapshot);
-  const shown = opened.has(plan) ? holder(plan).hold(rows, sameRows) : rows;
-  if (shown === rows) {
-    renderStopped(snapshot);
-    renderFleet(snapshot);
-  }
+  const shown = opened.has(plan)
+    ? {
+        stopped: holds(plan).stopped.hold(rows.stopped),
+        fleet: holds(plan).fleet.hold(rows.fleet),
+      }
+    : rows;
+  if (shown.stopped === rows.stopped) renderStopped(snapshot);
+  if (shown.fleet === rows.fleet) renderFleet(snapshot);
   seat(plan);
   markNews(plan, shown, rows);
   restoreFocus?.();
@@ -667,7 +665,7 @@ customElements.define(
     disconnectedCallback() {
       this.#stop?.();
       this.#stop = null;
-      holders.get(this)?.dispose();
+      for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
       if (drawn.has(this)) seat(this, band(this));
     }
 

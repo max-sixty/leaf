@@ -332,10 +332,11 @@ export class HeldNews {
 
 /** One region's reading, held while drawing it would move what the reader sees.
  *  `region()` gives the nodes the reading draws, and `changed()` draws the widget again.
- *  `hold(reading, same)` returns the reading to draw: `reading` where it is the first,
- *  where `same(shown, reading)` says it draws at the size of the one drawn last, or
- *  where none of the region shows in the window, since a row may change anywhere in
- *  it; otherwise the reading drawn last. What it holds shows when the user opens it
+ *  A reading is a value equal to the one drawn last exactly when it draws at the same
+ *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
+ *  `reading` where it is the first, where it equals the one drawn last, or where none
+ *  of the region shows in the window, since a row may change anywhere in it; otherwise
+ *  the reading drawn last. What it holds shows when the user opens it
  *  (`show`), or once none of the region shows in the window. */
 export class HeldReading {
   #region;
@@ -349,12 +350,12 @@ export class HeldReading {
     this.#changed = changed;
   }
 
-  hold(reading, same) {
+  hold(reading) {
     const nodes = this.#region();
     if (
       this.#released ||
       this.#shown === null ||
-      same(this.#shown, reading) ||
+      this.#shown === reading ||
       !growthInsideIsSeen(nodes)
     ) {
       this.#released = false;

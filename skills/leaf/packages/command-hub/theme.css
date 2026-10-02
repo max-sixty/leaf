@@ -151,7 +151,11 @@ lf-command > lf-command-readings { margin-bottom: var(--sp-4); }
   lf-command-readings:not([data-lf-open]) > :is(.lf-stopped-view, .lf-fleet-view) {
     display: none; }
 }
+/* The name and the fraction each hold one line, which is the room the seat holds for
+ * them, and a name too long for it ends in an ellipsis rather than taking a second. */
 .lf-command-outcome { display: grid; gap: var(--sp-2); }
+.lf-command-outcome > :is(strong, span:last-child) { overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; }
 .lf-command-outcome > strong { font: 600 var(--t-3)/1.25 var(--sans); }
 .lf-command-outcome > span:last-child { color: var(--muted); font: var(--t-6)/1.3 var(--sans);
   font-variant-numeric: tabular-nums; }
@@ -161,10 +165,11 @@ lf-command > lf-command-readings { margin-bottom: var(--sp-4); }
     var(--chip) 0); }
 /* Each count is a tile: the number is what the eye compares, set large and in tabular
  * figures; the word under it names the view the tile opens. Only a count that needs
- * attention wears a tint. The tiles share the panel's width, wrapping to a second row
- * rather than squeezing a word. */
+ * attention wears a tint. The four tiles share the panel's width in one row, the row
+ * the seat holds room for: a row that wrapped where the panel is narrow would stand
+ * taller than that room, and moved what follows. */
 .lf-command-facts { display: grid; gap: var(--sp-2); margin-top: var(--sp-3);
-  grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr)); }
+  grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .lf-command-facts > [role="button"] { display: grid; align-content: start; gap: 2px;
   box-sizing: border-box; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);

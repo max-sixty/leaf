@@ -124,8 +124,9 @@ def other_leaves(page_dir: Path) -> list:
 
     TODO(2026-10-01): a row states the declaration alone (`declared_activity`), not
     the judgment the page's own banner makes from its log, claims, leases and host
-    turn. So it does not say when a neighbour's agent has gone (Away, Unheld), how
-    many of the user's moves wait there, or that its agent has picked them up.
+    turn. So it does not say when a neighbour's agent has stalled or gone (Stalled,
+    Away, Unheld), how many of the user's moves wait there, or that its agent has
+    picked them up: a crashed agent's last "working" stands until its server stops.
     Restoring that needs the judgment made once per page rather than once per
     server reading it, such as a row file each page keeps current."""
     others = []
@@ -139,8 +140,10 @@ def other_leaves(page_dir: Path) -> list:
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
+            if info is None:
+                continue
             revision = latest_revision(candidate)
-            if info is None or revision is None:
+            if revision is None:
                 continue
             others.append(
                 {

@@ -50,6 +50,7 @@ from interact_support import (
     declare_data_input,
     element_declaration,
     fetch,
+    fresh_process,
     live_versions,
     publish,
     published,
@@ -72,7 +73,6 @@ from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import media as media_model
-from leaf import page_memory as page_memory_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
@@ -4433,7 +4433,7 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     )
 
     # What a newly started server holds: none of this test's readings.
-    with page_memory_model.holding(page_dir, page_memory_model.PageMemory()):
+    with fresh_process():
         assert revisioning_model.activate_source(page_dir).error is None
     assert validated == []
     assert linted == ["page <style>"]

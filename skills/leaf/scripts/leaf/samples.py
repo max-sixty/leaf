@@ -5,8 +5,7 @@ supplies immutable resources and optional selected thread history, never a live
 state projection. Its browser dependency URLs retain the creating parent's exact
 immutable resource namespace, including through nested children; only the document
 and API identity are new. Browser gestures enter the ordinary page event door. The
-HTTP server owns these directories until explicit release or server shutdown, and
-each sample owns its page's memory (`page_memory`) for as long.
+HTTP server owns these directories until explicit release or server shutdown.
 """
 
 import json
@@ -18,7 +17,7 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 
 from .data import source_file
-from .page_memory import PageMemory, holding
+from .page_memory import PageMemory, memory_of
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
@@ -34,7 +33,9 @@ class Sample:
     layer: dict
     passive: bool
     asset_root: str
-    memory: PageMemory = field(default_factory=PageMemory)
+    # Held for the sample's life, so the sample keeps its readings however many
+    # sibling samples push it out of the process's recent pages (`page_memory`).
+    memory: PageMemory
     lock: Lock = field(default_factory=Lock)
     closed: bool = False
 
@@ -81,7 +82,6 @@ class Samples:
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
-        memory = PageMemory()
         try:
             for logical, resource in artifact.resources.items():
                 target = child / logical.removeprefix("/")
@@ -120,8 +120,7 @@ class Samples:
                     "after": 0,
                 },
             )
-            with holding(child, memory):
-                activation = activate_source(child)
+            activation = activate_source(child)
             if activation.error:
                 raise ValueError(f"invalid sample: {activation.error}")
         except BaseException:
@@ -135,7 +134,7 @@ class Samples:
                 artifact.registry["$layer"],
                 passive,
                 asset_root,
-                memory,
+                memory_of(child),
             )
         return identity
 

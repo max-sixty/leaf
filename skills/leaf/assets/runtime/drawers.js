@@ -77,8 +77,8 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
 // completed/total (sayAsks); a/A still walks only the open worklist.
 export const asksBtn = el("button", "lf-btn lf-asks", "");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
-// link opening that page in its own tab, judged by the same `presented` the banner
-// answers with, from the same facts — `others` on /api/state carries them for every
+// link opening that page in its own tab, saying what that page's agent last declared
+// in the shape of the banner's activity — `others` on /api/state carries it for every
 // live page, and every URL in the list carries only the key this user already
 // holds, since there is one key for the machine (`host_key`). The current page heads
 // the list as a marked, unlinked row, so the panel reads as the whole machine. A

@@ -176,7 +176,7 @@ revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new qu
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked.
 
-Immutable inputs are read once for as long as the page's owner holds its memory
+Immutable inputs are read once for as long as the process keeps the page's memory
 (`page_memory`). A stored revision's document, captured vocabulary, and passage
 readings live on its one `RevisionReading` (`revision_artifact.read_revision`); a
 candidate's live on the one `SourceReading` its check takes, which the revision

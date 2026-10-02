@@ -2,27 +2,22 @@
 
 Some readings of a page are dear to repeat: a revision's parse, a candidate's capture
 and check, the vendored vocabulary, the activation answer, the presence token. Each is
-kept between reads and checked against the stamps of the files it read. They are kept
-in a `PageMemory`, which belongs to whoever answers for the page and lasts as long as
-that owner holds it:
+kept between reads and checked against the stamps of the files it read, so a kept
+reading is never stale, only dropped. They are kept in a `PageMemory`. A process
+keeps the memories of the eight pages it read most recently (`PageMemories`), and any
+memory something else still references (`memory_of`): a sample holds its own for its
+life (`samples.Sample`), however many sibling samples a gallery opens.
 
-- a one-page server holds its page's memory for its life (`http.page_endpoint`);
-- a sample holds its own until it is released (`samples.Sample`);
-- an owner of a changing set of pages, a command (`__main__`) or a site
-  (`leaf_website`), holds the memories of the pages it read most recently
-  (`PageMemories`).
+A one-page server reads its own page and the samples it serves, and nothing of any
+other page: a neighbour's panel row reads small files and keeps nothing
+(`presence.other_leaves`). A command reads one page or a few. The website, and the
+test suite serving a fresh page per test, read many, and keep the last eight however
+many they read. A page read again after it was dropped is read afresh, which costs
+time and never correctness.
 
-Nothing read from a page's files is kept process-wide. A process that reads many pages,
-such as the test suite serving a fresh page per test, keeps only what its live owners
-hold. A page nobody holds is read afresh on each call. That costs time and never
-correctness.
-
-An owner binds its memory around the work it does for the page (`holding`,
-`holding_pages`), and a reader takes its part with `memo(page_dir, kind)`. The binding
-is a context variable, so it follows a request onto the worker thread that answers it,
-and a thread started bare holds nothing. Each `kind` is a class in the module that
-reads it, so what is kept and when it goes stale stay with that module; this one owns
-only how long it lasts.
+A reader takes its part with `memo(page_dir, kind)`. Each `kind` is a class in the
+module that reads it, so what is kept and when it goes stale stay with that module;
+this one owns only how long it lasts.
 
 A pure function of its arguments, which no file can make stale, is memoized at module
 level instead, bounded by entry count (`revision_artifact._shared_registry`,
@@ -31,9 +26,8 @@ one slot replaced whole (`presence.neighbor_candidates`, `host._registry_listing
 """
 
 import threading
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
+import weakref
+from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
@@ -73,14 +67,16 @@ class Slot:
 
 
 class PageMemories:
-    """The memories an owner of a changing set of pages keeps: those of the pages it
-    read most recently, so a long-lived command or a site holds a few pages' worth
-    however many it reads over its life. A one-shot command reads fewer than that."""
+    """The memories of the pages read most recently, least recent first, and of any
+    page whose memory is still referenced elsewhere."""
 
     LIMIT = 8
 
     def __init__(self) -> None:
         self._memories: dict[Path, PageMemory] = {}
+        self._held: weakref.WeakValueDictionary[Path, PageMemory] = (
+            weakref.WeakValueDictionary()
+        )
         self._lock = threading.Lock()
 
     def of(self, page_dir: Path) -> PageMemory:
@@ -88,44 +84,24 @@ class PageMemories:
         # Callers mostly pass the resolved path already, so skip the syscalls then.
         page = page_dir if page_dir in self._memories else page_dir.resolve()
         with self._lock:
-            memory = self._memories.pop(page, None) or PageMemory()
-            self._memories[page] = memory
+            memory = (
+                self._memories.pop(page, None) or self._held.get(page) or PageMemory()
+            )
+            self._memories[page] = self._held[page] = memory
             while len(self._memories) > self.LIMIT:
                 del self._memories[next(iter(self._memories))]
             return memory
 
 
-# Where each page read in this context is kept: a page's memory, or None.
-_bound: ContextVar[Callable[[Path], PageMemory | None] | None] = ContextVar(
-    "leaf_page_memory", default=None
-)
+_memories = PageMemories()
 
 
-@contextmanager
-def _binding(lookup: Callable[[Path], PageMemory | None]) -> Iterator[None]:
-    token = _bound.set(lookup)
-    try:
-        yield
-    finally:
-        _bound.reset(token)
-
-
-def holding(page_dir: Path, memory: PageMemory):
-    """Keep what the block reads of `page_dir` in `memory`, and nothing of any other
-    page, even inside a command's `holding_pages`."""
-    page = page_dir.resolve()
-    return _binding(
-        lambda path: memory if path == page_dir or path.resolve() == page else None
-    )
-
-
-def holding_pages(memories: PageMemories):
-    """Keep what the block reads of each page in `memories`."""
-    return _binding(memories.of)
+def memory_of(page_dir: Path) -> PageMemory:
+    """The memory this process keeps for `page_dir`, kept at least as long as the
+    caller holds it."""
+    return _memories.of(page_dir)
 
 
 def memo(page_dir: Path, kind: type[T]) -> T:
-    """The bound memory's `kind` for `page_dir`, or a fresh one nobody keeps."""
-    lookup = _bound.get()
-    memory = lookup(page_dir) if lookup is not None else None
-    return memory.memo(kind) if memory is not None else kind()
+    """The `kind` this process keeps for `page_dir`."""
+    return memory_of(page_dir).memo(kind)

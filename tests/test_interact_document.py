@@ -39,6 +39,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
+    fresh_process,
     model_layer,
     publish,
     read_page_data,
@@ -5387,7 +5388,7 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     monkeypatch.setattr(Path, "open", counted_open)
     # A server started now: it holds none of this test's readings.
-    with page_memory_model.holding(page_dir, page_memory_model.PageMemory()):
+    with fresh_process():
         activated = revisioning_model.activate_source(page_dir)
     monkeypatch.undo()
     assert activated.error is None, activated.error
@@ -5419,7 +5420,7 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
         return native(*args, **kwargs)
 
     monkeypatch.setattr(passages_model, "page_passages", counted)
-    with page_memory_model.holding(page_dir, page_memory_model.PageMemory()):
+    with fresh_process():
         read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
         assert walks
         walks.clear()
@@ -5435,7 +5436,7 @@ def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     events = events_model.read_events(page_dir)
-    with page_memory_model.holding(page_dir, page_memory_model.PageMemory()):
+    with fresh_process():
         checked = check_source(page_dir, events, allow_transition=False)
         data = (page_dir / "index.html").read_bytes()
         assert b"\r\n" in data
@@ -5485,11 +5486,9 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
     revisions = files_model.list_revisions(page_dir)
     size = files_model.revision_path(page_dir, revisions[-1]).stat().st_size
     monkeypatch.setattr(artifact_model._Readings, "BUDGET", 2 * size + size // 2)
-    memory = page_memory_model.PageMemory()
-
-    with page_memory_model.holding(page_dir, memory):
+    with fresh_process():
         readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
-        kept = memory.memo(artifact_model._Readings)
+        kept = page_memory_model.memo(page_dir, artifact_model._Readings)
         assert [reading for _stamp, reading in kept.held.values()] == readings[-2:]
         assert kept.size <= kept.BUDGET
         # Reading an evicted revision again takes a fresh reading, and one still
@@ -5498,41 +5497,31 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
-def test_a_page_reading_lasts_as_long_as_its_owner(page_dir):
-    """What a process reads of a page is kept by the page's owner and goes with it,
-    so a process that reads many pages keeps only what its live owners hold. A page
-    nobody holds is read afresh each time, and the same reading answers while its
-    owner holds it."""
+def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
+    """A process keeps what it read of the last few pages it read, so one that reads
+    many, such as the website or a test worker, holds a bounded amount however many
+    it has read. A page read again while kept answers with the same reading; one
+    dropped is read afresh and its old reading is freed. A memory something still
+    holds, as a sample holds its own, outlives being pushed out."""
     revision = revisioning_model.activate_source(page_dir).revision
-    memory = page_memory_model.PageMemory()
-    with page_memory_model.holding(page_dir, memory):
+    held_page = page_dir.parent / "held"
+    shutil.copytree(page_dir, held_page)
+    with fresh_process():
         held = artifact_model.read_revision(page_dir, revision)
         assert artifact_model.read_revision(page_dir, revision) is held
-        assert held.document.title  # a parse the memory now carries
-        # Another page read under this binding is no part of it.
-        other = page_dir.parent / "other"
-        shutil.copytree(page_dir, other)
-        assert artifact_model.read_revision(
-            other, revision
-        ) is not artifact_model.read_revision(other, revision)
-    kept = weakref.ref(held)
-    del held, memory
-    gc.collect()
-    assert kept() is None
-
-
-def test_an_owner_of_many_pages_keeps_those_it_read_most_recently(tmp_path):
-    """A command or a site reads a changing set of pages over its life, and keeps
-    the memories of the last few, so what it holds does not grow with what it has
-    read."""
-    memories = page_memory_model.PageMemories()
-    pages = [tmp_path / f"page-{n}" for n in range(memories.LIMIT + 1)]
-    first = memories.of(pages[0])
-    assert memories.of(pages[0]) is first
-    for page in pages[1:]:
-        memories.of(page)
-    assert memories.of(pages[0]) is not first
-    assert memories.of(pages[-1]) is memories.of(pages[-1])
+        kept = weakref.ref(held)
+        del held
+        holder = page_memory_model.memory_of(held_page)
+        sample_reading = artifact_model.read_revision(held_page, revision)
+        for n in range(page_memory_model.PageMemories.LIMIT):
+            other = page_dir.parent / f"other-{n}"
+            shutil.copytree(page_dir, other)
+            artifact_model.read_revision(other, revision)
+        gc.collect()
+        assert kept() is None
+        assert artifact_model.read_revision(page_dir, revision).document.title
+        assert artifact_model.read_revision(held_page, revision) is sample_reading
+        assert page_memory_model.memory_of(held_page) is holder
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

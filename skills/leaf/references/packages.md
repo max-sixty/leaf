@@ -815,6 +815,10 @@ match a declaration there:
 }
 ```
 
+Add `"exclusive": true` to a contract whose referrer fills its target whole, as a
+command fills the readings seat it names: `page check` then refuses a second element of
+the same document naming that target through the same attribute.
+
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.

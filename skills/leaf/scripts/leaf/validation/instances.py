@@ -293,10 +293,15 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     nowhere and the markup around it is perfectly well-formed — visible to them and to
     nobody else. Asked of the version rather than of a fragment: a reply's markup
     carries no page to check against, and one of its widgets pointing at the version
-    beside it is exactly right."""
+    beside it is exactly right.
+
+    An `exclusive` reference also names a target no earlier element of the same
+    document named through the same tag and attribute, since its owner takes the
+    target whole: a command fills the readings seat it names."""
     errors = []
+    referrers = {}
     for rec in lf_elements:
-        for attr in registry.get(rec["tag"], {}).get("x-refers", {}):
+        for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
@@ -308,6 +313,14 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
                 rec, attr, by_id.get(target), registry
             ):
                 errors.append(error)
+            elif reference.get("exclusive"):
+                first = referrers.setdefault((rec["tag"], attr, target), rec)
+                if first is not rec:
+                    named = f"id={first['attrs'].get('id')!r}"
+                    errors.append(
+                        f'{at(rec)}: {attr}="{target}" is already named by '
+                        f"{at(first, named)}; only one element may name it"
+                    )
     return errors
 
 

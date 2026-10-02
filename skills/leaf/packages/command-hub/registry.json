@@ -272,7 +272,8 @@
         "via": "$command.widgets",
         "where": {
           "role": "readings"
-        }
+        },
+        "exclusive": true
       }
     },
     "x-upgrade": true,

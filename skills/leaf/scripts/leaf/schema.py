@@ -158,6 +158,7 @@ ACTION_CREATES = {
 # One package-neutral relation shape for authored attributes. An empty object accepts
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
+# `exclusive` gives each target one referrer per document through the attribute.
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -176,6 +177,7 @@ REFERENCE_SCHEMA = {
                     "type": ["string", "number", "boolean", "null"]
                 },
             },
+            "exclusive": {"const": True},
         },
         "dependentRequired": {"via": ["where"], "where": ["via"]},
         "additionalProperties": False,

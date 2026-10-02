@@ -340,6 +340,27 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     assert "$command.widgets widget where role='goal'" in errors[1]
 
 
+def test_a_readings_seat_answers_to_one_command(page_dir):
+    """A command fills the seat it names whole, so a second command naming the same
+    seat in the document is refused, while each command naming its own seat is not."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = SourceDocument(
+        '<lf-command id="one" readings="seat"></lf-command>'
+        '<lf-command id="two" readings="seat"></lf-command>'
+        '<lf-command id="three" readings="other"></lf-command>'
+        '<lf-command-readings id="seat"></lf-command-readings>'
+        '<lf-command-readings id="other"></lf-command-readings>'
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert len(errors) == 1
+    assert errors[0].startswith(
+        '<lf-command> (line 1): readings="seat" is already named'
+    )
+    assert "id='one'" in errors[0]
+
+
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     page_dir, capsys
 ):

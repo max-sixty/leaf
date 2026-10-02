@@ -344,10 +344,16 @@ export class HeldArrivals {
     const own = ownTurn();
     const keys = new Set(threads.map(({ thread }) => thread.key));
     this.#release(({ key }) => !keys.has(key));
-    // A settled thread leaves the margin, so no marker is left for it to wait behind.
-    for (const { thread } of threads)
-      if (this.#held.has(thread.key) && (thread.resolved || turns(thread).some(own)))
-        this.#release(({ key }) => key === thread.key);
+    // A settled thread leaves the margin, so no marker is left for it to wait behind. A
+    // thread the agent moves follows its datum, and one moved to a datum with a thread
+    // drawn joins that seat, whose HeldNews holds what arrives in it.
+    for (const { thread, datum } of threads) {
+      const held = this.#held.get(thread.key);
+      if (!held) continue;
+      if (thread.resolved || turns(thread).some(own) || drawn.has(datum))
+        this.#held.delete(thread.key);
+      else held.datum = datum;
+    }
     const arrived = threads.filter(({ thread }) => !this.#known.has(thread.key));
     // A thread the user starts at a datum is their gesture, and the threads held there
     // show before it.
@@ -355,10 +361,14 @@ export class HeldArrivals {
       arrived.filter(({ thread }) => own(thread.root)).map(({ datum }) => datum),
     );
     for (const { thread, datum, node } of arrived) {
-      // A datum with a thread drawn has a seat, whose HeldNews holds what arrives in it;
-      // one whose growth would not be seen draws its threads together.
-      if (started.has(datum) || drawn.has(datum) || !growthAfterIsSeen(node))
-        this.#release((held) => held.datum === datum);
+      // A datum with a thread drawn has a seat; one whose growth would not be seen, or
+      // that a settled thread opens a seat at, draws its threads together.
+      const shows =
+        started.has(datum) ||
+        drawn.has(datum) ||
+        thread.resolved ||
+        !growthAfterIsSeen(node);
+      if (shows) this.#release((held) => held.datum === datum);
       else this.#held.set(thread.key, { key: thread.key, id: thread.id, datum });
     }
   }

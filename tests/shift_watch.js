@@ -120,12 +120,28 @@
   const frames = [];
   const placed = new WeakMap();
   const scrolled = new WeakMap();
-  const read = (time) => {
-    // The judging fixture's own reading may postdate the start of the frame after it.
-    const at = Math.max(time, frames.at(-1)?.at ?? time);
+  const read = (time, frame = true) => {
+    // Poses belong to their synchronous observation time. The native frame start
+    // is kept separately to associate Chrome's painted shift with that frame.
+    const at = performance.now();
     const nodes = everything();
-    frames.push({ at, nodes });
-    prune(frames, (frame) => frame.at);
+    const modal = document
+      .querySelector("script[data-lf-entry]")
+      ?.lfNativeLayers?.()
+      .findLast((entry) => entry.kind === "modal")?.root;
+    // Native modal dialogs escape ancestor inertness and own the current reading;
+    // an explicit inert node within that dialog still excludes its descendants.
+    const exposed = (element) => {
+      for (let at = element; at instanceof Element; at = up(at)) {
+        if (at.inert) return false;
+        if (at === modal) return true;
+      }
+      return !modal;
+    };
+    if (frame) {
+      frames.push({ at, start: time, nodes });
+      prune(frames, (frame) => frame.at);
+    }
     for (const node of nodes) {
       const scrolls = scrolled.get(node) ?? [];
       const scroll = { left: node.scrollLeft, top: node.scrollTop };
@@ -149,6 +165,7 @@
         paintedElement = up(paintedElement);
       const shown =
         paintedElement instanceof Element &&
+        exposed(element) &&
         paintedElement.checkVisibility({ checkOpacity: true });
       const paint = {
         parent: up(node),
@@ -183,6 +200,7 @@
       prune(seen, (item) => item.at);
       placed.set(node, seen);
     }
+    return at;
   };
   const readingAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at);
   const boxAt = (node, at) => readingAt(node, at)?.rect;
@@ -203,8 +221,11 @@
   const layoutAt = (node, at) => {
     const rect = boxAt(node, at);
     if (!rect) return null;
-    let left = rect.left,
-      top = rect.top;
+    // The root border box travels with its own native scroll; nested scrollport
+    // borders stay put while their contents move.
+    const rootScroll = node === document.scrollingElement ? scrollAt(node, at) : null;
+    let left = rect.left + (rootScroll?.left ?? 0),
+      top = rect.top + (rootScroll?.top ?? 0);
     for (
       let child = node, parent = paintAt(child, at).parent;
       parent instanceof Element;
@@ -226,7 +247,8 @@
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
-    if (open?.typing?.until === Infinity) open.typing.until = performance.now();
+    if (open?.typing?.until === Infinity)
+      open.typing.until = read(performance.now(), false);
   };
   const end = () => {
     unwatch();
@@ -250,8 +272,8 @@
   };
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
-  const tick = (at) => {
-    read(at);
+  const tick = (time) => {
+    const at = read(time);
     if (open) {
       // The input's motion is what began after it and before news since it, which
       // may begin motion of its own. Still running here, it moves this frame, as it
@@ -286,8 +308,10 @@
       const field = event.composedPath()[0];
       const holding = [];
       for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
+      const at = read(event.timeStamp, false);
       begin(event.timeStamp, {
         field,
+        at,
         found: boxes(holding),
         moving: holding.flatMap((node) => node.getAnimations()).filter(moves),
         free: false,
@@ -298,13 +322,6 @@
   );
   // A resize is input to Chrome, and lays the page out anew, the field with it.
   window.addEventListener("resize", (event) => begin(event.timeStamp));
-  document.addEventListener(
-    "scroll",
-    (event) => {
-      if (open?.typing && holds(event.target, open.typing.field)) unwatch();
-    },
-    true,
-  );
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -322,7 +339,7 @@
     } catch {
       break;
     }
-    for (const type of ["keydown", "pointerdown"])
+    for (const type of ["keydown", "pointerdown", "wheel"])
       held.addEventListener(type, heard(view), true);
     if (view === view.parent) break;
   }
@@ -624,15 +641,23 @@
   // Chrome's rects are what a node paints, clipped to the viewport, so they are held
   // against the frame's own reading, never against the key's.
   const typed = (entry, typing, painted) => {
+    painted = Math.min(painted, typing.until);
     for (const [node, before] of typing.found) {
       const after = before && boxAt(node, painted);
-      if (
-        !before ||
-        !after ||
-        (!carried(before, after, "top", "bottom") &&
-          !carried(before, after, "left", "right"))
-      )
-        continue;
+      if (!before || !after) continue;
+      const from = layoutAt(node, typing.at),
+        to = layoutAt(node, painted);
+      if (!from || !to) continue;
+      const scroll = scrollMotion(node, typing.at, painted);
+      const x =
+        carried(before, after, "left", "right") &&
+        Math.abs(from.left - to.left) >= 1 &&
+        Math.abs(after.left - before.left - scroll.left) >= 1;
+      const y =
+        carried(before, after, "top", "bottom") &&
+        Math.abs(from.top - to.top) >= 1 &&
+        Math.abs(after.top - before.top - scroll.top) >= 1;
+      if (!x && !y) continue;
       report(
         `typing in ${window.lfPlace(typing.field)} moved ${window.lfPlace(node)}`,
         by(before, after) +
@@ -646,7 +671,7 @@
       const at = entry.startTime;
       // The frame that painted the shift, and the next, whose start reads what it
       // painted. Readings older than are kept are gone (-1).
-      const frame = frames.findLastIndex(({ at: time }) => time <= at);
+      const frame = frames.findLastIndex(({ start: time }) => time <= at);
       const next = frames[frame + 1]?.at;
       if (frame !== -1 && next === undefined) {
         waiting.push(entry);
@@ -655,9 +680,9 @@
       const rendering = renderings.findLast(({ start }) => start <= at);
       const typing = rendering?.typing;
       if (typing && at <= typing.until) {
-        // A frame the typing rule stopped reading before the next one is no one's.
-        if (!typing.free && frame !== -1 && next <= typing.until)
-          typed(entry, typing, next);
+        // A later frame may include the next gesture; typed() caps its reading at
+        // the closing pose captured before that gesture began.
+        if (!typing.free && frame !== -1) typed(entry, typing, next);
       }
       admittedMotion(entry, next ?? performance.now(), rendering);
     }

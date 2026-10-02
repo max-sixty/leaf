@@ -183,4 +183,67 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     assert draft.evaluate("node => node.value") == ""
     pose()
     page.unroute_all(behavior="wait")
-    context.close()
+
+
+def test_narrow_panel_editor_growth_retains_the_live_send(browser, serve):
+    """Native wrapping grows the editor upwards during both first and later edits."""
+    from pathlib import Path
+
+    from render_harness import holding, panel_settled
+
+    source = Path(__file__).resolve().parents[1] / "examples/review-a-plan.html"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 740}, reduced_motion="no-preference"
+    )
+    page = open_page(browser, serve(source), context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    owner = page.locator(".lf-threads > .lf-thread").last
+    if owner.get_attribute("open") is None:
+        owner.locator(".lf-thread-summary").click()
+    draft = owner.locator("leaf-text")
+    expect(draft).to_be_visible()
+    page.evaluate("""() => {
+      window.editorGrowth = [];
+      for (const type of ['beforeinput', 'input']) document.addEventListener(type, event => {
+        if (event.inputType !== 'insertText') return;
+        const field = event.composedPath().find(node => node.matches?.('leaf-text'));
+        const row = field?.closest('.lf-thread-reply');
+        if (!row) return;
+        const send = row.querySelector('.lf-thread-send');
+        window.editorGrowth.push({type, field: field.getBoundingClientRect().toJSON(),
+          send: send.getBoundingClientRect().toJSON()});
+      }, true);
+    }""")
+    held = []
+    page.route(
+        "**/api/event",
+        lambda route: (
+            held.append(route)
+            if route.request.post_data_json["kind"] == "reply"
+            else route.continue_()
+        ),
+    )
+    first = "Keep the reader's words in the thread while this reply is being sent."
+    newer = "Keep the next draft separate from the reply still being sent."
+    draft.click()
+    page.keyboard.insert_text(first)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the first narrow-panel reply")
+    rendered(page)
+    draft.click()
+    page.keyboard.insert_text(newer)
+    poses = page.evaluate("window.editorGrowth")
+    assert len(poses) == 4, poses
+    for before, after in zip(poses[::2], poses[1::2], strict=True):
+        assert (before["type"], after["type"]) == ("beforeinput", "input")
+        assert after["field"]["height"] > before["field"]["height"], poses
+        for edge in ("left", "top", "right", "bottom"):
+            assert abs(after["send"][edge] - before["send"][edge]) < 0.5, poses
+        assert 0 <= after["field"]["top"] < after["field"]["bottom"] <= 740
+        assert 0 <= after["send"]["top"] < after["send"]["bottom"] <= 740
+    held.pop().continue_()
+    round_trip(page)
+    rendered(page)
+    assert draft.evaluate("node => node.value") == newer
+    page.unroute_all(behavior="wait")

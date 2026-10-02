@@ -8,22 +8,19 @@
    extent. A floating card bounds that extent by its already allocated body room.
    No message or delivery state is retained. Panel and general footer keep their
    separate fixed/free layout. */
-import { seenRect } from "../geometry.js";
+import { seenRect, whenOffScreen } from "../geometry.js";
 import { layoutPx } from "../keeps.js";
 
 export class ReplyContinuity {
   #owner;
   #row = null;
-  #departure;
+  #departure = null;
   gap = document.createElement("div");
   constructor(owner) {
     this.#owner = owner;
     owner.classList.add("lf-reply-continuity");
     this.gap.className = "lf-reply-space";
     this.gap.setAttribute("aria-hidden", "true");
-    this.#departure = new IntersectionObserver(() => {
-      if (!this.#visible()) this.release();
-    });
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
@@ -56,10 +53,12 @@ export class ReplyContinuity {
     // Keep the prior extent before asking layout to read the changed body: scroll
     // anchoring need not pay a temporary collapse the live response never paints.
     this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
-    this.#departure.observe(this.#row);
+    this.#departure?.();
+    this.#departure = whenOffScreen([this.#row], () => this.release());
   }
   release() {
-    this.#departure.disconnect();
+    this.#departure?.();
+    this.#departure = null;
     this.#owner.style.removeProperty("--lf-thread-body-extent");
   }
 }

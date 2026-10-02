@@ -478,8 +478,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     )
     standing = card.evaluate(REPLY_BOX)
     assert standing["caret"] == [True, 8, 8]
-    # The box stands at the list's foot, the fold later cards wait below.
-    assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
+    # The live field and Send remain inside the list's visible reading band.
+    assert list_box[0] <= standing["field"][0] < standing["field"][1] <= list_box[1]
+    send = card.locator(".lf-thread-send").bounding_box()
+    assert list_box[0] <= send["y"] < send["y"] + send["height"] <= list_box[1]
 
     for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
         newest = events_model.append_event(

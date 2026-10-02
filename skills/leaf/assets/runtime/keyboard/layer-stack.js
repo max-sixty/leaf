@@ -3,7 +3,7 @@
    One ordered list holds every popover and modal dialog standing over the page, oldest at
    the bottom. Each pushes an entry as it opens, so their order against each other is
    recorded when it happens rather than inferred from focus ancestry and open state at
-   every read. `kind` is `popover` or `modal`; the dispatcher tiers the scopes over them
+   every read. `kind` reads the standing native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
    and makes a modal a floor.
 
    A layer may open through a prototype method or through declarative popover activation,
@@ -55,7 +55,7 @@ function prune() {
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
-function pushNativeLayer(node, kind) {
+function pushNativeLayer(node) {
   const at = entries.findIndex((entry) => entry.root === node);
   const standing = at < 0 ? null : entries[at];
   if (standing?.active()) return;
@@ -63,7 +63,9 @@ function pushNativeLayer(node, kind) {
   const holding = document.activeElement;
   entries.push({
     root: node,
-    kind,
+    get kind() {
+      return node.matches(":modal") ? "modal" : "popover";
+    },
     active: () => held(node),
     fromNowhere: !holding || holding === document.body,
   });
@@ -89,21 +91,23 @@ function closing(event) {
 }
 
 HTMLDialogElement.prototype.showModal = function () {
-  if (!this.matches(":modal")) pushNativeLayer(this, "modal");
+  if (!this.matches(":modal")) pushNativeLayer(this);
   return nativeDialogShowModal.call(this);
 };
 
 HTMLElement.prototype.showPopover = function (...args) {
-  if (!this.matches(":popover-open")) pushNativeLayer(this, "popover");
+  if (!this.matches(":popover-open")) pushNativeLayer(this);
   return nativePopoverShow.apply(this, args);
 };
 
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
+  // Native dialog commands also announce their opening here, without invoking
+  // the patched prototype. Nonmodal show() entries are pruned by held().
   const opened = (event) => {
-    if (event.newState === "open" && event.target?.matches?.("[popover]"))
-      pushNativeLayer(event.target, "popover");
+    if (event.newState === "open" && event.target?.matches?.("[popover], dialog"))
+      pushNativeLayer(event.target);
   };
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);

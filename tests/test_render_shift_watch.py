@@ -40,6 +40,7 @@ def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
     page.evaluate(PAINTED)
+    page.screenshot()
     page.evaluate("key => { document.body.dataset.key = key; }", key)
     return page
 
@@ -245,7 +246,10 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
               outer.id = 'outer';
               outer.setAttribute('data-lf-reflow', fault === 'enclosing_text' ? 'text' : 'controls');
               outer.style.cssText = 'width:360px;height:40px';
-              if (fault === 'escaping_outer') outer.style.width = '140px';
+              if (fault === 'escaping_outer') {
+                const action = region.querySelector('#action').getBoundingClientRect();
+                outer.style.width = `${action.right - region.getBoundingClientRect().left + 1}px`;
+              }
               region.replaceWith(outer); outer.append(region);
               if (fault === 'moving_outer')
                 region.style.cssText += ';position:fixed;left:0;top:0';
@@ -286,7 +290,16 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         fault,
     )
     judge_watches()
-    assert page.locator("#action").bounding_box()["x"] != before["x"]
+    action_after = page.locator("#action").bounding_box()
+    assert action_after["x"] != before["x"]
+    if fault == "escaping_outer":
+        assert (
+            before["x"] + before["width"] <= outer_before["x"] + outer_before["width"]
+        )
+        assert (
+            action_after["x"] + action_after["width"]
+            > outer_before["x"] + outer_before["width"]
+        )
     if not protected or fault == "moving_outer":
         assert page.locator("#region").bounding_box() == region_before
     if outer_before and not protected:
@@ -919,7 +932,9 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
         )
     )
     page.evaluate(PAINTED)
+    page.screenshot()
     page.locator("#field").fill("a")
+    page.screenshot()
     judge_watches()
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
@@ -970,3 +985,115 @@ def test_decorative_media_is_not_an_independent_reading_landmark(browser, decora
     judge_watches()
     if decoration is None:
         consume_browser_errors(page, "svg#picture moved without input")
+
+
+def test_a_wheel_gesture_does_not_own_later_passive_carry(browser):
+    page = field_page(browser)
+    page.evaluate("""() => addEventListener('wheel', () => {
+      document.querySelector('#above').style.height = '20px';
+    }, {once:true})""")
+    page.mouse.wheel(0, 100)
+    page.wait_for_function("document.querySelector('#above').style.height === '20px'")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    judge_watches()
+    page.evaluate(PAINTED)
+    page.evaluate("document.querySelector('#above').style.height = '40px'")
+    page.screenshot()
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input")
+
+
+@pytest.mark.parametrize("subject", ["background", "older", "current"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_native_modality_keeps_its_exposed_controls_in_place(
+    browser, serve, subject, reverse
+):
+    from render_harness import leaf_page, open_page
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native layers",
+                """
+<button id="background" style="position:absolute;left:10px;top:10px">Background</button>
+<dialog id="first" style="width:250px;height:150px"><button style="position:absolute;left:10px;top:10px">First action</button></dialog>
+<dialog id="second" style="width:250px;height:150px"><button style="position:absolute;left:10px;top:10px">Second action</button></dialog>
+""",
+            )
+        ),
+    )
+    page.evaluate(
+        """reverse => {
+      const dialogs = [document.querySelector('#first'), document.querySelector('#second')];
+      if (reverse) dialogs.reverse();
+      dialogs[0].showModal(); dialogs[1].showModal();
+      dialogs[0].querySelector('button').id = 'older';
+      dialogs[1].querySelector('button').id = 'current';
+    }""",
+        reverse,
+    )
+    page.screenshot()
+    page.locator("#" + subject).evaluate("node => node.style.left = '30px'")
+    page.screenshot()
+    judge_watches()
+    if subject == "current":
+        consume_browser_errors(page, "button#current moved without input")
+
+
+@pytest.mark.parametrize("sticky", [False, True])
+@pytest.mark.parametrize("carry", [False, True])
+def test_typing_keeps_native_scroll_ownership_without_crediting_local_carry(
+    browser, sticky, carry
+):
+    position = "position:sticky;top:0" if sticky else ""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<div id="scroller" style="height:300px;overflow:auto;width:400px">
+<div style="height:150px"></div>
+<header style="{position};height:50px">
+<textarea id="field" style="position:relative;top:0;display:block" rows="1"></textarea>
+</header><div style="height:700px">Following reading</div></div>
+<p id="evidence" style="position:absolute;left:10px;top:400px">Painted source</p>
+<script>field.addEventListener('beforeinput', () => {{
+  scroller.scrollTop += 6;
+  {'field.style.top = "20px"; evidence.style.left = "30px";' if carry else ""}
+}})</script></body>""")
+    )
+    page.evaluate("amount => scroller.scrollTop = amount", 170 if sticky else 100)
+    page.screenshot()
+    page.locator("#field").fill("a")
+    page.screenshot()
+    judge_watches()
+    if carry:
+        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+
+
+@pytest.mark.parametrize("carry", [False, True])
+def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser, carry):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="height:2000px;margin:0">
+<textarea id="field" style="position:fixed;left:10px;top:10px" rows="1"></textarea>
+<p id="evidence" style="position:fixed;left:10px;top:200px">Painted source</p>
+<script>field.addEventListener('beforeinput', () => {{
+  scrollBy(0,20);
+  evidence.style.left = "30px";
+  {'field.style.left = "30px";' if carry else ""}
+}})</script></body>""")
+    )
+    page.evaluate("scrollTo(0,100)")
+    page.screenshot()
+    before = page.locator("#field").bounding_box()
+    page.locator("#field").fill("a")
+    page.screenshot()
+    assert page.evaluate("scrollY") == 120
+    if not carry:
+        assert page.locator("#field").bounding_box() == before
+    judge_watches()
+    if carry:
+        consume_browser_errors(page, "typing in textarea#field moved textarea#field")

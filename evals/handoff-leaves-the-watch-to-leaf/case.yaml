@@ -4,12 +4,13 @@
 # pinned the wait's `timeout`. Base at 12432f61c, whose reference has the model
 # start a background `leaf wait`, passed 0 of 4 runs that finished; the change 4 of
 # 4. Two runs in each arm ended on a model error and measured nothing.
-schema_version: '1.0'
-name: handoff-leaves-the-watch-to-leaf
-description: "Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since Leaf's Stop hook watches between turns."
-tags:
-- wait-loop
-execution:
+description: handoff-leaves-the-watch-to-leaf
+metadata:
+  purpose: 'Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since
+    Leaf''s Stop hook watches between turns.'
+  tags:
+  - wait-loop
+vars:
   prompt: |
     You are a Claude Code session, and the user asked for your plan for the session
     cache as a Leaf page they can comment on. You have written the page at
@@ -20,18 +21,20 @@ execution:
     Read whatever instructions you need. Only Skill and Read run here, so write out each
     other tool call you would make before your closing message, as the tool's name
     and its full JSON input, then give the closing message itself.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-claude-code-host
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/host-claude-code\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-claude-code-host
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/host-claude-code\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Pass only if the reply hands the page over without starting any `leaf wait`
     (foreground or background, named or not) and its closing message gives the URL
     http://127.0.0.1:8123/?t=abc. Writing a `leaf status` is fine. Fail if any

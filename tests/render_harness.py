@@ -44,8 +44,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_carried_log_record
 from leaf import cli as cli_model
-from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
@@ -533,11 +533,11 @@ def serve(tmp_path, monkeypatch, initialized_page):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         for event in events:
-            events_model.append_event(d, event)
+            append_carried_log_record(d, event)
         if fixture is None:
             activated = revisioning_model.activate_source(d)
             assert activated.error is None and activated.revision == 1, activated.error
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "note",
@@ -548,7 +548,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         for i in range(comments):
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -558,7 +558,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         for section, quote in anchored:
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "comment",

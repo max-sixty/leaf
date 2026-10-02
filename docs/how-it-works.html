@@ -187,7 +187,7 @@ $ leaf page check ./review
 ✓ index.html: parses, widgets, authored scripts, and styles validate, protected ids and decisions carried over
 
 $ leaf page stamp ./review --text "Two ways to shed load — which?"
-{"kind": "note", "author": "agent", "agent": "Claude", "session": "5c0e2f7a-93d1-4b6e-a8f2-1d4c7e9b3a60", "version": 1, "revision": 1, "text": "Two ways to shed load — which?", "id": "7a31c9e4", "ts": "2026-09-22T11:12:08-07:00", "seq": 1}
+{"kind": "note", "author": "agent", "agent": "Claude", "session": "5c0e2f7a-93d1-4b6e-a8f2-1d4c7e9b3a60", "version": 1, "revision": 1, "text": "Two ways to shed load — which?", "attention": false, "id": "7a31c9e4", "ts": "2026-09-22T11:12:08-07:00", "seq": 1}
 
 # the agent hands the URL over and ends its turn; Leaf's Stop hook watches the page
 # in the background, and wakes the session when the user sends input:
@@ -245,6 +245,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
             ]
           },
           "author": "user",
+          "attention": true,
           "meaning": {
             "scope": "page",
             "unit": "shed",
@@ -284,6 +285,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
             "quote": "Callers get a 429 immediately"
           },
           "author": "user",
+          "attention": true,
           "id": "ebe8f367",
           "ts": "2026-09-22T11:15:42-07:00",
           "seq": 3,

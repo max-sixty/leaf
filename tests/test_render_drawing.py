@@ -5,6 +5,7 @@ import json
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -831,7 +832,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     """A page-widget shadow root retargets document pointer events to its host. The
     inline thread it contains remains Leaf chrome, not a drawable widget control."""
     url = serve(THREAD_DIFF_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1069,7 +1070,7 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     }
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

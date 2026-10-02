@@ -7,7 +7,7 @@ from time import monotonic
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import append_carried_log_record, record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -3242,7 +3242,7 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     )
 
     page.emulate_media(media="print")
-    events_model.append_event(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
+    append_carried_log_record(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
     told(page)
     assert page.evaluate(CLUSTER_SHAPE) == standing
 
@@ -4078,7 +4078,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     with_agent = _margin_entry_paint(marker)
     expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
 
-    agent_comment = events_model.append_event(
+    agent_comment = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4104,7 +4104,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     assert with_agent["background"] != on_user["background"], with_agent
 
     # A reply returns the thread to the agent before pickup adds any workflow cue.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4120,7 +4120,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
     }, "the answered thread lost its blue cue beside the authored Ask"
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4210,7 +4210,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     # watch for exactly that. Both agent threads have to be answered, because the
     # aggregate takes the turn of any member.
     for root in roots:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -5366,7 +5366,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5966,7 +5966,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
     transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     before = transcript.evaluate("list => list.scrollTop")
-    newest = events_model.append_event(
+    newest = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -5994,7 +5994,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
         }"""
     )
     at_tail = transcript.evaluate("list => list.scrollTop")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "edit",
@@ -6007,7 +6007,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "edit",
@@ -6037,7 +6037,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
 
     transcript.evaluate("list => list.scrollTop -= 10")
     earlier = transcript.evaluate("list => list.scrollTop")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7445,7 +7445,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
         "node => ({top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height})"
     )
     root = events_model.read_events(serve.page_dir)[0]
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7527,7 +7527,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
         "button => button.getBoundingClientRect().top"
     ) == pytest.approx(pressed, abs=0.5)
     sent = page.evaluate(CARD_AND_REPLY)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7666,7 +7666,7 @@ def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, ser
     expect(preview).to_be_visible()
     rendered(page)
     top = preview.evaluate("card => card.getBoundingClientRect().top")
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {k: v for k, v in LONG_THREAD[1].items() if k not in ("id", "ts")},
     )
@@ -7701,7 +7701,7 @@ def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, ser
     rendered(page)
     top = preview.bounding_box()["y"]
     expect(preview).to_have_attribute("data-lf-thread-placement", "right")
-    answer = events_model.append_event(
+    answer = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7808,7 +7808,7 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
     """News arriving without a gesture moves no control the user is working in."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7888,7 +7888,7 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
 ):
     """News holds the reply row; later typing grows the active draft below its first line."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -8187,7 +8187,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 95) - 1
     ), initial
 
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -8205,7 +8205,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     assert position() == initial
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
@@ -8555,7 +8555,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, h
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -8593,7 +8593,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

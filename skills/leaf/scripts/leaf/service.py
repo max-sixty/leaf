@@ -856,34 +856,21 @@ def owned_pages(session_id: str | None) -> list:
 
 
 def unacknowledged(events: list, cursor: int) -> list:
-    """The events past the acknowledgement cursor that the page's watcher owes a
-    reading: the user's own, and workers' reports — a report moves the page the
-    way a user's action does, and the watcher is the one who can absorb it into
-    a version. One cursor and one predicate for the whole batch, so `leaf
-    wait`'s output, the Stop hook's count, and the idle gate cannot disagree
-    about what is still owed. The user's banner counts only the user half
-    (full_state's `pending`): a report is news the agent owes the page, not
-    something the user owes an answer. A session that reports to a page it
-    also watches reads its own report back once — rare enough (workers report,
-    the watcher publishes) that a session-keyed carve-out would cost a second,
-    parameterized predicate for no failure anyone has hit."""
-    return [
-        e
-        for e in events
-        if e["seq"] > cursor
-        # The user's own, a worker's report, and the page reporting itself
-        # broken — the last is the agent's debt exactly as a report is.
-        and requires_agent_attention(e)
-    ]
+    """Attention-marked events past the page's acknowledgement cursor.
+
+    Carriers, the unpicked-input Stop guard and the idle gate read the same
+    admission decision. The user-facing pending count includes only user input;
+    workers' reports and page errors wake the agent without increasing that count.
+    """
+    return [e for e in events if e["seq"] > cursor and requires_agent_attention(e)]
 
 
 def requires_agent_attention(event: dict) -> bool:
-    """Whether a log event creates host work, rather than user bookkeeping."""
-    from leaf.registry.kernel import bookkeeping_kinds
+    """Admission's decision that this event changes work the agent owes.
 
-    return (
-        event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
-    ) or event["kind"] in {"report", "error"}
+    A record without the admitted decision is absent input.
+    """
+    return event.get("attention") is True
 
 
 # The fields every stored work claim carries (`PageService.set_status`).

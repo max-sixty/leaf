@@ -6,6 +6,7 @@ import threading
 import time
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
@@ -84,7 +85,7 @@ def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can we review this?", author="user")
     first = _agent_metric_reply(serve.page_dir, root, 1, for_event=root)
-    user = events_model.append_event(
+    user = append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": root, "text": "One more detail."},
     )["id"]
@@ -126,7 +127,7 @@ def test_first_unread_reveals_resolved_summary_original(browser, serve):
     thread_model.cmd_summarize(
         serve.page_dir, root, answer, "The earlier metric discussion."
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
     )
     page = open_page(browser, url)
@@ -320,7 +321,7 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
 def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "The question.")
-    first = events_model.append_event(
+    first = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -330,7 +331,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
             "text": "The earlier answer.",
         },
     )["id"]
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -343,7 +344,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
     thread_model.cmd_summarize(
         serve.page_dir, root, first, "Earlier exchange in one line."
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
     )
     page = open_page(browser, url)
@@ -856,7 +857,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     growth moves nothing they see. Nothing before the ending is input, so the browser
     fixture's shift watch also checks that holding the replies moved nothing."""
     url = serve(TASK_SEAT_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -877,7 +878,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     replies = []
     for n in (1, 2):
         replies.append(
-            events_model.append_event(
+            append_carried_log_record(
                 serve.page_dir,
                 {
                     "kind": "reply",
@@ -931,11 +932,11 @@ def _seat_comment(page_dir, author, text):
     }
     if author == "agent":
         event["agent"] = "Codex"
-    return events_model.append_event(page_dir, event)["id"]
+    return append_carried_log_record(page_dir, event)["id"]
 
 
 def _agent_turn(page_dir, root, text):
-    return events_model.append_event(
+    return append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -978,7 +979,7 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     url = serve(TASK_SEAT_PAGE)
     root = _seat_comment(serve.page_dir, "user", "Which of these can wait?")
     first = _agent_turn(serve.page_dir, root, "The gutters can wait.")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "user", "parent": root, "revision": 1},
     )
@@ -1198,7 +1199,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     page.wait_for_function(
         "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
     )
-    held = events_model.append_event(
+    held = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1225,7 +1226,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
 
     if end == "settled":
         # The agent settling its thread is news too, and the marker stays its notice.
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "resolve",
@@ -1259,7 +1260,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(outlet).to_have_count(0)
         # A second thread on the line, off screen, shows; the one the user writes in
         # stays with them in the card.
-        second = events_model.append_event(
+        second = append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",

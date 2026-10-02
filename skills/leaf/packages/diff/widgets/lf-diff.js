@@ -16,6 +16,7 @@ import {
   focused,
   holdFocus,
   inChrome,
+  inBaseLayer,
   commands,
   keeps,
   keepsText,
@@ -547,6 +548,8 @@ async function renderFile(file, sharedStyles, open) {
   for (const style of [...rendered.children].filter(
     (child) => child.localName === "style",
   )) {
+    // Vendor sublayers stay inside widget defaults, below Leaf's shared shadow rules.
+    style.textContent = inBaseLayer(style.textContent);
     const kind = style.hasAttribute("data-core-css") ? "core" : "theme";
     if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
     else style.remove();

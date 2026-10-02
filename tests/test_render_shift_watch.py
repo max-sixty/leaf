@@ -573,10 +573,15 @@ def test_typing_may_grow_a_field_whose_holder_paints_past_the_viewport(browser):
 
 def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
     page = foot_page(browser)
-    page.evaluate(
-        """document.getElementById("foot").animate(
-          [{ transform: "translateX(-200px)" }, { transform: "none" }], 3000)"""
-    )
+    page.evaluate("""() => {
+      const opener = document.createElement('button');
+      opener.id = 'open-slide'; opener.textContent = 'Open'; document.body.append(opener);
+      opener.addEventListener('click', () => document.getElementById('foot').animate(
+        [{ transform: 'translateX(-200px)' }, { transform: 'none' }], 3000));
+    }""")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.locator("#open-slide").click()
     page.locator("#field").fill("a")
     page.locator("#field").fill("ab")
     judge_watches()
@@ -1236,4 +1241,58 @@ def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
         before,
         page.locator("#field").bounding_box(),
         errors,
+    )
+
+
+GESTURE_MOTION = """<!doctype html><body style="margin:0"><button id="open">Open</button><button id="other">Another gesture</button><div id="panel" style="margin-left:350px"><textarea id="field"></textarea><button id="control">Retained control</button><p>Retained reading</p></div><script>function slide(){window.motion=panel.animate([{transform:'translateX(-200px)'},{transform:'none'}],{duration:900,fill:'forwards'})}document.getElementById('open').addEventListener('click',slide)</script></body>"""
+
+
+def gesture_motion_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(GESTURE_MOTION))
+    page.evaluate(PAINTED)
+    page.screenshot()
+    return page
+
+
+def test_immediate_native_opening_and_typing(browser):
+    page = gesture_motion_page(browser)
+    page.evaluate(
+        "document.getElementById('open').addEventListener('keydown',event=>{if(event.key==='a'){slide();field.focus()}})"
+    )
+    page.locator("#open").focus()
+    page.keyboard.press("a")
+    page.keyboard.insert_text("b")
+    page.evaluate("() => motion.finished")
+    page.screenshot()
+    page.evaluate(PAINTED)
+    judge_watches()
+    assert not take_browser_errors(page)
+
+
+@pytest.mark.parametrize("fault", ["late_unowned", "local"])
+def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
+    page = gesture_motion_page(browser)
+    page.locator("#open").click()
+    page.locator("#other").click()
+    page.evaluate(PAINTED)
+    page.screenshot()
+    if fault == "late_unowned":
+        page.evaluate("() => motion.finished")
+        page.evaluate(PAINTED)
+        page.screenshot()
+        page.evaluate(
+            "window.late = panel.animate([{marginTop:'0px'},{marginTop:'80px'}],{duration:250,fill:'forwards'})"
+        )
+        page.evaluate("() => late.finished")
+    else:
+        assert page.evaluate("motion.playState") == "running"
+        page.evaluate("control.style.marginTop='80px'")
+        page.evaluate("() => motion.finished")
+    page.screenshot()
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert any(e.startswith("button#control moved without input") for e in errors), (
+        errors
     )

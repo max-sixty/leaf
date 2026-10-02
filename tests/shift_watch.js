@@ -353,6 +353,11 @@
   };
   const end = () => {
     unwatch();
+    // Seal effects the gesture already began before a newer input replaces it.
+    if (open && !open.told) {
+      for (const animation of begun(open.start)) open.own.add(animation);
+      open.told = true;
+    }
     open = null;
   };
   const begin = (start, typing = null) => {
@@ -384,12 +389,15 @@
       const motion = [...open.own].some(({ playState }) => playState === "running");
       if (motion || open.motion) open.moved = at;
       open.motion = motion;
-      if (!open.first && open.second === Infinity) open.second = at;
-      open.first = false;
       if (open.last || at - open.start > WINDOW) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled() && !motion;
+    }
+    // Replacement does not erase a prior gesture's first two frame readings.
+    for (const rendering of renderings) {
+      if (!rendering.first && rendering.second === Infinity) rendering.second = at;
+      rendering.first = false;
     }
     const motion = frames.at(-1).motion;
     for (const rendering of renderings)
@@ -736,7 +744,8 @@
     // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
     if (
       presenting(entry) ||
-      (rendering && (frame <= rendering.second || frame <= rendering.moved))
+      renderings.some((gesture) => frame >= gesture.start && frame <= gesture.second) ||
+      (rendering && frame <= rendering.moved)
     )
       return;
     const before = frames.at(-2),

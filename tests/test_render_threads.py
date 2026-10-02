@@ -7137,6 +7137,13 @@ def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve
     page = open_page(browser, url)
     open_threads_list(page, 1200, 900)
     card = reply_by_keyboard(page, root)
+    # Reply entry preserves the turn being read. Arrange the tail explicitly so
+    # this test proves Escape keeps that context rather than choosing it on entry.
+    card.locator(".lf-msg").last.evaluate(
+        "message => message.scrollIntoView({block: 'nearest', behavior: 'instant'})"
+    )
+    scroll_settled(page, ".lf-threads")
+    assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
     before = page.locator(".lf-threads").evaluate("list => list.scrollTop")
     assert before > 0, "the reply landed without scrolling, so this proves nothing"
     page.keyboard.press("Escape")
@@ -7145,6 +7152,69 @@ def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve
     scroll_settled(page, ".lf-threads")
     assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == before
     assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
+
+
+@pytest.mark.parametrize("view", ["panel", "margin"])
+def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view):
+    """A reply already on screen keeps the earlier turn the user is reading."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(12):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    if view == "panel":
+        open_threads_list(page, 1200, 900)
+        card = reply_by_keyboard(page, root)
+        reading = page.locator(".lf-threads")
+        page.keyboard.type("A reply in progress.")
+        page.keyboard.press("Escape")
+        expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+        reading.evaluate("list => { list.scrollTop = 100; }")
+        latest = card.locator(".lf-msg").last
+    else:
+        page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+        card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.keyboard.press("c")
+        expect(card.locator("leaf-text")).to_be_focused()
+        page.keyboard.type("A reply in progress.")
+        page.keyboard.press("Escape")
+        expect(card).to_be_focused()
+        reading = card.locator(":scope > .lf-thread-transcript")
+        reading.evaluate("transcript => { transcript.scrollTop = 0; }")
+        latest = card.locator(".lf-page-thread-msg").last
+    rendered(page)
+    scroll_settled(page)
+    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    assert reading.evaluate("box => box.scrollHeight > box.clientHeight")
+    assert (
+        latest.bounding_box()["y"]
+        >= reading.bounding_box()["y"] + reading.bounding_box()["height"]
+    )
+    reply = card.locator("leaf-text")
+    assert clear_of_the_bar(page, reply)
+    if view == "panel":
+        assert reply.evaluate(IN_LANDING_BAND)["inside"]
+    before = [page.evaluate("scrollY"), reading.evaluate("box => box.scrollTop")]
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    rendered(page)
+    scroll_settled(page)
+    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    assert [
+        page.evaluate("scrollY"),
+        reading.evaluate("box => box.scrollTop"),
+    ] == before
 
 
 def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve):

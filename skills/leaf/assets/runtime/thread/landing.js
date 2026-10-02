@@ -29,10 +29,11 @@
    supplies the caller-owned return target through `landInThread`. A send from a
    thread's box leaves it the same way, onto the thread, except in the margin card,
    whose thread stands for the element it is about (`landSent`). */
-import { landingBand, shownBox } from "../geometry.js";
+import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { focusDestination, takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
+import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
 import { finishFold, hasFolding, whenFolded } from "./folding.js";
@@ -233,20 +234,12 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
 // the thread a resolve or a reopen hands the user on to — landed only by chance of
 // having remembered the line.
 //
-// Focus is the one fact all of them share, so the landing hangs off that and each of
-// them gives up its copy. Four callers still write this list's scroll, and each says
-// something focus cannot: `stepThread` for the press at either end of the walk, which
-// moves no focus at all; `showThread` for a deliberate arrival, which runs after
-// the focus it follows and wins; `placeThreadEdge` for an explicit edge placement;
-// and `landIn`, which puts the user in a thread's box and lands the thread around it,
-// the same correction this makes and the reason a reply box reached by key was never
-// the case that was wrong.
-//
-// The thread holding the focus, not the card alone: the current-card paint belongs to
-// the thread and follows `:focus-within`, so the same edge must clear the band whether
-// the user is standing on the card or writing in its box. `block: "nearest"` moves
-// the least that clears the band, so a control at the card's foot comes with it rather
-// than going under.
+// Thread focus is the shared arrival, so the landing hangs off it. Reply entry is
+// different: `landIn` reveals only the writing area and leaves a visible box where
+// the reader put it. The list does not turn that focus handoff into thread navigation.
+// Explicit movement still belongs to `stepThread` at a walk's boundary (no focus
+// change), `showThread` for a deliberate arrival, and `placeThreadEdge` for an edge
+// placement. Those landings clear the list's band with the least movement.
 //
 // A press is the user's hand, and it may be the start of a drag across the comment's
 // own words. Focus lands on the way down, so scrolling there takes the words out from
@@ -329,7 +322,10 @@ export function wireThreadLanding(threadsBox) {
   threadsBox.addEventListener("focusin", () => {
     if (pressedPointer !== null || keepingPlace) return;
     const thread = standing();
-    if (thread) land(thread, undefined, threadsBox, arrivalBlock(thread));
+    // Native focus and reply entry reveal their own writing area. Re-landing the
+    // thread here would turn that focus move into a second navigation gesture.
+    if (thread && threadInputOf(thread) !== focused())
+      land(thread, undefined, threadsBox, arrivalBlock(thread));
   });
 }
 
@@ -458,7 +454,6 @@ export function accompanyThread(ids, threadsBox) {
 
 export function createThreadLanding({
   setPanel,
-  scrollToThread,
   revealThread,
   threadsBox,
   cardTarget,
@@ -466,13 +461,27 @@ export function createThreadLanding({
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
-    const { held, box } = prepared;
+    const { box } = prepared;
     box.lfRevealReply?.();
+    // Entering a reply is a focus move, not a trip to its thread or passage.
+    // Reveal only the writing area; an already visible box leaves every scroller
+    // where the reader put it, including the transcript inside a margin card.
+    bringBackSurfaceOf(box);
     box.focus({ preventScroll: true });
-    scrollThreadIntoView(held, box);
-    // The page half follows the thread the user is in, and keeps the surface
-    // holding it rather than clearing it for the passage.
-    if (held.dataset.id) scrollToThread(held.dataset.id, { keep: true });
+    const shown = shownBox(box);
+    const visible = seenRect(box, new Map());
+    if (
+      !visible ||
+      visible.top > shown.top ||
+      visible.bottom < shown.bottom ||
+      visible.left > shown.left ||
+      visible.right < shown.right
+    )
+      box.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      });
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });

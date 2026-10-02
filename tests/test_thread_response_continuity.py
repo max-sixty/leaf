@@ -247,3 +247,82 @@ def test_narrow_panel_editor_growth_retains_the_live_send(browser, serve):
     rendered(page)
     assert draft.evaluate("node => node.value") == newer
     page.unroute_all(behavior="wait")
+
+
+def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
+    browser, serve
+):
+    """Clearing a sent draft and editing the next retain navigation's one cue.
+
+    Native animation events observe the displayed transform, rather than the
+    renderer's remembered flags, through the real held send and later repaint.
+    """
+    from leaf.render_checks import wait_for_probe
+    from leaf_dev import ROOT
+    from render_harness import holding, scroll_settled
+
+    context = browser.new_context(
+        viewport={"width": 1600, "height": 900}, reduced_motion="no-preference"
+    )
+    page = open_page(
+        browser, serve(ROOT / "examples/review-a-plan.html"), context=context
+    )
+    page.locator(".lf-threads-toggle").click()
+    field = page.locator(".lf-general leaf-text")
+    expect(field).to_be_visible()
+    page.evaluate("""() => {
+      window.__recuedArrivals = [];
+      window.__directCues = 0;
+      document.addEventListener('animationstart', event => {
+        const card = event.target;
+        if (!card.matches?.('.lf-thread[data-attempt]')) return;
+        window.__directCues++;
+        const transform = getComputedStyle(card).transform;
+        if (transform !== 'none') window.__recuedArrivals.push({
+          animation: event.animationName, transform,
+          words: card.querySelector('.lf-msg-body')?.textContent.trim(),
+        });
+      }, true);
+    }""")
+    held = []
+
+    def hold(route):
+        if route.request.post_data_json["kind"] == "comment":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold)
+    try:
+        write(field, "Keep this comment visible while it is sent.")
+        page.keyboard.press("Enter")
+        holding(page, held, 1, "the general comment")
+        rendered(page)
+        wait_for_probe(page, "pageSettled")
+        scroll_settled(page, ".lf-threads")
+
+        def reading_place():
+            return page.locator(".lf-threads").evaluate("""list => {
+              const card = list.querySelector(':scope > .lf-thread[data-attempt]');
+              const box = card.getBoundingClientRect();
+              return {scroll: list.scrollTop, top: box.top, bottom: box.bottom};
+            }""")
+
+        before = reading_place()
+        write(field, "Keep the next thought separate.")
+        rendered(page)
+        wait_for_probe(page, "pageSettled")
+        scroll_settled(page, ".lf-threads")
+        page.wait_for_function("window.__directCues > 0")
+        expect(field).to_have_js_property("value", "Keep the next thought separate.")
+        assert reading_place() == before
+        assert page.evaluate("window.__recuedArrivals") == [], (
+            "a retained repaint restarted geometry motion after direct navigation "
+            f"had canceled it: {page.evaluate('window.__recuedArrivals')!r}"
+        )
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/event", hold)
+        expect(page.locator('.lf-threads [aria-busy="true"]')).to_have_count(0)
+        context.close()

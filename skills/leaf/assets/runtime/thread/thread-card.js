@@ -234,7 +234,6 @@ export class ThreadView {
   #settlements = new Map();
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
-  #growing = false;
   #navigation = null;
   #marginControls = null;
   #viewId = ++nextViewId;
@@ -265,7 +264,6 @@ export class ThreadView {
         if (this.node.open) this.#model?.news?.open();
       });
     this.node.addEventListener("animationend", () => {
-      this.#growing = false;
       this.node.classList.toggle("grow", false);
     });
     this.node.addEventListener("lf-reveal", (event) => {
@@ -334,10 +332,12 @@ export class ThreadView {
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     keepsHidden(this.node, !model.visible && !model.folding);
-    this.#growing ||= !prior && model.grow;
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
-    this.node.classList.toggle("grow", this.#growing && !model.folding);
+    // Entry motion belongs to the retained node. Navigation can cancel it; a
+    // later descriptor repaint must not resurrect that canceled native cue.
+    if (model.folding) this.node.classList.remove("grow");
+    else if (!prior && model.grow) this.node.classList.add("grow");
     this.node.toggleAttribute("inert", model.folding);
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);

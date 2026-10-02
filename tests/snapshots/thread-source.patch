@@ -1,0 +1,50 @@
+diff --git a/tests/fixtures/pages/thread-journey-inline.data.json b/tests/fixtures/pages/thread-journey-inline.data.json
+new file mode 100644
+index 000000000..e410a66cb
+--- /dev/null
++++ b/tests/fixtures/pages/thread-journey-inline.data.json
+@@ -0,0 +1,8 @@
++{
++  "$captures": {
++    "review-patch": {
++      "file": "thread-journey-inline.patch",
++      "format": "unified-diff"
++    }
++  }
++}
+diff --git a/tests/fixtures/pages/thread-journey-inline.html b/tests/fixtures/pages/thread-journey-inline.html
+new file mode 100644
+index 000000000..8611fdd3d
+--- /dev/null
++++ b/tests/fixtures/pages/thread-journey-inline.html
+@@ -0,0 +1,18 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <title>Review a changed line</title>
++    <meta
++      name="description"
++      content="A source-bound diff for the shared message delivery journey."
++    />
++  </head>
++  <body>
++    <main>
++      <h1 id="title">Review the changed line</h1>
++      <p id="plan">Keep the shipping order visible while we discuss this change.</p>
++      <lf-diff id="journey-patch" source="review-patch"><pre></pre></lf-diff>
++      <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
++    </main>
++  </body>
++</html>
+diff --git a/tests/fixtures/pages/thread-journey-inline.patch b/tests/fixtures/pages/thread-journey-inline.patch
+new file mode 100644
+index 000000000..491d6ec3d
+--- /dev/null
++++ b/tests/fixtures/pages/thread-journey-inline.patch
+@@ -0,0 +1,6 @@
++diff --git a/app.py b/app.py
++--- a/app.py
+++++ b/app.py
++@@ -1 +1 @@
++-return "old"
+++return "new"

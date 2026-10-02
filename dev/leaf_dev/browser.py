@@ -13,6 +13,16 @@ BESIDE = (900, 900)
 
 
 @contextmanager
+def headless_shell(playwright):
+    """The locked Chromium headless shell used by ordinary browser tests."""
+    browser = playwright.chromium.launch()
+    try:
+        yield browser
+    finally:
+        browser.close()
+
+
+@contextmanager
 def chrome():
     """The host's browser, as the render gate launches it (`launch_browser`), closed
     however the block is left."""

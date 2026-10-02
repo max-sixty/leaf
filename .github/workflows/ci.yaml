@@ -85,6 +85,9 @@ jobs:
       - name: Install Chromium headless shell and WebKit
         run: uv run playwright install --with-deps chromium webkit --only-shell
 
+      - name: Prepare approved thread appearance
+        run: uv run leaf-dev thread-snapshots prepare
+
       - name: Install browser-build dependencies
         run: npm ci
 
@@ -134,6 +137,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/results.xml
+          path: |
+            .tmp/test-results/results.xml
+            .tmp/thread-snapshots/runs/
+            .tmp/thread-snapshots/approved/*/capture.log
           if-no-files-found: ignore
           retention-days: 30

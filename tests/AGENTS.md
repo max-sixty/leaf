@@ -11,6 +11,11 @@ move its contract to the lower boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
+Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
+checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
+`leaf_dev.thread_snapshots` owns the approved-source review and acceptance workflow;
+its source pin and patch are text, while generated image evidence stays in `.tmp/`.
+
 ## Run the narrowest useful surface
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the

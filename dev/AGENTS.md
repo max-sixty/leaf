@@ -41,6 +41,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
+- `leaf-dev thread-snapshots` owns approved source snapshots of message delivery;
+  `thread_snapshots.py`'s docstring owns review, acceptance and the capture boundary.
+  Its shared journey replaces the former panel/card sent stills.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a

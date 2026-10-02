@@ -20,6 +20,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.thread_journey import watch_message_arrival
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -88,7 +89,6 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
-    watch_message_arrival,
     write,
 )
 

@@ -26,6 +26,7 @@ COMMANDS = {
     "refresh-previews": "example_previews",
     "site": "site",
     "stills": "stills",
+    "thread-snapshots": "thread_snapshots",
     "verify-codex-task": "verify_codex_task",
     "verify-site": "verify_site",
 }

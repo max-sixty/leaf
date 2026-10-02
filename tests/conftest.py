@@ -454,9 +454,10 @@ def _browser(_playwright):
 
     Each test receives this process through the function-scoped `browser` fixture,
     which closes any contexts the test leaves open."""
-    b = _playwright.chromium.launch()
-    yield b
-    b.close()
+    from leaf_dev.browser import headless_shell
+
+    with headless_shell(_playwright) as b:
+        yield b
 
 
 @pytest.fixture

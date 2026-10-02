@@ -162,6 +162,22 @@ def copy_working(paths: Iterable[str], dest: Path) -> None:
             shutil.copy2(source, target, follow_symlinks=False)
 
 
+def extract_ref(dest: Path, ref: str, paths: Iterable[str]) -> None:
+    """Extract selected tracked paths at an explicit ref into an existing arm."""
+    present = subprocess.run(
+        ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *paths],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    archive = subprocess.run(
+        ["git", "-C", ROOT, "archive", ref, *present],
+        capture_output=True,
+        check=True,
+    ).stdout
+    subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+
+
 def extract_payload(dest: Path, ref: str | None = None) -> None:
     """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None
     (`copy_working`), into `dest`, replacing whatever was there."""
@@ -172,18 +188,7 @@ def extract_payload(dest: Path, ref: str | None = None) -> None:
     dest.mkdir(parents=True)
     if ref is not None:
         # An older ref lacks some of PAYLOAD, which `git archive` would refuse.
-        present = subprocess.run(
-            ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.split()
-        archive = subprocess.run(
-            ["git", "-C", ROOT, "archive", ref, *present],
-            capture_output=True,
-            check=True,
-        ).stdout
-        subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+        extract_ref(dest, ref, PAYLOAD)
     else:
         copy_working(PAYLOAD, dest)
 

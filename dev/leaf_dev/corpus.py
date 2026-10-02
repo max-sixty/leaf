@@ -104,7 +104,7 @@ FOOT = """\
 
 
 def build_data() -> dict:
-    """Compose every example's captures and current values into one companion."""
+    """Compose corpus inputs with captures relative to the generated page."""
     sources = {}
     captures = {}
     for source, _ in TABS:
@@ -114,7 +114,9 @@ def build_data() -> dict:
         document = json.loads(companion.read_text(encoding="utf-8"))
         for name, spec in document.pop("$captures", {}).items():
             capture_file = (source.parent / spec["file"]).resolve()
-            relative_file = capture_file.relative_to(EXAMPLES_DIR.resolve())
+            relative_file = capture_file.relative_to(
+                EXAMPLES_DIR.resolve(), walk_up=True
+            )
             corpus_spec = {**spec, "file": relative_file.as_posix()}
             if name in captures:
                 if captures[name] != corpus_spec:

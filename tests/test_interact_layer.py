@@ -47,6 +47,7 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -539,6 +540,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
+        ["hook"],
+        ["hook", "--watch"],
         ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
@@ -1040,7 +1043,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    interact_files.write_json(first / "status.json", {"state": "working"})
+    cleanup_model.write_json(first / "status.json", {"state": "working"})
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1790,7 +1793,7 @@ def test_a_producer_date_without_an_offset_is_refused(page_dir):
 
     def producer_dated(value):
         registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
-        interact_files.write_json(stamp, registry)
+        cleanup_model.write_json(stamp, registry)
         return registry_storage.layer_metadata(page_dir)["producer"]
 
     assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
@@ -2563,7 +2566,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     assert not first.is_alive() and not second.is_alive()
     assert errors == []
     assert calls == 2
-    assert (page / schema_model.EVENTS_FILE).is_file()
+    assert (page / cleanup_model.EVENTS_FILE).is_file()
 
 
 def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_dir):
@@ -2747,7 +2750,7 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
     assert theme.read_text() == ":root { --accent: teal; }\n"
-    assert not (page / schema_model.EVENTS_FILE).exists()
+    assert not (page / cleanup_model.EVENTS_FILE).exists()
 
 
 def test_init_refuses_a_case_aliased_source_at_a_page_destination(
@@ -2853,7 +2856,7 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    interact_files.write_json(page_dir / "cursor.json", {"seq": 1})
+    cleanup_model.write_json(page_dir / "cursor.json", {"seq": 1})
     (page_dir / "events.jsonl").unlink()
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])

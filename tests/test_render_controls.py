@@ -10,10 +10,10 @@ from interact_support import (
 )
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -3288,12 +3288,12 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
     told(page)
@@ -3303,9 +3303,9 @@ def test_a_panel_row_follows_its_pages_status_live(
     # user reading both surfaces has to work out whether they mean the same thing.
     # Its own watcher has to be live for that, which is what the neighbour's held lease
     # proves — judged from the same evidence its banner judges itself on.
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": events_model.now_iso()},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     with live_watcher(other_dir, page):
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
@@ -3317,12 +3317,12 @@ def test_a_panel_row_follows_its_pages_status_live(
         # winning where two overlap: a title on the line would answer the hover most
         # likely to be asking for the rest, a user pointing at the words that ran out
         # of room, with the one part of the account they can already read.
-        files_model.write_json(
+        cleanup_model.write_json(
             other_dir / "status.json",
             {
                 "state": "waiting",
                 "detail": "pick a storage engine",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
             },
         )
         told(page)
@@ -3428,17 +3428,17 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     held = page.evaluate(
@@ -3507,9 +3507,9 @@ def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(0)
@@ -3551,9 +3551,9 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(2)
@@ -3669,9 +3669,9 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     page.wait_for_function(

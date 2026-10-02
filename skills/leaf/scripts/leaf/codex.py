@@ -36,6 +36,12 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
+from .codex_state import (
+    advance_hook_turn,
+    delivery_dir,
+    delivery_lock_path,
+    hook_turn,
+)
 from .delivery import (
     DELIVERY_FORMAT,
     DeliveryIdConflict,
@@ -51,10 +57,9 @@ from .delivery import (
     retire_if_gone,
     validate_delivery_id,
 )
-from .event_log import flocked
-from .files import read_json, write_json
+from .files import read_json
 from .host import Harness, session_harness
-from .leases import session_state_path, sessions_home, step_hook_ran
+from .leases import sessions_home, step_hook_ran
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
@@ -64,7 +69,7 @@ from .service import (
     restore_page_claim,
     unacknowledged,
 )
-from .state_paths import HOOK_TURN_SUFFIX, session_file
+from .session_cleanup import flocked, write_json
 from .thread import (
     DeliveryReply,
     release_delivery_reply,
@@ -1111,14 +1116,6 @@ class CarriedTurn(TurnFold):
         raise NotImplementedError
 
 
-def delivery_dir(session_id: str) -> Path:
-    return session_state_path(session_id, "deliveries")
-
-
-def delivery_lock_path(session_id: str) -> Path:
-    return delivery_dir(session_id).with_suffix(".delivery.lock")
-
-
 def record_path(session_id: str, delivery_id: str) -> Path:
     validate_delivery_id(delivery_id)
     return delivery_dir(session_id) / f"{delivery_id}.json"
@@ -1351,66 +1348,6 @@ def append_batch(
     return path, len(record["batches"]) - 1, entry
 
 
-def hook_turn(session_id: str) -> dict | None:
-    """The latest synchronous hook's provider turn observation, even before a page.
-
-    Async callbacks are not turn openers. This observation lets them bind a page
-    acquired mid-turn without replacing a newer turn, and serializes route choice
-    against a prompt or ending under the task's delivery lock.
-    """
-    observation = read_json(session_file(session_id, HOOK_TURN_SUFFIX))
-    if (
-        not isinstance(observation, dict)
-        or not {"turn", "running", "revision"} <= observation.keys()
-    ):
-        return None
-    return observation
-
-
-def _write_hook_turn(session_id: str, turn_id: str, *, running: bool) -> dict:
-    """Advance a provider observation under the task's delivery lock.
-
-    A new tool step renews the same turn, so turn identity alone cannot serialize
-    route choice against the activity reading a queue offer took before its lock.
-    """
-    previous = hook_turn(session_id)
-    observation = {
-        "turn": turn_id,
-        "running": running,
-        "revision": previous["revision"] + 1 if previous else 1,
-    }
-    write_json(session_state_path(session_id, HOOK_TURN_SUFFIX), observation)
-    return observation
-
-
-def start_hook_turn(session_id: str, turn_id: str) -> None:
-    with flocked(delivery_lock_path(session_id)):
-        _write_hook_turn(session_id, turn_id, running=True)
-
-
-def end_hook_turn(session_id: str, turn_id: str) -> None:
-    """Close the current observed turn, including pages acquired mid-turn.
-
-    A newly claimed page can still have a minted turn id if no tool hook bound
-    it. The synchronous observation authorizes closing those claims too, while
-    a newer prompt prevents this ending from touching that prompt's pages.
-    """
-    lock = delivery_lock_path(session_id)
-    with flocked(lock):
-        observed = hook_turn(session_id)
-        if not observed or observed["turn"] != turn_id or not observed["running"]:
-            return
-        ended = _write_hook_turn(session_id, turn_id, running=False)
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page, flocked(lock):
-                if hook_turn(session_id) != ended:
-                    return
-                page.close_turn(session_id)
-        except FileNotFoundError:
-            continue
-
-
 def step_delivery_turn(session_id: str) -> str | None:
     """The observed provider turn a proven step hook can deliver into.
 
@@ -1456,7 +1393,7 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
                 with flocked(lock):
                     if hook_turn(session_id) != expected:
                         return None
-                    expected = _write_hook_turn(session_id, turn_id, running=True)
+                    expected = advance_hook_turn(session_id, turn_id, running=True)
                     page.open_turn(session_id, turn_id)
                     if batch := unacknowledged(page.events, page.cursor):
                         append_batch(session_id, page_dir, page, batch)

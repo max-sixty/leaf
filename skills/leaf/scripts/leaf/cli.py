@@ -6,11 +6,8 @@ from pathlib import Path
 
 import click
 
-from leaf.schema import (
-    EVENTS_FILE,
-    SKILL_ROOT,
-    WAIT_BATCH_OUTPUT_INSTRUCTION,
-)
+from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
+from leaf.session_cleanup import EVENTS_FILE
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -933,18 +930,14 @@ def thread_resolve(dir: str, thread: str) -> None:
 )
 def hook(watch: bool) -> None:
     """Answer an agent-host hook on stdin."""
-    from leaf.hooks import cmd_hook, cmd_watch
-    from leaf.leases import release_on_termination
+    from leaf.hooks import main
 
-    try:
-        payload = json.load(sys.stdin)
-    except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
-    if watch:
-        # The host stops a watch at the hook's timeout, which must release its
-        # lease the way a wait's does.
-        release_on_termination()
-        if woke := cmd_watch(payload):
-            print(woke, flush=True)
-        return
-    cmd_hook(payload)
+    main(watch=watch)
+
+
+@cli.command(hidden=True)
+def session_end() -> None:
+    """Release ownership for the host's SessionEnd payload on stdin."""
+    from leaf.session_cleanup import main
+
+    main()

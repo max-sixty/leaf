@@ -16,8 +16,7 @@ from urllib.parse import urlsplit
 import uvicorn
 
 from .detached import Handshake, StartRefused, start_detached
-from .event_log import require_cross_process_locking
-from .files import read_json, write_json
+from .files import read_json
 from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance, provenance_label
@@ -34,6 +33,7 @@ from .server import (
     stop_when_service_ends,
 )
 from .service import PageTransaction, claim_is_active, page_claim, starting_claim
+from .session_cleanup import require_cross_process_locking, write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 

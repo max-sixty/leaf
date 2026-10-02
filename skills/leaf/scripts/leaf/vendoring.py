@@ -13,14 +13,8 @@ from .data_contracts import (
     page_data_document_readings,
     working_data_document_readings,
 )
-from .event_log import now_iso, read_events
-from .files import (
-    json_bytes,
-    latest_revision,
-    read_json,
-    replace_files,
-    write_json,
-)
+from .event_log import read_events
+from .files import latest_revision, read_json, replace_files
 from .hosting import restarting_server
 from .layer import (
     LayerComposition,
@@ -39,7 +33,6 @@ from .registry.storage import compose_candidate, layer_packages, widget_paths
 from .revision_artifact import read_revision
 from .schema import (
     CURSOR_FILE,
-    EVENTS_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
@@ -48,6 +41,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path, read_status
+from .session_cleanup import EVENTS_FILE, json_bytes, now_iso, write_json
 from .structure import SourceDocument
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source

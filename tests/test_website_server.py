@@ -35,8 +35,9 @@ from interact_support import (
 )
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
+from leaf.codex_state import delivery_lock_path
 from leaf.delivery import current_responses
-from leaf.event_log import append_event, flocked, read_events
+from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
@@ -46,6 +47,7 @@ from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt, open_session_turn
+from leaf.session_cleanup import flocked
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, verify_site
 from playwright.sync_api import expect
@@ -59,7 +61,7 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
     open_session_turn(thread_id, turn)
-    with flocked(leaf_codex.delivery_lock_path(thread_id)):
+    with flocked(delivery_lock_path(thread_id)):
         [(path, _)] = [
             (path, record)
             for path, record in delivery_records(thread_id)

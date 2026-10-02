@@ -69,6 +69,7 @@ from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -2207,7 +2208,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             presence_model.presence(page_dir, events),
             {},
             {1, 2},
-            event_model.now_iso(),
+            cleanup_model.now_iso(),
         )
         return state
 
@@ -2377,7 +2378,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         presence_model.presence(page_dir, events),
         {},
         {1, 2},
-        event_model.now_iso(),
+        cleanup_model.now_iso(),
     )[0]["views"]
 
     def offered(revision):
@@ -2621,10 +2622,10 @@ def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """A no-op lock cannot honestly promise one append for one attempt."""
-    monkeypatch.setattr(event_model, "fcntl", None)
+    monkeypatch.setattr(cleanup_model, "fcntl", None)
     with (
         pytest.raises(RuntimeError, match="cross-process file locking"),
-        event_model.flocked(page_dir / ".lock"),
+        cleanup_model.flocked(page_dir / ".lock"),
     ):
         pass
 
@@ -2633,7 +2634,7 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """Standing startup must fail before it opens a socket or records a URL."""
-    monkeypatch.setattr(event_model, "fcntl", None)
+    monkeypatch.setattr(cleanup_model, "fcntl", None)
     monkeypatch.setattr(leases_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.cmd_serve(page_dir, standing=True)
@@ -3024,7 +3025,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
     polls and demoted the standing lifetime to the recovering session's."""
-    files_model.write_json(
+    cleanup_model.write_json(
         page_dir / "service.json",
         {
             "host": "10.0.0.5",
@@ -3151,7 +3152,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert presence_model.presence_reading(page_dir) == first
     assert calls == 1
 
-    files_model.write_json(
+    cleanup_model.write_json(
         page_dir / "status.json",
         {"state": "working", "detail": "measuring", "ts": "now"},
     )
@@ -3207,9 +3208,9 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
     neighbour = machine_model.state_home() / "pages" / "neighbor-deadline"
     neighbour_page(neighbour, title="Timed neighbor")
     record_claim(neighbour, id="timed")
-    files_model.write_json(
+    cleanup_model.write_json(
         neighbour / "status.json",
-        {"state": "waiting", "detail": "", "ts": event_model.now_iso(), "after": 0},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso(), "after": 0},
     )
     status_at = datetime.fromisoformat(
         files_model.read_json(neighbour / "status.json")["ts"]
@@ -3253,7 +3254,7 @@ def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
     neighbour = machine_model.state_home() / "pages" / "neighbor-status-deadline"
     neighbour_page(neighbour, title="Timed status neighbor")
     started = datetime.now().astimezone()
-    files_model.write_json(
+    cleanup_model.write_json(
         neighbour / "status.json",
         {
             "state": "waiting",
@@ -3359,7 +3360,7 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     def delayed_get(endpoint):
         entered.set()
         release.wait()
-        files_model.write_json(page_dir / "request-finished.json", {"done": True})
+        cleanup_model.write_json(page_dir / "request-finished.json", {"done": True})
         return original_get(endpoint)
 
     def request():
@@ -3998,7 +3999,7 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     an unmoved one leaves the write unheard until some later write."""
     written = _coarse_write_clock(monkeypatch)
     value = page_dir / schema_model.DATA_DIR / "tick.json"
-    files_model.write_json(value, {"n": 1})
+    cleanup_model.write_json(value, {"n": 1})
     written(value)
     before = served_reading.page_reading(page_dir)
     with value.open("r+") as stream:
@@ -4140,7 +4141,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
 def test_the_loopback_line_follows_the_lifetime_line(page_dir):
     """`interact_support` reads one line of a served subprocess's stderr and
     expects the lifetime there, so the loopback line lands after it."""
-    files_model.write_json(
+    cleanup_model.write_json(
         page_dir / "service.json",
         {
             "host": "::1",
@@ -4213,7 +4214,7 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
 
 
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
-    files_model.write_json(
+    cleanup_model.write_json(
         page_dir / "service.json",
         {
             "host": "127.0.0.1",
@@ -4252,7 +4253,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         "enabled": False,
         "lifetime": "standing",
     }
-    files_model.write_json(page_dir / "service.json", service)
+    cleanup_model.write_json(page_dir / "service.json", service)
     assert server_model.page_access(page_dir) == service
 
 
@@ -4372,7 +4373,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         assert stopped == [True]
     finally:
         resume.set()
-        files_model.write_json(
+        cleanup_model.write_json(
             page_dir / "service.json",
             {**files_model.read_json(page_dir / "service.json"), "enabled": False},
         )
@@ -4493,7 +4494,7 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
         "enabled": False,
         "lifetime": "session",
     }
-    files_model.write_json(page_dir / "service.json", service)
+    cleanup_model.write_json(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
     assert server_model.page_access(page_dir) == service
@@ -4574,7 +4575,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 def hold_standing(page: Path, start) -> subprocess.Popen:
     """A standing page with its lease held, as `server run --standing` leaves one."""
     page.mkdir(parents=True)
-    files_model.write_json(
+    cleanup_model.write_json(
         page / "service.json",
         {
             "host": "127.0.0.1",
@@ -4702,7 +4703,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     could ever say."""
     pages = machine_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
-    files_model.write_json(
+    cleanup_model.write_json(
         pages / "live" / "status.json",
         {"state": "working", "detail": "measuring", "ts": "2026-01-01T00:00:00-08:00"},
     )
@@ -4728,12 +4729,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # it is absent from that page's reading, which lists the page with no claims.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
-    files_model.write_json(
+    cleanup_model.write_json(
         malformed / "status.json",
         {
             "state": "working",
             "detail": "unknown",
-            "ts": event_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
             "work": [{}],
         },
     )

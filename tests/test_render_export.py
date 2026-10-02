@@ -28,6 +28,7 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -889,7 +890,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # reload the recovery makes must find a server that answers.
         if not stopped:
             stopped.append(True)
-            paused.enter_context(events_model.flocked(directory / "events.jsonl"))
+            paused.enter_context(cleanup_model.flocked(directory / "events.jsonl"))
             theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
             with theme.open("a", encoding="utf-8") as stream:
                 stream.write("\nh1 { color: navy; }\n")
@@ -975,7 +976,7 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
     """A SIGTERM during an update's stopped-service interval suppresses its restart."""
     source, runtime, directory, process, _, _ = served_preview
     # Real page-transaction contention pauses init after the watcher stops the service.
-    with events_model.flocked(directory / "events.jsonl"):
+    with cleanup_model.flocked(directory / "events.jsonl"):
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")

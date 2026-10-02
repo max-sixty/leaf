@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from .session_cleanup import EVENTS_FILE
+
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
@@ -493,7 +495,6 @@ MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
-EVENTS_FILE = "events.jsonl"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"

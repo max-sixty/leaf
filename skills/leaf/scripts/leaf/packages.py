@@ -18,7 +18,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .files import fsync_parents, json_bytes, read_json, replace_files
+from .files import read_json, replace_files
 from .layer import (
     LayerComposition,
     checked_inputs,
@@ -41,7 +41,6 @@ from .schema import (
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
     ELEMENT_ID,
-    EVENTS_FILE,
     HTML_NAME,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
@@ -51,6 +50,7 @@ from .schema import (
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
+from .session_cleanup import EVENTS_FILE, fsync_parents, json_bytes
 
 
 @contextlib.contextmanager

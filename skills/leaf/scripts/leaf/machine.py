@@ -11,20 +11,14 @@ psutil owns the process readings. It asks the kernel directly, which is what
 these need: the portable tool is `ps`, macOS ships it setuid root, and the
 seatbelt sandbox Codex runs its shell tool under refuses to exec it (measured
 inside `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
-permitted`). psutil does not own `pid_alive`, whose comment records why."""
+permitted`). Only those readings import it: paths and `pid_alive` need no
+third-party library, so ownership discovery need not import process inspection.
+psutil does not own `pid_alive`, whose comment records why."""
 
 import os
 from pathlib import Path
 
-import psutil
-
-from .state_paths import state_home_path
-
-# A process reading fails in two ways worth answering with None: the process is
-# gone (NoSuchProcess, and ZombieProcess under it), or it belongs to another user
-# and its command line is closed to us (AccessDenied). psutil's other errors come
-# from calls this module does not make.
-_UNREADABLE = (psutil.NoSuchProcess, psutil.AccessDenied)
+from .session_cleanup import state_home_path
 
 
 def pid_alive(pid: int) -> bool:
@@ -50,10 +44,12 @@ def process_info(pid: int) -> tuple[int, str] | None:
     which is what `CodexHarness.lifetime` asks of an ancestor. The kernel truncates
     it to 15 or 16 characters; psutil restores a truncated name from the program
     path the command line starts with."""
+    import psutil
+
     try:
         process = psutil.Process(pid)
         return process.ppid(), process.name()
-    except _UNREADABLE:
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         return None
 
 
@@ -82,9 +78,11 @@ def process_argv(pid: int) -> list[str] | None:
     `process_info` answers which program a process *is*; this answers what it
     was told to do, which is the only thing that separates a `codex` hosting one
     session from a `codex` hosting all of them (`CodexHarness.lifetime`)."""
+    import psutil
+
     try:
         return psutil.Process(pid).cmdline()
-    except _UNREADABLE:
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         return None
 
 

@@ -1,3 +1,36 @@
+diff --git a/examples/corpus.data.json b/examples/corpus.data.json
+index d8554baa8..0141acf02 100644
+--- a/examples/corpus.data.json
++++ b/examples/corpus.data.json
+@@ -16,6 +16,10 @@
+       "file": "pr-walkthrough-prepared-diff.rs",
+       "lines": "1:169"
+     },
++    "review-patch": {
++      "file": "../tests/fixtures/pages/thread-journey-inline.patch",
++      "format": "unified-diff"
++    },
+     "gallery-source": {
+       "file": "developer/feature-gallery-source.toml",
+       "lines": "1:4"
+diff --git a/examples/corpus.html b/examples/corpus.html
+index f7ae3438d..fad43c1f6 100644
+--- a/examples/corpus.html
++++ b/examples/corpus.html
+@@ -6443,6 +6443,13 @@ <h4>Remaining accounts</h4>
+       </lf-tabs>
+ </lf-tab>
+ 
++<lf-tab id="corpus-thread-journey-inline" label="Thread Journey Inline">
++<h1 id="title">Review the changed line</h1>
++      <p id="plan">Keep the shipping order visible while we discuss this change.</p>
++      <lf-diff id="journey-patch" source="review-patch"><pre></pre></lf-diff>
++      <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
++</lf-tab>
++
+ <lf-tab id="corpus-feature-gallery" label="Core features">
+ <h1 id="bg-title">Leaf core product gallery</h1>
+       <p class="lede" id="bg-lede">
 diff --git a/pyproject.toml b/pyproject.toml
 index 5ba94f6d4..68ad45ce1 100644
 --- a/pyproject.toml

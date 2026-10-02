@@ -20,9 +20,9 @@ import {
   pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
-  PAGE_PAINT_ATTRIBUTE,
   PRESENTATION,
 } from "./runtime/presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
 import { renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
@@ -349,6 +349,9 @@ const anchorControls = createAnchorControls({
 });
 
 const version = createVersionController({
+  compositionInput: fabInput,
+  openThread: (id, options) =>
+    app.margin.openPageThread(id, { ...options, travel: false }),
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
@@ -897,11 +900,17 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
+    const draftOpened =
+      !offlineInteractive && selectionComposer.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a
     // malformed page that the unanchored provisional pass could not yet inspect.
     await whenApplicationPresented();
+    if (draftOpened) {
+      await responseSurface.fabPositioned();
+      paintKeys();
+    }
   } catch (error) {
     setAnchoringReady(false);
     throw error;
@@ -923,10 +932,9 @@ async function presentPage() {
   repaint();
   layoutMarginRows();
   landFragment();
-  landArrival();
+  await landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  selectionComposer.openDraft(savedComposer);
   document.dispatchEvent(new Event(PRESENTATION));
 }
 

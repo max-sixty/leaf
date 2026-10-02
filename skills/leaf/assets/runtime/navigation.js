@@ -78,7 +78,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
       );
   if (!next) return;
   if (!panelIsOpen()) {
-    openPageThread(next.dataset.id, { focus: "thread" });
+    void openPageThread(next.dataset.id, { focus: "thread" });
     announce(
       beginWalk("thread", "Thread", () =>
         threadPosition(threadHere, panelIsOpen, narrowing, list),

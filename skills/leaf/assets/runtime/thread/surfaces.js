@@ -15,9 +15,8 @@ import { pageText } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
-import { threadFocusStop } from "./focus.js";
+import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
-import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -350,14 +349,7 @@ export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
       )
       .find(Boolean);
     if (!thread) continue;
-    const summary = thread.querySelector(":scope > summary");
-    const target =
-      (focus === "thread" ? thread : null) ??
-      (summary && !thread.hasAttribute("open") ? summary : null) ??
-      thread.querySelector(SAY_BOX) ??
-      summary ??
-      thread;
-    return target === thread ? threadFocusStop(thread) : target;
+    return threadFocusDestination(thread, { focus });
   }
   return null;
 }

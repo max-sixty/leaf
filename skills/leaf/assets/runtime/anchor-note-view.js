@@ -29,8 +29,9 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
     const note = offer("button", "lf-skip lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId: null };
-    note.addEventListener("click", () =>
-      openThread(record.firstThreadId, { focus: "thread" }),
+    note.addEventListener(
+      "click",
+      () => void openThread(record.firstThreadId, { focus: "thread" }),
     );
     return record;
   }

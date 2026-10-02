@@ -1543,7 +1543,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     drawers = (runtime / "drawers.js").read_text()
-    presentation = (runtime / "presentation.js").read_text()
+    page_paint = (runtime / "page-paint.js").read_text()
     sheet = (schema_model.ASSETS / "theme.css").read_text() + (
         runtime / "chrome.css"
     ).read_text()
@@ -1558,7 +1558,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         "var("
         + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
         + ")",
-        "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
+        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

@@ -147,7 +147,10 @@ function target(row) {
   if (row.thread) {
     const button = offer("button", "lf-activity-target");
     relabel(button, row.label, { says: "echo" });
-    button.addEventListener("click", () => openThread(row.thread, { focus: "thread" }));
+    button.addEventListener(
+      "click",
+      () => void openThread(row.thread, { focus: "thread" }),
+    );
     return button;
   }
   if (!row.widget && !row.label) return null;

@@ -1,0 +1,40 @@
+# Sibling of the thread comparison: chart treatments must survive dataset changes.
+# On 015b1b9c2: baseline passed 1/2 and the configuration/case paragraph passed
+# 2/2. Both arms read the package instructions.
+schema_version: '1.0'
+name: playground-data-case-is-independent
+description: "Playground: compare designs on several datasets without submitting the dataset choice."
+tags: [playground]
+execution:
+  prompt: |
+    Build a Leaf playground for a latency dashboard. The user wants to compare
+    line and area treatments, tune smoothing, and inspect each treatment with
+    ordinary traffic, a sharp spike, and missing measurements. The final task
+    should tell an agent which chart design to implement. Both candidates are
+    operable previews of the same selected dataset. The renderer provides
+    setDataset(name) and setDesign({treatment, smoothing}).
+
+    An earlier draft put Treatment, Smoothing, and Dataset into playground
+    controls, with Line and Area presets that set Treatment and Smoothing.
+    Review and finish it. Read packages/playground/instructions/author.md inside
+    the leaf skill's base directory. Reply with HTML and a page module; the
+    page directory is not reachable here. Use placeholders for chart rendering.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-playground-instructions
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/packages/playground/instructions/author\.md
+- name: independent-case
+  type: llm
+  criteria: |
+    Pass only if the authored controls visibly distinguish dataset selection from
+    design settings, the dataset choice stays outside the submitted playground
+    configuration and build instruction, and switching a dataset preserves the
+    design while applying a design preset preserves the dataset. Both charts
+    receive the same dataset. Fail if dataset is an lf-playground-control or a
+    submitted contributor, if separation exists only in explanatory prose, or if
+    the user cannot switch datasets.

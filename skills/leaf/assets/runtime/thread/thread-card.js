@@ -336,8 +336,8 @@ export class ThreadView {
     this.node.classList.toggle("lf-thread", panel && !model.folding);
     // Entry motion belongs to the retained node. Navigation can cancel it; a
     // later descriptor repaint must not resurrect that canceled native cue.
-    if (model.folding) this.node.classList.remove("grow");
-    else if (!prior && model.grow) this.node.classList.add("grow");
+    if (model.folding) this.node.classList.toggle("grow", false);
+    else if (!prior && model.grow) this.node.classList.toggle("grow", true);
     this.node.toggleAttribute("inert", model.folding);
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);

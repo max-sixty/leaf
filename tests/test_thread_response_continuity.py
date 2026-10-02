@@ -325,4 +325,3 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
             route.continue_()
         page.unroute("**/api/event", hold)
         expect(page.locator('.lf-threads [aria-busy="true"]')).to_have_count(0)
-        context.close()

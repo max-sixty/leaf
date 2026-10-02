@@ -85,6 +85,7 @@ from .server import preview_metadata
 from .service import PageTransaction
 from .session_cleanup import write_json
 from .structure import FRAME_ANCESTORS_CSP
+from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
 # a word before saying it is still there.
@@ -820,10 +821,6 @@ class PageEndpoint:
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
-        if probe_source := PROBE_SOURCES.get(logical):
-            return self._content(
-                200, "text/javascript; charset=utf-8", probe_source.read_bytes()
-            )
         source = logical
         widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
         if widget is not None:
@@ -941,6 +938,12 @@ class PageEndpoint:
             return self._serve_root()
         if path == "/api/news":
             return self._news()
+        if path == "/api/user-view":
+            return self._json(
+                read_user_views(self.page_dir, latest_revision(self.page_dir))
+                if self.page_snapshot is None
+                else {"fresh_for_s": FRESH_FOR_S, "sessions": []}
+            )
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -990,8 +993,27 @@ class PageEndpoint:
             "/api/media",
             "/api/samples",
             "/api/interaction",
+            "/api/user-view",
         }:
             return self._json({"error": "not found"}, 404)
+        if path == "/api/user-view":
+            if self.posted_error:
+                return self._refuse(self.posted_error)
+            # Captured render previews are instruments, not the user's reading.
+            if self.page_snapshot is not None:
+                return self._content(204, "text/plain", b"")
+            revision = self.posted.get("revision")
+            revisions = list_revisions(self.page_dir)
+            if type(revision) is not int or revision not in revisions:
+                return self._refuse("unknown user view revision")
+            checks = self.posted.get("checks")
+            if isinstance(checks, dict) and checks.get("revision") not in revisions:
+                return self._refuse("unknown user view checks revision")
+            try:
+                observe_user_view(self.page_dir, self.posted)
+            except ValueError as error:
+                return self._refuse(str(error))
+            return self._content(204, "text/plain", b"")
         if path == "/api/interaction":
             if self.posted_error:
                 return self._refuse(self.posted_error)

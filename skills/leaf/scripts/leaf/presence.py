@@ -23,6 +23,8 @@ from .revision_artifact import revision_title
 from .schema import (
     INTERACTIONS_FILE,
     UNNAMED_AGENT,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
     VIEWED_FILE,
     WAITER_LOCK,
 )
@@ -64,7 +66,9 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
 
     `viewed.json` counts here, where the page's own reading leaves it out: whether a
     tab is looking is part of what presence reports."""
-    entries = tuple(entry_stamps(page_dir, {INTERACTIONS_FILE}))
+    entries = tuple(
+        entry_stamps(page_dir, {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
+    )
     claim_stamp = file_stamp(claim_path(page_dir))
     if claim and claim.get("id"):
         # A host wait lease is outside the page, and its lock state has no file

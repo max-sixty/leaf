@@ -310,7 +310,9 @@ height and where a switch lands wait on the workspace decision under Layout.
   controls and resulting evidence below the first pane screen, as the arrangement
   eval exposed. The readings stay advice: which
   widths a page answers for is the author's call.
-- **Read the render checks after handover.** `page check --render` blocks the
+- **Read the full render gate after handover.** Actual user views now supply passive
+  geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
+  broader headless gate still runs on request. `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
@@ -327,11 +329,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
   at different widths and keep that limitation explicit.
-- **Record the user's view beside `viewed`.** Add the window size, colour scheme
-  and revision a visible tab reports to the presence reading, and document them.
-  **Unconfirmed:** in the first agent-usability baseline the missing view caused no
-  failure: asked which tab the user had open, every agent said the page files don't
-  record it. Build this when a task needs the user's view.
 - **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner

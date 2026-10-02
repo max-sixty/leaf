@@ -23,7 +23,7 @@ import {
   PAGE_PAINT_ATTRIBUTE,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { renderingSettled } from "./runtime/rendering.js";
+import { nextFrame, renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
@@ -907,6 +907,16 @@ async function presentPage() {
     throw error;
   }
   markPagePresented();
+  // Optional author context begins after the presented frame. It neither imports
+  // checks nor takes geometry on the path that gives the reader the page.
+  if (!offlineInteractive && !passiveSample)
+    nextFrame(() =>
+      setTimeout(() => {
+        void import("./runtime/user-view.js").then(({ observeUserView }) =>
+          observeUserView(),
+        );
+      }, 0),
+    );
   void whenArrived().then(landFragment);
   anchorControls.publishVisualActions();
   if (offlineInteractive) {

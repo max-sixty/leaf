@@ -14,6 +14,9 @@ const queue = [];
 // yield first; the remaining sequence gaps make any loss visible to a reader.
 const MAX_PENDING_ENTRIES = 512;
 const repetitive = new Set([
+  // Timings of deferred imports and heartbeat requests are observations too;
+  // their arrival must never evict the user's input from a congested backlog.
+  "resource",
   "pointermove",
   "pointerover",
   "pointerout",

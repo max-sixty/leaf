@@ -2047,10 +2047,9 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     with sending(page, "a package resolution"):
         actions.get_by_role("button", name="Resolve").click()
     expect(actions).to_have_attribute("data-resolved", "true")
-    actions.get_by_role("button", name="Reply").click()
-    expect(actions).to_have_attribute("data-accepted", "false")
-    with sending(page, "a package reopen"):
-        actions.get_by_role("button", name="Reopen").click()
+    with sending(page, "a package reply that reopens the thread"):
+        actions.get_by_role("button", name="Reply").click()
+    expect(actions).to_have_attribute("data-accepted", "true")
     expect(actions).to_have_attribute("data-resolved", "false")
 
     with sending(page, "a package reaction"):
@@ -2075,4 +2074,4 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("author") == "user" and event["kind"] != "comment"
-    ] == ["reply", "resolve", "unresolve", "reply", "undo"]
+    ] == ["reply", "resolve", "reply", "reply", "undo"]

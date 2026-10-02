@@ -182,8 +182,7 @@ Typed words leaving the screen without a key or press, which the "Words stay whe
 they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
 included. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
-must do it the way a user does. `known_faults.py` names the tests whose pages still lose
-words, each a defect waiting on its fix.
+must do it the way a user does.
 
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):

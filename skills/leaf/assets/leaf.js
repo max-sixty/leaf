@@ -79,7 +79,6 @@ import {
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
 import { createPanelComposer } from "./runtime/thread/panel.js";
-import { focusSurface } from "./runtime/thread/surfaces.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -235,11 +234,10 @@ const navigation = createNavigation({
   narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
-    openPageThread: (...args) => app.margin.openPageThread(...args),
+    openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
-    threadHere: () => app.margin.threadHere(),
-    threadTarget: (...args) => app.margin.threadTarget(...args),
-    inlineThreadView: () => app.margin.inlineThreadView,
+    threadHere: () => app.threadDestinations.threadHere(),
+    threadTarget: (...args) => app.threadDestinations.threadTarget(...args),
   },
 });
 
@@ -326,8 +324,9 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
-  focusForNavigation: (target) => app.margin.focusForNavigation(target),
-  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
+  focusForNavigation: focusDestination,
+  threadFocusTarget: (id, options) =>
+    app.threadDestinations.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
@@ -339,7 +338,7 @@ landing = createThreadLanding({
 declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  openThread: (...args) => app.margin.openPageThread(...args),
+  openThread: (...args) => app.threadDestinations.openPageThread(...args),
   withdrawReaction: (...args) => app.withdraw(...args),
   labelAnchor: anchorLabel,
   invalidateThread: () => app.refreshThread(),
@@ -353,7 +352,7 @@ const anchorControls = createAnchorControls({
 const version = createVersionController({
   compositionInput: fabInput,
   openThread: (id, options) =>
-    app.margin.openPageThread(id, { ...options, travel: false }),
+    app.threadDestinations.openPageThread(id, { ...options, travel: false }),
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
@@ -537,7 +536,7 @@ selectionComposer = createSelectionComposer({
   setReact: (...args) => reactions.setReact(...args),
   reactionTokens,
   designModeActive: designMode.active,
-  marginOpenInlineThread: app.margin.openInlineThread,
+  openPageThread: app.threadDestinations.openPageThread,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
@@ -552,8 +551,6 @@ selectionComposer = createSelectionComposer({
   showFab: (...args) => responseSurface.showFab(...args),
   formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
-  focusSurface,
-  showThread: landing.showThread,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
@@ -563,9 +560,9 @@ responseSurface = createResponseSurface({
   panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  threadHere: () => app.margin.threadHere(),
+  threadHere: () => app.threadDestinations.threadHere(),
   threadTarget: (thread) =>
-    app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
+    app.threadDestinations.threadTarget(thread.dataset.thread ?? thread.dataset.id),
   standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
@@ -589,7 +586,7 @@ responseSurface = createResponseSurface({
   collapseShortcutBar: (...args) => collapseShortcutBar(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,
-  openPageThread: app.margin.openPageThread,
+  openPageThread: app.threadDestinations.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.margin.inlineThreadView.dismiss(),
@@ -671,7 +668,7 @@ threadPanelController = createThreadPanelController({
   narrowing,
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
-  threadHere: app.margin.threadHere,
+  threadHere: app.threadDestinations.threadHere,
   placedAt: anchorPlacement.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,

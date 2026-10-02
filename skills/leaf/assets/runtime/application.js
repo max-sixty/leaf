@@ -38,6 +38,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
 import { clocked } from "./presence.js";
+import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { registerMirrorConsumer } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
@@ -363,7 +364,7 @@ export function mountApplication(dependencies) {
     inventory: annotations,
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
-    showThread: dependencies.showThread,
+    openPageThread: (...args) => threadDestinations.openPageThread(...args),
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
@@ -378,7 +379,13 @@ export function mountApplication(dependencies) {
       renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+  });
+  const threadDestinations = createThreadDestinations({
+    placedAt: dependencies.anchorPlacement.placedAt,
+    panelIsOpen: dependencies.panelIsOpen,
+    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    preview: margin.threadPreview,
   });
 
   threadPresenter = createThreadPresentation({
@@ -397,7 +404,7 @@ export function mountApplication(dependencies) {
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the panel.
     openThread: (id, options) =>
-      margin.openPageThread(id, { ...options, travel: false }),
+      threadDestinations.openPageThread(id, { ...options, travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
@@ -527,6 +534,7 @@ export function mountApplication(dependencies) {
     renderAnnotations,
     mountAnnotations,
     margin,
+    threadDestinations,
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
@@ -569,7 +577,7 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
-export const openThread = (...args) => app().margin.openPageThread(...args);
+export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);

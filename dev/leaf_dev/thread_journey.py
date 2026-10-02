@@ -206,7 +206,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         if stage in {"pending", "retry-pending"}:
             reading["first_appearance"] = page.evaluate("window.__messageArrival")
         if stage == "refused":
-            expect(page.locator(".lf-notice")).to_be_visible()
+            reading["refusal_feedback"] = page.evaluate("window.__refusalFeedback")
         observations[stage] = reading
         checkpoint(stage, page, reading)
 
@@ -246,6 +246,26 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         observe("pending")
         route = held.pop()
         attempt = route.request.post_data_json["attempt"]
+        # Observe feedback in its mutation turn, before transport or capture time
+        # can spend its actual four-second interval.
+        page.locator(".lf-notice").evaluate(
+            """node => {
+              window.__refusalFeedback = null;
+              const observer = new MutationObserver(() => {
+                const words = node.textContent.trim();
+                if (!words.startsWith("Couldn't send")) return;
+                window.__refusalFeedback = {
+                  words, visible: node.checkVisibility({
+                    opacityProperty: true, visibilityProperty: true,
+                  }),
+                };
+                observer.disconnect();
+              });
+              observer.observe(node, {
+                attributes: true, childList: true, subtree: true, characterData: true,
+              });
+            }"""
+        )
         with page.expect_response(lambda response: response.url.endswith("/api/event")):
             route.fulfill(
                 status=400,
@@ -258,11 +278,15 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             )
         expect(messages).to_have_count(before)
         expect(field).to_have_js_property("value", WORDS)
-        expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
-        observe("refused")
-        # Refusal feedback is visible in that checkpoint. Its actual expiry is the
-        # next boundary, so later images cannot depend on how quickly capture ran.
+        feedback = page.evaluate("window.__refusalFeedback")
+        assert feedback == {
+            "words": "Couldn't send — refused before append",
+            "visible": True,
+        }, f"refusal feedback at its mutation was {feedback!r}"
+        # The refused screenshot owns restored draft/layout after real feedback
+        # expiry; a capture must not race a finite user-notice interval.
         expect(page.locator(".lf-notice")).to_be_hidden(timeout=6_000)
+        observe("refused")
         send()
         observe("retry-pending")
         if surface == "general":

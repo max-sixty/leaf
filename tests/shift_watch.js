@@ -174,22 +174,11 @@
       };
     return null;
   };
-  const read = (time, frame = true) => {
-    // Poses belong to their synchronous observation time. The native frame start
-    // is kept separately to associate Chrome's painted shift with that frame.
-    const at = performance.now();
-    const selections = new Map(
-      (
-        document.querySelector("script[data-lf-entry]")?.lfFloatingSelections?.() ?? []
-      ).map((selection) => [selection.floating, selection]),
-    );
-    for (const owner of new Set([...floatingOwners, ...selections.keys()])) {
-      const readings = floating.get(owner) ?? [];
-      readings.push({ at, selection: selections.get(owner) ?? null });
-      pruneSamples(readings);
-      floating.set(owner, readings);
-    }
-    floatingOwners = new Set(selections.keys());
+  // A finishing owner may retire its held native effect before the next frame.
+  // Read its actual final properties in the finished-promise checkpoint, while
+  // that effect still applies, using the same eligibility proof as frame samples.
+  const endings = new WeakMap();
+  const readMotion = (at) => {
     const effects = document.getAnimations().filter(moves);
     const uses = new Map();
     for (const animation of effects) {
@@ -200,6 +189,14 @@
       uses.set(animation.effect.target, properties);
     }
     for (const animation of effects) {
+      const ending = animation.finished;
+      if (endings.get(animation) !== ending) {
+        endings.set(animation, ending);
+        ending.then(
+          () => readMotion(performance.now()),
+          () => {},
+        );
+      }
       const effect = animation.effect,
         style = getComputedStyle(effect.target);
       const replace =
@@ -220,6 +217,24 @@
       pruneSamples(readings);
       animated.set(animation, readings);
     }
+  };
+  const read = (time, frame = true) => {
+    // Poses belong to their synchronous observation time. The native frame start
+    // is kept separately to associate Chrome's painted shift with that frame.
+    const at = performance.now();
+    const selections = new Map(
+      (
+        document.querySelector("script[data-lf-entry]")?.lfFloatingSelections?.() ?? []
+      ).map((selection) => [selection.floating, selection]),
+    );
+    for (const owner of new Set([...floatingOwners, ...selections.keys()])) {
+      const readings = floating.get(owner) ?? [];
+      readings.push({ at, selection: selections.get(owner) ?? null });
+      pruneSamples(readings);
+      floating.set(owner, readings);
+    }
+    floatingOwners = new Set(selections.keys());
+    readMotion(at);
     const nodes = everything();
     const anchors = new Map();
     for (const node of nodes.filter((node) => node instanceof Element)) {

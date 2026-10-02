@@ -1809,3 +1809,68 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
+
+
+@pytest.mark.parametrize("local_carry", [False, True])
+def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
+    """Native cleanup cannot erase final translation or credit a child's own move."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="open">Open</button><button id="other">Another gesture</button>
+<div id="panel" style="margin-left:350px"><textarea id="field"></textarea><p>Retained words</p></div>
+<svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:300px;width:400px;height:60px;background:gray"></svg>
+<script>document.getElementById('open').addEventListener('click',()=>{
+  window.motion=panel.animate([{transform:'translateX(200px)'},{transform:'none'}],{duration:60000,fill:'forwards'});
+  motion.finished.then(()=>queueMicrotask(()=>motion.cancel()));
+})</script></body>""")
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.locator("#open").click()
+    page.evaluate(PAINTED)
+    page.locator("#other").click()
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.evaluate("""() => {
+      window.finishPaint=[];
+      new PerformanceObserver(list=>finishPaint.push(...list.getEntries().map(entry=>entry.startTime)))
+        .observe({type:'layout-shift',buffered:false});
+    }""")
+    before = page.evaluate(
+        """local => {
+      const before={state:motion.playState,field:field.getBoundingClientRect().toJSON(),
+        translation:new DOMMatrixReadOnly(getComputedStyle(panel).transform).e};
+      if(local)field.style.marginLeft='80px';
+      evidence.style.left='20px';
+      motion.finish();
+      return before;
+    }""",
+        local_carry,
+    )
+    assert before["state"] == "running"
+    assert before["translation"] > 1
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.wait_for_function("finishPaint.length > 0")
+    after = page.locator("#field").bounding_box()
+    assert (
+        abs(
+            after["x"]
+            - before["field"]["x"]
+            + before["translation"]
+            - (80 if local_carry else 0)
+        )
+        < 0.5
+    )
+    assert page.evaluate("motion.playState") == "idle"
+    judge_watches()
+    errors = take_browser_errors(page)
+    if local_carry:
+        assert any("textarea#field moved without input" in error for error in errors), (
+            errors
+        )
+        assert all("moved without input" in error for error in errors), errors
+    else:
+        assert not errors, errors

@@ -5813,17 +5813,15 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
                 ground: getComputedStyle(thread).backgroundColor,
                 paper: getComputedStyle(card).backgroundColor,
                 words: x(words), field: x(field),
-                fieldBorder: getComputedStyle(field).borderTopStyle,
-                inset: Math.round(words.getBoundingClientRect().left
-                                  - card.getBoundingClientRect().left)};
+                author: x(thread.querySelector('.lf-msg-head b')),
+                fieldBorder: getComputedStyle(field).borderTopStyle};
     }"""
     )
     assert frame["ground"] == frame["paper"], frame
     assert frame["fieldBorder"] == "solid", frame
-    # The field's box at the card's border and padding, and the words one field
-    # inset in from it, where they used to stand inside a second frame at 25px.
+    # The field keeps its box; message words share their author's reading edge.
     assert frame["field"][0] - frame["card"] == 13, frame
-    assert frame["inset"] == 21, frame
+    assert frame["words"][0] == frame["author"][0], frame
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned
@@ -7260,28 +7258,86 @@ THREAD_CARD_GEOMETRY = """() => {
 }"""
 
 
+# Observe the actual editor glyphs without changing its closed-root behavior.
+MARGIN_EDITOR_ROOTS = """window.marginEditorRoots = new WeakMap();
+const attach = Element.prototype.attachShadow;
+Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.marginEditorRoots.set(this, root);
+    return root;
+};"""
+
+# Native text fragments grouped into visual lines, rather than inferred from width
+# or the runtime's placement reading. DOM text-node splits do not change a line.
+MARGIN_TEXT_LINES = """node => {
+    const lines = new Map();
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(walker.currentNode);
+        for (const rect of range.getClientRects()) {
+            if (!rect.width) continue;
+            const line = lines.get(rect.top);
+            lines.set(rect.top, line ? {
+                left: Math.min(line.left, rect.left), right: Math.max(line.right, rect.right),
+                height: Math.max(line.height, rect.height),
+            } : {left: rect.left, right: rect.right, height: rect.height});
+        }
+    }
+    return [...lines].sort(([a], [b]) => a - b)
+        .map(([, line]) => [line.right - line.left, line.height]);
+}"""
+
+
 def send_anchored_comment(page, text):
     """The gesture the contract's sentence is about: a comment accepted on a passage."""
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     write(page.locator(".lf-composer leaf-text"), text)
+    rendered(page)
+    frame = page.locator(".lf-fab-bar").bounding_box()
+    lines = page.locator(".lf-fab-input").evaluate(
+        "(box, read) => eval(read)(window.marginEditorRoots.get(box).querySelector('.cm-content'))",
+        MARGIN_TEXT_LINES,
+    )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    accepted = page.locator(".lf-margin-preview .lf-msg-body").first.evaluate(
+        MARGIN_TEXT_LINES
+    )
+    assert len(accepted) == len(lines), (lines, accepted)
+    for actual, expected in zip(accepted, lines, strict=True):
+        assert actual == pytest.approx(expected, abs=0.5), (lines, accepted)
+    return frame, len(lines)
 
 
-def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
-    """An accepted comment opens readable beside or over either page shape."""
+@pytest.mark.parametrize("wrapping", [False, True])
+def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
+    browser, serve, wrapping
+):
+    """An accepted comment preserves the real editor frame and wrapping, beside
+    or over either page shape, while its reply and neighboring controls remain usable."""
     sidebar_page = ASK_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    page = open_page(
+        browser,
+        serve(sidebar_page, events=[COMMENT_ON_ASK]),
+        init_script=MARGIN_EDITOR_ROOTS,
+    )
     resized(page, 1200, 900)
-    send_anchored_comment(page, "Check the January failure mode.")
+    text = (
+        "Check the January failure mode before accepting this design. " * 3
+        if wrapping
+        else "Check the January failure mode."
+    )
+    narrow_frame, narrow_lines = send_anchored_comment(page, text)
+    assert narrow_lines > 1 if wrapping else narrow_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
     ).click()
@@ -7290,11 +7346,15 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
+    assert narrow["cardWidth"] == pytest.approx(narrow_frame["width"], abs=0.5), narrow
+    assert narrow["cardWidth"] >= narrow["minimum"] - 0.5, narrow
+    assert 0 <= narrow["cardLeft"] < narrow["cardRight"] <= narrow["innerWidth"], narrow
     assert narrow["replyWidth"] >= 160, narrow
-    # Under or over its words, the card's minimum ends on their right edge
-    # (comment-placement.js), where the comment box would stand.
-    assert narrow["cardRight"] == pytest.approx(narrow["wordsRight"], abs=0.5), narrow
+    # The accepted thread retains the editor's edge, including any room its
+    # submitted words required beyond the initial minimum-width placement.
+    assert narrow["cardRight"] == pytest.approx(
+        narrow_frame["x"] + narrow_frame["width"], abs=0.5
+    ), narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     # Clear of its words under or over them, the card leaves its cluster uncovered.
     assert (
@@ -7306,18 +7366,26 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
 
     page.close()
 
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(
+        browser,
+        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        init_script=MARGIN_EDITOR_ROOTS,
+    )
     resized(page, 1920, 900)
-    send_anchored_comment(page, "Check the January failure mode.")
+    wide_frame, wide_lines = send_anchored_comment(page, text)
+    assert wide_lines > 1 if wrapping else wide_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
     ).click()
 
-    # With room to spare, the card takes only the width its short thread needs.
+    # Spare room does not rewrap the words the user just submitted.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] == pytest.approx(wide["minimum"], abs=0.5), wide
+    assert wide["cardWidth"] == pytest.approx(wide_frame["width"], abs=0.5), wide
+    assert wide["cardWidth"] >= wide["minimum"] - 0.5, wide
+    assert 0 <= wide["cardLeft"] < wide["cardRight"] <= wide["innerWidth"], wide
     assert wide["replyWidth"] >= 160, wide
-    assert wide["cardLeft"] >= wide["controlsRight"] + 7.5, wide
+    assert wide["cardLeft"] == pytest.approx(wide_frame["x"], abs=0.5), wide
+    assert wide["cardLeft"] > wide["controlsRight"], wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):

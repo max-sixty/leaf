@@ -6,8 +6,8 @@ refuses it, resends the restored draft, and finally admits it. Checkpoints run w
 those states are held, so a screenshot and an assertion observe the same journey.
 
 First appearance is separate evidence: a MutationObserver records the message's
-computed opacity at insertion. A screenshot taken after the browser driver returns
-cannot prove that instant, even when the request is still held.
+computed opacity, busy state and body words at insertion. A screenshot taken after
+the browser driver returns cannot prove that instant, even while the request is held.
 """
 
 from collections.abc import Callable
@@ -34,13 +34,18 @@ def watch_message_arrival(root: Locator, selector: str) -> None:
     root.evaluate(
         """(node, selector) => {
           const root = node.shadowRoot ?? node;
+          const before = new Set(root.querySelectorAll(selector));
           window.__messageArrival = null;
           const observer = new MutationObserver(() => {
-            const message = root.querySelector(
-              `${selector}[data-attempt][aria-busy="true"]`
+            const message = [...root.querySelectorAll(selector)].find(
+              node => !before.has(node)
             );
             if (!message) return;
-            window.__messageArrival = Number(getComputedStyle(message).opacity);
+            window.__messageArrival = {
+              opacity: Number(getComputedStyle(message).opacity),
+              busy: message.getAttribute("aria-busy") === "true",
+              words: message.querySelector(":scope > .lf-msg-body").textContent.trim(),
+            };
             observer.disconnect();
           });
           observer.observe(root, {childList: true, subtree: true});
@@ -58,6 +63,17 @@ class ThreadSurface:
     arrival_root: Locator
     arrival_selector: str
     region: Locator
+    kind: str
+
+    def intent(self) -> dict:
+        """Read the chosen root before sending; page comments have no anchor."""
+        parent = None
+        if self.kind == "reply":
+            parent = self.messages.first.evaluate(
+                "node => node.dataset.mid ?? node.dataset.event"
+            )
+            assert parent, "the chosen thread has no durable root identity"
+        return {"kind": self.kind, "parent": parent, "anchor": None}
 
 
 def open_surface(page: Page, surface: str) -> ThreadSurface:
@@ -73,6 +89,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
                 page.locator("body"),
                 ".lf-threads .lf-msg",
                 page.locator(".lf-thread-panel"),
+                "comment",
             )
         thread = page.locator(".lf-threads > .lf-thread").last
         if thread.get_attribute("open") is None:
@@ -83,6 +100,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
             page.locator("body"),
             ".lf-threads .lf-msg",
             thread,
+            "reply",
         )
     if surface == "margin":
         page.locator(".lf-margin-marker").first.click()
@@ -94,6 +112,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
             page.locator("body"),
             ".lf-margin-preview .lf-msg",
             page.locator(".lf-margin-preview"),
+            "reply",
         )
     if surface == "inline":
         # The diff's own datum capture creates its thread through the same route a
@@ -117,6 +136,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
             thread,
             ".lf-msg",
             thread,
+            "reply",
         )
     raise ValueError(f"unknown message surface: {surface}")
 
@@ -130,6 +150,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     """
     shown = open_surface(page, surface)
     field, messages = shown.field, shown.messages
+    intent = shown.intent()
     expect(field).to_be_visible()
     before = messages.count()
     field.click()
@@ -140,6 +161,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         rendered(page)
         wait_for_probe(page, "pageSettled")
         reading = {
+            "intent": intent,
             "region": shown.region.bounding_box(),
             "field_region": field.bounding_box(),
             "draft": field.evaluate("node => node.value"),
@@ -156,7 +178,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
                 "node => Number(getComputedStyle(node).opacity)"
             )
         if stage in {"pending", "retry-pending"}:
-            reading["first_opacity"] = page.evaluate("window.__messageArrival")
+            reading["first_appearance"] = page.evaluate("window.__messageArrival")
         observations[stage] = reading
         checkpoint(stage, page, reading)
 
@@ -185,7 +207,11 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             expect(messages).to_have_count(before + 1)
             # The observer runs in the insertion turn; read it before any settled
             # screenshot or auto-retrying visual assertion can hide the first frame.
-            assert page.evaluate("window.__messageArrival") == 0.5
+            appearance = page.evaluate("window.__messageArrival")
+            expected = {"opacity": 0.5, "busy": True, "words": WORDS}
+            assert appearance == expected, (
+                f"first inserted message was {appearance!r}; expected {expected!r}"
+            )
             assert len(held) == 1, "the send did not reach the held POST"
 
         send()

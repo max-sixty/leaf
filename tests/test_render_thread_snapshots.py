@@ -49,13 +49,15 @@ def test_message_delivery_appearance_and_first_frame(
     )
     try:
         observed = delivery_journey(page, case.surface, run.capture)
-        consume_browser_errors(page, "400")
         admitted = [
             event
             for event in event_log.read_events(serve.page_dir)
             if event.get("text") == WORDS
         ]
-        assert len(admitted) == 1
+        assert len(admitted) == 1, f"expected one admitted send, got {admitted!r}"
+        assert {
+            key: admitted[0].get(key) for key in ("kind", "parent", "anchor")
+        } == observed["drafted"]["intent"]
         assert {
             stage: {key: reading[key] for key in ("draft", "messages_added", "pending")}
             for stage, reading in observed.items()
@@ -75,6 +77,7 @@ def test_message_delivery_appearance_and_first_frame(
         for stage in ("newer-draft-pending", "accepted"):
             assert observed[stage]["focused"]
             assert observed[stage]["caret"] == [len(NEXT_WORDS) - 3] * 2
+        consume_browser_errors(page, "400")
         run.finish()
     finally:
         (run.output / "observations.json").write_text(

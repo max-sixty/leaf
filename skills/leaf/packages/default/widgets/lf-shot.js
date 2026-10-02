@@ -43,10 +43,10 @@ import {
   isCanonicalMediaUrl,
   commands,
   keeps,
-  marginEntry,
+  contributionEntry,
   paintKeys,
   relabel,
-  registerMarginContribution,
+  registerContribution,
   scopedMediaUrl,
   selectableOffer,
   widgetController,
@@ -390,7 +390,7 @@ customElements.define(
         return;
       }
       if (!this.#box || this.#margin) return;
-      this.#margin = registerMarginContribution({
+      this.#margin = registerContribution({
         key: `shot:${this.id}`,
         target: () => this,
         read: () => {
@@ -403,7 +403,7 @@ customElements.define(
             side: "before",
             notice: null,
             entries: [
-              marginEntry({
+              contributionEntry({
                 key: "toggle",
                 icon: position > 50 ? "compare-after" : "compare-before",
                 label,

@@ -548,9 +548,9 @@ asynchronous listener checks it after each wait. A listener whose opening settle
 asynchronously passes that promise to `present(promise)`, so the travel waits for the
 target's geometry. `lf-tabs` is the worked example.
 
-`registerMarginContribution({key, target, source?, read, activate})` is the package boundary for
-page-edge actions. `read()` returns the contribution's complete current reading,
-including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
+`registerContribution({key, target, source?, read, activate})` is the package boundary for
+shared page actions and statuses. `read()` returns the contribution's complete current reading,
+including immutable `contributionEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
 other contributions may reuse an ID. `kind` names what the contribution is, as one of the
@@ -567,11 +567,50 @@ to move to a surviving ancestor.
 surface, input kind, current entry, and a focus capability. That capability moves the
 current surface only when activation owned keyboard standing and otherwise returns
 false. The returned registration
-exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unregister`;
-`update()` replaces the whole reading and may synchronously lay it out or focus a
+exposes `entry`, `control`, `contains`, `activate`, `activateReading`, `focus`,
+`update`, and `unregister`. Auxiliary reading activation callbacks stay with the live
+registration; projected readings contain data, and `activateReading(id)` invokes the
+current capability for that reading.
+
+`update()` replaces the whole reading and may synchronously present it or focus a
 surviving key. Keep text fields, history, and other mechanical editing state in the
 widget. Publish only action and status records to the margin, with explicit `element` or
 `entries` relations when a disclosure owns another surface or entry.
+
+An entry needs `key`, `label`, and exactly one of `glyph` (text) or `icon` (a Leaf
+icon name). `kind` belongs to the whole reading, never an entry. Entries default to
+`behavior: "action"`, `tone: "neutral"`, `rank: "primary"`, and `state: "idle"`;
+`activation` defaults to their key. `CONTRIBUTION_ENTRY_SCHEMA`, exported by
+`/runtime/widget-api.js`, gives the accepted values for those four fields.
+For example, inside an existing widget whose `saveDraft()` owns the effect:
+
+```js
+import { contributionEntry, registerContribution } from "/runtime/widget-api.js";
+
+connectedCallback() {
+  this.actions = registerContribution({
+    key: this.id,
+    target: this,
+    read: () => ({
+      kind: "action",
+      subject: this.getAttribute("aria-label"),
+      entries: [contributionEntry({
+        key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
+      })],
+    }),
+    activate: () => this.saveDraft(),
+  });
+}
+
+syncActions() { this.actions.update(); }
+disconnectedCallback() { this.actions.unregister(); }
+```
+
+Call `syncActions()` when the widget's state changes. Return the actions available
+in that state from `read()`; every surface receives the same current records.
+Leaf's native controls and Page Map provide keyboard routes. A widget adding its
+own commands calls `actions.activate(key)` from those rows, so keyboard and pointer
+input reach the same effect.
 
 A contribution stands in its target's cluster wherever that cluster stands: in the rail
 beside a column page, or as a pin over the page by the target, where an unfolding

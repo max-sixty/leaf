@@ -6447,10 +6447,10 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     if ring_name == "ask":
                         ask_id = target.evaluate(
                             """async node => {
-                              const { marginEntrySource } = await window.__lfRuntimeImport(
-                                '/runtime/margin-entries.js'
+                              const { contributionEntrySource } = await window.__lfRuntimeImport(
+                                '/runtime/contribution-controls.js'
                               );
-                              return marginEntrySource(node)?.id ?? null;
+                              return contributionEntrySource(node)?.id ?? null;
                             }"""
                         )
                         assert ask_id, f"{selector} {where} names no ask carrier"

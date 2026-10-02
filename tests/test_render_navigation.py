@@ -6777,7 +6777,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
-          const {commandScope, marginEntry, presentMarginEntry} =
+          const {commandScope, contributionEntry, presentContributionEntry} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = document.createElement('button');
           control.id = 'projected-only-command';
@@ -6789,7 +6789,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
             line: 'exercise projected command',
             run: () => {},
           }]);
-          presentMarginEntry(control, marginEntry({
+          presentContributionEntry(control, contributionEntry({
             key: 'projected-only',
             icon: 'question',
             label: 'Projected command',

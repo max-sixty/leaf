@@ -1,11 +1,11 @@
-/* Immutable margin-entry grammar. This module normalizes contributor data and owns
+/* Immutable contribution grammar. This module normalizes contributor data and owns
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
 
 const entryRecords = new WeakSet();
-export const isMarginEntry = (entry) => entryRecords.has(entry);
+export const isContributionEntry = (entry) => entryRecords.has(entry);
 
-export const MARGIN_ENTRY_SCHEMA = Object.freeze({
+export const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
   tones: Object.freeze(["neutral", "positive", "negative"]),
   behaviors: Object.freeze(["action", "disclosure", "status"]),
   states: Object.freeze(["idle", "engaged", "busy", "failed"]),
@@ -19,10 +19,10 @@ export const MARGIN_ENTRY_SCHEMA = Object.freeze({
   ]),
 });
 
-const TONES = new Set(MARGIN_ENTRY_SCHEMA.tones);
-const BEHAVIORS = new Set(MARGIN_ENTRY_SCHEMA.behaviors);
-const STATES = new Set(MARGIN_ENTRY_SCHEMA.states);
-const RANKS = new Set(MARGIN_ENTRY_SCHEMA.ranks);
+const TONES = new Set(CONTRIBUTION_ENTRY_SCHEMA.tones);
+const BEHAVIORS = new Set(CONTRIBUTION_ENTRY_SCHEMA.behaviors);
+const STATES = new Set(CONTRIBUTION_ENTRY_SCHEMA.states);
+const RANKS = new Set(CONTRIBUTION_ENTRY_SCHEMA.ranks);
 const STATE_PRIORITY = new Map([
   ["failed", 0],
   ["busy", 1],
@@ -61,7 +61,7 @@ const ENTRY_OPTIONS = new Set([
   "className",
   "scope",
 ]);
-// What a margin reading or contribution is, and the face and word it wears.
+// What a contribution reading or contribution is, and the face and word it wears.
 export const KINDS = Object.freeze(
   Object.fromEntries(
     Object.entries({
@@ -132,16 +132,18 @@ const text = (value) => String(value ?? "").trim();
 const unknownOptions = (offered, allowed, kind) => {
   const unknown = Object.keys(offered).filter((key) => !allowed.has(key));
   if (unknown.length)
-    throw new TypeError(`Unknown margin ${kind} option: ${unknown.sort().join(", ")}`);
+    throw new TypeError(
+      `Unknown contribution ${kind} option: ${unknown.sort().join(", ")}`,
+    );
 };
 const freezeRelation = (relation) => {
   if (relation == null) return null;
   if (typeof relation !== "object")
-    throw new TypeError("A margin entry relation must be an object");
+    throw new TypeError("A contribution entry relation must be an object");
   if (relation.kind === "entries") {
     const keys = relation.keys?.map(text).filter(Boolean) ?? [];
     if (!keys.length)
-      throw new TypeError("A margin entry relation needs at least one entry key");
+      throw new TypeError("A contribution entry relation needs at least one entry key");
     return Object.freeze({
       kind: "entries",
       keys: Object.freeze(keys),
@@ -158,12 +160,12 @@ const freezeRelation = (relation) => {
       popup: relation.popup == null ? null : text(relation.popup),
     });
   }
-  throw new TypeError(`Unknown margin entry relation: ${String(relation.kind)}`);
+  throw new TypeError(`Unknown contribution entry relation: ${String(relation.kind)}`);
 };
 
-export function marginEntry(offered) {
+export function contributionEntry(offered) {
   if (!offered || typeof offered !== "object")
-    throw new TypeError("A margin entry needs an options object");
+    throw new TypeError("A contribution entry needs an options object");
   unknownOptions(offered, ENTRY_OPTIONS, "entry");
   const {
     key,
@@ -188,21 +190,22 @@ export function marginEntry(offered) {
     className = null,
     scope = null,
   } = offered;
-  if (!text(key)) throw new TypeError("A margin entry needs a key");
+  if (!text(key)) throw new TypeError("A contribution entry needs a key");
   if (Boolean(text(glyph)) === Boolean(icon))
-    throw new TypeError("A margin entry needs exactly one glyph or icon");
-  if (!text(label)) throw new TypeError("A margin entry needs a label");
-  if (!TONES.has(tone)) throw new TypeError(`Unknown margin entry tone: ${tone}`);
+    throw new TypeError("A contribution entry needs exactly one glyph or icon");
+  if (!text(label)) throw new TypeError("A contribution entry needs a label");
+  if (!TONES.has(tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
   if (!BEHAVIORS.has(behavior))
-    throw new TypeError(`Unknown margin entry behavior: ${behavior}`);
-  if (!RANKS.has(rank)) throw new TypeError(`Unknown margin entry rank: ${rank}`);
-  if (!STATES.has(state)) throw new TypeError(`Unknown margin entry state: ${state}`);
+    throw new TypeError(`Unknown contribution entry behavior: ${behavior}`);
+  if (!RANKS.has(rank)) throw new TypeError(`Unknown contribution entry rank: ${rank}`);
+  if (!STATES.has(state))
+    throw new TypeError(`Unknown contribution entry state: ${state}`);
   if (!Number.isSafeInteger(count) || count < 0)
-    throw new TypeError("A margin entry count must be a non-negative integer");
+    throw new TypeError("A contribution entry count must be a non-negative integer");
   if (behavior !== "status" && !text(activation))
-    throw new TypeError("An actionable margin entry needs an activation");
+    throw new TypeError("An actionable contribution entry needs an activation");
   if (behavior === "status" && scope != null)
-    throw new TypeError("A status margin entry cannot have a command scope");
+    throw new TypeError("A status contribution entry cannot have a command scope");
   const record = Object.freeze({
     key: text(key),
     glyph: glyph == null ? null : String(glyph),
@@ -229,9 +232,9 @@ export function marginEntry(offered) {
   return record;
 }
 
-export function normalizeMarginReading(reading, owner) {
+export function normalizeContributionReading(reading, owner) {
   if (!reading || typeof reading !== "object")
-    throw new TypeError("A margin contribution must read an object");
+    throw new TypeError("A contribution must read an object");
   unknownOptions(reading, READING_OPTIONS, "contribution");
   const {
     kind = null,
@@ -242,22 +245,23 @@ export function normalizeMarginReading(reading, owner) {
     entries = [],
     readings = [],
   } = reading;
-  if (!STATES.has(state))
-    throw new TypeError(`Unknown margin contribution state: ${state}`);
+  if (!STATES.has(state)) throw new TypeError(`Unknown contribution state: ${state}`);
   if (kind != null && !Object.hasOwn(KINDS, kind))
-    throw new TypeError(`Unknown margin kind "${kind}" in contribution "${owner}"`);
+    throw new TypeError(
+      `Unknown contribution kind "${kind}" in contribution "${owner}"`,
+    );
   if (side !== "before" && side !== "after")
-    throw new TypeError(`Unknown margin contribution side: ${side}`);
+    throw new TypeError(`Unknown contribution side: ${side}`);
   if (!Array.isArray(entries))
-    throw new TypeError("A margin contribution's entries must be an array");
+    throw new TypeError("A contribution's entries must be an array");
   if (!Array.isArray(readings))
-    throw new TypeError("A margin contribution's readings must be an array");
+    throw new TypeError("A contribution's readings must be an array");
   const keys = new Set();
   const normalizedEntries = entries.map((entry) => {
-    const normalized = entryRecords.has(entry) ? entry : marginEntry(entry);
+    const normalized = entryRecords.has(entry) ? entry : contributionEntry(entry);
     if (keys.has(normalized.key))
       throw new TypeError(
-        `Duplicate margin entry key "${normalized.key}" in margin contribution "${owner}"`,
+        `Duplicate contribution entry key "${normalized.key}" in contribution "${owner}"`,
       );
     keys.add(normalized.key);
     const owned = Object.freeze({ ...normalized, owner });
@@ -268,7 +272,7 @@ export function normalizeMarginReading(reading, owner) {
   for (const item of readings) {
     if (typeof item.id !== "string" || !item.id.trim() || ids.has(item.id))
       throw new TypeError(
-        `Margin reading IDs must be nonempty and unique in contribution "${owner}"`,
+        `Contribution reading IDs must be nonempty and unique in contribution "${owner}"`,
       );
     ids.add(item.id);
   }
@@ -286,20 +290,22 @@ export function normalizeMarginReading(reading, owner) {
     side,
     notice: normalizedNotice,
     entries: Object.freeze(normalizedEntries),
-    readings: Object.freeze(readings.map((item) => Object.freeze({ ...item }))),
+    readings: Object.freeze(
+      readings.map(({ activate, ...item }) => Object.freeze(item)),
+    ),
   });
 }
 
-export const marginEntryStateRank = (state) => STATE_PRIORITY.get(state);
-export const marginContributionState = (offered) => offered.reading.state;
+export const contributionEntryStateRank = (state) => STATE_PRIORITY.get(state);
+export const contributionState = (offered) => offered.reading.state;
 
-export function compareMarginContributions(left, right) {
+export function compareContributions(left, right) {
   const state =
     STATE_PRIORITY.get(left.reading.state) - STATE_PRIORITY.get(right.reading.state);
   return state || left.key.localeCompare(right.key);
 }
 
-export function compareMarginEntryRecords(left, right) {
+export function compareContributionEntryRecords(left, right) {
   const state =
     STATE_PRIORITY.get(left.offered.reading.state) -
     STATE_PRIORITY.get(right.offered.reading.state);
@@ -314,11 +320,12 @@ export function compareMarginEntryRecords(left, right) {
 // A disclosure's label says it opens with a trailing ellipsis, unless the label already
 // ends in a stop of its own: an ellipsis, or a question's mark, which would read as
 // "?…".
-export const visibleMarginEntryLabel = ({ behavior, label }) =>
+export const visibleContributionEntryLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || /[…?]$/.test(label) ? label : `${label}…`;
 
 // A contribution owns its reading IDs; generated readings have no owner.
-export const marginItemKey = (item) => JSON.stringify([item.owner ?? null, item.id]);
+export const contributionItemKey = (item) =>
+  JSON.stringify([item.owner ?? null, item.id]);
 
 export const labelWords = (value) =>
   String(value ?? "")

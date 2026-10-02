@@ -4,11 +4,11 @@
  * the words naming each cell, and one local disclosure that makes the compact margin
  * control and its full Page Map row directly exercisable. */
 import {
-  marginEntry,
+  contributionEntry,
   once,
   offer,
-  presentMarginEntry,
-  registerMarginContribution,
+  presentContributionEntry,
+  registerContribution,
   relabel,
 } from "/runtime/widget-api.js";
 
@@ -232,9 +232,9 @@ function sampleNode(sample, groupIndex, sampleIndex) {
   }
   const paint = () => {
     if (disclosure) disclosure.hidden = !expanded;
-    presentMarginEntry(
+    presentContributionEntry(
       control,
-      marginEntry({
+      contributionEntry({
         key,
         label: sample.name,
         ...(sample.icon ? { icon: sample.icon } : { glyph: sample.glyph }),
@@ -335,7 +335,7 @@ customElements.define(
     #registerProjection() {
       if (this.#projection) return;
       const result = this.querySelector(".margin-entry-gallery-projection-result");
-      this.#projection = registerMarginContribution({
+      this.#projection = registerContribution({
         key: `gallery-projection:${this.id}`,
         target: () => this,
         read: () => ({

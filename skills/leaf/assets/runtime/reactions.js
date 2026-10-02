@@ -33,7 +33,7 @@
    mount installs the mode teardown listeners after composition. */
 
 import { nextRender } from "./rendering.js";
-import { registerMarginContribution } from "./margin-entries.js";
+import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
@@ -331,7 +331,7 @@ export function createReactionController({
     fabBar.dataset.lfMarginRaised = "1";
     const standing = unfoldedMarginEntries()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
-    marginOffer = registerMarginContribution({
+    marginOffer = registerContribution({
       key: "responses",
       target,
       read: () => {

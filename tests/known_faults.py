@@ -66,15 +66,6 @@ KNOWN_UNASKED = {
         # where load puts that answer past the press's own frames.
         "test_where_a_comment_stands_before_and_after_send": r"lf-shortcut",
     },
-    "test_website_server.py": {
-        # The panel's later cards rising, and what they hold coming into view, as a card
-        # whose thread news resolved folds away under the Open filter: the user's next
-        # comment's card stands below the folding one, and the fold's frames after the
-        # comment's answer lands are news.
-        "test_a_website_turn_posts_its_answer_when_the_move_is_settled_first": (
-            r"lf-thread-compact|lf-msg|lf-action-icon|lf-resolve"
-        ),
-    },
 }
 
 

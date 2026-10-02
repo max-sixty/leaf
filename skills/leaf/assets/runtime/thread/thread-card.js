@@ -59,7 +59,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, grow = false, search = null },
+  { visible = true, kept = false, grow = false, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -100,6 +100,7 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
+    kept,
     grow,
     folding: false,
     search,
@@ -110,17 +111,29 @@ export function threadReading(
     // message already draws in its own header. The summary repeats it only for the
     // folded row, where no message shows; whose turn it is stays, since no message
     // says that.
+    // A card the panel keeps though its view no longer admits it (thread-list-view.js,
+    // `keepsShown`) keeps the shape it stood in, so the news that changed it moves
+    // nothing: its reply box, on which an open card's room rests, and the control row
+    // above its first message, where Reopen wears Resolve's face, done, and says what
+    // happened, which the summary's status would say again in a row of its own.
     statusFolded:
-      attention?.kind === "waiting" &&
-      messages.some((message) => message.workflow?.id === attention.workflow?.id),
+      kept ||
+      (attention?.kind === "waiting" &&
+        messages.some((message) => message.workflow?.id === attention.workflow?.id)),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
         : panel
           ? ""
           : "✓ Resolved",
-    settlement: Object.freeze({ kind, word, label, pending: settling }),
-    reply: !resolved,
+    settlement: Object.freeze({
+      kind,
+      word,
+      label,
+      pending: settling,
+      icon: !resolved || kept,
+    }),
+    reply: !resolved || kept,
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
     messages: Object.freeze(messages),
   });
@@ -560,20 +573,21 @@ export class ThreadView {
       ?.focus({ preventScroll: true });
   }
 
+  // Resolve is a check; Reopen is a word, or, where it stands in Resolve's place, the
+  // check drawn done, at Resolve's size.
   #settlement(model) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    let button = this.#settlements.get(state.kind);
+    const face = `${state.kind}${state.icon ? " icon" : ""}`;
+    let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        reopen
-          ? "lf-btn lf-reopen lf-thread-action"
-          : "lf-btn lf-resolve lf-icon-action",
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${state.icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       button.onclick = this.#settle;
-      this.#settlements.set(state.kind, button);
+      this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [
         {
@@ -588,12 +602,12 @@ export class ThreadView {
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
-    if (!reopen) {
+    if (state.icon) {
       const label = model.folding ? "Resolved" : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
+    render(state.icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
     return button;
   }
 

@@ -2566,43 +2566,28 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     )
 
 
-@pytest.mark.parametrize("removal", ["resolve", "filter"], ids=["fold", "filter"])
-def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, removal):
-    """A remote resolve or settlement can remove the reply whose list is open without
-    a pointer or focus gesture in this tab. The detached list stops owning digits, so
-    a later key cannot react to a message that is no longer on screen."""
+def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
+    """A remote resolve takes away the strip whose list is open without a pointer or
+    focus gesture in this tab: the thread's card stays where it stands, drawn resolved,
+    and a resolved thread's messages wear no strip. The detached list stops owning
+    digits, so a later key cannot react to a message that no longer offers it, and the
+    user stays on the thread they were in."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    if removal == "filter":
-        page.locator(".lf-thread-filter-toggle").click()
-        page.locator(".lf-needs").click()
-        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    page.locator(".lf-thread-summary").click()
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile("lf-react-open"))
 
-    if removal == "resolve":
-        thread_model.cmd_resolve(serve.page_dir, root)
-    else:
-        events_model.append_event(
-            serve.page_dir,
-            {"kind": "reply", "author": "user", "parent": reply, "token": "keep"},
-        )
+    thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
+    expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
-    if removal == "filter":
-        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
-    # The user lands on the list, where Escape lands them and t/T walks on from. The
-    # disarm's own focus move runs while the list is still hiding the card, so a read of
-    # where the user stood taken after that loop said they had never been in the list,
-    # and left them on body.
-    assert page.evaluate(
-        "() => document.activeElement === document.querySelector('.lf-threads')"
-    )
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)

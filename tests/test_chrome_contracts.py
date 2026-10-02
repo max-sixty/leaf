@@ -13,7 +13,6 @@ from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    HOLD_MOTION,
     SUGGESTION_PAGE,
     live_url,
     panel_comment,
@@ -852,40 +851,70 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
         expect(surround).to_have_css("background-color", surface["color"])
 
 
-def test_news_that_settles_the_last_thread_and_takes_it_back_moves_nothing(
+def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     browser, serve
 ):
-    """The browser fixture's shift watch is this test's assertion: nothing here is
-    the user's input, so any shift fails it at teardown.
+    """Under Open, the agent resolving the thread the user is reading used to fold its
+    card away, and every card after it rose. The card stays where it stands, drawn
+    resolved, with Reopen in Resolve's place and face, and the news taking the
+    resolution back draws it open again; the browser fixture's shift watch fails
+    anything that moves. The news lands well after the user's last input, past the half
+    second in which Chrome credits a frame to that input.
 
-    Settled by news, the one open thread folds from the box it stood in: the list
-    says it has no open threads only once that room is given back, so the words
-    never stand above the folding card, and the card's actions stay on their row
-    as it folds and as it comes back. The held fold keeps the card on screen for
-    both."""
-    page = open_page(browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION)
+    The card leaves the Open list once its going moves nothing the user sees. As the
+    open card it stays while they scroll it away, since another card would open in its
+    place. Once they have opened another card, it goes as they scroll it out of the
+    window, and scrolling back does not bring it back."""
+    page = open_page(browser, serve(LONG_PAGE, comments=16))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    [root] = [
+    first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
-    ]
-    going = page.locator(f'.lf-threads > .lf-going[data-id="{root}"]')
-
-    events_model.append_event(
-        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
+    ][:2]
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{first}"]')
+    after = page.locator(f'.lf-threads > .lf-thread[data-id="{second}"]')
+    expect(card).to_have_attribute("open", "")
+    control = card.get_by_role("button", name="Resolve thread").bounding_box()
+    below = after.bounding_box()
+    page.wait_for_function(
+        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
     )
-    told(page)
-    expect(going).to_have_count(1)
+
+    for kind in ["resolve", "unresolve", "resolve"]:
+        events_model.append_event(
+            serve.page_dir, {"kind": kind, "author": "agent", "parent": first}
+        )
+        told(page)
+        rendered(page)
+        expect(card).to_have_attribute("data-resolved", str(kind == "resolve").lower())
+        expect(card).to_have_attribute("open", "")
+        assert after.bounding_box() == below
+    reopen = card.get_by_role("button", name="Reopen", exact=True)
+    assert reopen.bounding_box() == control
+
+    threads = page.locator(".lf-threads")
+    threads.hover()
+    page.mouse.wheel(0, card.bounding_box()["height"] + 30)
+    scroll_settled(page, ".lf-threads")
+    assert card.evaluate("node => node.getBoundingClientRect().bottom") < (
+        threads.evaluate("list => list.getBoundingClientRect().top")
+    ), "the scroll left the resolved card in view, so it tests nothing"
     rendered(page)
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("open", "")
 
-    events_model.append_event(
-        serve.page_dir, {"kind": "unresolve", "author": "agent", "parent": root}
-    )
-    told(page)
-    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_be_visible()
-    expect(going).to_have_count(0)
+    after.locator(".lf-thread-summary").click()
+    expect(after).to_have_attribute("open", "")
+    # Opening a card lands it below a sliver of the closed one, which still shows.
+    page.mouse.wheel(0, 100)
+    expect(card).to_be_hidden()
+    scroll_settled(page, ".lf-threads")
+    page.mouse.wheel(0, -4000)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == 0
+    expect(card).to_be_hidden()
 
 
 @pytest.mark.parametrize("width", [320, 800])

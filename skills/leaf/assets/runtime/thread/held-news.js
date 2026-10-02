@@ -24,7 +24,7 @@
    thread, or a thread they start in the seat, which answers what came before it and so
    follows it), or when none of the seat shows in the window, where the growth moves
    nothing they see. Anything held is not drawn, so it stays unread until it shows. */
-import { shownBand } from "../geometry.js";
+import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keepsText, layoutPx } from "../keeps.js";
@@ -32,6 +32,7 @@ import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
 import { readApplication } from "../semantic-state.js";
+import { sentHere } from "../pending/model.js";
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
@@ -43,17 +44,6 @@ function growthAfterIsSeen(node) {
     if (!band || bottom <= band.top || bottom >= band.bottom) return false;
   }
   return true;
-}
-
-// Calls `leave` once none of `node` shows in the window, and returns the step that stops
-// watching. Waiting for all of the seat to go keeps news held a little longer than it
-// needs, never shorter.
-function whenOffScreen(node, leave) {
-  const observer = new IntersectionObserver((entries) => {
-    if (!entries.at(-1).isIntersecting) leave();
-  });
-  observer.observe(node);
-  return () => observer.disconnect();
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
@@ -164,20 +154,17 @@ export class HeldNews {
     );
     const shown = this.#draw(prior, reading);
     this.#shown = read ? shown : null;
+    // Waiting for all of the seat to go keeps news held a little longer than it needs,
+    // never shorter.
     if (this.#holding()) this.#stopWatching ??= whenOffScreen(this.#seat, this.#all);
     else this.#stop();
     return shown;
   }
 
   #take(prior, reading, row) {
-    // A turn is the user's gesture while this page's ledger still holds its attempt, as
-    // it does in the turn they send it. Their words from another tab, or a turn a seat
-    // first draws after the log answered it, as a package mirror whose render waited
-    // on work of its own does, arrive like the agent's.
-    const ledger = new Set(
-      readApplication().unresolved.map(({ event }) => event.attempt),
-    );
-    const own = ({ author, attempt }) => author === "user" && ledger.has(attempt);
+    // A turn a seat first draws after the log answered it, as a package mirror whose
+    // render waited on work of its own does, arrives like the agent's.
+    const own = sentHere(readApplication().unresolved);
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ messages }) => messages[0] && own(messages[0])))

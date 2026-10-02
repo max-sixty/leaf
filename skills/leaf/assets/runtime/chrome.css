@@ -1126,8 +1126,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The reply box stands at the card's foot, the edge the fold draws up, so it leaves
      as the fold begins rather than ride that edge. */
   .lf-going > .lf-compose { visibility: hidden; }
-  .lf-going .lf-resolve { color: var(--ok-ink); }
-  .lf-going .lf-resolve::before { background: var(--ok-tint); }
+  /* Resolve drawn done: on its way out, and as the Reopen that stands in its place. */
+  :is(.lf-going .lf-resolve, .lf-reopen.lf-icon-action) { color: var(--ok-ink); }
+  :is(.lf-going .lf-resolve, .lf-reopen.lf-icon-action)::before {
+    background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
   .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose leaf-text.flash {

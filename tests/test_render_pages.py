@@ -1110,7 +1110,11 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(page.locator(".lf-thread leaf-text")).to_have_count(0)
+    # The resolved card stays where the user is writing in it.
+    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
+        "value", "keep this unfinished reply"
+    )
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):

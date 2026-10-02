@@ -2844,7 +2844,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     # Let resolution finish filtering the card out; racing its fold can conceal a
     # disclosure reset that would hide an answer arriving later in a real turn.
-    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    expect(thread).to_have_count(1)
     expect(thread).to_be_hidden()
     if read_elsewhere:
         write(box, "A separate thread")

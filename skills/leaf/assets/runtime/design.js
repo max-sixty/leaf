@@ -1,7 +1,8 @@
 /* This module owns Design mode, its targets, and legend geometry. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { bannerFoot, documentPoint, shownRect } from "./geometry.js";
-import { el, WORKS } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { WORKS } from "./control-selectors.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
 import { closestAcross, inChrome, leafSurface } from "./passages.js";

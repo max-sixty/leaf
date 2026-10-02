@@ -71,7 +71,7 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, markdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
 

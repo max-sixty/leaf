@@ -173,15 +173,14 @@ A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
 both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
-after the widget prepaint fixes (`known_faults.watches_shifts`). The watcher still
+after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
 exempts first presentation, whose remaining defects the widget quality check records
 in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
-news are not, even in the half second after a click, so a test delivers news whenever
-its story does. Fix what moved rather than consuming
-the report. `known_faults.py` names the tests whose pages still shift without input,
-each with the region its known shift moves: a defect waiting on its fix, whose entry
-goes when it is fixed.
+news are not. Chrome's recent-input window can nevertheless mask a shift for half a
+second after a click, so a test proving a news update's stability delivers it after
+that window. Fix what moved rather than consuming the report; shift reports have no
+per-test allowances.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
 they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly

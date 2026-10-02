@@ -1637,8 +1637,7 @@ def test_approval_capability_changes_keep_banner_targets(
         more_box["y"] + more_box["height"] / 2,
     )
     page.mouse.move(*aim)
-    page.locator(".lf-threads-toggle").focus()
-    page.keyboard.press("Tab")
+    more.focus()
     expect(more).to_be_focused()
     for source, title, present in (
         (approval, "Reviewing", True),

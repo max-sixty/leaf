@@ -15,7 +15,11 @@
    Escape from the panel's general box, a fold that took the focused card — so
    every key answers for the thread the screen shows selected. The list keeps focus
    itself only while it shows no card, and its ring never outlines one, and no title
-   holds focus closed: focus, selection and the open card never part. */
+   holds focus closed: focus, selection and the open card never part.
+
+   The list also decides when a card leaves it (`keeping`), and news takes no card
+   out from in front of the user: a card another actor resolves under Open stays where
+   it stands, drawn resolved, until its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
@@ -26,8 +30,25 @@ import { passOn } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
+import { threadKey } from "./model.js";
+import { seenRect, whenOffScreen } from "../geometry.js";
+import { readApplication } from "../semantic-state.js";
 
 const TAG = "leaf-thread-list";
+
+// Whether this page's ledger holds a gesture of the user's on `thread`: a settlement,
+// reply or reaction on one of its messages, a move on a widget one of them holds, or
+// the refusal that takes one back.
+function gesturedOn(thread) {
+  const { unresolved, document } = readApplication();
+  const messages = new Set(thread.msgs.map(({ id }) => id));
+  return unresolved.some(
+    ({ event }) =>
+      messages.has(event.parent) ||
+      (event.widget &&
+        messages.has(document.descriptors.get(event.widget)?.document.message)),
+  );
+}
 const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
 
 class ThreadListView extends RetainedFace {
@@ -42,6 +63,7 @@ class ThreadListView extends RetainedFace {
   #draftViews = new Set();
   #draftFrame = 0;
   #intent = null;
+  #leaving = new Map();
 
   #visibleRows() {
     const eligible = new Set(
@@ -72,12 +94,52 @@ class ThreadListView extends RetainedFace {
     this.#showExpanded();
   }
 
-  // A filter change can put a draft away; incoming settlement cannot. The model
-  // builder combines this mechanical lifetime with the new narrowing result,
-  // so visibility, disclosure and navigation consume one complete reading.
-  keepsDraftVisible(key, intent) {
+  // Why a shown card the view no longer admits stays shown, or null where it goes: the
+  // narrowing says which threads the view admits (narrowing.js), this says when a card
+  // it stops admitting leaves, and the model builder combines the two into one reading.
+  // A change of view puts any card away. What took the card out of the view is read in
+  // the render that first does, and its card carries the answer while it stays. The
+  // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
+  // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
+  // never puts a draft away; a settlement folds it out (willUpdate). Anything else is
+  // news ("news"), and its card stays, drawn as the news left it, while its going would
+  // move something the user sees: while any of it shows, since every card after it
+  // would rise, and, as the card the list shows open, while the panel shows, since
+  // another card would open in its place. Out of sight it stays only for its words,
+  // with the cause that first excluded it still carried. Its
+  // leaving the window asks for the render that lets it go (`#watchKept`), as does its
+  // closing when the user opens another card.
+  keeping(thread, intent) {
+    const key = threadKey(thread);
     const view = this.#views.get(`thread:${key}`);
-    return this.#intent === intent && view?.model.visible && replyHasWords(key);
+    if (this.#intent !== intent || !view?.model.visible || view.model.folding)
+      return null;
+    const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
+    const seen = view.node.open
+      ? this.checkVisibility()
+      : Boolean(seenRect(view.node, new Map()));
+    const draft = replyHasWords(key);
+    if (news && (seen || draft)) return "news";
+    return draft ? "draft" : null;
+  }
+
+  #watchKept() {
+    const kept = new Set(
+      this.model.rows
+        .filter((row) => row.kind === "thread" && row.descriptor.kept)
+        .map((row) => this.#views.get(row.key).node),
+    );
+    for (const [node, stop] of this.#leaving)
+      if (!kept.has(node)) {
+        stop();
+        this.#leaving.delete(node);
+      }
+    for (const node of kept)
+      if (!this.#leaving.has(node))
+        this.#leaving.set(
+          node,
+          whenOffScreen([node], () => this.#commands.repaintThread()),
+        );
   }
 
   navigationThreads() {
@@ -197,6 +259,8 @@ class ThreadListView extends RetainedFace {
         view.node.addEventListener("toggle", () => {
           layoutChanged(this);
           opened();
+          // A kept card the user closed by opening another goes, if out of sight.
+          if (!view.node.open && view.model.kept) this.#commands.repaintThread();
         });
         view.node.addEventListener("click", (event) => {
           if (event.target.closest(".lf-thread-summary")?.parentElement !== view.node)
@@ -235,6 +299,7 @@ class ThreadListView extends RetainedFace {
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
+    this.#watchKept();
     // The list says it shows nothing once the last card has given its room back. Said
     // while that card still folds, the words stood above it and carried it down.
     const giving = rows.some((row) => row.kind === "thread" && isFolding(row.node));

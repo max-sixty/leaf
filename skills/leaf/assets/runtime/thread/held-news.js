@@ -35,7 +35,7 @@
    that would change its size waits, the region standing as it was, while its growth
    would be seen, and a control of fixed size the widget already draws says so and
    shows it. */
-import { shownBand } from "../geometry.js";
+import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keepsText, layoutPx } from "../keeps.js";
@@ -82,21 +82,6 @@ function growthInsideIsSeen(nodes) {
       return band && bottom > band.top && top < band.bottom;
     });
   });
-}
-
-// Calls `leave` once none of `nodes` shows in the window, and returns the step that
-// stops watching. Waiting for all of the seat to go keeps news held a little longer than
-// it needs, never shorter.
-function whenOffScreen(nodes, leave) {
-  const showing = new Set();
-  const observer = new IntersectionObserver((entries) => {
-    for (const { target, isIntersecting } of entries)
-      if (isIntersecting) showing.add(target);
-      else showing.delete(target);
-    if (!showing.size) leave();
-  });
-  for (const node of nodes) observer.observe(node);
-  return () => observer.disconnect();
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
@@ -207,6 +192,8 @@ export class HeldNews {
     );
     const shown = this.#draw(prior, reading);
     this.#shown = read ? shown : null;
+    // Waiting for all of the seat to go keeps news held a little longer than it needs,
+    // never shorter.
     if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
     else this.#stop();
     return shown;

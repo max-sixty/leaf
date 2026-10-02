@@ -1,77 +1,18 @@
 /*
  * Browser-side observations for `leaf-dev verify-site`, installed before each navigation.
- * Startup readings belong to one document. Visible-reply timestamps use sessionStorage
+ * Shared startup evidence is installed separately. Visible-reply timestamps use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
- * the one Playwright boundary exposed to the Python orchestrator.
+ * the website-specific Playwright boundary exposed to the Python orchestrator.
  */
 (() => {
   const visibleReplyStartedKey = "leaf-visible-reply-started";
   const visibleReplyAtKey = "leaf-visible-reply-at";
-  const startup = {};
   let activationCount = 0;
   let visibleReplyObservers = null;
-  // Resource Timing's document buffer is bounded. Observe every completed response
-  // instead, and drain records already queued when a startup milestone is captured.
-  const resourceEntries = [];
-  const resourceObserver = new window.PerformanceObserver((list) => {
-    resourceEntries.push(...list.getEntries());
-  });
-  resourceObserver.observe({ type: "resource", buffered: true });
-  function observedResources() {
-    resourceEntries.push(...resourceObserver.takeRecords());
-    return resourceEntries;
-  }
-
   function serverScript() {
     const script = document.querySelector("script[data-lf-server]");
     if (!script) throw new Error("Leaf server script is missing");
     return script;
-  }
-
-  function resourceSnapshot() {
-    const resources = observedResources();
-    const code = resources.filter((entry) => {
-      const url = new URL(entry.name);
-      return (
-        url.origin === location.origin &&
-        (url.pathname.endsWith(".js") ||
-          url.pathname.endsWith(".css") ||
-          url.pathname.endsWith("/registry.json"))
-      );
-    });
-    const javascript = code.filter((entry) =>
-      new URL(entry.name).pathname.endsWith(".js"),
-    );
-    const state = resources.filter((entry) =>
-      new URL(entry.name).pathname.endsWith("/api/state"),
-    );
-    const bytes = (entries) =>
-      entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
-    const lastResponse = (entries) =>
-      entries.length ? Math.max(...entries.map((entry) => entry.responseEnd)) : null;
-    return {
-      at: performance.now(),
-      js_loaded: lastResponse(javascript),
-      state_loaded: lastResponse(state),
-      requests: resources.length,
-      bytes: bytes(resources),
-      code_requests: code.length,
-      code_bytes: bytes(code),
-      js_requests: javascript.length,
-      js_bytes: bytes(javascript),
-    };
-  }
-
-  function recordStartup() {
-    const body = document.body;
-    if (!body) return;
-    for (const [name, attribute] of [
-      ["upgraded", "data-lf-upgraded"],
-      ["presented", "data-lf-presented"],
-    ]) {
-      if (body.hasAttribute(attribute) && !startup[name])
-        startup[name] = resourceSnapshot();
-    }
   }
 
   function stopVisibleReplyWatch() {
@@ -132,31 +73,12 @@
   }
 
   const api = {
-    startupMilestones() {
-      return Object.keys(startup);
-    },
-    startupReading() {
-      const navigation = performance.getEntriesByType("navigation")[0];
-      return {
-        first_byte: navigation.responseStart,
-        document: navigation.responseEnd,
-        paint: Object.fromEntries(
-          performance
-            .getEntriesByType("paint")
-            .map((entry) => [entry.name, entry.startTime]),
-        ),
-        ...startup,
-      };
-    },
     identity() {
       const script = serverScript();
       return {
         layer: script.dataset.lfLayer,
         release: script.dataset.lfRelease,
       };
-    },
-    resourceNames() {
-      return observedResources().map((entry) => entry.name);
     },
     async scopedMedia() {
       const script = serverScript();
@@ -230,12 +152,5 @@
   Object.defineProperty(window, "__leafVerifier", {
     value: Object.freeze(api),
   });
-  new MutationObserver(recordStartup).observe(document, {
-    attributes: true,
-    attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
-    childList: true,
-    subtree: true,
-  });
-  recordStartup();
   watchVisibleAgentReply();
 })();

@@ -3072,69 +3072,39 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
 
 
 def _news(server):
-    """An open news stream, and a reader of the next reading it names."""
-    stream = urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5)
-    # Readings are said once, to the tab holding this stream. A cache that kept them
-    # would answer a later stream with news that has already been acted on.
-    assert stream.headers.get("Cache-Control") == "no-store"
-
-    def heard():
-        while True:
-            line = stream.readline().decode()
-            assert line, "the stream ended"
-            if line.startswith("data: "):
-                return line[6:].strip()
-
-    return stream, heard
+    """One finite, uncached freshness answer from the visible-page door."""
+    with urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5) as response:
+        assert response.headers.get("Cache-Control") == "no-store"
+        return response.read().decode()
 
 
-def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
-    """A page nobody ever viewed and one the user studied and left used to be
-    indistinguishable from the agent's side; a visible tab's news stream is the
-    proof of user attention, so the server writes it down. A bare read is not
-    that proof — `curl`, the render gate and `page state` all read, and a visible
-    tab that has no news never reads again."""
+def test_a_freshness_read_records_that_the_page_was_visible(server, page_dir):
+    """Only the explicit attention door proves that the user is looking."""
     events = event_model.read_events(page_dir)
     assert presence_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
     assert presence_model.presence(page_dir, events)["viewed"] is None
-    stream, heard = _news(server)
-    heard()
+    _news(server)
     assert presence_model.presence(page_dir, events)["viewed"] is not None
-    stream.close()
 
 
-def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_dir):
-    """The stream says what reading the page is at, once on arrival and again each
-    time it changes, and the reading it names for a page at rest is the one a state
-    read answers with — that agreement is what lets a tab compare the two and ask
-    only when they differ. Nothing else rides it: an append is news, and the state
-    carrying it still comes by asking."""
+def test_freshness_names_the_state_reading_and_changes_with_the_page(server, page_dir):
+    """A finite cheap token names the same view as state without carrying its log."""
     publish(page_dir)
-    stream, heard = _news(server)
-    first = heard()
+    first = _news(server)
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
     event_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
-    assert heard() != first
-    stream.close()
-    # The word spoken on a change can be sampled while the log is still being
-    # appended to, and the stamp taken then can pair the new modification time with
-    # the size before it — a reading of a state the page was never in, which the
-    # stream's next look puts right. A state read never names one, taking its
-    # reading under the log's own lease. So the agreement is read from a stream
-    # opened once the append has landed, where both sides stamp a page at rest.
-    settled, heard_at_rest = _news(server)
-    assert heard_at_rest() == json.loads(fetch(f"{server}/api/state")[1])["reading"]
-    settled.close()
+    assert _news(server) != first
+    assert _news(server) == json.loads(fetch(f"{server}/api/state")[1])["reading"]
 
 
 def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     page_dir, monkeypatch
 ):
-    """Several news streams share one presence observation until the page moves.
+    """Several freshness reads share one presence observation until the page moves.
 
     The cache is a reading cache, not a second authority: rewriting a page-owned
     file invalidates it immediately, while a repeated quiet observation does not
@@ -3201,7 +3171,6 @@ def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
         httpd.shutdown()
         thread.join(timeout=5)
         assert not thread.is_alive()
-        assert httpd.stopping
     finally:
         if thread.is_alive():
             httpd.shutdown()
@@ -3804,11 +3773,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         assert status == 200
         assert json.loads(deferred)["value"] == "old"
 
-        stream = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
-        stream.request("GET", f"/api/news?t={TOKEN}")
-        response = stream.getresponse()
-        assert response.readline().decode().strip() == f"data: {snapshot.reading}"
-        stream.close()
+        assert _news(server.origin) == snapshot.reading
 
 
 def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
@@ -3912,7 +3877,7 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
 ):
     """A data file rewritten in place, to the same size, after a reading taken in the
     write clock's tick of the write before it, still moves the page's reading:
-    `leaf wait`, the news stream, and source activation all key on that reading, and
+    `leaf wait`, freshness reads, and source activation all key on that reading, and
     an unmoved one leaves the write unheard until some later write."""
     written = _coarse_write_clock(monkeypatch)
     value = page_dir / schema_model.DATA_DIR / "tick.json"

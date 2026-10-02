@@ -176,8 +176,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
-# share one layer, so they rank against each other by specificity and order as they
-# always have. The kernel's Layouts sit above it, and the page's own stylesheet,
+# share one layer, so specificity, scope proximity, then order rank their rules.
+# The kernel's Layouts sit above it, and the page's own stylesheet,
 # unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
 # and a page overrides either. The page's rules reach Leaf's own controls only where
 # they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
@@ -198,10 +198,11 @@ def _sheet(source: Path) -> str:
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
-    """The conditions a package's rules meet: in the document, the element is one of
-    the package's widgets or stands inside one; in a declared shadow tree, the tree's
-    host is one of them, which is the one element outside the tree a selector in it can
-    name. None for a package that declares no widget."""
+    """Native document and shadow scope roots for a package's declared widgets.
+
+    The browser confines matching to each root and its descendants; authors name
+    a root with :scope. A widget-free package is an unscoped page theme.
+    """
     registry = root / "registry.json"
     tags = (
         sorted(
@@ -214,7 +215,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
         return None
     listed = ", ".join(tags)
     host = f":host(:is({listed}))"
-    return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
+    return f":is({listed})", host
 
 
 # A root's own stylesheets, in the order the document's theme.css reads them.
@@ -233,14 +234,13 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     sheet stays unlayered: a renderer that brings its own layered CSS into the tree
     (the diff's) keeps ranking below it.
 
-    A package that declares widgets styles those widgets and nothing else
-    (`widget_confinement`): in the document each of its rules matches only an element
-    that is one of them or stands inside one, and in the shadow sheet every declared
-    tree receives, only an element of a tree one of them hosts. A package that
-    declares none is a theme, and reaches the page and every tree the way the kernel's
-    own sheets do.
+    Each widget package's sheet has one native @scope around its declared tags
+    in the document, or around their :host in shadow trees. :scope names the root,
+    ordinary selectors its descendants. CSS owns nested conditions and proximity;
+    composition neither rewrites selectors nor adds specificity. Widget-free
+    packages are unscoped themes that reach the page and every tree.
     """
-    from .styles import confined
+    from .styles import scoped
 
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
@@ -253,12 +253,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if not source.is_file():
                 continue
             css = _sheet(source)
-            try:
-                placed = confined(css, where[0]) if where else css
-                if name == "shadow.css":
-                    shadow.append(confined(css, where[1]) if where else css)
-            except ValueError as error:
-                sys.exit(f"{source}: {error}; state a widget's rules on the widget")
+            placed = scoped(css, where[0]) if where else css
+            if name == "shadow.css":
+                shadow.append(scoped(css, where[1]) if where else css)
             theme.append(f"@layer lf-base {{\n{placed}}}\n")
     if (layouts := inputs[0] / "layouts.css").is_file():
         theme.append(_sheet(layouts))

@@ -6,7 +6,7 @@
  * deck is not the box it styles. A package reaches only inside its own widgets
  * (layer.py), so the Ask that holds the deck is not this package's to make a container.
  * A deck frozen into thread markup never takes the rail. */
-lf-swipe-deck {
+:scope:is(lf-swipe-deck) {
   --lf-block-frame: 1;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -18,7 +18,7 @@ lf-swipe-deck {
   --lf-swipe-press: max(2.5rem, var(--aim-floor), calc(2 * var(--sp-2) + var(--t-5) + 2px));
 }
 
-lf-swipe-deck > :is(lf-swipe-pile, .lf-swipe-controls) {
+:scope:is(lf-swipe-deck) > :is(lf-swipe-pile, .lf-swipe-controls) {
   grid-column: 1 / -1;
 }
 
@@ -27,11 +27,11 @@ lf-swipe-deck > :is(lf-swipe-pile, .lf-swipe-controls) {
  * first free one, after the controls or, in a quoted deck, which has none, after the
  * queue. */
 @container lf-swipe-deck (min-width: 30rem) {
-  lf-swipe-pile[verdict="pass"] {
+  :scope:is(lf-swipe-pile)[verdict="pass"] {
     grid-column: 1 / span 3;
   }
 
-  lf-swipe-pile[verdict="keep"] {
+  :scope:is(lf-swipe-pile)[verdict="keep"] {
     grid-column: 4 / span 3;
   }
 }
@@ -39,7 +39,7 @@ lf-swipe-deck > :is(lf-swipe-pile, .lf-swipe-controls) {
 /* Every pile is a region of the deck and is drawn as one: a panel headed by its verdict
  * and count, like a wide page's panels, so an empty Kept or Passed pile still reads as a
  * place a card can go rather than a rule under a label. */
-lf-swipe-pile {
+:scope:is(lf-swipe-pile) {
   display: block;
   min-width: 0;
   box-sizing: border-box;
@@ -51,13 +51,13 @@ lf-swipe-pile {
 
 /* The queue is the drawer the cards are dealt from, a tinted field so the raised card on
  * top of it is the brightest thing in the deck. */
-lf-swipe-pile[verdict="unseen"] {
+:scope:is(lf-swipe-pile)[verdict="unseen"] {
   background: var(--field);
 }
 
 /* An empty pile is a place a card can go, drawn as an outline rather than a surface:
  * Kept and Passed before the first verdict, and the queue once it is clear. */
-lf-swipe-pile[verdict]:not(:has(> lf-swipe-card)) {
+:scope:is(lf-swipe-pile)[verdict]:not(:has(> lf-swipe-card)) {
   border-style: dashed;
   border-color: var(--border-2);
   background: transparent;
@@ -66,7 +66,7 @@ lf-swipe-pile[verdict]:not(:has(> lf-swipe-card)) {
 /* The queue's place in the deck, which every rendering that keeps the deck a grid uses:
  * the whole width, above the verdict rails. Paper is the one that does not, and it makes
  * the deck a block. */
-lf-swipe-pile[verdict="unseen"] {
+:scope:is(lf-swipe-pile)[verdict="unseen"] {
   grid-column: 1 / -1;
   grid-row: 1;
 }
@@ -77,7 +77,7 @@ lf-swipe-pile[verdict="unseen"] {
  * than `[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2)` kept `visibility: hidden`
  * through the reset, so paper printed the first card and 308px of void. */
 @media not print {
-  html:root lf-swipe-deck:not(:where([data-lf-exhibit]) *) {
+  :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *){
     /* The label heads the drawer on a row of its own, and the stack sits centred under
      * it at an index card's width. The bottom padding holds the ghosts' offset. */
     & lf-swipe-pile[verdict="unseen"] {
@@ -148,7 +148,7 @@ lf-swipe-pile[verdict="unseen"] {
   text-transform: uppercase;
 }
 
-lf-swipe-card {
+:scope:is(lf-swipe-card) {
   --lf-block-frame: 1;
   display: block;
   box-sizing: border-box;
@@ -163,15 +163,15 @@ lf-swipe-card {
   overflow-wrap: anywhere;
 }
 
-lf-swipe-card > :first-child {
+:scope:is(lf-swipe-card) > :first-child {
   margin-top: 0;
 }
 
-lf-swipe-card > :last-child {
+:scope:is(lf-swipe-card) > :last-child {
   margin-bottom: 0;
 }
 
-lf-swipe-card > strong:first-child {
+:scope:is(lf-swipe-card) > strong:first-child {
   display: block;
   margin: 0;
   color: var(--ink);
@@ -180,11 +180,11 @@ lf-swipe-card > strong:first-child {
 }
 
 /* Generated quiet words can sit after the title without becoming card content. */
-lf-swipe-card > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
+:scope:is(lf-swipe-card) > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
   margin-bottom: var(--sp-2);
 }
 
-lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
+:scope:is(lf-swipe-pile)[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
   --lf-focus-ring: swipe-card;
@@ -200,12 +200,12 @@ lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
  * there is no longer a margin to take back. */
 :where([data-lf-exhibit]) lf-swipe-deck
   lf-swipe-pile[verdict="unseen"]
-  > lf-swipe-card {
+> lf-swipe-card {
   margin-bottom: var(--sp-2);
   transform: none;
 }
 
-lf-swipe-card.lf-swipe-dragging {
+:scope:is(lf-swipe-card).lf-swipe-dragging {
   cursor: grabbing;
   transform: translateX(var(--lf-swipe-drag-x));
   user-select: none;
@@ -231,11 +231,7 @@ lf-swipe-card.lf-swipe-dragging {
    its words: the press's height, less the line and the 1px border. */
 .lf-swipe-pass.lf-ui,
 .lf-swipe-keep.lf-ui,
-.lf-swipe-return.lf-ui,
-html[data-lf-interactive]
-  lf-swipe-deck:not(:where([data-lf-exhibit]) *)
-  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
-  > lf-swipe-card:not(:has(> .lf-swipe-return))::after {
+.lf-swipe-return.lf-ui{
   min-width: var(--aim-floor);
   padding: calc((var(--lf-swipe-press) - 1lh) / 2 - 1px) var(--sp-3);
   border: 1px solid var(--border-2);
@@ -244,6 +240,20 @@ html[data-lf-interactive]
   color: var(--ink-2);
   font: 600 var(--t-5)/1 var(--sans);
   cursor: pointer;
+}
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *)
+  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+  > lf-swipe-card:not(:has(> .lf-swipe-return))::after{
+    min-width: var(--aim-floor);
+    padding: calc((var(--lf-swipe-press) - 1lh) / 2 - 1px) var(--sp-3);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    background: var(--card);
+    color: var(--ink-2);
+    font: 600 var(--t-5)/1 var(--sans);
+    cursor: pointer;
+  }
 }
 
 .lf-swipe-pass {
@@ -265,16 +275,23 @@ html[data-lf-interactive]
   color: var(--ok-ink);
 }
 
-.lf-swipe-return.lf-ui,
-html[data-lf-interactive]
-  lf-swipe-deck:not(:where([data-lf-exhibit]) *)
-  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
-  > lf-swipe-card:not(:has(> .lf-swipe-return))::after {
+.lf-swipe-return.lf-ui{
   display: block;
   min-height: var(--aim-floor);
   margin: 0;
   padding: var(--sp-1) var(--sp-2);
   font-size: var(--t-6);
+}
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *)
+  > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+  > lf-swipe-card:not(:has(> .lf-swipe-return))::after{
+    display: block;
+    min-height: var(--aim-floor);
+    margin: 0;
+    padding: var(--sp-1) var(--sp-2);
+    font-size: var(--t-6);
+  }
 }
 .lf-swipe-return[hidden] { display: none; }
 
@@ -282,21 +299,22 @@ html[data-lf-interactive]
  * height nor its title's width depends on whether the card can go back yet. Before the
  * deck upgrades, the words the Return will say hold that room unseen, drawn as the
  * Return is (above), so the row the page first paints is the row it presents. */
-lf-swipe-pile:is([verdict="pass"], [verdict="keep"]) > lf-swipe-card > .lf-swipe-return[hidden] {
+:scope:is(lf-swipe-pile):is([verdict="pass"], [verdict="keep"]) > lf-swipe-card > .lf-swipe-return[hidden] {
   visibility: hidden;
   display: block;
 }
 
-html[data-lf-interactive]
-  lf-swipe-deck:not(:where([data-lf-exhibit]) *)
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *)
   > lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
-  > lf-swipe-card:not(:has(> .lf-swipe-return))::after {
-  content: "Return to queue";
-  visibility: hidden;
-  box-sizing: border-box;
-  grid-column: 2;
-  grid-row: 1;
-  text-align: center;
+  > lf-swipe-card:not(:has(> .lf-swipe-return))::after{
+    content: "Return to queue";
+    visibility: hidden;
+    box-sizing: border-box;
+    grid-column: 2;
+    grid-row: 1;
+    text-align: center;
+  }
 }
 
 .lf-swipe-pass:disabled,
@@ -314,8 +332,8 @@ html[data-lf-interactive]
 }
 
 /* A ledger row: the title with its Return to queue beside it, the proposal under both. */
-lf-swipe-pile[verdict="pass"] > lf-swipe-card,
-lf-swipe-pile[verdict="keep"] > lf-swipe-card {
+:scope:is(lf-swipe-pile)[verdict="pass"] > lf-swipe-card,
+:scope:is(lf-swipe-pile)[verdict="keep"] > lf-swipe-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: var(--sp-2);
@@ -349,29 +367,29 @@ lf-swipe-pile[verdict="keep"] > lf-swipe-card {
  * so each proposal's words are set quieter and smaller under its title. They stay whole:
  * a comment can stand on any of them, and clipped words would be a passage the page no
  * longer shows. */
-lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+:scope:is(lf-swipe-pile):is([verdict="pass"], [verdict="keep"])
   > lf-swipe-card
-  > :not(strong:first-child, .lf-ui, [data-lf-gen]) {
+> :not(strong:first-child, .lf-ui, [data-lf-gen]) {
   color: var(--muted-2);
   font-size: var(--t-5);
 }
 
-lf-swipe-pile[verdict="pass"] > lf-swipe-card:first-of-type,
-lf-swipe-pile[verdict="keep"] > lf-swipe-card:first-of-type {
+:scope:is(lf-swipe-pile)[verdict="pass"] > lf-swipe-card:first-of-type,
+:scope:is(lf-swipe-pile)[verdict="keep"] > lf-swipe-card:first-of-type {
   border-top: 0;
 }
 
-lf-swipe-pile[verdict="pass"] > lf-swipe-card > strong:first-child,
-lf-swipe-pile[verdict="keep"] > lf-swipe-card > strong:first-child {
+:scope:is(lf-swipe-pile)[verdict="pass"] > lf-swipe-card > strong:first-child,
+:scope:is(lf-swipe-pile)[verdict="keep"] > lf-swipe-card > strong:first-child {
   font-size: var(--t-5);
 }
 
-lf-swipe-pile[verdict="pass"]
+:scope:is(lf-swipe-pile)[verdict="pass"]
   > lf-swipe-card
   > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])),
-lf-swipe-pile[verdict="keep"]
+:scope:is(lf-swipe-pile)[verdict="keep"]
   > lf-swipe-card
-  > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
+> strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
   margin-bottom: var(--sp-1);
 }
 
@@ -407,7 +425,7 @@ lf-swipe-pile[verdict="keep"]
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */
 @container lf-swipe-deck (min-width: 43.5rem) {
-  lf-swipe-deck:not(:where([data-lf-exhibit]) *) {
+  :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *) {
     & > lf-swipe-pile[verdict="unseen"] {
       grid-column: 1 / span 4;
       grid-row: 1 / span 2;
@@ -435,51 +453,56 @@ lf-swipe-pile[verdict="keep"]
  * `.lf-swipe-pile-label` with its margin, stands above the pile's cards as padding, and
  * the row of controls an upgraded, unquoted deck will hold stands where the controls go, one
  * press high, or the progress line above the two presses where the deck is narrow. */
-html[data-lf-interactive] lf-swipe-pile:not(:has(> .lf-swipe-pile-label)) {
-  padding-top: calc(14px + var(--t-6) * 1.3 + 10px);
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-swipe-pile):not(:has(> .lf-swipe-pile-label)){
+    padding-top: calc(14px + var(--t-6) * 1.3 + 10px);
+  }
 }
 
-html[data-lf-interactive]
-  lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
-  content: "";
-  grid-column: 1 / -1;
-  grid-row: 2;
-  block-size: var(--lf-swipe-press);
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after{
+    content: "";
+    grid-column: 1 / -1;
+    grid-row: 2;
+    block-size: var(--lf-swipe-press);
+  }
 }
 
 @container lf-swipe-deck (max-width: 31rem) {
-  html[data-lf-interactive]
-    lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
-    block-size: calc(var(--t-6) * 1.3 + var(--sp-2) + var(--lf-swipe-press));
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after{
+      block-size: calc(var(--t-6) * 1.3 + var(--sp-2) + var(--lf-swipe-press));
+    }
   }
 }
 
 @container lf-swipe-deck (min-width: 43.5rem) {
-  html[data-lf-interactive]
-    lf-swipe-deck:not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after {
-    grid-column: 1 / span 4;
-    grid-row: 3;
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-swipe-deck):not(:where([data-lf-exhibit]) *):not(:has(> .lf-swipe-controls))::after{
+      grid-column: 1 / span 4;
+      grid-row: 3;
+    }
   }
 }
 
 /* Paper is the third flat rendering, and adds to it what the other two do not need: the
  * deck's two verdict columns become one, and each pile is a section of its own. */
 @media print {
-  lf-swipe-deck {
+  :scope:is(lf-swipe-deck) {
     display: block;
     width: auto;
   }
 
-  lf-swipe-pile {
+  :scope:is(lf-swipe-pile) {
     margin: var(--sp-3) 0;
   }
 
-  lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
+  :scope:is(lf-swipe-pile)[verdict="unseen"] > lf-swipe-card {
     margin-bottom: var(--sp-2);
     transform: none;
   }
 
-  lf-swipe-card {
+  :scope:is(lf-swipe-card) {
     background: transparent;
     break-inside: avoid;
   }

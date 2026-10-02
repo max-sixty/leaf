@@ -1,6 +1,6 @@
 /* Targeting keeps the authored preview primary. Its generated editor is compact,
  * and live outlines disappear from quoted examples. */
-lf-targeting {
+:scope:is(lf-targeting) {
   --lf-block-frame: 1;
   display: grid;
   /* One track the width of the card, here and in the editor's grids below: an implicit
@@ -21,7 +21,7 @@ lf-targeting {
   container-type: inline-size;
 }
 
-lf-target-preview {
+:scope:is(lf-target-preview) {
   --lf-block-frame: 1;
   display: block;
   min-width: 0;
@@ -32,58 +32,58 @@ lf-target-preview {
   background: var(--field);
 }
 
-lf-targeting .lf-targeting-toolbar,
-lf-targeting .lf-targeting-actions,
-lf-targeting .lf-targeting-form-row,
-lf-targeting .lf-targeting-change-fields {
+:scope:is(lf-targeting) .lf-targeting-toolbar,
+:scope:is(lf-targeting) .lf-targeting-actions,
+:scope:is(lf-targeting) .lf-targeting-form-row,
+:scope:is(lf-targeting) .lf-targeting-change-fields {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
 }
 
-lf-targeting .lf-targeting-editor,
-lf-targeting .lf-targeting-targets,
-lf-targeting .lf-targeting-changes,
-lf-targeting .lf-targeting-candidates,
-lf-targeting .lf-targeting-target,
-lf-targeting .lf-targeting-change-form {
+:scope:is(lf-targeting) .lf-targeting-editor,
+:scope:is(lf-targeting) .lf-targeting-targets,
+:scope:is(lf-targeting) .lf-targeting-changes,
+:scope:is(lf-targeting) .lf-targeting-candidates,
+:scope:is(lf-targeting) .lf-targeting-target,
+:scope:is(lf-targeting) .lf-targeting-change-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-2);
 }
 
-lf-targeting .lf-targeting-toolbar {
+:scope:is(lf-targeting) .lf-targeting-toolbar {
   justify-content: space-between;
 }
 
-lf-targeting .lf-targeting-status,
-lf-targeting .lf-targeting-heading,
-lf-targeting .lf-targeting-empty,
-lf-targeting .lf-targeting-candidate-context,
-lf-targeting .lf-targeting-change-summary {
+:scope:is(lf-targeting) .lf-targeting-status,
+:scope:is(lf-targeting) .lf-targeting-heading,
+:scope:is(lf-targeting) .lf-targeting-empty,
+:scope:is(lf-targeting) .lf-targeting-candidate-context,
+:scope:is(lf-targeting) .lf-targeting-change-summary {
   margin: 0;
   font: var(--t-6)/1.4 var(--sans);
 }
 
-lf-targeting .lf-targeting-heading {
+:scope:is(lf-targeting) .lf-targeting-heading {
   color: var(--muted);
   font-weight: 600;
   letter-spacing: 0.065em;
   text-transform: uppercase;
 }
 
-lf-targeting .lf-targeting-status,
-lf-targeting .lf-targeting-empty,
-lf-targeting .lf-targeting-candidate-context,
-lf-targeting .lf-targeting-change-summary {
+:scope:is(lf-targeting) .lf-targeting-status,
+:scope:is(lf-targeting) .lf-targeting-empty,
+:scope:is(lf-targeting) .lf-targeting-candidate-context,
+:scope:is(lf-targeting) .lf-targeting-change-summary {
   color: var(--muted);
 }
 
-lf-targeting .lf-targeting-candidates,
-lf-targeting .lf-targeting-target,
-lf-targeting .lf-targeting-change-form,
-lf-targeting .lf-targeting-change {
+:scope:is(lf-targeting) .lf-targeting-candidates,
+:scope:is(lf-targeting) .lf-targeting-target,
+:scope:is(lf-targeting) .lf-targeting-change-form,
+:scope:is(lf-targeting) .lf-targeting-change {
   --lf-block-frame: 1;
   padding: var(--sp-2);
   border: 1px solid var(--border-2);
@@ -91,92 +91,90 @@ lf-targeting .lf-targeting-change {
   background: var(--field);
 }
 
-lf-targeting .lf-targeting-candidates[hidden] {
+:scope:is(lf-targeting) .lf-targeting-candidates[hidden] {
   display: none;
 }
 
 /* Candidate labels retain their complete text; the offered width owns the excerpt. */
-lf-targeting .lf-targeting-candidate-choice {
+:scope:is(lf-targeting) .lf-targeting-candidate-choice {
   min-width: 0;
   overflow: hidden;
 }
 
-lf-targeting .lf-targeting-candidate-choice strong,
-lf-targeting .lf-targeting-candidate-context {
+:scope:is(lf-targeting) .lf-targeting-candidate-choice strong,
+:scope:is(lf-targeting) .lf-targeting-candidate-context {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea) {
+:scope:is(lf-targeting) :is(wa-input, wa-number-input, wa-select, wa-textarea) {
   min-width: 0;
 }
 
-lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(label),
-lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(form-control-label) {
+:scope:is(lf-targeting) :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(label),
+:scope:is(lf-targeting) :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(form-control-label) {
   display: none;
 }
 
-lf-targeting .lf-targeting-property { width: 10rem; }
-lf-targeting .lf-targeting-value { width: 10rem; }
+:scope:is(lf-targeting) .lf-targeting-property { width: 10rem; }
+:scope:is(lf-targeting) .lf-targeting-value { width: 10rem; }
 
-lf-targeting wa-textarea {
+:scope:is(lf-targeting) wa-textarea {
   width: 100%;
   min-height: 4.5rem;
 }
 
-lf-targeting .lf-targeting-name {
+:scope:is(lf-targeting) .lf-targeting-name {
   flex: 1 1 12rem;
 }
 
-lf-targeting .lf-targeting-actions {
+:scope:is(lf-targeting) .lf-targeting-actions {
   justify-content: flex-end;
 }
 
-lf-targeting[data-lf-targeting-armed] lf-target-preview {
+:scope:is(lf-targeting)[data-lf-targeting-armed] lf-target-preview {
   cursor: crosshair;
   border-color: var(--accent);
 }
 
-html:root
-  lf-targeting
+:scope:is(lf-targeting)
   lf-target-preview
-  :is(.lf-targeting-candidate, .lf-targeting-selected) {
+:is(.lf-targeting-candidate, .lf-targeting-selected){
   outline: var(--focus-ring-w) solid var(--accent);
   outline-offset: 2px;
 }
 
-html:root
-  lf-targeting
+:scope:is(lf-targeting)
   lf-target-preview
-  .lf-targeting-candidate {
+.lf-targeting-candidate{
   background-color: var(--accent-faint);
 }
 
-lf-targeting.lf-targeting-quoted .lf-targeting-editor {
+:scope:is(lf-targeting).lf-targeting-quoted .lf-targeting-editor {
   display: none;
 }
 
 @container (max-width: 38rem) {
-  lf-targeting {
+  :scope:is(lf-targeting) {
     padding: var(--sp-3);
   }
 
-  lf-targeting .lf-targeting-form-row,
-  lf-targeting .lf-targeting-change-fields {
+  :scope:is(lf-targeting) .lf-targeting-form-row,
+  :scope:is(lf-targeting) .lf-targeting-change-fields {
     align-items: stretch;
     flex-direction: column;
   }
 
-  lf-targeting :is(button, wa-input, wa-number-input, wa-select, wa-textarea,
-                   .lf-targeting-property, .lf-targeting-value) {
+  :scope:is(lf-targeting) :is(button, wa-input, wa-number-input, wa-select, wa-textarea,
+  .lf-targeting-property, .lf-targeting-value) {
     width: 100%;
   }
 }
 
 @media print {
-  lf-targeting .lf-targeting-editor {
+  :scope:is(lf-targeting) .lf-targeting-editor {
     display: none;
   }
 }

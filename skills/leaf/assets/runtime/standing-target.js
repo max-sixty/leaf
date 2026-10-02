@@ -27,11 +27,12 @@ import { allAsks } from "./asks/model.js";
 import { hostIn, under } from "./shadow.js";
 import { readingBlock } from "./reading-place.js";
 
-const sides = [];
+const sides = new Set();
 
 // A chrome owner's reading of the page target a node inside its chrome shows, or null.
 export function declareSide(bridge) {
-  sides.push(bridge);
+  sides.add(bridge);
+  return () => sides.delete(bridge);
 }
 
 // The innermost of `asks` whose element is or holds `node`. The list is in document

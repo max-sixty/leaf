@@ -225,7 +225,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
+| Annotation inventory and controls | `annotation-inventory.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
+| Overlay and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Comment box and thread card placement | `comment-placement.js`, `floating.js` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
@@ -337,7 +338,8 @@ Startup order is load-bearing:
 6. Publish that document contract once.
 7. Import the modules `x-upgrade` declares for the tags present, and no others.
 8. Run the dressing passes and wait for the coordinator publication.
-9. Present the optional runtime-owned page-interface region.
+9. Join optional runtime-owned page-interface imports and installation. Their contained
+   sample documents are deferred arrivals, separate from this document's semantic proof.
 10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer presents the page, or after a bounded
     wait the page presents offline and applies the answer when it lands.

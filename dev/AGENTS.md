@@ -37,7 +37,10 @@ reaches a module by importing it from this package, never through `sys.path`,
   command that reads one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
   steps, and prints what a JavaScript expression returns, the console errors, and
-  optionally a screenshot; `--base` does the same on the merge base.
+  optionally a screenshot; `--base` does the same on the merge base. Its startup
+  evidence uses the same recorder as site verification: phases, resources, and
+  native initial layout shifts with affected nodes and before/after rectangles.
+  Those shifts are diagnostic, never a stability gate.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.

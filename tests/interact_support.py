@@ -1548,7 +1548,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     registry_path.write_text(json.dumps(registry, indent=2))
     with (package / "theme.css").open("a") as theme:
         theme.write(
-            f"\n{tag} {{\n"
+            f"\n:scope:is({tag}) {{\n"
             "  display: block;\n"
             "  margin: var(--sp-3) 0;\n"
             "  padding: var(--sp-3);\n"

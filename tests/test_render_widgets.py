@@ -920,6 +920,17 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     page = open_page(browser, serve(held))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
+    page.close()
+
+    # The workspace's full height reaches every Ask in it; an Ask held in a pane is
+    # that pane's content, not the body, and keeps its document flow.
+    in_pane = held.replace(
+        '<lf-ask id="session-triage-decision">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
+    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+    page = open_page(browser, serve(in_pane))
+    resized(page, 1280, 720)
+    expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
 
 
 def clear_of_the_bottom_chrome(page, selector):

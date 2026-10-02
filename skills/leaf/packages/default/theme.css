@@ -2106,10 +2106,12 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 /* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
  * heading and one answer gives the answer what the heading leaves, so a widget composing
  * its own regions there, such as a playground, fills the window. With context between
- * the two there is no one box to give the height to, so every part keeps its own. */
+ * the two there is no one box to give the height to, so every part keeps its own.
+ * `--lf-full-height` inherits, so the query holds for every Ask in the workspace; only
+ * the one that is main's child is the body, and an Ask in a pane stays in block flow. */
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(lf-ask) > :nth-child(2):last-child {
+  :scope:is(main > lf-ask) { display: flex; flex-direction: column; }
+  :scope:is(main > lf-ask) > :nth-child(2):last-child {
     flex: 1 1 0;
     min-block-size: 0;
     margin-block-end: 0;

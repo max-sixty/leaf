@@ -53,7 +53,7 @@ from leaf.schema import (
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
 from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
-from leaf_dev import ROOT
+from leaf_dev import LEAF_COMMAND, ROOT
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.harness import environment
 from leaf_dev.leaf_assets import pinned_assets
@@ -63,7 +63,6 @@ from leaf_dev.page_fixtures import (
     read_fixture,
 )
 
-LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
@@ -194,7 +193,7 @@ def check_links(out: Path) -> None:
 def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
     """A leaf command, quiet unless it fails, and then exiting with what it said."""
     done = subprocess.run(
-        [str(LEAF), *args],
+        [*LEAF_COMMAND, *args],
         cwd=ROOT,
         env=env,
         capture_output=True,

@@ -53,8 +53,7 @@
    the answering control instead puts them as far down the ask as its context and
    evidence are long, off the screen the same gesture arranged. An Ask a page styles
    boxless has nothing to stand on and keeps the control as its landing. A widget rebuilt
-   under a user is not an arrival and hands back the control they were working
-   (`standOn`).
+   under a user is not an arrival and hands back the control they were working.
 
    A directional page walk starts from the user's place, in this order:
 
@@ -156,7 +155,7 @@ export function createAskView({
   panelIsOpen,
   setPanel,
   trip,
-  scrollToElement,
+  arrive,
   refreshThread,
   focusForNavigation,
   presentedControl,
@@ -374,30 +373,6 @@ export function createAskView({
     return presenter.present();
   }
 
-  // The walk over what the page is waiting on the user for, clamped at the first and last
-  // open asks as the thread walk is (askStep). Answering an ask takes it out of the list,
-  // so a press from an answered ask steps from its document position and still reaches an
-  // open one.
-  //
-  // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
-  // in the tab order and the runtime writes it one — which is paint on the author's element,
-  // and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
-  // `tabindex` in it would blind the replay signature to an authored one). So the lend lasts
-  // exactly as long as the ring it goes with: the walk hands the stop over as it moves, and
-  // markHere takes it back when the user leaves.
-  //
-  // One function for both ends of it, because written as statements at each end the walk's
-  // half only ever wrote — it took the last lend's reference with it and left the stop
-  // standing. Two control-less asks in a row is all it took, and the walk in the shipped
-  // examples goes through two: stepping off a task left it wearing a tab stop that nothing
-  // afterwards was ever going to remove.
-  let askLent = null;
-  function lend(ask) {
-    if (askLent === ask) return;
-    askLent?.removeAttribute("tabindex");
-    askLent = ask;
-    if (ask) ask.tabIndex = -1;
-  }
   // An answered Ask normally keeps semantic focus on its own element after a drawer-row
   // arrival. A boxless answered widget cannot: its visible revision control is the only
   // focus target. Remember that exact target for this arrival, and only while it still
@@ -782,10 +757,6 @@ export function createAskView({
     if (row && drawerIsOpen("asks")) row.scrollIntoView({ block: "nearest" });
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-    // A control-less Ask source can borrow its own tab stop while the broader x-ask-surface
-    // region wears the ring. Keep that stop until the user leaves the region.
-    const holder = sourceNode(record);
-    if (askLent && askLent !== here && askLent !== holder) lend(null);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
     paintActionProjections();
   }
@@ -807,51 +778,25 @@ export function createAskView({
     });
     return dir > 0 ? (reach[0] ?? asks.at(-1)) : (reach.at(-1) ?? asks[0]);
   }
-  // Putting the user back on the control they were working when a widget rebuilt itself
-  // underneath them (rebuild): the control that works this ask — one inside it, or one
-  // the margin presents for it — or the ask itself, lent a tab stop where it holds nothing
-  // to work.
-  //
-  // This is not where an arrival lands, and the two parted when the scroll and the focus
-  // were measured against each other. Arrival puts the ask's opening at the top of
-  // the window, and the first control that answers it is as far down the ask as its
-  // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
-  // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
-  // the user was told to look at one thing and stood on another, off the bottom of the
-  // screen, and their next local action could have worked a control they could not see.
-  function standOn(ask, review = false) {
-    const source = sourceNode(ask);
-    if (!source) return;
-    const control =
-      source.querySelector(ASK_CONTROL) ??
-      actionsFor(source).map(({ control }) => presentedActionControl(control))[0];
-    if (!control) lend(source);
-    const target = control ?? source;
-    if (review) reviewedThrough = target;
-    focusForNavigation(target);
-  }
   // Where an arrival lands: on the ask, which is what the scroll has just brought to
   // the top of the window and what the ring is about to name. Its controls are then the
   // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
   // keeps its place in document order and everything inside an ask comes after it.
   // The ask's exact action routes remain active as Tab moves into its controls;
   // nearer widget scopes still own their local mechanics.
-  function arriveAt(record, review = false) {
+  // The shared arrival owns focus and its temporary tab stop. Ask owns which node
+  // means standing here, including the visible answering control of a boxless Ask.
+  function arrivalFocus(record, review = false) {
     const ask = askNode(record);
-    if (!ask) return;
-    reviewedThrough = review ? ask : null;
-    // Through the margin's door, which also shows the Ask's row where the annotation
-    // layer is hidden: an arrival is a request for what decides it.
-    focusForNavigation(ask);
-    if (ask.matches(":focus")) return;
-    lend(ask);
-    focusForNavigation(ask);
-    if (ask.matches(":focus")) return;
-    // An Ask the page styles boxless generates nothing to stand on, and a lent stop
-    // does not change that. There the control that answers it is the only place the
-    // user can be, which is where every arrival used to land.
-    lend(null);
-    standOn(record, review);
+    const source = sourceNode(record);
+    if (!ask || !source) return null;
+    const target = ask.getClientRects().length
+      ? ask
+      : (source.querySelector(ASK_CONTROL) ??
+        actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??
+        source);
+    reviewedThrough = review ? target : null;
+    return target;
   }
 
   // The user's standing on an Ask, said in terms a replaced document can still answer.
@@ -863,7 +808,7 @@ export function createAskView({
   //
   // The id is the whole of what is captured, and the Ask itself is the whole of what is
   // handed back. Which control inside it they held is not something this can answer: the
-  // controls are the widget's, most carry no id of their own, and `standOn`'s first
+  // controls are the widget's, most carry no id of their own, and the first
   // answering control is the walk's landing rule rather than a restore. Handing that back
   // is the failure version.js's header names — a user holding the second option was
   // given the first, and their next press chose it. The Ask's own opening is the one
@@ -886,7 +831,8 @@ export function createAskView({
   function restoreStanding(ask) {
     if (!ask || standingAsk()?.id === ask) return;
     const record = allAsks().find((candidate) => candidate.id === ask);
-    if (record) arriveAt(record);
+    const target = record && arrivalFocus(record);
+    if (target) focusForNavigation(target);
   }
 
   const HEADING = "h1,h2,h3,h4,h5,h6";
@@ -1017,25 +963,15 @@ export function createAskView({
     });
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
-    let { target, source } = await materializeAsk(next, mayArrive);
+    let { target } = await materializeAsk(next, mayArrive);
     if (!mayArrive() || !target) return false;
     if (inChrome(target) && !panelIsOpen()) {
       if (!mayArrive.handoff(() => setPanel(true))) return false;
       await refreshThread();
       if (!mayArrive()) return false;
       target = askNode(next);
-      source = sourceNode(next);
       if (!target) return false;
     }
-    await reveal(target, mayArrive); // a settled group or an inactive tab has no geometry until it opens
-    if (!mayArrive()) return false;
-    target = askNode(next);
-    source = sourceNode(next);
-    if (!target || !source) return false;
-    if (next.sourceId !== next.id) await reveal(source, mayArrive); // let the answering widget settle its own chrome
-    if (!mayArrive() || !source.isConnected) return false;
-    target = askNode(next);
-    if (!target) return false;
     // A page Ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this
@@ -1048,32 +984,64 @@ export function createAskView({
     // in the panel's own list, whose arrival stays centred in that region and is no
     // trip. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
-    const box = !inChrome(target) && scrollerFor(target);
-    const region = box && arrivalRegion(target, box);
-    const moving =
-      box &&
-      trip(target, {
-        landing: () => askNode(next),
+    let moving;
+    const destination = () => {
+      const target = askNode(next);
+      if (!target || !sourceNode(next)) return null;
+      const box = !inChrome(target) && scrollerFor(target);
+      return { target, box, region: box && arrivalRegion(target, box) };
+    };
+    const arrived = await arrive(
+      () => {
+        const here = destination();
+        if (!here) return null;
+        const { target, box, region } = here;
+        return {
+          where: target,
+          focus:
+            moving === undefined
+              ? null
+              : arrivalFocus(next, !unansweredIds().has(next.id)),
+          // The Ask's nested scroller reveals its own box before the context's
+          // scroller aligns the opening. A framed Ask requests no motion.
+          scroll:
+            moving === undefined
+              ? []
+              : !box
+                ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
+                : moving
+                  ? [
+                      { at: target, behavior: "instant", block: "nearest" },
+                      { at: region, behavior: scrollBehavior(), block: "start" },
+                    ]
+                  : [],
+        };
+      },
+      {
         intent: mayArrive,
-        there: (readable) => framed(next, region, target, box, readable),
-      });
-    // The ring follows: the focus move is what paints it, so the walk says where to stand
-    // and markHere says where the user is standing, rather than both saying the second.
-    arriveAt(next, !unansweredIds().has(next.id));
-    // A page arrival the user already has is left alone. The ring and the focus have
-    // moved to the next ask, which is the whole of what this press had left to say.
-    if (!box) scrollToElement(target, scrollBehavior(), "center");
-    else if (moving) {
-      // The ask's own box first, which is the only pass that moves a scroller other
-      // than the page's: the placement below moves whichever box scrolls the region,
-      // and for a region out on the page that is never the board's own scroller.
-      // Handing that placement the region alone left an ask inside a card unscrolled in
-      // its card, with the ring and focus on a change the user could not see.
-      // `nearest` is a request to reveal only, which is exactly what this needs and
-      // what the placement then builds on.
-      scrollToElement(target, "instant", "nearest");
-      scrollToElement(region, scrollBehavior(), "start");
-    }
+        keep: true,
+        present: async () => {
+          // The Ask's source owns its answer and may hold a disclosure inside
+          // the arrival region. Let it prepare that before departure is read.
+          const source = sourceNode(next);
+          if (!source) return;
+          if (next.sourceId !== next.id) await reveal(source, mayArrive);
+          if (!mayArrive()) return;
+          const here = destination();
+          if (!here) return;
+          const { target, box, region } = here;
+          moving = Boolean(
+            box &&
+            trip(target, {
+              landing: () => askNode(next),
+              intent: mayArrive,
+              there: (readable) => framed(next, region, target, box, readable),
+            }),
+          );
+        },
+      },
+    );
+    if (!arrived) return false;
     const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
     const index = asks.findIndex((ask) => ask.id === next.id);
     announce(walkPositionLabel("Ask", index + 1, asks.length, state));
@@ -1136,7 +1104,6 @@ export function createAskView({
     askActionLayer.replaceChildren();
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-    lend(null);
   }
 
   pageCommand(actionRow);

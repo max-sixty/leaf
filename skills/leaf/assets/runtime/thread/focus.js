@@ -10,8 +10,10 @@ import { replyHasWords } from "./replies.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
+export const threadFocusStop = (thread) =>
+  thread.querySelector(":scope > summary:not([hidden])") ?? thread;
 export function focusThread(thread, options) {
-  (thread.querySelector(":scope > summary:not([hidden])") ?? thread).focus(options);
+  threadFocusStop(thread).focus(options);
 }
 
 // An inline thread root may itself hold focus. A control inside it keeps its own

@@ -73,6 +73,7 @@ WATCHER_PACKAGE = "watchfiles>=1.1.0"
 # The quiet gap that closes an editor's save batch (`step`), and the idle wake-up at
 # which the watcher re-reads the server's liveness (`rust_timeout`).
 WATCH_INTERVAL_MS = 250
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 class LeafFailed(RuntimeError):
@@ -678,13 +679,13 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
 
 
 def terminated(signum, _frame) -> None:
-    """End on SIGTERM the way Ctrl-C ends: through the cleanup it skips by default.
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
 
-    A runner that signals the whole process group reaches this process twice, once
-    directly and once through `uv run`'s forwarding, and a second exit raised inside
-    the first one's cleanup would abandon it. So the first is the only one heard.
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
     """
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
     raise SystemExit(128 + signum)
 
 
@@ -735,7 +736,8 @@ def preview(
         raise click.UsageError("--user serves a page; omit --export")
     try:
         if worker:
-            signal.signal(signal.SIGTERM, terminated)
+            for stop_signal in STOP_SIGNALS:
+                signal.signal(stop_signal, terminated)
             source = source.resolve()
             runtime = runtime.resolve()
             run_preview(

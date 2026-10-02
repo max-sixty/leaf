@@ -1988,7 +1988,8 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    expect(reopened).to_have_count(0)
+    # The undo is no gesture on the thread, so its card stays where it stands, closed.
+    expect(reopened).to_have_attribute("data-resolved", "true")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
@@ -3485,12 +3486,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # A thread the user has closed asks nothing and shows nothing, for the same
-    # reason its reply box is gone.
+    # A thread the user has closed asks nothing: its card, closed from another tab,
+    # stays where it stands and says it is resolved.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
     expect(workflows).to_have_count(1)
 
     # Reopening restores a claim that no reply answered. The local line still goes

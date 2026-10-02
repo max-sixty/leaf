@@ -63,7 +63,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, grow = false, search = null },
+  { visible = true, kept = null, grow = false, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -104,6 +104,12 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
+    // A card the panel keeps though its view no longer admits it, and why ("news" or
+    // "draft", thread-list-view.js, `keeping`), keeps the shape it stood in, so the news that changed it moves
+    // nothing: its reply box, on which an open card's room rests; the control row above
+    // its first message, where Reopen wears Resolve's face, done; and its summary's
+    // status row (ThreadView).
+    kept,
     grow,
     folding: false,
     search,
@@ -123,21 +129,33 @@ export function threadReading(
         : panel
           ? ""
           : "✓ Resolved",
-    settlement: Object.freeze({ kind, word, label, pending: settling }),
-    reply: !resolved,
+    settlement: Object.freeze({
+      kind,
+      word,
+      label,
+      pending: settling,
+      icon: !resolved || Boolean(kept),
+    }),
+    reply: !resolved || Boolean(kept),
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
     messages: Object.freeze(messages),
   });
 }
 
-function navigationSummary(navigation, model) {
+// The words a card's summary gives its status, whether it draws a status at all, and
+// whether the open card folds it.
+const summaryStatus = (model) => {
+  const text = model.resolved ? "Resolved" : model.attention?.label || "";
+  return { text, drawn: Boolean(text), folded: model.statusFolded };
+};
+
+function navigationSummary(navigation, model, { text: status, drawn, folded }) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
-  const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
-  const hasMeta = draft || status || model.unreadCount;
+  const hasMeta = draft || drawn || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
@@ -158,7 +176,7 @@ function navigationSummary(navigation, model) {
           ? html`<span
               class="lf-thread-status"
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
-              data-lf-folded=${model.statusFolded ? "" : nothing}
+              data-lf-folded=${folded ? "" : nothing}
               title=${
                 model.attention?.secondary
                   ? `${status} · ${model.attention.secondary}`
@@ -166,7 +184,14 @@ function navigationSummary(navigation, model) {
               }
               >${status}</span
             >`
-          : nothing
+          : drawn
+            ? html`<span
+                class="lf-thread-status"
+                data-lf-folded=${folded ? "" : nothing}
+                aria-hidden="true"
+                >${"\u00a0"}</span
+              >`
+            : nothing
       }
       ${
         model.unreadCount
@@ -222,6 +247,7 @@ export class ThreadView {
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
   #growing = false;
+  #status = null;
   #navigation = null;
   #marginControls = null;
   #viewId = ++nextViewId;
@@ -307,6 +333,18 @@ export class ThreadView {
       }
     }
     this.#model = model;
+    // A kept card's summary keeps the status it stood with in its row: the words say
+    // what the news did, or nothing where it left none, but the status neither comes
+    // nor goes, nor folds or unfolds, so the row keeps its height.
+    const status = summaryStatus(model);
+    this.#status =
+      model.kept && this.#status
+        ? {
+            text: this.#status.drawn ? status.text : "",
+            drawn: this.#status.drawn,
+            folded: this.#status.folded,
+          }
+        : status;
     const reply = model.reply || replyHasWords(model.key);
     this.#replyShown = reply;
     if (model.news) this.#news.set(model.news);
@@ -441,7 +479,7 @@ export class ThreadView {
     `;
     render(
       html`
-        ${navigationSummary(navigation, model)}
+        ${navigationSummary(navigation, model, this.#status)}
         ${
           model.surface === "outlet"
             ? html`<summary
@@ -557,20 +595,21 @@ export class ThreadView {
       ?.focus({ preventScroll: true });
   }
 
+  // Resolve is a check; Reopen is a word, or, where it stands in Resolve's place, the
+  // check drawn done, at Resolve's size.
   #settlement(model) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    let button = this.#settlements.get(state.kind);
+    const face = `${state.kind}${state.icon ? " icon" : ""}`;
+    let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        reopen
-          ? "lf-btn lf-reopen lf-thread-action"
-          : "lf-btn lf-resolve lf-icon-action",
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${state.icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       button.onclick = this.#settle;
-      this.#settlements.set(state.kind, button);
+      this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [
         {
@@ -585,12 +624,12 @@ export class ThreadView {
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
-    if (!reopen) {
+    if (state.icon) {
       const label = model.folding ? "Resolved" : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
+    render(state.icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
     return button;
   }
 

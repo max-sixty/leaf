@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
 
+import known_faults
 import pytest
 from known_faults import known
 from playwright.sync_api import expect
@@ -20,10 +21,14 @@ from render_harness import (
 )
 
 
-def test_known_thread_fold_classifies_each_source_of_the_same_shift():
+def test_a_known_shift_classifies_each_source_of_the_same_frame(monkeypatch):
+    monkeypatch.setattr(
+        known_faults,
+        "KNOWN_UNASKED",
+        {"test_folding.py": {"test_a_card_folds": r"lf-thread-compact"}},
+    )
     test = SimpleNamespace(
-        path=Path("test_website_server.py"),
-        originalname="test_a_website_turn_posts_its_answer_when_the_move_is_settled_first",
+        path=Path("test_folding.py"), originalname="test_a_card_folds"
     )
     assert known(
         test,

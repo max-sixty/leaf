@@ -29,7 +29,7 @@
    answers what came before it and so follows it), or when none of the seat shows in the
    window, where the growth moves nothing they see. Anything held in a seat is not
    drawn, so it stays unread until it shows. */
-import { shownBand } from "../geometry.js";
+import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keepsText, layoutPx } from "../keeps.js";
@@ -62,17 +62,6 @@ function growthAfterIsSeen(node) {
     if (!band || bottom <= band.top || bottom >= band.bottom) return false;
   }
   return true;
-}
-
-// Calls `leave` once none of `node` shows in the window, and returns the step that stops
-// watching. Waiting for all of the seat to go keeps news held a little longer than it
-// needs, never shorter.
-function whenOffScreen(node, leave) {
-  const observer = new IntersectionObserver((entries) => {
-    if (!entries.at(-1).isIntersecting) leave();
-  });
-  observer.observe(node);
-  return () => observer.disconnect();
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
@@ -183,6 +172,8 @@ export class HeldNews {
     );
     const shown = this.#draw(prior, reading);
     this.#shown = read ? shown : null;
+    // Waiting for all of the seat to go keeps news held a little longer than it needs,
+    // never shorter.
     if (this.#holding()) this.#stopWatching ??= whenOffScreen(this.#seat, this.#all);
     else this.#stop();
     return shown;

@@ -4177,7 +4177,9 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
 
 
 def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
-    """A remote resolution may fold above a card while the user aims inside it.
+    """A remote resolution may fold a card scrolled past, above the one the user aims
+    inside. A card any of which shows stays where news leaves it (thread-list-view.js),
+    so the folding card stands wholly above the list's window.
 
     Hold the fold so its midpoint and completion are stable states the test can inspect.
     The target card must keep the same viewport position through both; otherwise the
@@ -4190,7 +4192,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    source, target = roots[15:17]
+    source, target = roots[5], roots[16]
     target_card = page.locator(f'.lf-thread[data-id="{target}"]')
     target_card.evaluate(
         "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
@@ -4204,11 +4206,11 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         "   .getBoundingClientRect();"
         " const view = list.getBoundingClientRect();"
         " return {scrollTop: list.scrollTop, source: a.toJSON(), target: b.toJSON(),"
-        "   sourceVisible: a.bottom > view.top && a.top < view.bottom};"
+        "   sourceAbove: a.bottom <= view.top};"
         "}",
         [source, target],
     )
-    assert setup["sourceVisible"], "the folding card is outside the visible reflow"
+    assert setup["sourceAbove"], "the card to fold shows, so news keeps it in place"
     assert setup["scrollTop"] > setup["source"]["height"], (
         "the list cannot compensate for the fold before reaching its top edge"
     )
@@ -4331,11 +4333,15 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     ), "the pointer did not begin over the card that will fold"
 
     before = page.evaluate("() => window.__lfHeld.length")
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": source},
+    # The user resolves the card through a package's control, which moves no pointer:
+    # a card news resolves stays where it stands (thread-list-view.js), and their own
+    # settlement folds it.
+    page.evaluate(
+        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
+        ".threadActions.resolve(key)",
+        source,
     )
-    told(page)
+    round_trip(page)
     assert page.evaluate("() => window.__lfHeld.length") == before + 1
     page.evaluate(
         "i => { window.__lfHeld[i].currentTime = "
@@ -4391,11 +4397,15 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     page.mouse.move(*point)
 
     before = page.evaluate("() => window.__lfHeld.length")
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": source},
+    # The user resolves the card through a package's control, which moves no pointer:
+    # a card news resolves stays where it stands (thread-list-view.js), and their own
+    # settlement folds it.
+    page.evaluate(
+        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
+        ".threadActions.resolve(key)",
+        source,
     )
-    told(page)
+    round_trip(page)
     assert page.evaluate("() => window.__lfHeld.length") == before + 1
     page.evaluate(
         "i => { window.__lfHeld[i].currentTime = "
@@ -4468,11 +4478,15 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
     assert page.evaluate("() => window.__lfHeld.length") == 0
 
     if finish == "clear":
+        # The words no longer hold the card, but it is the card the list shows open,
+        # so it stays in the shape it stood in until the user moves on.
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         rendered(page)
-        expect(card).to_be_hidden()
-        expect(card.locator("leaf-text")).to_have_count(0)
+        expect(card).to_be_visible()
+        expect(card).to_have_attribute("data-resolved", "true")
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", "")
         return
     if finish == "filter":
         find = page.get_by_role("searchbox", name="Find in threads")
@@ -6820,7 +6834,9 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
 ):
     """A hidden card is a removal to the user standing in it.
 
-    The narrowing keeps the card, hidden, and the browser drops a focus inside a hidden
+    The user's own reply answers the question, so "Waiting on you" no longer shows the
+    card, and their turn takes it as it is sent (news would leave it in place). The
+    narrowing keeps the card, hidden, and the browser drops a focus inside a hidden
     element to body only at its next rendering step, after the reconcile has run. Read
     as still in the list, the user was left to that drop, and the next Space went to
     the page behind the panel. The disarm test in `test_render_reactions.py` covers a
@@ -6837,13 +6853,11 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     card = page.locator(f'.lf-thread[data-id="{theirs}"]')
     card.locator(".lf-thread-summary").click()
-    card.locator("leaf-text").click()
-    expect(card.locator("leaf-text")).to_be_focused()
-    # A remote reaction answers the question, so the narrowing no longer shows the card.
-    events_model.append_event(
-        d, {"kind": "reply", "author": "user", "parent": theirs, "token": "keep"}
-    )
-    told(page)
+    box = card.locator("leaf-text")
+    write(box, "Forty is enough.")
+    expect(box).to_be_focused()
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(card).to_be_hidden()
     expect(page.locator(".lf-threads")).to_be_focused()
 

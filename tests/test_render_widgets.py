@@ -10821,6 +10821,65 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     assert current.evaluate(reading) == before
 
 
+def test_a_diff_disclosure_waits_for_the_source_render_that_owns_its_evidence(
+    browser, serve
+):
+    """Opening a retained closed file joins a pending revision without a false error."""
+
+    def patch(path, word):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{word}\n"
+        )
+
+    def value(word):
+        return patch_manifest(patch("a.py", word) + patch("b.py", "second"))
+
+    url = serve(MANIFEST_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("first"))
+    page = open_page(browser, url)
+    a = page.locator("lf-diff summary").nth(0)
+    b = page.locator("lf-diff summary").nth(1)
+    a.click()
+    expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
+        "first"
+    )
+    b.click()
+    line = page.locator('lf-diff [data-lf-datum=\'["b.py","new",1]\']')
+    expect(line).to_have_text("second")
+    b.click()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("middle"))
+    told(page)
+    rendered(page)
+    held = []
+
+    def hold(route):
+        if "key=a.py" in route.request.url:
+            held.append((route, route.fetch()))
+        else:
+            route.continue_()
+
+    page.route("**/api/deferred*", hold)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("latest"))
+    holding(page, held, 1, "the new open-file evidence")
+    b.click()
+    # Let the native toggle and its lazy load answer while the source revision is held.
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    try:
+        assert page.locator("lf-diff .lf-error").count() == 0
+    finally:
+        for route, response in held:
+            route.fulfill(response=response)
+    rendered(page)
+    expect(line).to_have_text("second")
+    expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
+        "latest"
+    )
+    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
+
+
 WEB_AWESOME_SHEET = """sheets => sheets.some(
   sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-color-picker'))
 )"""

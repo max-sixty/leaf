@@ -6,7 +6,8 @@
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
- * Manifest evidence commits together after open files load, and a closed file shows
+ * Manifest evidence commits together after open files load. Lazy disclosure joins
+ * the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. */
 import {
   DISCLOSE,
@@ -785,9 +786,11 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) =>
-        this.render(snapshot?.value ?? null, snapshot),
-      );
+      this.stopWatching = watchData(this, "document", (snapshot) => {
+        const rendering = this.render(snapshot?.value ?? null, snapshot);
+        this.sourceRendering = rendering;
+        return rendering;
+      });
     }
 
     disconnectedCallback() {
@@ -1268,6 +1271,13 @@ customElements.define(
     }
 
     async loadManifestEntry(entry) {
+      for (;;) {
+        const rendering = this.sourceRendering;
+        await rendering;
+        if (!this.isConnected) return;
+        if (rendering === this.sourceRendering) break;
+      }
+      if (!this.manifestEntries?.includes(entry)) return;
       if (entry.loaded || entry.prepared) return;
       if (entry.loading) return entry.loading;
       const rendering = this.rendering;

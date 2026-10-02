@@ -486,7 +486,8 @@ location it came from, or a widget that could not draw its body, so a module tha
 throws on its first paint or a chart that does not parse is found before the URL goes
 out. Code that runs only after a gesture or a timer is
 not reached; operate it in the pre-handover review. A page with neither is checked
-without a browser.
+without a browser. On a host with no browser the run is skipped with a note; the page
+still reports those errors to you once a browser draws it.
 
 `page/registry.json` may contribute declarations using the package registry language.
 Its element entry replaces the selected layer's complete entry; shared `$` declarations

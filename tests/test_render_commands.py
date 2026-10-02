@@ -1183,7 +1183,9 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     widget that called it — and passes the same page once its modules run clean.
 
     A page without code of its own is still checked without a browser: the missing
-    executable named below is never launched."""
+    executable named below is never launched. A host with no browser at all, as
+    leaf.page's container is, skips the run with a note rather than refusing the page,
+    since the same errors reach the author as `error` events once a browser draws it."""
     serve(
         LONG_PAGE,
         page_files={
@@ -1224,6 +1226,10 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert "Error: the trace never loaded" in broken.stderr
     assert "/page/widgets/lf-loader.js:3" in broken.stderr
 
+    unrun = check(LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert unrun.returncode == 0, unrun.stdout + unrun.stderr
+    assert "· page code: not run, no browser launched: " in unrun.stderr
+
     (d / "page" / "film.js").write_text(
         "export const paint = (el, step) =>\n"
         "  (el.textContent = [step.cmp].flat().map(String).join());\n"
@@ -1247,7 +1253,8 @@ def test_a_message_is_refused_where_its_widget_would_fail(
     no box to draw in while its thread is shut, so the post is the one moment its author
     can fix it and the page check will never see it. The post runs a data widget once
     and refuses the message on the error the page would report, and posts one that
-    draws. Markup with no data widget posts without a browser."""
+    draws. Markup with no data widget posts without a browser, and so does a data
+    widget on a host with none, with a note that it went undrawn."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -1282,3 +1289,10 @@ def test_a_message_is_refused_where_its_widget_would_fail(
         browser=tmp_path / "not-a-browser",
     )
     assert choice.returncode == 0, choice.stdout + choice.stderr
+
+    undrawn = open_thread(
+        '<lf-chart id="t-unrun"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+        browser=tmp_path / "not-a-browser",
+    )
+    assert undrawn.returncode == 0, undrawn.stdout + undrawn.stderr
+    assert "· comment markup: not run, no browser launched: " in undrawn.stderr

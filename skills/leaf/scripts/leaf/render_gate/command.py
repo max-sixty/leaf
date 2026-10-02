@@ -23,19 +23,25 @@ from .screens import save_screens
 from .version import RENDER_VIEWPORTS, render_version
 
 
-def in_browser(gate: str, read):
+class NoBrowser(Exception):
+    """The host has no browser to run a gate in: why, and the hint that fixes it."""
+
+
+def in_browser(read):
     """Launch the host's browser and return what `read` finds with it, with the
-    browser's name. A browser is part of the gate: where none launches, it reports
-    that and returns None.
+    browser's name, or raise NoBrowser where none launches. Each gate says what that
+    means for it: one the author asked for fails, and the run plain `page check` and
+    message markup take is skipped, since the page reports the same errors to its
+    author whenever a browser draws it.
 
     Playwright runs on a thread of its own. Its sync API refuses a thread that already
     drives another instance or runs an event loop, and a thread command runs this from
     whatever process called it."""
     with ThreadPoolExecutor(1) as pool:
-        return pool.submit(_launch, gate, read).result()
+        return pool.submit(_launch, read).result()
 
 
-def _launch(gate: str, read):
+def _launch(read):
     from playwright.sync_api import Error as PlaywrightError
 
     try:
@@ -43,27 +49,21 @@ def _launch(gate: str, read):
             try:
                 browser, browser_name = launch_browser(p)
             except PlaywrightError as error:
-                print(
-                    f"✗ {gate} failed — no browser launched: "
-                    f"{str(error).strip().splitlines()[0]}. {browser_hint()}",
-                    file=sys.stderr,
-                )
-                return None
+                raise NoBrowser(
+                    f"no browser launched: {str(error).strip().splitlines()[0]}. "
+                    f"{browser_hint()}"
+                ) from None
             try:
                 return read(browser), browser_name
             finally:
                 browser.close()
     except DriverNotStarted as error:
-        print(
-            f"✗ {gate} failed — Playwright's driver did not start: {error}. "
-            f"{driver_hint()}",
-            file=sys.stderr,
-        )
-        return None
+        raise NoBrowser(
+            f"Playwright's driver did not start: {error}. {driver_hint()}"
+        ) from None
 
 
 def _in_browser(
-    gate: str,
     read,
     page_dir: Path,
     document: SourceDocument,
@@ -74,7 +74,7 @@ def _in_browser(
     with preview_server(
         page_dir, document, revision, transition_held=True, artifact=artifact
     ) as url:
-        return in_browser(gate, lambda browser: read(browser, url))
+        return in_browser(lambda browser: read(browser, url))
 
 
 def _code_errors(
@@ -83,15 +83,20 @@ def _code_errors(
     document: SourceDocument,
     revision: int,
     artifact: RevisionArtifact,
-) -> str | None:
-    """Run `document` once and print every error it reports under `what`; the
-    browser's name where it reports none."""
-    ran = _in_browser(
-        f"{what} check", run_page_code, page_dir, document, revision, artifact
-    )
-    if ran is None:
-        return None
-    errors, browser_name = ran
+) -> tuple[int, str | None]:
+    """Run `document` once and print every error it reports under `what`. Returns
+    the status and the browser that ran it, None where the host has none."""
+    try:
+        errors, browser_name = _in_browser(
+            run_page_code, page_dir, document, revision, artifact
+        )
+    except NoBrowser as reason:
+        print(
+            f"· {what}: not run, {reason} Its errors reach you as the page's `error` "
+            "events once a browser draws it.",
+            file=sys.stderr,
+        )
+        return 0, None
     if errors:
         print(
             f"✗ {what}: {len(errors)} error(s) the page would report to you",
@@ -99,8 +104,8 @@ def _code_errors(
         )
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
-        return None
-    return browser_name
+        return 1, browser_name
+    return 0, browser_name
 
 
 def page_code_check(
@@ -111,14 +116,15 @@ def page_code_check(
 ) -> int:
     """Run the page's own code once and fail on every error it reports
     (`page_code` says which run and which errors)."""
-    browser_name = _code_errors("page code", page_dir, document, revision, artifact)
-    if browser_name is None:
-        return 1
-    print(
-        f"✓ page code: runs through upgrade and first paint in {browser_name} "
-        "with no error reported"
+    status, browser_name = _code_errors(
+        "page code", page_dir, document, revision, artifact
     )
-    return 0
+    if browser_name and not status:
+        print(
+            f"✓ page code: runs through upgrade and first paint in {browser_name} "
+            "with no error reported"
+        )
+    return status
 
 
 def message_code_check(page_dir: Path, kind: str, fragment: SourceDocument) -> int:
@@ -155,7 +161,7 @@ def message_code_check(page_dir: Path, kind: str, fragment: SourceDocument) -> i
         return 0
     revision = (active or 0) + 1
     what = f"{kind} markup"
-    return 0 if _code_errors(what, page_dir, document, revision, artifact) else 1
+    return _code_errors(what, page_dir, document, revision, artifact)[0]
 
 
 def _read_and_shoot(page_dir: Path):
@@ -203,15 +209,12 @@ def render_check(
 ) -> int:
     """Serve candidate source to the host's browser, run the render invariants on it,
     and save the screens the pre-handover review reads."""
-    ran = _in_browser(
-        "render check",
-        _read_and_shoot(page_dir),
-        page_dir,
-        document,
-        revision,
-        artifact,
-    )
-    if ran is None:
+    try:
+        ran = _in_browser(
+            _read_and_shoot(page_dir), page_dir, document, revision, artifact
+        )
+    except NoBrowser as reason:
+        print(f"✗ render check failed — {reason}", file=sys.stderr)
         return 1
     (reading, screens), browser_name = ran
     if reading.failures:
@@ -255,17 +258,16 @@ def widget_quality_report(package: Path) -> int:
     from .widget_quality import CHECKS, UnreadablePage, own_tags, widget_findings
 
     try:
-        ran = in_browser(
-            "widget quality", lambda browser: widget_findings(browser, package)
-        )
+        ran = in_browser(lambda browser: widget_findings(browser, package))
+    except NoBrowser as reason:
+        print(f"✗ widget quality failed — {reason}", file=sys.stderr)
+        return 1
     except UnreadablePage as error:
         print(
             f"✗ widget quality failed — a page of worked examples could not be drawn: "
             f"{error}",
             file=sys.stderr,
         )
-        return 1
-    if ran is None:
         return 1
     findings, browser_name = ran
     widgets = f"{len(own_tags(package))} widget(s)"

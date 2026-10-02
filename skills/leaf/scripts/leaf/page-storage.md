@@ -75,12 +75,20 @@ other page files and the external state listed below.
   `(session, sequence)` identifies duplicates. Large browser records arrive as
   `interaction_part` rows whose `json` fields concatenate in `part` order.
   A tab retains at most 512 pending browser records: when delivery falls behind,
-  it sheds repeated observations first, then older actions only to admit new
+  it sheds resource timings and repeated input observations first, then older actions only to admit new
   actions. New repeated observations yield to pending actions. Sequence gaps show
   where records were lost; a single record too large to fit is marked
   `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
   guarantee: an offline tab closed with unsent data may lose it. The semantic
   event log remains the durable record of accepted decisions.
+
+- `user-views.json` — replaceable per-document browser
+  observations (`user_views.py`). These are author
+  context, not event history or source inputs. They are excluded from page freshness
+  and activation. `conversation-loop.md`, "The user's view", defines the agent reading.
+
+- `user-views.lock` — the independent lock serializing observation writes;
+  excluded from page freshness and activation.
 
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.

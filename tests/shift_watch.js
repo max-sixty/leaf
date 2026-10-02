@@ -497,7 +497,7 @@
     if (open) open.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
   const heard = (view) => (event) => {
-    if (!event.isTrusted) return;
+    if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     const at = event.timeStamp + view.performance.timeOrigin - performance.timeOrigin;
     begin(at);
   };
@@ -508,7 +508,16 @@
     } catch {
       break;
     }
-    for (const type of ["keydown", "pointerdown", "wheel"])
+    // A gesture has press, active movement and activation/release phases. Hover
+    // supplies no geometry ownership; native click also covers keyboard activation.
+    for (const type of [
+      "keydown",
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "click",
+      "wheel",
+    ])
       held.addEventListener(type, heard(view), true);
     if (view === view.parent) break;
   }

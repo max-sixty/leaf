@@ -1677,3 +1677,86 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         )
     else:
         assert errors == [], errors
+
+
+@pytest.mark.parametrize("mode", ["pointer", "keyboard"])
+@pytest.mark.parametrize("fault", ["", "late", "synthetic"])
+def test_native_activation_owns_its_release_not_later_motion(browser, mode, fault):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body style="margin:0"><button id="open" style="position:fixed;left:400px;top:0">Open</button><div id="above"></div><textarea id="field"></textarea><script>document.querySelector('#open').addEventListener('click',()=>document.querySelector('#above').style.height='40px')</script></body>"""
+        )
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    before = page.locator("#field").bounding_box()
+    if fault == "synthetic":
+        page.locator("#open").evaluate("n=>n.click()")
+    else:
+        if mode == "pointer":
+            button = page.locator("#open").bounding_box()
+            page.mouse.move(button["x"] + 5, button["y"] + 5)
+            page.mouse.down()
+        else:
+            page.locator("#open").focus()
+            page.keyboard.down("Space")
+        page.evaluate(PAINTED)
+        page.screenshot()
+        if mode == "pointer":
+            page.mouse.up()
+        else:
+            page.keyboard.up("Space")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert page.locator("#field").bounding_box()["y"] - before["y"] == 40
+    if fault == "synthetic":
+        assert any("textarea#field moved without input" in e for e in errors), errors
+    else:
+        assert errors == [], errors
+        if fault == "late":
+            page.evaluate(PAINTED)
+            page.screenshot()
+            page.evaluate("document.querySelector('#above').style.height='80px'")
+            page.evaluate(PAINTED)
+            page.screenshot()
+            judge_watches()
+            errors = take_browser_errors(page)
+            assert any("textarea#field moved without input" in e for e in errors), (
+                errors
+            )
+
+
+@pytest.mark.parametrize("pressed", [True, False])
+def test_native_pointer_motion_owns_only_an_active_drag(browser, pressed):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body style="margin:0"><button id="grip" style="position:fixed;left:400px;top:0">Drag</button><div id="above"></div><textarea id="field"></textarea></body>"""
+        )
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.mouse.move(405, 5)
+    if pressed:
+        page.mouse.down()
+    page.evaluate(PAINTED)
+    page.screenshot()
+    page.evaluate(
+        "document.addEventListener('pointermove',()=>document.querySelector('#above').style.height='40px')"
+    )
+    page.mouse.move(410, 10)
+    page.evaluate(PAINTED)
+    page.screenshot()
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert page.locator("#field").bounding_box()["y"] == 40
+    if pressed:
+        assert errors == [], errors
+        page.mouse.up()
+    else:
+        assert any("textarea#field moved without input" in e for e in errors), errors

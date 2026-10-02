@@ -2184,11 +2184,11 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     resized(page, 1280, 600)
     page.evaluate(
         """async () => {
-          const {marginEntry, registerMarginContribution} =
+          const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const contribute = (key, target, label) => registerMarginContribution({
+          const contribute = (key, target, label) => registerContribution({
             key, target,
-            read: () => ({entries: [marginEntry({key: 'action', icon: 'dot', label})]}),
+            read: () => ({entries: [contributionEntry({key: 'action', icon: 'dot', label})]}),
             activate: () => {},
           });
           for (let index = 0; index < 29; index++)

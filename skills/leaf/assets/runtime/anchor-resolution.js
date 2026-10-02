@@ -36,7 +36,7 @@ import {
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES } from "./control-selectors.js";
-import { excerptWords } from "./margin-entry-model.js";
+import { excerptWords } from "./contribution-model.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.

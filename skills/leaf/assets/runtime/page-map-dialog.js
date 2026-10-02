@@ -39,15 +39,15 @@ import {
   showBannerControl,
 } from "./banner-toolbar.js";
 import {
-  clearMarginEntryControls,
-  marginContributionSource,
-  presentMarginEntryHost,
-  syncMarginAgentWorkflow,
-  syncMarginTurn,
-  trackMarginEntryControl,
-} from "./margin-entries.js";
+  clearContributionControls,
+  presentContributionHost,
+  syncContributionAgentWorkflow,
+  syncContributionTurn,
+  trackContributionControl,
+} from "./contribution-controls.js";
+import { contributionSource } from "./contributions.js";
 
-import { marginItemKey } from "./margin-entry-model.js";
+import { contributionItemKey } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
@@ -142,7 +142,7 @@ export function createPageMapDialog({
     // The first press can then reveal the exact second action without closing the
     // only surface where a spilled contribution is reachable.
     if (relation?.kind === "entries") {
-      marginContributionSource(offered).registration.activate(record.key, {
+      contributionSource(offered).registration.activate(record.key, {
         origin: control,
         surface: "map",
         input: event.detail === 0 ? "keyboard" : "pointer",
@@ -150,7 +150,7 @@ export function createPageMapDialog({
       nextRender(() => {
         const revealed = relation.keys
           .map((key) =>
-            marginContributionSource(offered).registration.control(key, "map", true),
+            contributionSource(offered).registration.control(key, "map", true),
           )
           .find((candidate) => candidate?.checkVisibility());
         (revealed ?? control).focus({ preventScroll: true });
@@ -161,7 +161,7 @@ export function createPageMapDialog({
     closeOwnsFocus = true;
     dialog.close();
     handBack(returnTo);
-    marginContributionSource(offered).registration.activate(record.key, {
+    contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
       input: event.detail === 0 ? "keyboard" : "pointer",
@@ -171,7 +171,7 @@ export function createPageMapDialog({
   function presentSheetControl(control, action, actions) {
     if (!control) return;
     const { entry, offered, record } = action;
-    presentMarginEntryHost(control, record, {
+    presentContributionHost(control, record, {
       accessibleLabel: [record.accessibleLabel, record.context]
         .filter(Boolean)
         .join(", "),
@@ -182,13 +182,8 @@ export function createPageMapDialog({
       workflow?.key === record.key && workflow.owner === record.owner
         ? workflow.receipt
         : record.workflowReceipt;
-    syncMarginAgentWorkflow(control, receipt);
-    trackMarginEntryControl(
-      marginContributionSource(offered),
-      "map",
-      record.key,
-      control,
-    );
+    syncContributionAgentWorkflow(control, receipt);
+    trackContributionControl(contributionSource(offered), "map", record.key, control);
   }
 
   const sheetItemTemplate = (action) => html`
@@ -288,23 +283,24 @@ export function createPageMapDialog({
       dialogList,
     );
     const liveOffers = new Set(
-      groups.flatMap(({ entry }) => entry.offers.map(marginContributionSource)),
+      groups.flatMap(({ entry }) => entry.offers.map(contributionSource)),
     );
     for (const offered of trackedOffers)
-      if (!liveOffers.has(offered)) clearMarginEntryControls(offered, "map", new Set());
+      if (!liveOffers.has(offered))
+        clearContributionControls(offered, "map", new Set());
     const groupsByKey = new Map(groups.map((group) => [group.key, group]));
     for (const control of dialogList.querySelectorAll(".lf-page-map-action")) {
       const action = control.lfMapAction;
       if (action.kind === "item") {
-        syncMarginAgentWorkflow(control, action.item.workflowReceipt);
-        syncMarginTurn(control, Boolean(action.item.userAttention));
+        syncContributionAgentWorkflow(control, action.item.workflowReceipt);
+        syncContributionTurn(control, Boolean(action.item.userAttention));
       } else
         presentSheetControl(control, action, groupsByKey.get(action.entry.key).actions);
     }
     for (const group of groups) {
       for (const offered of group.entry.offers)
-        clearMarginEntryControls(
-          marginContributionSource(offered),
+        clearContributionControls(
+          contributionSource(offered),
           "map",
           new Set(
             group.controls
@@ -369,7 +365,8 @@ export function createPageMapDialog({
             spilled?.choice?.items.some(
               (item) =>
                 button.lfMapAction?.item &&
-                marginItemKey(button.lfMapAction.item) === marginItemKey(item),
+                contributionItemKey(button.lfMapAction.item) ===
+                  contributionItemKey(item),
             ),
         )
       : group?.querySelector(".lf-page-map-action");

@@ -18,11 +18,11 @@ from .contract import (
     deciding_outcomes,
     deciding_verb,
     declares_string,
-    json_validator,
     reference_relation_error,
     state_specs,
     visual_part_attribute,
 )
+from .schema import json_validator
 from .state import (
     validate_deciding_verb,
     validate_widget_record_contracts,

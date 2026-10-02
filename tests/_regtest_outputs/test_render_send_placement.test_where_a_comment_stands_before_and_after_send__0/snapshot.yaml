@@ -121,13 +121,13 @@ phone-passage:
     down: still
 
 phone-touch-passage:
-  expected: below
+  expected: below or above
   comment box:
-    side: below
-    stands: away off the block
+    side: below or above
+    stands: near off the block
   thread card:
-    side: below
-    stands: away off the block
+    side: below or above
+    stands: near off the block
   moves:
     across: still
     down: still
@@ -136,10 +136,10 @@ beside-tall-element-clipped:
   expected: below or above
   comment box:
     side: below or above
-    stands: near off the block
+    stands: clear of the block
   thread card:
     side: below or above
-    stands: near off the block
+    stands: clear of the block
   moves:
     across: still
     down: still

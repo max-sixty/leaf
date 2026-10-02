@@ -194,7 +194,8 @@ CASES = {
     "beside-passage": ((900, 900), False, FIRST_LINE, "below or above"),
     "beside-element": ((900, 900), False, STEP, "below or above"),
     "phone-passage": ((390, 844), False, FIRST_LINE, "below or above"),
-    "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below"),
+    # Touch also uses the room already shown; font wrapping may leave either side clear.
+    "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below or above"),
     # A block whose top the window has scrolled past.
     "beside-tall-element-clipped": (
         (900, 500),
@@ -629,7 +630,7 @@ def test_send_grows_thread_around_the_words(
       window.sendFrames = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        const body = card?.querySelector('.lf-page-thread-body');
+        const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), scroll:body.scrollTop, pageScroll:scrollY,
             frame:card.getBoundingClientRect().toJSON()});
@@ -676,7 +677,7 @@ def test_send_grows_thread_around_the_words(
     expect(card.locator('leaf-text[name="reply"]')).to_be_visible()
 
     if long is True:
-        body = card.locator(".lf-page-thread-body").first
+        body = card.locator(".lf-msg-body").first
         body.hover()
         page.mouse.wheel(0, -300)
         expect(body).not_to_have_js_property("scrollTop", reading["scroll"])
@@ -711,7 +712,7 @@ def test_send_grows_thread_around_the_words(
                   return range.getBoundingClientRect().left;
                 }
               };
-              return [...card.querySelectorAll('.lf-page-thread-head > b, .lf-page-thread-body, .lf-compose-placeholder > span')]
+              return [...card.querySelectorAll('.lf-msg-head > b, .lf-msg-body, .lf-compose-placeholder > span')]
                 .map(firstGlyph);
             }""")
 

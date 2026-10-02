@@ -1,5 +1,9 @@
 /* One synchronous Lit owner for complete panel, page, outlet and margin threads.
 
+   Every surface uses the same metadata, transcript, message and reply vocabulary.
+   Containers own navigation and placement, including whether their transcript scrolls;
+   shadow.css owns the conversation's appearance through widget shadow boundaries.
+
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
    those values.
@@ -433,11 +437,7 @@ export class ThreadView {
             </div>`
           : nothing
       }
-      ${
-        model.surface === "margin"
-          ? html`<div class="lf-thread-transcript">${transcript}</div>`
-          : transcript
-      }
+      <div class="lf-thread-transcript">${transcript}</div>
     `;
     render(
       html`
@@ -663,12 +663,12 @@ export class ThreadView {
 
   #createReply(model) {
     const panel = model.surface === "panel";
-    const row = offer("div", panel ? "lf-compose" : "lf-say");
+    const row = offer("div", "lf-thread-reply");
     // The reply is its editor on every surface, at rest too: `c`, its key badge and
     // landing all name this box, so nothing stands in for it on screen.
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
+    const send = offer("button", "lf-btn lf-thread-send", "Send");
     row.append(input, send);
     if (panel)
       input.lfRevealReply = () =>

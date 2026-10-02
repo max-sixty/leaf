@@ -153,7 +153,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
 // element, x-owners the wrapper the decision is recorded on. Composition stamps that
-// relation, owner by owner, into `$decisions` (Python's `registry.state.stamp_decisions`),
+// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`),
 // and this reads it: one selector per owner and member.
 // Computed once — but only once the registry has loaded: the aim listeners are
 // live from module evaluation, and a pointer move in the upgrade window would

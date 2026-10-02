@@ -27,9 +27,10 @@
    too (comment-placement.js), so Send changes the surface without moving it: the side
    is chosen once for the card's footprint, beside the words where that room holds the
    card, else under or over them by the room the page can make, and the bar keeps it.
-   Under or over a quoted passage, the field moves the reading region only enough to
-   keep the passage and field visible together (`makeRoom`); it finally scrolls
-   internally. Beside a target, the frame's top stays at the target's line while the
+   Opening the field preserves the reading position wherever any part of its subject
+   is visible. Under or over a quoted passage, later growth moves the reading region
+   only enough to keep the passage and field visible together (`makeRoom`); it finally
+   scrolls internally. Beside a target, the frame’s top stays at the target’s line while the
    field grows downward, as an editor's page does, so the lines already written stay
    where the user wrote them and Send moves down a line per wrap. Only at the visible
    boundary's foot does the field rise to stay in view, and past the whole boundary it
@@ -169,7 +170,6 @@ export function createResponseSurface({
   responseOptionsAreOpen,
   markAt,
   scrollToElement,
-  scrollRevealedElement,
   visualActionAnchor,
   hideComposer,
   openComposer,
@@ -524,8 +524,8 @@ export function createResponseSurface({
     )
       return false;
 
-    // Under or over, the bar belongs beyond what it is about, not shifted back across it.
-    // When its intrinsic content height changes, use the reading region's remaining
+    // Opening or re-seating the overlay preserves the reading position. Once it
+    // stands, growing its intrinsic content may use the reading region's remaining
     // travel before asking the field to scroll. The placed height also changes when the
     // target clips at a boundary; keying this to the content keeps that wheel gesture as
     // navigation rather than undoing it on the next frame.
@@ -534,7 +534,7 @@ export function createResponseSurface({
       ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
       : fabBar.scrollHeight;
     const contentChanged =
-      fabContentHeight === null || Math.abs(contentHeight - fabContentHeight) > 0.5;
+      fabContentHeight !== null && Math.abs(contentHeight - fabContentHeight) > 0.5;
     fabContentHeight = contentHeight;
     if (
       !unanchored &&
@@ -795,61 +795,13 @@ export function createResponseSurface({
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
   const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);
 
-  // Where a comment about this item is written: the composer, on the item, which is what a
-  // click through the ⌥ aim already opens. It reached for the widget's own thread seat
-  // first for a while, on the reasoning that a widget holding a box for its thread
-  // should not be given a second one. That was the wrong shape. `commentOnTarget` writes
-  // `{section: item.id}`, which is exactly the anchor `renderSeats` collects into
-  // that seat — so the words land in the same thread by either route, and the seat was
-  // buying a focus landing at the price of five separate questions: escaping an
-  // author-written id into a selector, whether the box can take focus at all (a settled
-  // group's seat is inside `hidden="until-found"` and silently swallowed the press), which
-  // box when the seat holds several threads, what design mode files, and where the user
-  // was already standing. One route answers all five by not asking them.
-  //
-  // Putting a thing in front of the user before a box is opened about it, for whichever
-  // route reaches that box: the item `c` names, and the passage a kept draft comes back to.
-  // Both open on a coordinate the user may have scrolled away from, and a box measured
-  // against a passage off screen stands beside nothing.
-  //
-  // Only where it is not already in front of the user. Travelling every time moved
-  // the page under someone who could see the thing perfectly well: Tab leaves an item at an
-  // edge (`block: nearest`), so centring took the page a third of a viewport with nothing on
-  // screen to explain it — on the route this press exists for, and where the ⌥ aim it is the
-  // twin of moves nothing at all. The travel is for the standing that has gone stale, focus
-  // outliving the scroll that put it there: a box about something off screen is a box about
-  // nothing the user can see.
-  //
-  // What the page shows of it, which is the reading the aim's own paint takes
-  // (`refreshAim`) — this being its keyboard twin, the two decide "is this in front of the
-  // user" the same way or they are not twins. An unclipped box alone is the box the item
-  // would have: an item scrolled out of a board's sideways scroller still reports one
-  // inside the window, so a gate reading that called it showing and opened the box on
-  // something off screen, which the unconditional travel it replaced never did. A clipped
-  // part is enough to offer a target, but not enough to place a response box against; the
-  // nearest reveal brings the rest in without moving an item already wholly in view.
-  //
-  // A collapsed ancestor zeroes its descendants' boxes, so a thing inside a shut
-  // disclosure is never showing and takes the travel, `reveal` with it. Standing on the
-  // summary itself is the one motion this drops: the disclosure stays shut and the box
-  // opens on it where it is, rather than springing it open and reflowing the page under
-  // the user who was looking at it.
-  //
-  // Instant, and before the box is measured. Placing reads the addressable's box, so that has
-  // to be the box the addressable keeps; and opening focuses the field, whose
-  // scroll-into-view cancels a glide already under way — which is what left the addressable flush against an edge
-  // rather than framed, and is not `openComposer`'s to give up, three other presses opening
-  // that box against a passage they have not moved.
+  // Opening Comment is an overlay gesture. Any visible part of its subject is
+  // enough: placement clips the attachment and keeps the field in the usable window.
+  // Only stale standing or a resumed draft whose subject is wholly out of view needs
+  // travel (including revealing a closed ancestor), before placement measures it.
   function bringForward(addressable) {
-    if (!addressable) return;
-    if (!seenRect(addressable, new Map())) {
+    if (addressable && !seenRect(addressable, new Map()))
       scrollToElement(addressable, "instant");
-      return;
-    }
-    // A clipped sliver can be enough to offer a viewport-local hint, but not enough to
-    // place a response box against. `nearest` reveals it while leaving a target already
-    // in front of the user exactly where it is.
-    scrollRevealedElement(addressable, "instant", "nearest");
   }
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable

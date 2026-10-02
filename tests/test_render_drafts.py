@@ -1192,16 +1192,14 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(
     else:
         page.locator(".lf-margin-marker").first.click()
         thread = page.locator(".lf-margin-preview .lf-page-thread")
-        messages = thread.locator(".lf-page-thread-msg")
+        messages = thread.locator(".lf-msg")
     words = "The reply the user can already see."
     write(thread.locator("leaf-text"), words)
     before = messages.count()
 
     watch_message_arrival(
         page.locator("body"),
-        ".lf-threads .lf-msg"
-        if surface == "panel"
-        else ".lf-margin-preview .lf-page-thread-msg",
+        ".lf-threads .lf-msg" if surface == "panel" else ".lf-margin-preview .lf-msg",
     )
     page.keyboard.press("Enter")
     holding(page, held, 1, "the reply send")

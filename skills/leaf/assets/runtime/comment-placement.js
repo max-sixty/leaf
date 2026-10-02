@@ -23,13 +23,11 @@
    The side is chosen once, for the thread's footprint rather than the box's, so the box
    stands where its card can: right of `clear` where that room holds the card's minimum
    width (`--thread-card-min`), else left of it where that room does, else under or over
-   it, whichever side the page can make more room on. That room is what shows there plus
-   what the reading region can still scroll there, so the side is a fact of where the
-   comment is in the document, not of how far the page is scrolled; only where both
-   sides can make all the room the boundary has does the one showing more take it. A
-   touch screen takes under wherever the page can make the least room a surface stands
-   in there (`LEAST_HEIGHT`), since the platform's selection menu stands over the words
-   and Leaf cannot read where. The side is held until the boundary or `extent`'s width
+   it, preferring a side that already shows the least room a surface stands in
+   (`LEAST_HEIGHT`). Among those sides, the one the page can make more room on wins:
+   what shows there plus what the reading region can still scroll there. A touch
+   screen prefers under among sides with room, since the platform's selection menu
+   stands over the words and Leaf cannot read where. The side is held until the boundary or `extent`'s width
    changes (a resize, a pane that narrows, a reflow), which chooses afresh; a scroll
    clipping `clear` does not.
 
@@ -144,6 +142,11 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
   if (fits(clear.left - boundary.left - COMMENT_GAP)) return "left";
   const below = reachableRoom("bottom", extent, boundary, scroller);
   const above = reachableRoom("top", extent, boundary, scroller);
+  // Opening an overlay cannot spend scroll travel. Prefer a side that can already
+  // show the compact surface; reachable room then decides where it can grow.
+  const fitsBelow = below.shown >= LEAST_HEIGHT;
+  const fitsAbove = above.shown >= LEAST_HEIGHT;
+  if (fitsBelow !== fitsAbove) return fitsBelow ? "bottom" : "top";
   if (coarse && below.reachable >= LEAST_HEIGHT) return "bottom";
   return below.reachable > above.reachable ||
     (below.reachable === above.reachable && below.shown > above.shown)

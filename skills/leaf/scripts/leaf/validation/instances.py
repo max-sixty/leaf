@@ -295,11 +295,14 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     carries no page to check against, and one of its widgets pointing at the version
     beside it is exactly right.
 
-    An `exclusive` reference also names a target no earlier element of the same
-    document named through the same tag and attribute, since its owner takes the
-    target whole: a command fills the readings seat it names."""
+    An `owns` reference is narrower, since its referrer fills the target and the
+    browser looks for that target in the referrer's own document: each names an
+    element of `lf_elements`' own document, and each element there that the
+    contract's predicate selects is named by exactly one referrer, as each readings
+    seat is filled by one command."""
     errors = []
-    referrers = {}
+    own = {rec["attrs"].get("id") for rec in lf_elements}
+    owners = {}
     for rec in lf_elements:
         for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
@@ -313,14 +316,35 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
                 rec, attr, by_id.get(target), registry
             ):
                 errors.append(error)
-            elif reference.get("exclusive"):
-                first = referrers.setdefault((rec["tag"], attr, target), rec)
-                if first is not rec:
-                    named = f"id={first['attrs'].get('id')!r}"
-                    errors.append(
-                        f'{at(rec)}: {attr}="{target}" is already named by '
-                        f"{at(first, named)}; only one element may name it"
-                    )
+            elif reference.get("owns") and target not in own:
+                errors.append(
+                    f'{at(rec)}: {attr}="{target}" names an element outside its own '
+                    "document, which it fills"
+                )
+            elif reference.get("owns"):
+                owners.setdefault((rec["tag"], attr, target), []).append(rec)
+    owned = [
+        (tag, attr, reference)
+        for tag, entry in registry.items()
+        if not tag.startswith("$")
+        for attr, reference in entry.get("x-refers", {}).items()
+        if reference.get("owns")
+    ]
+    for rec in lf_elements:
+        for tag, attr, reference in owned:
+            if target_reference_contract_error(reference, rec, registry):
+                continue
+            target = rec["attrs"].get("id")
+            named = owners.get((tag, attr, target), [])
+            if not named:
+                errors.append(f"{at(rec)}: no <{tag}> names it in `{attr}`")
+            if len(named) > 1:
+                first = at(named[0], f"id={named[0]['attrs'].get('id')!r}")
+                errors.extend(
+                    f'{at(extra)}: {attr}="{target}" is already named by {first}; '
+                    "only one element may name it"
+                    for extra in named[1:]
+                )
     return errors
 
 

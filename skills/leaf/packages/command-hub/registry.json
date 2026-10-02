@@ -276,7 +276,7 @@
         "where": {
           "role": "readings"
         },
-        "exclusive": true
+        "owns": true
       }
     },
     "x-upgrade": true,

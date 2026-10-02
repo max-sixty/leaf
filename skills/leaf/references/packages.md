@@ -835,9 +835,10 @@ match a declaration there:
 }
 ```
 
-Add `"exclusive": true` to a contract whose referrer fills its target whole, as a
-command fills the readings seat it names: `page check` then refuses a second element of
-the same document naming that target through the same attribute.
+Add `"owns": true` to a typed contract whose referrer fills its target, as a command
+fills the readings seat it names. `page check` then requires the target in the
+referrer's own document, and every element there that the predicate selects named by
+exactly one referrer, so no seat stands empty or holds two commands' readings.
 
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging

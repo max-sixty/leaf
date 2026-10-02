@@ -9100,8 +9100,7 @@ def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):
 
 
 def test_command_hub_readings_stay_in_their_own_document(browser, serve):
-    """A command quoted in thread markup looks for its seat in that message's document.
-    One whose `readings` names the page's seat heads itself in the message, and the
+    """A command in thread markup fills the seat in that message's document, and the
     page's seat keeps the page's command's readings."""
     url = serve(COMMAND_HUB_EXAMPLE)
     root = events_model.append_event(
@@ -9117,16 +9116,18 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
             "parent": root["id"],
             "text": "The plan as it stood.",
             "markup": '<lf-command id="quoted-plan" label="Quoted plan"'
-            ' readings="hub-readings">'
+            ' readings="quoted-readings">'
             '<lf-task id="quoted-goal" status="active"><strong>Quoted goal</strong>'
-            "</lf-task></lf-command>",
+            "</lf-task></lf-command>"
+            '<lf-command-readings id="quoted-readings"></lf-command-readings>',
         },
     )
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
-    quoted = page.locator(f"#quoted-plan > lf-command-readings > {READING_PANELS}")
+    expect(page.locator("#quoted-plan > lf-command-readings")).to_have_count(0)
+    quoted = page.locator(f"#quoted-readings > {READING_PANELS}")
     expect(quoted).to_have_count(3)
     expect(quoted.first).to_contain_text("Quoted plan")
     seat = page.locator(f"#hub-readings > {READING_PANELS}")

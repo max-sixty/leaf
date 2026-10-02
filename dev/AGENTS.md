@@ -61,9 +61,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time.
-- `leaf-dev delivery-eval [BASE_REF]` compares how a live Claude Code agent handles a
-  comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
-  a dollar each.
+- `leaf-dev scenario-eval SUITE [CASE]...` scores complete usability, arrangement
+  and live delivery trajectories through Promptfoo. Scenario modules own execution;
+  `promptfoo.py` owns the native runner and reports, shared with instruction evals.
 - `leaf-dev instructions-eval [CASE]...` runs native Promptfoo cases in `evals/` on
   Claude Code and Codex, against the merge base and working tree, and prints passes
   per host and arm (`/developing-leaf`, "Score an instruction change").

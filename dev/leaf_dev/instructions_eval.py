@@ -8,22 +8,19 @@ terminal task verification owns those boundaries.
 """
 
 import fnmatch
-import json
 import re
 import shutil
-import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import click
 import yaml
 
 from leaf_dev import ROOT
-from leaf_dev.harness import base_ref, build_arm, claude_child, codex_home, environment
+from leaf_dev.harness import base_ref, build_arm, claude_child, codex_home
 from leaf_dev.leaf_assets import pinned_copy
+from leaf_dev.promptfoo import output_directory, report, run
 
-OUT = ROOT / ".tmp" / "instructions-eval"
 ARMS = ("base", "candidate")
 HOSTS = ("cc", "codex")
 PACKAGE_INSTRUCTION_PATH = re.compile(
@@ -162,6 +159,7 @@ def prepare(
                             "providers": [label],
                             "metadata": {
                                 **source["metadata"],
+                                "case": case,
                                 "host": host,
                                 "arm": arm,
                             },
@@ -190,23 +188,6 @@ def prepare(
     }
 
 
-def summarize(result: dict) -> list[tuple[str, str, str, str]]:
-    """Keep host and arm separate; execution errors are not instruction failures."""
-    grouped: dict[tuple[str, str, str], list[dict]] = {}
-    for row in result["results"]["results"]:
-        host, arm, case, _ = row["provider"]["label"].split("/")
-        grouped.setdefault((case, host, arm), []).append(row)
-    rows = []
-    for (case, host, arm), samples in sorted(grouped.items()):
-        passed = sum(sample["success"] for sample in samples)
-        errors = sum(sample.get("failureReason") == 2 for sample in samples)
-        count = f"{passed}/{len(samples)}"
-        rows.append(
-            (case, host, arm, count + (f" ({errors} errors)" if errors else ""))
-        )
-    return rows
-
-
 @click.command("instructions-eval")
 @click.argument("case_globs", metavar="[CASE]...", nargs=-1)
 @click.option("--base", help="Base ref; defaults to the merge base with main.")
@@ -218,21 +199,10 @@ def instructions_eval(
     case_globs: tuple[str, ...], base: str | None, host: str, runs: int
 ):
     """Score CASE globs (or all cases), on base and working-tree instructions."""
-    executable = ROOT / "evals" / "node_modules" / ".bin" / "promptfoo"
-    if not executable.is_file():
-        raise click.ClickException(
-            "Install eval dependencies first: npm ci --prefix evals"
-        )
     cases = select_cases(case_globs)
-    OUT.mkdir(parents=True, exist_ok=True)
-    out = Path(
-        tempfile.mkdtemp(
-            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=OUT
-        )
-    )
+    out = output_directory("instructions-eval")
     with tempfile.TemporaryDirectory(prefix="leaf-promptfoo-") as temporary:
         scratch = Path(temporary)
-        (out / "node_modules").symlink_to(ROOT / "evals" / "node_modules")
         arms = {arm: scratch / arm for arm in ARMS}
         commits = {
             "base": build_arm(base_ref(base), arms["base"]),
@@ -241,53 +211,9 @@ def instructions_eval(
         config = prepare(
             cases, arms, scratch, HOSTS if host == "both" else (host,), runs
         )
-        config_file = out / "promptfooconfig.json"
-        config_file.write_text(json.dumps(config, indent=2) + "\n")
         click.echo(
             f"base {commits['base'][:9]}; candidate working tree on {commits['candidate'][:9]}"
         )
         click.echo(f"{len(config['tests'])} samples; results and log: {out}")
-        env = environment(
-            PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
-        )
-        # Native local-login evals must not silently switch to ambient API billing.
-        for key in (
-            "OPENAI_API_KEY",
-            "CODEX_API_KEY",
-            "ANTHROPIC_API_KEY",
-            "CLAUDE_CONFIG_DIR",
-        ):
-            env.pop(key, None)
-        with (out / "run.log").open("w") as log:
-            completed = subprocess.run(
-                [
-                    str(executable),
-                    "eval",
-                    "-c",
-                    str(config_file),
-                    "--no-cache",
-                    "--no-share",
-                    "--no-write",
-                    "--max-concurrency",
-                    "2",
-                    "-o",
-                    str(out / "results.json"),
-                    "-o",
-                    str(out / "report.html"),
-                ],
-                cwd=ROOT / "evals",
-                env=env,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                check=False,
-            )
-    if not (out / "results.json").is_file():
-        raise click.ClickException(f"Promptfoo wrote no results; see {out / 'run.log'}")
-    for case, selected_host, arm, count in summarize(
-        json.loads((out / "results.json").read_text())
-    ):
-        click.echo(f"{case}  {selected_host}  {arm}  {count}")
-    click.echo(f"report: file://{out / 'report.html'}")
-    if completed.returncode:
-        raise click.ClickException(f"Evaluation has failures; see {out / 'run.log'}")
+        result, status = run(config, out)
+    report(result, status, out)

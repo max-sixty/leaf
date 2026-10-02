@@ -194,6 +194,6 @@ turn/start:
       at once, and later working messages stay in Codex. Finish the reply in your
       final message: the answer, or what changed and where it appears. The reply
       leaves the thread on its anchor.","h2":"Your reply renders as Markdown, so
-      show code or markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
+      show code or markup in a fenced block."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
       backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"turn","to":"user-event","for":"user-event","attempt":"leaf-delivery-ae5ce162888ee3ebe974976cac5ab94a"}}]}]}'
   turnTrigger: leaf

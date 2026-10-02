@@ -35,7 +35,7 @@ import re
 
 import pytest
 from interact_support import wait_for, yaml_document
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
@@ -421,6 +421,199 @@ def test_where_a_comment_stands_before_and_after_send(
             {name: sent(browser, serve, name, tmp_path) for name in CASES},
         )
     )
+
+
+@pytest.mark.parametrize("width", [900, 1650])
+@pytest.mark.parametrize("route", ["pointer", "search"])
+def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
+    browser, serve, width, route
+):
+    """A wide block is clearance, not the passage's inline attachment. The editor
+    and its sent card stand by the selected words while keeping that block clear."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "passage attachment",
+                '<h1>Review the handler</h1><pre id="source"><code>'
+                'const answer = {\n  decision: "Keep",\n  does: "Keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p>",
+                layout="wide",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": width, "height": 900})
+    words = "Keep the active card"
+    phrase = """words => {
+      const text = document.querySelector('#source code').firstChild;
+      const range = document.createRange();
+      const start = text.data.indexOf(words);
+      range.setStart(text, start);
+      range.setEnd(text, start + words.length);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    passage = page.evaluate(phrase, words)
+    if route == "pointer":
+        y = passage["top"] + passage["height"] / 2
+        select(page, (passage["left"] + 1, y), (passage["right"] - 1, y))
+    else:
+        page.keyboard.press("/")
+        page.keyboard.insert_text(words)
+        page.keyboard.press("Enter")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
+    rendered(page)
+
+    def attached(selector):
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    rendered(page)
+    before = attached(".lf-fab-bar")
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+
+
+def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_and_send(
+    browser, serve
+):
+    """A later, less indented line cannot move the passage's inline attachment.
+    Native selection and the captured draft/card use the same first fragment, while
+    their clearance continues to belong to the whole code block."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Multiline attachment",
+                '<h1>Review the handler</h1><pre id="source"><code class="language-javascript">'
+                'const answer = {\n  decision: "Keep",\n  does: "keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p>",
+                layout="wide",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    phrase = """words => {
+      const code = document.querySelector('#source code');
+      const start = code.textContent.indexOf(words);
+      const end = start + words.length;
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      let offset = 0;
+      for (let node; (node = walker.nextNode());) {
+        const next = offset + node.length;
+        if (offset <= start && start < next) range.setStart(node, start - offset);
+        if (offset < end && end <= next) range.setEnd(node, end - offset);
+        offset = next;
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return {
+        first: fragments[0].toJSON(), last: fragments.at(-1).toJSON(),
+        box: range.getBoundingClientRect().toJSON(),
+      };
+    }"""
+    passage = page.evaluate(phrase, 'Keep",\n  does: "keep the active card')
+    first, last = passage["first"], passage["last"]
+    select(
+        page,
+        (first["left"] + 1, first["top"] + first["height"] / 2),
+        (last["right"] - 1, last["top"] + last["height"] / 2),
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    words = page.evaluate("() => getSelection().toString()")
+
+    def attached(selector):
+        rendered(page)
+        passage = page.evaluate(phrase, words)
+        # The fixture must distinguish the first words from the whole range's left edge.
+        assert passage["first"]["left"] - passage["box"]["left"] > 50
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["first"]["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => getSelection().isCollapsed")
+    attached(".lf-fab-bar")
+    resized(page, 1200, 900)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    attached(".lf-fab-bar")
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    before = attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    attached(".lf-margin-preview")
+
+
+def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
+    browser, serve
+):
+    """A passage's column attaches the surface; it cannot shrink its usable frame.
+    Send's frame adoption must not hide a different rule when that card reopens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "right edge passage",
+                '<h1>Review the note</h1><p id="edge">Needle</p><p>Keep its thread usable.</p>',
+                head="<style>#edge { text-align: right; }</style>",
+                layout="wide",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 900, "height": 900})
+    page.keyboard.press("/")
+    page.keyboard.insert_text("Needle")
+    page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    field.click()
+    page.keyboard.insert_text("A note")
+    rendered(page)
+    before = page.evaluate(RECT, ".lf-fab-bar")
+    page.keyboard.insert_text(" with enough words to widen and wrap. " * 5)
+    rendered(page)
+    after = page.evaluate(RECT, ".lf-fab-bar")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    rendered(page)
+    card = page.evaluate(RECT, ".lf-margin-preview")
+    boundary, minimum = page.evaluate("""async () => {
+      const {commentBoundary, cardMinimum} =
+        await window.__lfRuntimeImport('/runtime/comment-placement.js');
+      const {left, right, width} = commentBoundary();
+      return [{left, right, width}, cardMinimum()];
+    }""")
+    assert card["right"] - card["left"] >= min(minimum, boundary["width"]) - 1
+    assert card["left"] >= boundary["left"] - 1
+    assert card["right"] <= boundary["right"] + 1
 
 
 @pytest.mark.parametrize("region", ["document", "pane"])

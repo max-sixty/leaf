@@ -18,6 +18,7 @@ import { shownBox } from "../geometry.js";
 import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
 import { anchorElement, anchorName } from "../anchor-names.js";
+import { targetElement, targetPlace } from "../resolved-target.js";
 import { validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -135,7 +136,7 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
       if (thread.resolved || !thread.root.drawing) continue;
       const place = thread.root.anchor ? anchors.placedAt(thread.id) : null;
       if (thread.root.anchor && (!place || place.status === "outdated")) continue;
-      const target = place ? (place.target ?? place.element) : null;
+      const target = targetElement(place) ?? targetPlace(place);
       const painted = mark(thread.root.drawing, target, "lf-drawing-posted", thread.id);
       if (painted) {
         marks.push(painted);

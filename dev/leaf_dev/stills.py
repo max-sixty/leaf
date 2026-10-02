@@ -150,6 +150,46 @@ def code_note(page: Page) -> None:
     )
 
 
+def wide_passage(page: Page) -> None:
+    """A selected passage in a wide block, with its comment field beside it."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    page.keyboard.press("/")
+    page.keyboard.insert_text('"keep the active card"')
+    page.keyboard.press("Enter")
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
+def multiline_passage(page: Page) -> None:
+    """A passage beginning midline and ending on a line that starts further left."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    first, last = page.evaluate("""() => {
+      const walker = document.createTreeWalker(
+        document.querySelector('#bg-wide-passage code'), NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node; (node = walker.nextNode());) {
+        if (node.data.includes('Keep')) range.setStart(node, node.data.indexOf('Keep'));
+        if (node.data.includes('card')) range.setEnd(node, node.data.indexOf('card') + 4);
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return [fragments[0].toJSON(), fragments.at(-1).toJSON()];
+    }""")
+    page.mouse.move(first["left"] + 1, first["top"] + first["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(last["right"] - 1, last["top"] + last["height"] / 2, steps=8)
+    page.mouse.up()
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
 def code_copy_by_pointer(page: Page) -> None:
     """Code's corner control revealed by hovering its source."""
     code_note(page)
@@ -209,6 +249,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_note,
+        wide_passage,
+        multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
         code_source_by_touch,
@@ -232,6 +274,8 @@ class State:
 
 STATES = (
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
+    State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),

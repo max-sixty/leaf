@@ -67,9 +67,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
   a dollar each. Streams, logs and results stay in its own run directory under
   `.tmp/delivery-eval/`.
-- `leaf-dev instructions-eval [CASE]...` runs the instructions cases in `evals/` on the merge
-  base's instructions and the working tree's at once, and prints each case's passes per
-  arm (`/developing-leaf`, "Score an instruction change").
+- `leaf-dev instructions-eval [CASE]...` runs native Promptfoo cases in `evals/` on
+  Claude Code and Codex, against the merge base and working tree, and prints passes
+  per host and arm (`/developing-leaf`, "Score an instruction change").
 
 ## Examples and previews
 

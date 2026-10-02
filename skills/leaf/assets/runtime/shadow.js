@@ -103,11 +103,10 @@ export const uiInside = (el, within) => {
 export const inUi = (node) =>
   uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 
-// The layer's rules for shadow trees: every root's shadow.css, composed in layer order
-// (layer.py's `composed_sheets`), which the document also reads at the head of each
-// root's part of the theme. Read from the layer rather than written here so a project
-// override travels with the widget, and fetched during upgrade so the stage below stays
-// synchronous for its callers.
+// The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
+// followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
+// rather than written here so a project override travels with the widget, and fetched
+// during upgrade so the stage below stays synchronous for its callers.
 export let shadowRules = "";
 // Every legitimate page shadow tree is built here, so repeat the generated-interface
 // boundary and transition suppression inside it. The shadow's ordinary contents paint

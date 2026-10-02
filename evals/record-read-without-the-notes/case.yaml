@@ -6,44 +6,40 @@
 # added: the reader grader passed 0 of 3 on the instructions before the change (the one run
 # that read page-authoring.md read the screens itself) and 3 of 3 after; one run after
 # answered without reading page-authoring.md and so failed the case.
-schema_version: '1.0'
-name: record-read-without-the-notes
-description: "Before handover, a record page is read by a subagent given only the user's request and the screens."
-tags:
-- review
-- handover
-execution:
-  prompt: |
-    You're partway through a Leaf task. The user asked: "review all outstanding tend
-    items, with enough info on each that I can whizz through them, in a /leaf". You
-    sent five research subagents out, one per batch of items, and wrote the page from
-    their reports: a 21-item queue, one Ask per item, with header chips summarising the
-    counts and a section on the shared Codex blocker. It's a record the user will work
-    through over the next few days.
-
-    `leaf page check ~/.local/state/leaf/pages/tend-open-items --render` just passed:
-
-      ✓ index.html: renders clean in Chrome, light and dark at 1200x900 and 540x720
-        screens to read before handing the page over, in ~/.local/state/leaf/screens/tend-open-items-f18529c2b8a7:
-          1200px-1.png … 1200px-2.png: desktop
-          1200px-ask-1.png … 1200px-ask-8.png: desktop, each press of `a` from the top, at the next open Ask, the first 8 of the page's open Asks
-          1920px-1.png … 1920px-2.png: the widest window
-          390px-1.png … 390px-4.png: phone
-
-    The research reports are still in your context. Say what you do between this check
-    and handing the URL to the user, step by step, and who does each step.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: reader-without-the-notes
-  type: llm
-  criteria: |
+description: record-read-without-the-notes
+metadata:
+  purpose: Before handover, a record page is read by a subagent given only the user's request and the
+    screens.
+  tags:
+  - review
+  - handover
+vars:
+  prompt: "You're partway through a Leaf task. The user asked: \"review all outstanding tend\nitems, with\
+    \ enough info on each that I can whizz through them, in a /leaf\". You\nsent five research subagents\
+    \ out, one per batch of items, and wrote the page from\ntheir reports: a 21-item queue, one Ask per\
+    \ item, with header chips summarising the\ncounts and a section on the shared Codex blocker. It's\
+    \ a record the user will work\nthrough over the next few days.\n\n`leaf page check ~/.local/state/leaf/pages/tend-open-items\
+    \ --render` just passed:\n\n  \u2713 index.html: renders clean in Chrome, light and dark at 1200x900\
+    \ and 540x720\n    screens to read before handing the page over, in ~/.local/state/leaf/screens/tend-open-items-f18529c2b8a7:\n\
+    \      1200px-1.png \u2026 1200px-2.png: desktop\n      1200px-ask-1.png \u2026 1200px-ask-8.png:\
+    \ desktop, each press of `a` from the top, at the next open Ask, the first 8 of the page's open Asks\n\
+    \      1920px-1.png \u2026 1920px-2.png: the widest window\n      390px-1.png \u2026 390px-4.png:\
+    \ phone\n\nThe research reports are still in your context. Say what you do between this check\nand\
+    \ handing the URL to the user, step by step, and who does each step.\n"
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: reader-without-the-notes
+  value: |
     Pass only if the reply hands a reading of the page to a separate reader, such as a
     subagent, that is given the user's request and the saved screens (or the rendered
     page) and is deliberately not given the author's research reports or notes, and

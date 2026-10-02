@@ -84,12 +84,20 @@ through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
-`service.requires_agent_attention` decides what needs the agent, from `author` and
-the kind's `$events` declaration: a user event of a kind not declared bookkeeping, or
-any `report` or `error`. `leaf wait` prints those, and the banner counts only the
-user events among them, so a `read`, declared bookkeeping, neither wakes the watcher
-nor reads as unanswered. An agent's own comment does neither. Either
-side can open a thread and either side can close one.
+Admission stamps `attention`: whether the input changes the agent's pending
+Asks and textual prompts, pending answers, effective subject claims and their
+standing inputs, or sign-off approval.
+`workflows.obligation_reading` compares those canonical readings before and after
+the gesture under the active revision's vocabulary, while the append transaction
+still holds the current claims. The
+decision survives later replies, versions and status writes: a cancellation
+already delivered to the carrier stays input even after the work it withdrew ends.
+Reports and errors always carry attention; agent messages do not. `leaf wait`,
+delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
+that one field through `service.requires_agent_attention`. The pending transport
+count includes only user input among those events. Read marks, unclaimed edits
+that answer no Ask, and closing or reopening an answered thread without claimed
+work stay quiet. Either side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
@@ -100,8 +108,9 @@ and the transcript.
 `event_contracts.append_admitted` admits every writer's event under the page
 transaction's lease. It returns an accepted retry without repeating the gesture;
 otherwise it reads the named revision's vocabulary, checks that the kind is
-declared, runs its gates against the page and standing log, derives server-owned
-meaning, and validates the finished record against its stored-record contract.
+declared, allocates the event's unique identity, runs its gates against the page
+and standing log, derives server-owned
+meaning and `attention`, and validates the record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
 A refusal returns a command error or a final HTTP 400. A fault raises instead, since
 it may land either side of the append; the HTTP transport's one fault boundary

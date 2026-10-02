@@ -11,14 +11,23 @@ import hashlib
 from pathlib import Path
 
 from ..files import STAGED, entry_stamps, file_stamp
-from ..schema import DATA_DIR, INTERACTIONS_FILE, SESSION_FILES, VIEWED_FILE
+from ..schema import (
+    DATA_DIR,
+    INTERACTIONS_FILE,
+    SESSION_FILES,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
+    VIEWED_FILE,
+)
 from ..service import claim_path
 from ..session_cleanup import EVENTS_FILE
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
 # when a visible tab asks for its freshness reading and `interactions.jsonl` for every request
 # it answers; counting either would make a read say it changed itself.
-UNWATCHED = frozenset({VIEWED_FILE, INTERACTIONS_FILE})
+UNWATCHED = frozenset(
+    {VIEWED_FILE, INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK}
+)
 
 
 def join_reading(files: str, presence: str) -> str:

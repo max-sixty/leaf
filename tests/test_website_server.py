@@ -33,11 +33,14 @@ from interact_support import (
     take_stream_activity,
     yaml_document,
 )
+from interact_support import (
+    append_carried_log_record as append_event,
+)
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
 from leaf.delivery import current_responses
-from leaf.event_log import append_event, read_events
+from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
@@ -3451,6 +3454,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "text": website_server.FAILURE_RECEIPTS["startup_failed"],
             "failure": "startup_failed",
             "attempt": f"website-agent-{comment['id']}",
+            "attention": False,
             "id": reply["id"],
             "ts": reply["ts"],
             "seq": reply["seq"],

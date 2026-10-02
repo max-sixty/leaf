@@ -482,7 +482,7 @@ export function createSelectionComposer({
     if (focus) handoff = beginFabFocus();
     else endFabFocus();
     showComposer(true);
-    showFab(anchor, null, { point });
+    showFab(anchor, { point });
     // The suggest mode renders against the bar once it stands on this anchor with the box
     // open: rendered before, its response choices would follow the bar's previous
     // anchor and flip as the bar arrived.
@@ -576,7 +576,7 @@ export function createSelectionComposer({
     )
       transferDraft(composerCtx(pendingAnchor), ctx, text);
     detachComposer();
-    showFab(null, null, { returnFocus: "none" });
+    showFab(null, { returnFocus: "none" });
   }
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
@@ -585,7 +585,7 @@ export function createSelectionComposer({
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
-    showFab(null, null, { returnFocus: "page" });
+    showFab(null, { returnFocus: "page" });
   }
 
   // The response bar's Comment action returns to this same compact field on the anchor

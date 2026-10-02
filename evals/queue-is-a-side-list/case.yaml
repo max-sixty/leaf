@@ -1,12 +1,13 @@
 # Added with a queue as one `lf-tabs list="side"` (#1363). Base at b4cda1c37 built
 # the queue as panes or a table (0 of 3); the change 2 of 3, the third writing its
 # tickets as `section` elements, after which the guide named `lf-tab`.
-schema_version: '1.0'
-name: queue-is-a-side-list
-description: "A queue whose items open one at a time beside it is one `lf-tabs list=\"side\"`: its list is the queue, each item a tab, and the page writes no script to select, hide or mark an item."
-tags:
-- layout
-execution:
+description: queue-is-a-side-list
+metadata:
+  purpose: 'A queue whose items open one at a time beside it is one `lf-tabs list="side"`: its list is
+    the queue, each item a tab, and the page writes no script to select, hide or mark an item.'
+  tags:
+  - layout
+vars:
   prompt: |
     Five customer escalations came in overnight. Write a Leaf page where the user works
     through them one at a time: the queue down one side, each row saying enough to scan
@@ -23,21 +24,23 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: side-list
-  type: regex
-  pattern: <lf-tabs\b[^>]*\blist="side"
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: regex
+  metric: side-list
+  value: <lf-tabs\b[^>]*\blist="side"
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if all of these hold. The queue is one `lf-tabs` with
     `list="side"`, and each of the five tickets is one `lf-tab` in it holding that
     ticket's detail and its choice. The page has no `<script>` of its own and links no

@@ -7822,7 +7822,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     def unexpected_start(*_args, **_kwargs):
         pytest.fail("a disabled service was revived")
 
-    monkeypatch.setattr(session_model, "start_server", unexpected_start)
+    monkeypatch.setattr(hosting_model, "start_server", unexpected_start)
     assert hosting_model.cmd_stop(page_dir) is False
 
     def unexpected_delivery(reading):
@@ -7869,7 +7869,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
         return "http://127.0.0.1:1/", ""
 
     monkeypatch.setattr(
-        session_model,
+        hosting_model,
         "start_server",
         refused_start if revival == "refused" else start_that_dies,
     )
@@ -8247,7 +8247,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
         assert release.wait(5)
         return real_start(*args, **kwargs)
 
-    monkeypatch.setattr(session_model, "start_server", delayed_start)
+    monkeypatch.setattr(hosting_model, "start_server", delayed_start)
     readings, errors = [], []
     watch = session_model.Watch(None, pages=(page_dir,))
     assert watch.acquire()

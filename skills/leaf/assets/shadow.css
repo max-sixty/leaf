@@ -750,8 +750,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 .lf-code-copy {
   position: absolute;
-  top: calc(anchor(top) + 4px);
-  left: calc(anchor(right) - var(--lf-code-copy-size) - 4px);
+  /* Hidden sources have no anchor; their chrome controls stay outside the window. */
+  top: calc(anchor(top, -9999px) + 4px);
+  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - 4px);
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   z-index: 1;
@@ -761,10 +762,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   opacity: 0;
 }
 pre:hover + .lf-code-copy,
+.lf-code-copy-hover,
+.lf-code-copy-focused,
 .lf-code-copy:is(:hover, :focus-within) { opacity: 1; }
 @media (pointer: coarse), (hover: none) {
   .lf-code-copy { opacity: 1; }
-  pre:focus + .lf-code-copy { opacity: 0; pointer-events: none; }
+  pre:focus + .lf-code-copy,
+  .lf-code-copy.lf-code-copy-focused { opacity: 0; pointer-events: none; }
 }
 .lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);

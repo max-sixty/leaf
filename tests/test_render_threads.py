@@ -629,7 +629,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
-    root_meta = card.locator(":scope > .lf-thread-root-meta")
+    root_meta = card.locator(":scope > .lf-thread-content > .lf-thread-root-meta")
     expect(root_meta).to_contain_text("You")
     assert root_meta.evaluate("node => !node.closest('.lf-summary-originals')"), (
         "root metadata and thread actions entered the collapsible originals"
@@ -1297,7 +1297,10 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
         "first thread"
     )
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(pending_reply).to_be_focused()
+    expect(pending_reply).to_have_js_property(
+        "value", "Keep this draft through the refusal."
+    )
 
     expect(first_card).to_be_visible()
     focus_panel_thread(first_card)
@@ -2304,7 +2307,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             `.lf-thread[data-id="${id}"]`
           );
           window.committedMessage = committedThread.querySelector(
-            `:scope > .lf-thread-transcript > .lf-msg[data-mid="${id}"]`
+            `.lf-msg[data-mid="${id}"]`
           );
           window.committedEditor = committedThread.querySelector(
             ':scope > .lf-thread-reply leaf-text'
@@ -2340,7 +2343,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
           const thread = document.querySelector(`.lf-thread[data-id="${id}"]`);
           return {
             thread: thread === window.committedThread,
-            message: thread.querySelector(`:scope > .lf-thread-transcript > .lf-msg[data-mid="${id}"]`) === window.committedMessage,
+            message: thread.querySelector(`.lf-msg[data-mid="${id}"]`) === window.committedMessage,
             editor: thread.querySelector(':scope > .lf-thread-reply leaf-text') === window.committedEditor,
             resolve: thread.querySelector(':scope .lf-thread-meta-actions > .lf-resolve') === window.committedResolve,
           };
@@ -3734,7 +3737,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -5815,9 +5819,9 @@ THREAD_STANDING = """() => {
   const list = card.closest('.lf-threads');
   const peer = [...list.querySelectorAll(':scope > .lf-thread:not([hidden])')]
     .find(other => other !== card && !other.matches(':focus-within'));
-  const paint = getComputedStyle(card);
+  const paint = getComputedStyle(card.querySelector(".lf-thread-summary"));
   const focusPaint = getComputedStyle(active);
-  const resting = peer && getComputedStyle(peer);
+  const resting = peer && getComputedStyle(peer.querySelector(".lf-thread-summary"));
   const box = card.getBoundingClientRect();
   const viewport = list.getBoundingClientRect();
   return {
@@ -8204,6 +8208,47 @@ def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serv
     page.locator("#body").click()
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_unused_panel_space_is_neutral_but_keeps_the_thread_context(
+    browser, serve, color_scheme
+):
+    """Thread paint follows its content; spare panel room still navigates that thread."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "A short discussion.", {"section": "lede"})
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme=color_scheme
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-thread[open]")
+    reply = thread.locator("leaf-text")
+    write(reply, "Keep my draft.")
+    geometry = thread.evaluate(
+        """el => {
+          const content = el.querySelector('.lf-thread-content').getBoundingClientRect();
+          const reply = el.querySelector('.lf-thread-reply').getBoundingClientRect();
+          const box = el.getBoundingClientRect();
+          return {x: Math.floor(box.left + box.width / 2),
+                  y: Math.floor((content.bottom + reply.top) / 2),
+                  surfaceY: Math.floor(content.top + 4),
+                  freeHeight: reply.top - content.bottom};
+        }"""
+    )
+    assert geometry["freeHeight"] > 20, geometry
+    # Read actual pixels: both the wrapper and a focus-within ancestor can paint it.
+    shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+    x, y = geometry["x"], geometry["y"]
+    assert shot.getpixel((x, y)) != shot.getpixel((x, geometry["surfaceY"])), (
+        "unused panel space wears the thread's content surface"
+    )
+    page.mouse.click(x, y)
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    assert reply.evaluate("el => el.value") == "Keep my draft."
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+
+
 def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
     """Every bordered box in the Threads panel stands on one column: the find box, an
     open thread's messages and its reply box, and the page composer at the foot. The
@@ -8225,7 +8270,7 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
             document.querySelector(end).getBoundingClientRect().right,
           ];
           return {
-            message: box('.lf-thread[open] > .lf-thread-transcript > .lf-msg'),
+            message: box('.lf-thread[open] .lf-msg'),
             reply: box('.lf-thread[open] > .lf-thread-reply .lf-compose-field'),
             find: box('.lf-find-box', '.lf-thread-filter-toggle'),
             general: box('.lf-general .lf-compose-field'),

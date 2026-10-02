@@ -69,8 +69,9 @@ const threadLandingStart = (held, target, threadsBox) => {
   const last = target === held ? targetBox.bottom : targetBox.top;
   const candidates = [
     ...held.querySelectorAll(
-      ":scope > *, :scope > .lf-thread-transcript .lf-msg .lf-msg-body > *, " +
-        ":scope > .lf-thread-transcript .lf-msg .lf-msg-text > *",
+      ":scope > *, :scope > .lf-thread-content > *, " +
+        ".lf-thread-transcript .lf-msg .lf-msg-body > *, " +
+        ".lf-thread-transcript .lf-msg .lf-msg-text > *",
     ),
     target,
   ]

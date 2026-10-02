@@ -640,7 +640,7 @@ export class ThreadView {
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
-      land: () => travel.focusSurface(this.#model.id),
+      focus: "reply",
     });
   };
 

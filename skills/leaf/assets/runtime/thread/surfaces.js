@@ -10,7 +10,7 @@ import { pageText } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
-import { focusThread } from "./focus.js";
+import { threadFocusStop } from "./focus.js";
 import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
 
@@ -289,7 +289,9 @@ export function renderSurfaces(collection, placedAt, commands) {
 
 export const claimed = (id) => claimedIds.has(id);
 
-export function focusSurface(id, { focus = "reply" } = {}) {
+// Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
+// takes the node rather than a callback that privately focuses and scrolls it.
+export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
       .map((outlet) =>
@@ -304,10 +306,17 @@ export function focusSurface(id, { focus = "reply" } = {}) {
       thread.querySelector(SAY_BOX) ??
       summary ??
       thread;
-    if (target === thread) focusThread(thread, { preventScroll: true });
-    else target.focus({ preventScroll: true });
-    target.scrollIntoView({ block: "nearest" });
-    return target;
+    return target === thread ? threadFocusStop(thread) : target;
   }
   return null;
+}
+
+// A surface can also be entered in place, without a page trip (a press on its words).
+// That mechanical focus move shares the same target reading as travel.
+export function focusSurface(id, options) {
+  const target = surfaceFocusTarget(id, options);
+  if (!target) return null;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ block: "nearest" });
+  return target;
 }

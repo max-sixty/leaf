@@ -164,7 +164,9 @@ WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(browser, serve):
+def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
+    browser, serve
+):
     source = leaf_page(
         "Captured document",
         '<h1>Capture</h1><lf-text-document id="capture" source="capture" '

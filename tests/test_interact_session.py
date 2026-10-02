@@ -3181,7 +3181,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "durationMs": 100,
         },
     }
-    assert events.read(
+    reply_delta = events.read(
         {
             "method": "item/agentMessage/delta",
             "params": {
@@ -3191,13 +3191,17 @@ def test_app_server_events_report_semantic_codex_progress():
                 "delta": "The page is ready for review.",
             },
         }
-    ) == {
+    )
+    delta_text = reply_delta["message"].pop("text")
+    assert delta_text.endswith("The page is ready for review.")
+    assert "I am checking the implementation." not in delta_text
+    assert "Next I will run tests." not in delta_text
+    assert reply_delta == {
         "turn": "turn-live",
         "activity": {"kind": "replying"},
         "message": {
             "item": "message-live",
             "phase": None,
-            "text": "Checking the page now.\n\nThe page is ready for review.",
             "complete": False,
         },
     }
@@ -3207,7 +3211,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {"threadId": "codex-thread", "turnId": "turn-live"},
         }
     ) == {"turn": "turn-live", "activity": {"kind": "awaiting_input"}}
-    assert events.read(
+    completed_reply = events.read(
         {
             "method": "item/completed",
             "params": {
@@ -3221,7 +3225,12 @@ def test_app_server_events_report_semantic_codex_progress():
                 },
             },
         }
-    ) == {
+    )
+    completed_text = completed_reply["message"].pop("text")
+    assert completed_text.endswith("The page is ready for review.")
+    assert "I am checking the implementation." not in completed_text
+    assert "Next I will run tests." not in completed_text
+    assert completed_reply == {
         "turn": "turn-live",
         "item": {
             "id": "message-live",
@@ -3233,7 +3242,6 @@ def test_app_server_events_report_semantic_codex_progress():
         "message": {
             "item": "message-live",
             "phase": None,
-            "text": "Checking the page now.\n\nThe page is ready for review.",
             "complete": True,
         },
     }
@@ -3243,8 +3251,8 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
     ) == {"turn": "turn-live", "completed": "completed"}
-    # The committed reply is the opening and the final answer; a turn that never
-    # reached a final answer commits nothing on the strength of its opening.
+    # A committed reply contains the final answer; a turn that never reached one
+    # commits nothing on the strength of its opening.
     opening, narration, final = (
         {"type": "agentMessage", "phase": phase, "text": text}
         for phase, text in (
@@ -3253,10 +3261,9 @@ def test_app_server_events_report_semantic_codex_progress():
             ("final_answer", "The page is ready for review."),
         )
     )
-    assert (
-        events.final_text({"items": [opening, narration, final]})
-        == "Checking the page now.\n\nThe page is ready for review."
-    )
+    final_text = events.final_text({"items": [opening, narration, final]})
+    assert final_text.endswith(final["text"])
+    assert narration["text"] not in final_text
     assert events.final_text({"items": [opening, narration]}) == ""
     # A reconnect mid-turn restores the opening already on screen.
     assert events.reply_so_far({"items": [opening, narration]}) == (

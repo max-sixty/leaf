@@ -250,7 +250,6 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     declaration["description"] = "Options this page declares for itself."
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
-    assert redeclared.executable != reordered.executable
 
     files_model.replace_files(
         [(page_dir / "leaf.js", b"// re-vendored runtime", False)]

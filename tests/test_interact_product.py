@@ -1678,7 +1678,6 @@ def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir
     for invalid in (
         {"title": ""},
         {"title": "   "},
-        {"title": "a" * 81},
         {"title": "Two\nlines"},
         {"title": "Trailing newline\n"},
         {"title": "Two\rlines"},

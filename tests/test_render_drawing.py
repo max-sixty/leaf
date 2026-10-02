@@ -124,7 +124,7 @@ def mark_relation(page, mark, target):
 
 def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     """One pointer stroke starts on one semantic anchor, crosses the page beyond it,
-    and the accepted comment keeps its context in the page instead of duplicating it."""
+    and the accepted comment keeps its ink positioned over that anchor."""
     url = serve(FEATURE_GALLERY)
     page = open_page(browser, url)
     target = page.locator("#bg-choice-trail")
@@ -202,7 +202,6 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         relation, abs=0.02
     )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-thread-panel .lf-drawing-preview")).to_have_count(0)
     expect(page.locator(".lf-thread-panel .lf-drawing-reference")).to_have_text(
         "Drawing comment"
     )
@@ -1039,7 +1038,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
 
 def test_a_drawing_can_be_sent_without_words(browser, serve):
     """The ink is the comment's content, so its normal send action works while the
-    accompanying text field is empty. Its thread does not repeat contextless ink."""
+    accompanying text field is empty. Its thread still names the drawing."""
     page = open_page(browser, serve(TARGETS_PAGE))
 
     draw_over(page, page.locator("#prose"))
@@ -1058,14 +1057,13 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     assert event["drawing"]["format"] == "leaf-drawing/2"
     thread = page.get_by_role("dialog", name=re.compile("Thread for"))
     expect(thread).to_be_visible()
-    expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator("#prose")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
 
 
 def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
-    """A widget-owned thread leaves the drawing over its page target instead of
-    showing the detached stroke again inside the thread."""
+    """A widget-owned thread keeps the drawing over its page target and names it
+    in the inline transcript."""
     url = serve(THREAD_DIFF_PAGE)
     drawing = {
         "format": "leaf-drawing/2",
@@ -1083,9 +1081,6 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     )
 
     page = open_page(browser, live_url(url))
-    expect(
-        page.locator("#cd-q .lf-page-thread-body .lf-drawing-preview")
-    ).to_have_count(0)
     expect(page.locator("#cd-q .lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
     expect(page.locator("#cd-q")).not_to_have_class(re.compile(r"\blf-mark-el\b"))

@@ -2443,7 +2443,7 @@ export function createMarginProjection({
   // inside it and never from outside: after `a` the user stands on the Ask element, so
   // the card shows a thread on the Ask but not one on its options or a phrase in its
   // heading. Treating an Ask as one target for its threads is a possible refinement. It
-  // belongs where a thread's target is decided (anchor-paint's placement), so every
+  // belongs where a thread's target is decided (anchor-placement), so every
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
   // target, such as a comment note, arrives at that target as its own content does.
@@ -2597,7 +2597,7 @@ export function createMarginProjection({
   };
   // The page element a thread is about, resolved or not: where its anchor is placed, the
   // element its inventory entry is grouped under. A general or detached thread has none.
-  const threadTarget = (id) => placedAt(id)?.element ?? null;
+  const threadTarget = (id) => placedAt(id)?.place ?? null;
   const threadFocusTarget = (id, { focus = null } = {}) => {
     const surface = surfaceFocusTarget(id, { focus });
     if (surface) return surface;

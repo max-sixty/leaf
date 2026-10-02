@@ -7,6 +7,9 @@
 import { shownParts } from "./geometry.js";
 
 export const resolvedElement = ({ element, place = element, surface = null }) => ({
+  exact: true,
+  status: "exact",
+  datumElement: null,
   kind: "element",
   element,
   place,
@@ -14,6 +17,9 @@ export const resolvedElement = ({ element, place = element, surface = null }) =>
 });
 
 export const resolvedPassage = ({ place, segments }) => ({
+  exact: true,
+  status: "exact",
+  datumElement: null,
   kind: "passage",
   place,
   segments,

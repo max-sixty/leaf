@@ -330,9 +330,11 @@ export function createResponseSurface({
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
     let restoreFocus;
     if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
-      // Stopping the floating position hides the bar before moveFab can hold focus.
+      // Floating → inline retires geometry. Moving between inline seats already has
+      // no floating position to reset; hiding and showing would only repaint the same
+      // native editor. Hold its place before either move.
       restoreFocus = holdFocus(fabBar);
-      stopFabPositioning({ reset: true, repositioning: true });
+      if (fabFloating) stopFabPositioning({ reset: true, repositioning: true });
       fabInlineOutlet = outlet;
       fabFloating = false;
       moveFab(outlet);

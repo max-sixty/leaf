@@ -87,7 +87,7 @@ PROBE = """
   );
   const shown = (node) => Boolean(node?.checkVisibility());
   const messages = (words) =>
-    [...document.querySelectorAll(".lf-msg, .lf-page-thread-msg")].filter(
+    [...document.querySelectorAll(":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-event])")].filter(
       (node) => node.textContent.includes(words) && shown(node),
     );
   const saysSent = (node) => node.textContent.trim() === "Sent" && shown(node);

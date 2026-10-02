@@ -73,7 +73,6 @@ from .samples import Samples
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
-    KEY_COOKIE,
     KEY_COOKIE_MAX_AGE,
     NO_KEY,
     REVISION_NAME,
@@ -444,6 +443,17 @@ class PageEndpoint:
                 write_json(self.page_dir / VIEWED_FILE, {"t": now})
         return self._content(200, "text/plain; charset=utf-8", reading.encode())
 
+    @property
+    def key_cookie(self) -> str:
+        """One cookie per served origin, using the bound port rather than Host.
+
+        Cookies already distinguish hosts, but ignore ports and schemes. Naming
+        those here keeps independent listeners' keys from overwriting each other;
+        every same-host server still receives the cookies, so this is no access
+        boundary against a malicious server on another port.
+        """
+        return f"lf_key_{self.request.url.scheme}_{self.server.server_address[1]}"
+
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are
@@ -455,8 +465,8 @@ class PageEndpoint:
             self.set_cookie = True
         else:
             jar = SimpleCookie(self.headers.get("Cookie", ""))
-            if KEY_COOKIE not in jar or not secrets.compare_digest(
-                jar[KEY_COOKIE].value, self.token
+            if self.key_cookie not in jar or not secrets.compare_digest(
+                jar[self.key_cookie].value, self.token
             ):
                 return False
         return True
@@ -478,7 +488,7 @@ class PageEndpoint:
                 headers["Leaf-Release"] = self.release
         if self.set_cookie:
             headers["Set-Cookie"] = (
-                f"{KEY_COOKIE}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
+                f"{self.key_cookie}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
                 "HttpOnly; SameSite=Strict"
             )
         if self.body_unread:

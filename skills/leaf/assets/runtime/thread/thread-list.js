@@ -186,7 +186,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       id: incoming.at(-1)?.id ?? nextLatest.id,
       top: threadsBox.scrollTop,
       end: tailEnd,
-      box: card.querySelector(":scope > .lf-compose")?.getBoundingClientRect().top,
+      box: card.querySelector(":scope > .lf-thread-reply")?.getBoundingClientRect().top,
       current: retainUserIntent({ available: panelIsOpen }),
     };
   }

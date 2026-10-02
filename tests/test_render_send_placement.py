@@ -193,7 +193,8 @@ CASES = {
     "beside-passage": ((900, 900), False, FIRST_LINE, "below or above"),
     "beside-element": ((900, 900), False, STEP, "below or above"),
     "phone-passage": ((390, 844), False, FIRST_LINE, "below or above"),
-    "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below"),
+    # Touch also uses the room already shown; font wrapping may leave either side clear.
+    "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below or above"),
     # A block whose top the window has scrolled past.
     "beside-tall-element-clipped": (
         (900, 500),

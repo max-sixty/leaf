@@ -41,9 +41,9 @@
    holds one edge at its distance from the line it stands level with (`previewHold`):
    its top, so a turn arriving or the reply gaining a line leaves the transcript and the
    reply's first lines where the user reads them, and the reply's foot and Send move
-   down a line per wrap; its foot, with the reply row on it, where a turn joins the
-   transcript while the user drafts, and where the card stands over what it is about
-   and is read. Opening it on another thread lets it choose its spot afresh. A scroll
+   down a line per wrap; its foot, with the reply row on it, for the turn that joins the
+   transcript while the user drafts or sends, and where the card stands over what it is
+   about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
    never closes it: the card leaves with what it is about and comes back with it.
 
    The reply editor grows with its words, the card downward until its foot meets the
@@ -225,7 +225,7 @@ import { renderedParent, shadowHost, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
-const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
+const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 
 export function createMarginProjection({
   panel,
@@ -412,7 +412,7 @@ export function createMarginProjection({
     previewTranscript = transcript;
     previewPlace = transcript
       ? placeKeeper(transcript, {
-          items: ".lf-page-thread-msg[data-event]",
+          items: ".lf-msg[data-event]",
           identity: (message) => message.dataset.event,
         })
       : null;
@@ -840,7 +840,7 @@ export function createMarginProjection({
   function measureTranscript() {
     return [...previewList.querySelectorAll(".lf-margin-thread")].reduce(
       (sum, thread) =>
-        [...thread.querySelectorAll(".lf-say")].reduce(
+        [...thread.querySelectorAll(".lf-thread-reply")].reduce(
           (turns, row) => turns - boxHeight(row),
           sum +
             boxHeight(thread) +
@@ -861,7 +861,7 @@ export function createMarginProjection({
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
       (preview.offsetHeight - previewList.clientHeight);
     for (const input of previewList.querySelectorAll(REPLY_BOX)) {
-      const row = input.closest(".lf-say");
+      const row = input.closest(".lf-thread-reply");
       const thread = row.closest(".lf-page-thread");
       const style = getComputedStyle(thread);
       const box = getComputedStyle(input);
@@ -973,13 +973,11 @@ export function createMarginProjection({
     // box it empties (`landSent`), and the turn it adds must not move the reply row or
     // Send from under the press.
     const newest = [
-      ...(replyEditor
-        ?.closest(".lf-page-thread")
-        ?.querySelectorAll(".lf-page-thread-msg") ?? []),
+      ...(replyEditor?.closest(".lf-page-thread")?.querySelectorAll(".lf-msg") ?? []),
     ].at(-1);
     const drafting = Boolean(
       replyEditor?.checkVisibility() &&
-      (replyEditor.closest(".lf-say").contains(document.activeElement) ||
+      (replyEditor.closest(".lf-thread-reply").contains(document.activeElement) ||
         replyEditor.value !== "" ||
         newest?.matches('.user[aria-busy="true"]')),
     );
@@ -1014,15 +1012,21 @@ export function createMarginProjection({
     const transcript = measureTranscript();
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
-    // measurement on the next. Keep the reply's line through those passes, then
-    // release it on the next edit so the editor grows below its first line.
+    // measurement on the next. Borrow the reply's line for that turn, keyed by the
+    // projected message's stable key so admitting a Send keeps the same hold. A later
+    // reading turn or a new edit releases it; an arriving turn while drafting borrows it
+    // anew, and a Send borrows it through the handoff out of the reply row.
+    const thread = threadCardThread();
+    const latest = thread && turns(thread).at(-1);
     const newDraft = drafting && !previewHold?.drafting;
     const continuedDraft =
       drafting && replyEditor?.value && replyEditor.value !== previewHold?.draftText;
     const keepReplyLine = Boolean(
+      latest &&
       !newDraft &&
       !continuedDraft &&
-      (previewHold?.keepReplyLine || (turned && (drafting || previewHold?.drafting))),
+      ((previewHold?.replyTurn && previewHold.replyTurn === latest.key) ||
+        (turned && (drafting || (previewHold?.drafting && latest.author === "user")))),
     );
     const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
     void floatingUi()
@@ -1088,7 +1092,7 @@ export function createMarginProjection({
           ...spot,
           transcript,
           drafting,
-          keepReplyLine,
+          replyTurn: keepReplyLine ? latest.key : null,
           draftText: replyEditor?.value,
         };
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
@@ -2465,10 +2469,10 @@ export function createMarginProjection({
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-thread-transcript > .lf-page-thread-msg";
+      ".lf-page-thread > .lf-thread-transcript > .lf-msg";
     const replySelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-say";
+      ".lf-page-thread > .lf-thread-reply";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = previewTranscript?.getBoundingClientRect();
@@ -3286,7 +3290,7 @@ export function createMarginProjection({
     });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusout", (event) => {
-      const row = event.target.closest?.(".lf-say");
+      const row = event.target.closest?.(".lf-thread-reply");
       if (
         row &&
         !row.contains(event.relatedTarget) &&

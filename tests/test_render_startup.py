@@ -5063,6 +5063,11 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    """A completed crossed state read must not recalibrate the displayed clock.
+
+    Keep freshness unchanged: an origin that advertises new state but returns an
+    old reading forever asks for repair on every tick rather than aging paints.
+    """
     url = serve(LONG_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -5082,11 +5087,12 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
-    with page.expect_response("**/api/state*"):
-        cleanup_model.write_json(
-            serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": cleanup_model.now_iso()},
-        )
+    page.evaluate(
+        """async () => {
+          const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+          await readAndApply();
+        }"""
+    )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
 

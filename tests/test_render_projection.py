@@ -6882,8 +6882,9 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
     expect(page.locator("#rq-next")).to_be_hidden()
 
 
+@pytest.mark.parametrize("shadow", [False, True])
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, shadow
 ):
     """Authored reconstruction states markup, not a logged decision. A holder may
     validly record a value its deciding verb carries; restoring that value after
@@ -6893,6 +6894,8 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     holder = declarations["lf-trial"]
+    if shadow:
+        holder["x-shadow"] = True
     holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder.setdefault("required", []).append("decision")
     holder["x-example"] = holder["x-example"].replace(
@@ -6903,16 +6906,25 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     decide["detail"]["required"].append("decision")
     decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
+    stage = (
+        "if (once(this)) shadowStage(this, [...this.children]);"
+        if shadow
+        else "once(this);"
+    )
+    if shadow:
+        (tmp_path / ".leaf" / "shadow.css").write_text(
+            "lf-current, lf-proposed { display: block; }"
+        )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+        """import { keeps, once, shadowStage, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "decision", state.decide.value); }
 });
-"""
+""".replace("STAGE", stage)
     )
     page_html = TWO_HOLDER_PAGE.replace(
         '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
@@ -6930,8 +6942,12 @@ customElements.define("lf-trial", class extends HTMLElement {
         },
     )
     page = open_page(browser, url)
+    assert page.locator("#th-cache").evaluate("el => Boolean(el.shadowRoot)") is shadow
     expect(page.locator("#th-cache")).to_have_attribute("decision", "shelved")
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache lf-proposed")).to_have_attribute(
+        "data-lf-retired", ""
+    )
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
 
     append_carried_log_record(
@@ -6942,6 +6958,9 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache")).to_have_attribute("decision", "open")
     expect(page.locator("#th-cache")).not_to_have_attribute(
         "data-lf-state", re.compile(r".+")
+    )
+    expect(page.locator("#th-cache lf-proposed")).not_to_have_attribute(
+        "data-lf-retired", ""
     )
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
 

@@ -133,8 +133,8 @@ leaf wait:
               section: plan
               quote: moves to Tuesdays
             author: user
-            attention: true
             id: 1946b466
+            attention: true
             ts: '2026-09-21T20:12:30-07:00'
             seq: 2
             subject:
@@ -211,8 +211,8 @@ Claude Code hook:
                 section: plan
                 quote: moves to Tuesdays
               author: user
-              attention: true
               id: 1946b466
+              attention: true
               ts: '2026-09-21T20:12:30-07:00'
               seq: 2
               subject:
@@ -287,8 +287,8 @@ Codex queue:
               section: plan
               quote: moves to Tuesdays
             author: user
-            attention: true
             id: 1946b466
+            attention: true
             ts: '2026-09-21T20:12:30-07:00'
             seq: 2
             subject:
@@ -351,8 +351,8 @@ Codex App Server:
                   section: plan
                   quote: moves to Tuesdays
                 author: user
-                attention: true
                 id: 1946b466
+                attention: true
                 ts: '2026-09-21T20:12:30-07:00'
                 seq: 2
                 subject:

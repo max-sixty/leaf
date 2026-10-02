@@ -22,7 +22,7 @@
 #    when (`ts`) and an `id`, and appends it to the page's event log, events.jsonl,
 #    as this one line:
 #
-#      {"kind": "comment", "revision": 1, "text": "why here?", "anchor": {"section": "plan", "quote": "moves to Tuesdays"}, "attempt": "9f86d081884c7d659a2feaa0c55ad015", "author": "user", "attention": true, "id": "1946b466", "ts": "2026-09-21T20:12:30-07:00"}
+#      {"kind": "comment", "revision": 1, "text": "why here?", "anchor": {"section": "plan", "quote": "moves to Tuesdays"}, "attempt": "9f86d081884c7d659a2feaa0c55ad015", "author": "user", "id": "1946b466", "attention": true, "ts": "2026-09-21T20:12:30-07:00"}
 #
 # 3. Earlier, the agent started `leaf wait` in the background and went idle. The
 #    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
@@ -170,8 +170,8 @@
 #                  "quote": "moves to Tuesdays"
 #                },
 #                "author": "user",
-#                "attention": true,
 #                "id": "1946b466",
+#                "attention": true,
 #                "ts": "2026-09-21T20:12:30-07:00",
 #                "seq": 2,
 #                "subject": {

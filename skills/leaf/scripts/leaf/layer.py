@@ -177,12 +177,13 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
 # share one layer, so specificity, scope proximity, then order rank their rules.
-# The kernel's Layouts sit above it, and the page's own stylesheet,
-# unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
-# and a page overrides either. The page's rules reach Leaf's own controls only where
-# they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
+# The kernel's Layouts sit above it, followed by semantic state: retirement must
+# outrank a package's default box and a Layout's arrangement. The page's own sheet
+# stays unlayered above these tiers, and inline widget motion outranks them too.
+# The page's rules reach Leaf's own controls only where they name them
+# (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
 # since their paint must beat page and widget alike (chrome.css).
-CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
+CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
 
 
 def _sheet(source: Path) -> str:
@@ -230,9 +231,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
 
     In the document, every root's sheets are the `lf-base` cascade layer, and the
-    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree's
-    sheet stays unlayered: a renderer that brings its own layered CSS into the tree
-    (the diff's) keeps ranking below it.
+    kernel's layouts.css and state.css name their higher tiers and come last.
+    Shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
+    preserving their precedence over vendor defaults. state.css ranks above both,
+    so declared retirement has the same precedence in both trees. Authored
+    unlayered styles and inline widget motion remain above it.
 
     Each widget package's sheet has one native @scope around its declared tags
     in the document, or around their :host in shadow trees. :scope names the root,
@@ -244,8 +247,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
-    theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
-    shadow = []
+    order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
+    theme = [order]
+    shadow = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         for name in ROOT_SHEETS:
@@ -255,10 +259,15 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             css = _sheet(source)
             placed = scoped(css, where[0]) if where else css
             if name == "shadow.css":
-                shadow.append(scoped(css, where[1]) if where else css)
+                shadow_css = scoped(css, where[1]) if where else css
+                shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
             theme.append(f"@layer lf-base {{\n{placed}}}\n")
-    if (layouts := inputs[0] / "layouts.css").is_file():
-        theme.append(_sheet(layouts))
+    for name in ("layouts.css", "state.css"):
+        if (source := inputs[0] / name).is_file():
+            sheet = _sheet(source)
+            theme.append(sheet)
+            if name == "state.css":
+                shadow.append(sheet)
     return {
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),

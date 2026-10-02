@@ -104,8 +104,8 @@ answer:
   text: >-
     I will add the camera first.
   responds: event-2
-  attention: false
   id: event-4
+  attention: false
   ts: <time>
   seq: 4
 

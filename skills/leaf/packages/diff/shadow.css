@@ -9,10 +9,10 @@
    below can pin. Both clip a rounded corner identically; only `hidden` also makes the
    box a scroll container, and a sticky child is held by the nearest scrolling ancestor —
    which would be this box, which never scrolls, so the header stuck to nothing and
-   scrolled away with its rows. `:where` scopes the rule without outranking the review
-   press's later negative-margin placement. */
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details,
-:scope:host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
+   scrolled away with its rows. `:where` keeps the whole state-qualified default below
+   the review press's later negative-margin placement. */
+:where(:scope:host(.lf-rendered) .lf-diff-file > details),
+:where(:scope:host(.lf-rendered) .lf-diff-rename) { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,

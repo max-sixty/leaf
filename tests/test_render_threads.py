@@ -11,7 +11,6 @@ from click.testing import CliRunner
 from interact_support import append_carried_log_record, append_command, record_claim
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
@@ -2037,9 +2036,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     browser, serve
 ):
     """A board the agent sent in a reply takes a moved card as a page board does: the
-    reply carrying the board reports the move's delivery, and the thread stays nobody's
-    turn, since the move answers no Ask. The agent's next turn in the thread takes the
-    move in, and the receipt leaves."""
+    reply carrying the board reports the saved move, and the thread stays nobody's
+    turn, since the move answers no Ask and wakes nobody. The agent's next turn in
+    the thread takes the move in, and the receipt leaves."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Lay the work out.", {"section": "how-cap"})
     board = append_carried_log_record(
@@ -2076,11 +2075,10 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        delivery_model.record_pickup(transaction, [moved])
-    told(page)
-    expect(receipt).to_have_text("Picked up")
-    expect(status).to_have_count(0)
+    assert not moved["attention"]
+    assert moved not in service_model.unacknowledged(
+        events_model.read_events(serve.page_dir), 0
+    )
 
     append_carried_log_record(
         serve.page_dir,

@@ -4341,7 +4341,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         words_still()
         current = face(control)
         expect(control).to_have_attribute("data-lf-state", "idle")
-        pickup_ink = resolved_color("--ok-ink")
+        pickup_ink = resolved_color("--accent")
         assert current == {
             "tag": "SPAN",
             "offer": "",

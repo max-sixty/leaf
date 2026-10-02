@@ -5,6 +5,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
+import { nextRender } from "../rendering.js";
 import { TEXT_FIELD, holdFocus } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
@@ -14,7 +15,7 @@ import { offer, reachedForWords } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply } from "./replies.js";
+import { wireReply, replyHasWords } from "./replies.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -27,6 +28,7 @@ import { seenRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
+import { newsNotice } from "./held-news.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
@@ -208,7 +210,9 @@ export class ThreadView {
   #model = null;
   #messages = new Map();
   #reply = null;
-  #summaryResolved = null;
+  #replyShown = false;
+  #draftFrame = 0;
+  #outletReplyShown = null;
   #keys = new WeakSet();
   #settlements = new Map();
   #metadataActions = document.createElement("span");
@@ -217,6 +221,9 @@ export class ThreadView {
   #navigation = null;
   #marginControls = null;
   #viewId = ++nextViewId;
+  // What a thread in the page's flow holds back says so in its control row (held-news.js).
+  #news = newsNotice();
+  #lastMessage = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -232,6 +239,11 @@ export class ThreadView {
       this.node.dataset.lfOffer = "";
     }
     this.#metadataActions.className = "lf-thread-meta-actions";
+    // A folded outlet's summary is its control row: opening it shows what it holds.
+    if (surface === "outlet")
+      this.node.addEventListener("toggle", () => {
+        if (this.node.open) this.#model?.news?.open();
+      });
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
       this.node.classList.toggle("grow", false);
@@ -255,6 +267,14 @@ export class ThreadView {
 
   get model() {
     return this.#model;
+  }
+
+  // The last of the thread a reader can see, after which its news grows: a folded
+  // outlet's summary, and otherwise its last message.
+  get foot() {
+    if (this.node.localName === "details" && !this.node.open)
+      return this.node.querySelector(":scope > summary:not([hidden])");
+    return this.#lastMessage;
   }
 
   present(model) {
@@ -283,6 +303,10 @@ export class ThreadView {
       }
     }
     this.#model = model;
+    const reply = model.reply || replyHasWords(model.key);
+    this.#replyShown = reply;
+    if (model.news) this.#news.set(model.news);
+    const news = model.news ? this.#news.node : nothing;
     const panel = model.surface === "panel";
     const navigation = panel ? this.#navigation : null;
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
@@ -297,16 +321,16 @@ export class ThreadView {
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
     keeps(this.node, "data-attempt", model.attempt || null);
-    if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
-      this.node.toggleAttribute("open", !model.resolved);
-      this.#summaryResolved = model.resolved;
+    if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
+      this.node.toggleAttribute("open", reply);
+      this.#outletReplyShown = reply;
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = this.#settlement(model);
+    const settlement = model.settlement ? this.#settlement(model) : nothing;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
-    if (!model.resolved || model.folding || marginControls) {
+    if (!model.resolved || reply || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement];
@@ -349,6 +373,7 @@ export class ThreadView {
       view.present(message, index === 0 && Boolean(headerActions));
       return { key: message.key, node: view.node, header: view.header };
     });
+    this.#lastMessage = messages.at(-1)?.node ?? null;
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const ranges = rangeState.map((range) => {
       if (range.kind === "message") {
@@ -369,7 +394,15 @@ export class ThreadView {
     const hoistedRoot = headerActions ? messages[0]?.key : null;
     const markerFor = (key) =>
       readBoundary(key === hoistedRoot ? null : boundaries.get(key));
-    if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
+    const transcript = repeat(
+      ranges,
+      (range) => range.key,
+      (range) =>
+        range.kind === "message"
+          ? html`${markerFor(range.message.key)}${range.node}`
+          : this.#summaryRange(range, markerFor),
+    );
+    if (reply && !this.#reply) this.#reply = this.#createReply(model);
     render(
       html`
         ${navigationSummary(navigation, model)}
@@ -381,8 +414,14 @@ export class ThreadView {
                 data-lf-offer=""
                 ?hidden=${!model.resolved}
               >
-                Resolved · ${model.messages.length}
-                message${model.messages.length === 1 ? "" : "s"}
+                ${
+                  model.news?.reopened
+                    ? model.news.label
+                    : html`Resolved · ${model.messages.length}
+                      message${model.messages.length === 1 ? "" : "s"}${
+                        model.news ? ` · ${model.news.label}` : ""
+                      }`
+                }
               </summary>`
             : nothing
         }
@@ -417,21 +456,18 @@ export class ThreadView {
         ${
           headerActions && messages[0]
             ? html`<div class="lf-thread-root-meta">
-                ${messages[0].header}${headerActions}
+                ${messages[0].header}${news} ${headerActions}
               </div>`
             : nothing
         }
-        ${repeat(
-          ranges,
-          (range) => range.key,
-          (range) =>
-            range.kind === "message"
-              ? html`${markerFor(range.message.key)}${range.node}`
-              : this.#summaryRange(range, markerFor),
-        )}
-        ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved && !model.folding && !marginControls
+          model.surface === "margin"
+            ? html`<div class="lf-thread-transcript">${transcript}</div>`
+            : transcript
+        }
+        ${reply ? this.#reply.node : nothing}
+        ${
+          model.resolved && !reply && !model.folding && !marginControls
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >
@@ -444,7 +480,7 @@ export class ThreadView {
                       : nothing
                   }</span
                 >
-                ${settlement}
+                ${news}${settlement}
               </div>`
             : nothing
         }
@@ -538,6 +574,17 @@ export class ThreadView {
       button.type = "button";
       button.onclick = this.#settle;
       this.#settlements.set(state.kind, button);
+      const word = reopen ? "Reopen" : "Resolve";
+      keys(button, `On a thread's ${word} button`, [
+        {
+          id: reopen ? "thread.reopen" : "thread.resolve",
+          keys: PRESS,
+          does: `${word} it`,
+          line: word.toLowerCase(),
+          when: () => !this.#model.settlement?.pending,
+          run: () => button.click(),
+        },
+      ]);
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
@@ -612,24 +659,6 @@ export class ThreadView {
         },
       ]);
     }
-    const button = this.node.querySelector(
-      ":scope .lf-thread-meta-actions > .lf-resolve, :scope .lf-thread-meta-actions > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-page-thread-resolved > .lf-reopen",
-    );
-    if (button && !this.#keys.has(button)) {
-      this.#keys.add(button);
-      const reopen = this.#model.resolved;
-      const word = reopen ? "Reopen" : "Resolve";
-      keys(button, `On a thread's ${word} button`, [
-        {
-          id: reopen ? "thread.reopen" : "thread.resolve",
-          keys: PRESS,
-          does: `${word} it`,
-          line: word.toLowerCase(),
-          when: () => !this.#model.settlement.pending,
-          run: () => button.click(),
-        },
-      ]);
-    }
   }
 
   #createReply(model) {
@@ -649,7 +678,13 @@ export class ThreadView {
       onDraftLoaded: () => {
         // Initial construction is already painting this reading; mirrored edits
         // arrive later and must refresh the collapsed row's Draft indication.
-        if (panel && this.#reply) this.#navigation.draftChanged();
+        if (!this.#reply) return;
+        if (panel) this.#navigation.draftChanged();
+        else if (this.#replyShown !== (this.#model.reply || replyHasWords(model.key)))
+          this.#draftFrame ||= nextRender(() => {
+            this.#draftFrame = 0;
+            if (this.#reply) this.present(this.#model);
+          });
       },
     });
     return { node: row, dispose: lifetime.dispose };
@@ -718,7 +753,7 @@ export class ThreadView {
         this.#messages.delete(key);
       }
     }
-    if (!this.#model.reply && this.#reply) {
+    if (!this.#replyShown && this.#reply) {
       this.#reply.dispose();
       this.#reply = null;
     }

@@ -80,8 +80,6 @@ def accept_event(
     page_dir: Path,
     event: dict,
     state: StateReader,
-    *,
-    capture_anchors: bool = False,
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
     try:
@@ -106,14 +104,13 @@ def accept_event(
         return event_rejection(event, f"{kind} event is invalid: {error}")
     # A fault raises out of here, before or after the append, and the transport's
     # one fault boundary answers it with `event_fault`.
-    return _execute_event(page_dir, event, state, capture_anchors)
+    return _execute_event(page_dir, event, state)
 
 
 def _execute_event(
     page_dir: Path,
     event: dict,
     state: StateReader,
-    capture_anchors: bool,
 ) -> EventAnswer:
     """Admit and append as one log transaction, then read the page back.
 
@@ -136,7 +133,7 @@ def _execute_event(
         if not accepted:
             event["author"] = "page" if event["kind"] == "error" else "user"
             try:
-                admitted = append_admitted(page, event, capture_anchors=capture_anchors)
+                admitted = append_admitted(page, event)
             except EventRefused as error:
                 return event_rejection(event, error.user)
             except RegistryError as error:
@@ -157,21 +154,8 @@ def _execute_event(
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
-            if (
-                requires_agent_attention(event)
-                and claim
-                and not wait_is_live(page_dir, claim["id"])
-            ):
-                present, turn = claimant_reading(page_dir, page.events)
-                stamp = claim.get("turn_closed") or claim.get("turn_opened")
-                mark = f"{claim['turn']}@{stamp}"
-                if (
-                    turn.ended is not None
-                    and not takes_input(present, turn)
-                    and claim.get("messaged_ending") != mark
-                    and claim_harness(claim).nudge(page_dir)
-                ):
-                    page.note_messaged(mark)
+            if requires_agent_attention(event):
+                nudge_unwatched(page)
             if event["kind"] == "comment" and claim:
                 opened = admitted["id"], claim
     # A comment opens a thread with no name, and the claimant's host names it from
@@ -180,3 +164,24 @@ def _execute_event(
     if opened and (generate := claim_harness(opened[1]).title_generator()):
         name_opened_thread(generate, page_dir, opened[0], opened[1]["id"])
     return 200, {"ok": True, "state": state()}
+
+
+def nudge_unwatched(page: PageTransaction) -> None:
+    """Message the claimant of a page holding input nothing will carry, once per
+    ending of its turn (`session-lifetime.md`, Carriers): no wait lease is held,
+    and its turn has ended, so nothing takes input by the activity fold's reading
+    (`activity.takes_input`). Run under the page's lock, which makes the mark it
+    leaves exact."""
+    claim, page_dir = page.active_claim, page.page_dir
+    if not claim or wait_is_live(page_dir, claim["id"]):
+        return
+    present, turn = claimant_reading(page_dir, page.events)
+    stamp = claim.get("turn_closed") or claim.get("turn_opened")
+    mark = f"{claim['turn']}@{stamp}"
+    if (
+        turn.ended is not None
+        and not takes_input(present, turn)
+        and claim.get("messaged_ending") != mark
+        and claim_harness(claim).nudge(page_dir)
+    ):
+        page.note_messaged(mark)

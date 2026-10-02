@@ -30,6 +30,18 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+## Leave taste to the authoring agent
+
+Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
+the user relies on, such as a gesture being recorded or nothing moving under the
+pointer. Taste, formatting and aesthetics go in the shipped instructions, as a goal and
+its reason, so the authoring agent weighs them against the page in front of it. How
+many tiles share a row, where a heading breaks, which column is wider: a rule in CSS,
+a validator or a Layout that fixes one of these for every page overrides the agent
+where its page needs something else, and breaks on the next case it wasn't written
+for. A check may report what it sees, as the render check names where a tile row
+wraps, and leave the call to the agent.
+
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
@@ -50,10 +62,9 @@ A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
-(`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
-candidates: a `choice` control naming them, the candidates in its preview, and
-an output saying what to build. Add presets and further controls only where the
-user tunes more than the choice.
+(`<root>/skills/leaf/packages/playground/instructions/author.md`) wrap the
+candidates: the controls and presets the user explores them with, the
+candidates in its preview, and an output saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
@@ -148,10 +159,11 @@ production reading.
 
 ## Test a terminal Codex task
 
-`uv run --project <root> leaf-dev verify-codex-task` runs a real Codex task, with
-this working tree installed as its plugin, through the App Server adapter `leaf codex
-start` leaves running, and checks each comment it posts is answered once and each
-turn is closed under App Server's id. Run it after a change to `codex.py`,
+`uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
+this working tree installed as their plugin, through both transports of `leaf codex
+start`. It checks each comment is answered once, a comment during queue-backed
+work is picked up and answered in that same turn, and each turn is closed under
+App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
@@ -200,7 +212,7 @@ report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
 (`references/sample-explainers.md`).
 
-## Score a guidance change
+## Score an instruction change
 
 Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
 hands a headless Claude Code, with this checkout as its only plugin, so the child
@@ -208,30 +220,37 @@ loads `leaf:leaf` and reads the references as a real session does. Score a chang
 `skills/leaf/` on the cases it bears on:
 
 ```bash
-uv run leaf-dev guidance-eval [CASE]... [--base REF] [--runs N]
+uv run leaf-dev instructions-eval [CASE]... [--base REF] [--runs N]
 ```
 
-It runs the cases on the base's guidance (the merge base with `main` by
+It runs the cases on the base's instructions (the merge base with `main` by
 default) and the working tree's at once, and prints each case's passes per arm and the
 cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
-the skill and the references and every run answers with no guidance, while
+the skill and the references and every run answers with no instructions, while
 `loads-leaf` still passes on the attempt. So every case also grades that the child
-read the reference it tests, and a run that fails that check measured nothing.
+read the reference it tests, and a run that fails that check measured nothing. The
+grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
+refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
 
-Grow the suite slowly, toward a modest set of cases that each tell two wordings
-apart. Measure with whatever scenarios and guardrails the change needs, then add a
-case only if it pins a clause no existing case pins and it separated two arms you ran:
-the base failed most runs and the change passed every run, or a blunter draft failed
-a guardrail the change passes. That is usually one case per problem, and rarely more
-than two. A case both arms passed goes in the commit message, not the suite. The
-comment above `schema_version` says where the case came from and what it measured;
+The suite is a library that grows with the instructions, so a later edit, whether a fix
+or a cut, is scored against the behaviors earlier edits had to produce. Add to it
+where a change's behavior gives the library breadth, a behavior or kind of situation
+no case yet covers. First try to extend an existing case, with a grader, a
+criterion, or context in its prompt, so coverage grows without the cases
+proliferating; add a new case only where no existing one can carry the behavior.
+Keep a case small: one prompt carrying only the context the behavior needs, and a
+few graders. Measure with whatever scenarios and guardrails the change needs, and
+keep what you add whether or not it separated the arms. The comment above
+`schema_version` says where the case came from and what it measured, so a reader can
+tell a case that told two wordings apart from one that has only guarded;
 `description` names the clause it pins, and `tags` its area.
 
 A prompt ends by asking for the HTML in the reply, since the child has no page
 directory. It cannot search the plugin either, so it answers from the references
-without the registry. The prompt never states the behavior under test. Grade a fixed
-form with a `regex` grader, and a judgment with an `llm` grader whose `criteria`
-state the passing reading without requiring particular wording.
+without the registry, and a prompt that points it at a file beyond the references
+names that file from the skill's base directory. The prompt never states the behavior under test.
+Grade a fixed form with a `regex` grader, and a judgment with an `llm` grader whose
+`criteria` state the passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
@@ -245,16 +264,19 @@ No grader has been checked against a person's judgment, so a pass is weak eviden
 When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
-first viewport. It pushes the stills to `max-sixty/leaf-assets` and updates
-`example-previews.json`; that push is part of the authorized change. Run
-`wt setup` first in a new checkout; if Worktrunk asks to approve the project
-commands, ask the user to run `wt config approvals add`.
+first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
+in `leaf-assets.json` and the README's image URLs; that push is part of the
+authorized change. `uv run leaf-dev record-demo` does the same for the README's
+recording and stills and the site's card. Run `wt setup` first in a new checkout;
+if Worktrunk asks to approve the project commands, ask the user to run
+`wt config approvals add`.
 
 ## Land a change
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
-pre-merge `tests` run the broad selection, which main passes; the nightly-marked
-tests run only once main moves, and `tend-ci-fix` answers them when they fail.
+pre-merge `tests` run the broad selection and the nightly tests the branch edits;
+the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
+them when they fail (`tests/AGENTS.md`, "Run the narrowest useful surface").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

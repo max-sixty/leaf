@@ -9,18 +9,12 @@ from typing import NamedTuple
 
 from .data_contracts import (
     data_contract_transition_errors,
-    merge_data_bindings,
-    page_data_documents,
-    working_data_bindings,
+    merge_data_document_readings,
+    page_data_document_readings,
+    working_data_document_readings,
 )
-from .event_log import now_iso, read_events
-from .files import (
-    json_bytes,
-    latest_revision,
-    read_json,
-    replace_files,
-    write_json,
-)
+from .event_log import read_events
+from .files import latest_revision, read_json, replace_files
 from .hosting import restarting_server
 from .layer import (
     LayerComposition,
@@ -39,7 +33,6 @@ from .registry.storage import compose_candidate, layer_packages, widget_paths
 from .revision_artifact import read_revision
 from .schema import (
     CURSOR_FILE,
-    EVENTS_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
@@ -48,6 +41,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path, read_status
+from .session_cleanup import EVENTS_FILE, json_bytes, now_iso, write_json
 from .structure import SourceDocument
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
@@ -84,6 +78,20 @@ def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
             if made and not any(page_dir.iterdir()):
                 page_dir.rmdir()
             raise
+    print(json.dumps({"page": str(page_dir)}))
+
+
+def start_throwaway_page(page_dir: Path, composition: LayerComposition) -> None:
+    """Start a page in an empty directory from a layer already composed, for a reading
+    Leaf takes and then deletes, as `package check --render` does with a package's
+    worked examples.
+
+    It records no package selection: the composition may include a package by a path
+    a page cannot record (`layer.resolve_packages`), and nothing re-vendors a page
+    that is thrown away."""
+    layer = _stamp_layer(composition, ())
+    plan = _PagePlan(True, layer, _checked_destinations(page_dir, layer))
+    _commit_layer(page_dir, plan)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
@@ -231,11 +239,13 @@ def _refuse_data_contract_drift(
     # validating it with today's rules would prevent `page init` from replacing the
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
-        documents = page_data_documents(page_dir, events)
-        standing_bindings, standing_errors = working_data_bindings(
-            page_dir, current, events
+        documents = page_data_document_readings(page_dir, events, current)
+        standing_bindings, standing_errors = merge_data_document_readings(
+            working_data_document_readings(page_dir, current, events, history=documents)
         )
-        incoming_bindings, incoming_errors = merge_data_bindings(documents, incoming)
+        incoming_bindings, incoming_errors = merge_data_document_readings(
+            documents, incoming
+        )
         binding_errors = list(dict.fromkeys(standing_errors + incoming_errors))
         binding_changes = [
             (
@@ -247,7 +257,7 @@ def _refuse_data_contract_drift(
             for source, contract in standing_bindings.items()
             if incoming_bindings.get(source) != contract
         ]
-        contract_changes = data_contract_transition_errors(page_dir, events, incoming)
+        contract_changes = data_contract_transition_errors(documents, incoming)
         if binding_errors or binding_changes or contract_changes:
             sys.exit(
                 "this page's immutable documents do not keep one meaning for each "
@@ -457,4 +467,3 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
         # an existing page keeps both.
         (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         replace_files([(page_dir / EVENTS_FILE, b"", False)])
-    print(json.dumps({"page": str(page_dir)}))

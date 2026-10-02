@@ -193,19 +193,59 @@ def acknowledged_obligations(state: dict) -> list[dict]:
 
 
 def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
-    """The owed answers that keep the agent from ending its turn or idling the page.
+    """The owed answers that keep the agent from idling the page, and from which
+    the Stop hook takes the ones that hold its turn (`turn_obligations`).
 
-    The Stop hook and `leaf status idle` both refuse over exactly these: the
-    acknowledged moves nothing else is set to answer. A move a carrier queued is
-    answered by the later turn the queue opens, where the prompt hook records it
-    `opened` and it blocks from then on. A turn answer the open turn has
-    finished is committed by the claimant's carrier once the turn ends, so it is
-    answered while that carrier (`carried`) is live."""
+    `leaf status idle` refuses over exactly these: the acknowledged moves nothing
+    else is set to answer. A move a carrier queued is answered by the later turn
+    the queue opens, where the prompt hook records it `opened` and it blocks from
+    then on. A turn answer the open turn has finished is committed by the
+    claimant's carrier once the turn ends, so it is answered while that carrier
+    (`carried`) is live."""
     return [
         obligation
         for obligation in acknowledged_obligations(state)
         if obligation["stage"] != "queued"
         and not (carried and _turn_wrote(obligation, state))
+    ]
+
+
+def claimed_in_turn(obligation: dict, state: dict) -> bool:
+    """Whether the claimant's open turn took this move in hand with `leaf status
+    … --on` after it was delivered: a standing claim over the move
+    (`workflows.canonical_workflows`, `claimed_by`) that turn wrote since the
+    move's pickup.
+
+    Read from the claims rather than the move's Working stage, which follows the
+    one input a thread claim names: a follow-up in the thread, or a move on a
+    widget frozen in one of its messages, stays Picked up under a claim on the
+    thread that covers it all the same."""
+    if state["turn_closed"] is not None or state["claim_turn"] is None:
+        return False
+    delivered = obligation["delivery_seq"] or obligation["seq"]
+    return any(
+        claim["session"] == state["claim_session"]
+        and claim["turn"] == state["claim_turn"]
+        and claim["log_floor"] >= delivered
+        for claim in obligation["claimed_by"]
+    )
+
+
+def turn_obligations(state: dict, *, carried: bool) -> list[dict]:
+    """The owed answers that hold the claimant's turn open: the blocking ones its
+    open turn has not claimed as work.
+
+    A claim is the agent's answer for now, shown beside the move, and work that
+    outlasts the turn runs in background workers whose results wake a later turn
+    (`references/conversation-loop.md`, "Long-running work"). So the turn that
+    wrote the claim may end over the move. The claim does not carry into the next
+    turn: that turn answers the move or claims it again, and the page reports the
+    claim's turn ended once nothing renews it. Idling still refuses over a
+    claimed move, since closing the page answers nothing."""
+    return [
+        obligation
+        for obligation in blocking_obligations(state, carried=carried)
+        if not claimed_in_turn(obligation, state)
     ]
 
 
@@ -241,7 +281,7 @@ def claimant_turn(
 
     The claim's stamps are the spine: the prompt hook or a carrier opens the turn,
     a prompt or delivery into an open turn renews its stamp, and the Stop hook or
-    a carrier closes it. An interrupt runs no hook, so an open stamp is believed
+    a carrier closes it. Not every host runs a hook on interruption, so an open stamp is believed
     only while something in that turn renewed it within the working grace: its
     last opening, a status written during it, or the claimant's streamed
     activity. Past that nothing says whether it runs, which reads as not

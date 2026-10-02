@@ -37,10 +37,19 @@ for (const type of ["focusin", "keydown"])
 export const recentPlaceInput = () => placeInput;
 
 // Focus a repaint took from the source and dropped on a container holding it, as a
-// list takes it from a card that folds. Focus that went anywhere else went somewhere
-// in particular, as a widget handing it on does.
-const displaced = (source, at) =>
-  source instanceof Node && Boolean(at?.contains(source));
+// list takes it from a card that folds, including where that container passed it on
+// before any newer input, as the Threads list passes its focus to the thread it shows
+// open. Focus that went anywhere else went somewhere in particular, as a widget handing
+// it on does.
+const passed = new WeakMap();
+export const passOn = (container, target) => passed.set(target, { container, intent });
+const displaced = (source, at) => {
+  if (!(source instanceof Node) || !at) return false;
+  const via = passed.get(at);
+  return (
+    at.contains(source) || (via?.intent === intent && via.container.contains(source))
+  );
+};
 
 // Capture before the first asynchronous step. Pass this same predicate into nested
 // reveals; capturing again after a wait gives stale work a newer gesture's authority.

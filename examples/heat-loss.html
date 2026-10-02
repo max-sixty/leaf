@@ -24,14 +24,28 @@
           These estimates use a 20°C difference between inside and outside. They compare
           the size of each loss, not the savings a finished job will achieve.
         </p>
-        <lf-chart id="heat-elements" kind="rows" y="estimated watts lost">
+        <lf-chart id="heat-elements">
           <pre>
-element, loss
-single-glazed bay window, 410
-uninsulated loft hatch, 265
-suspended timber floor, 240
-front door and letterbox, 155
-chimney with no cap, 120
+{
+  ariaLabel: "Estimated watts lost by element: bay window 410, loft hatch 265, timber floor 240, front door 155, chimney 120",
+  marginBottom: 40,
+  marginLeft: 150,
+  x: {grid: true, label: "estimated watts lost"},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {element: "single-glazed bay window", loss: 410},
+        {element: "uninsulated loft hatch", loss: 265},
+        {element: "suspended timber floor", loss: 240},
+        {element: "front door and letterbox", loss: 155},
+        {element: "chimney with no cap", loss: 120},
+      ],
+      {x: "loss", y: "element", fill: "var(--series-1)", sort: {y: "-x"}},
+    ),
+    Plot.ruleX([0]),
+  ],
+}
 </pre>
         </lf-chart>
       </section>
@@ -74,18 +88,37 @@ chimney with no cap, 120
           This suggests a reduction, but four post-work observations and no control
           house cannot estimate its size.
         </p>
-        <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
+        <lf-chart id="heat-response" data-height="300">
           <pre>
-outside average, before, after
-2.1, 604,
-3.0, 588,
-3.4, 561,
-5.0, 512,
-6.1, 470,
-2.6, , 542
-3.8, , 498
-5.2, , 470
-6.4, , 449
+{
+  ariaLabel: "Weekly gas use against outside temperature: the four weeks after the work sit below the five before at similar temperatures",
+  marginBottom: 40,
+  grid: true,
+  inset: 8,
+  x: {label: "outside average, °C"},
+  y: {label: "gas, kWh a week"},
+  color: {
+    legend: true,
+    domain: ["before", "after"],
+    range: ["var(--series-1)", "var(--series-2)"],
+  },
+  marks: [
+    Plot.dot(
+      [
+        {outside: 2.1, gas: 604, period: "before"},
+        {outside: 3.0, gas: 588, period: "before"},
+        {outside: 3.4, gas: 561, period: "before"},
+        {outside: 5.0, gas: 512, period: "before"},
+        {outside: 6.1, gas: 470, period: "before"},
+        {outside: 2.6, gas: 542, period: "after"},
+        {outside: 3.8, gas: 498, period: "after"},
+        {outside: 5.2, gas: 470, period: "after"},
+        {outside: 6.4, gas: 449, period: "after"},
+      ],
+      {x: "outside", y: "gas", fill: "period", r: 3.5},
+    ),
+  ],
+}
 </pre>
         </lf-chart>
       </section>

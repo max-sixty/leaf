@@ -1,6 +1,7 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that coordinates one JSON-safe working configuration, one operable preview, one displayed instruction, and one final `choose` action. Put it inside lf-ask when the configuration is a question for the user. Direct children are controls, presets, one preview, and one output. Built-in controls contribute scalar fields; a page module registers structured contributors through `registerContributor(name, defaultSnapshot, {read, apply})` and calls the returned notifier after its gestures. One optional `registerInstructionProvider(values => text)` derives the displayed instruction. Restore, reset, copy, projection, change events, and submission all use the same aggregate values. The page's complete lf-playground declaration gives task-specific values their exact action schema.",
+    "description": "An interactive playground for exploring one configuration in an operable preview and choosing it.",
+    "x-instructions": "Put the playground inside lf-ask when its configuration is a question for the user. A page module can add structured values with registerContributor(name, defaultSnapshot, {read, apply}); call the returned notifier after its gestures. Use one optional registerInstructionProvider(values => text) for prose derived from structured or conditional values. Give the page's complete lf-playground declaration an exact action schema for its task-specific values.",
     "type": "object",
     "properties": {
       "id": {
@@ -47,10 +48,12 @@
         "unit": "widget"
       }
     },
-    "x-example": "<lf-ask id=\"notification-ask\"><h2>Which notification should we build?</h2><lf-playground id=\"notification-playground\" submit-label=\"Create notification\"><lf-playground-control name=\"format\" label=\"Format\" kind=\"choice\" value=\"banner\"><lf-playground-choice value=\"banner\" label=\"Banner\"></lf-playground-choice><lf-playground-choice value=\"status strip\" label=\"Status strip\"></lf-playground-choice></lf-playground-control><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-preview><section aria-label=\"Notification candidates\"><article data-candidate=\"banner\"><h3>Banner</h3><p>The real banner responds to the shared controls.</p></article><article data-candidate=\"status strip\"><h3>Status strip</h3><p>The real status strip responds to the same controls.</p></article></section></lf-playground-preview><lf-playground-output>Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners. Replace the notification component and show me its browser test.</lf-playground-output></lf-playground></lf-ask>"
+    "x-height": true,
+    "x-example": "<lf-ask id=\"notification-ask\"><h2>Which notification should we build?</h2><lf-playground id=\"notification-playground\" submit-label=\"Create notification\"><lf-playground-control name=\"format\" label=\"Format\" kind=\"choice\" value=\"banner\"><lf-playground-choice value=\"banner\" label=\"Banner\"></lf-playground-choice><lf-playground-choice value=\"status strip\" label=\"Status strip\"></lf-playground-choice></lf-playground-control><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-preset label=\"Status strip\"><lf-playground-setting for=\"format\" value=\"status strip\"></lf-playground-setting><lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting></lf-playground-preset><lf-playground-preview><section aria-label=\"Notification candidates\"><article data-candidate=\"banner\"><h3>Banner</h3><p>The real banner responds to the shared controls.</p></article><article data-candidate=\"status strip\"><h3>Status strip</h3><p>The real status strip responds to the same controls.</p></article></section></lf-playground-preview><lf-playground-output>Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners. Replace the notification component and show me its browser test.</lf-playground-output></lf-playground></lf-ask>"
   },
   "lf-playground-control": {
-    "description": "One typed input in a playground. `name` is the stable key in the submitted value map and in the reflected CSS property and data attribute. `label` names the generated control. Every kind declares its initial value as a string: a finite number for range, `true` or `false` for toggle, one child value for choice, a six-digit hex colour for color, and arbitrary text for text. Range controls must add max and may add min, step, and unit. Choice controls contain one or more lf-playground-choice children; other kinds are empty.",
+    "description": "One typed input in a playground.",
+    "x-instructions": "Use a stable name for the submitted field and a label for its control. Author its initial value as a string: a finite number for range, true or false for toggle, one child value for choice, a six-digit hex colour for color, or arbitrary text for text. Range controls need max; min, step, and unit are optional. Only choice controls contain lf-playground-choice children.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -109,7 +112,8 @@
     "x-upgrade": false
   },
   "lf-playground-choice": {
-    "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the user.",
+    "description": "One labeled value offered by a playground choice control.",
+    "x-instructions": "Use value for the submitted value and label for the words the user sees.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -129,7 +133,8 @@
     "x-upgrade": false
   },
   "lf-playground-preset": {
-    "description": "One named partial configuration. Activating the generated preset button applies each child setting and leaves controls not named by the preset unchanged. The button remains visibly selected while all of its settings match the current values.",
+    "description": "A named partial playground configuration the user can apply at once.",
+    "x-instructions": "Include settings only for values the preset changes; unspecified controls keep their current values.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -145,7 +150,8 @@
     "x-upgrade": false
   },
   "lf-playground-setting": {
-    "description": "One value applied by a playground preset. `for` names a control in the same playground and `value` uses that control's authored string form.",
+    "description": "One control value applied by a playground preset.",
+    "x-instructions": "Set for to a control in the same playground and write value in that control's authored string form.",
     "type": "object",
     "properties": {
       "for": {
@@ -163,7 +169,8 @@
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The real, operable artifact a playground previews. An A/B comparison mounts both candidates here; `leaf page guidance <page> author` says how one state drives them. Page CSS may bind reflected values from the enclosing lf-playground. An inline page module may consume the playground's public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
+    "description": "The operable artifact inside a playground.",
+    "x-instructions": "For an A/B comparison, mount both candidates here and read the playground package's author instructions for driving them from one state. Page CSS can bind the playground's reflected values. A page module can consume its public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
     "type": "object",
     "properties": {
       "id": {
@@ -177,7 +184,8 @@
     "x-upgrade": false
   },
   "lf-playground-output": {
-    "description": "The natural-language instruction produced by a playground. Write a self-contained task rather than a value dump, and place lf-playground-value elements where selected scalar values make the task more precise. A page module may instead register one instruction provider when structured or conditional values determine the prose. The choose action sends the exact displayed instruction beside the complete typed value map. The package keeps this output live and offers a copy button.",
+    "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
+    "x-instructions": "Write a self-contained task rather than a value dump. Insert lf-playground-value where scalar selections make it more precise; use a registered instruction provider for prose that depends on structured or conditional values.",
     "type": "object",
     "properties": {
       "id": {
@@ -191,7 +199,8 @@
     "x-upgrade": true
   },
   "lf-playground-value": {
-    "description": "One live value inside a playground instruction. `for` names a control in the enclosing playground. Numeric values include the control's unit.",
+    "description": "A live scalar value embedded in a playground instruction.",
+    "x-instructions": "Set for to a control in the enclosing playground. Numeric values already include the control's unit.",
     "type": "object",
     "properties": {
       "for": {

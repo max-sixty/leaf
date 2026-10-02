@@ -32,12 +32,24 @@ Release 4.2 moves card tokenization to the new vault. Rollout starts 12 November
 
       <section id="errors">
         <h2>Errors by region</h2>
-        <lf-chart id="region-errors" kind="bars" y="errors in the last day">
+        <lf-chart id="region-errors">
           <pre>
-region, errors
-us-east, 212
-eu-west, 96
-sa-east, 58
+{
+  ariaLabel: "errors in the last day: us-east 212, eu-west 96, sa-east 58",
+  y: {grid: true, label: "errors in the last day"},
+  x: {domain: ["us-east", "eu-west", "sa-east"], label: null},
+  marks: [
+    Plot.barY(
+      [
+        {region: "us-east", errors: 212},
+        {region: "eu-west", errors: 96},
+        {region: "sa-east", errors: 58},
+      ],
+      {x: "region", y: "errors", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
 </pre>
         </lf-chart>
       </section>

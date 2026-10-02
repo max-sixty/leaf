@@ -188,7 +188,7 @@
         }
       }
     </style>
-<!-- notification-playground.html authored module -->
+<!-- notification-playground.html authored script -->
 <script type="module">
       import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
 
@@ -458,7 +458,7 @@
         }
       }
     </style>
-<!-- data-explorer.html authored module -->
+<!-- data-explorer.html authored script -->
 <script type="module">
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
 
@@ -817,23 +817,13 @@
         line-height: 1.65;
       }
 
-      /* A rendered line is as wide as its source so that the reader scrolls; a wrapped
-         candidate gives it the reader's width back so it has somewhere to break. */
-      .code-candidate[data-wrap="true"] lf-code pre,
-      .code-candidate[data-wrap="true"] .lf-code-line {
-        width: auto;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-
-      /* A wrapped line's continuation hangs past the number gutter rather than under it. */
-      .code-candidate[data-wrap="true"] .lf-code-line {
-        padding-inline-start: 46px;
-        text-indent: -46px;
-      }
-
-      .code-candidate[data-wrap="true"] .lf-code-line::before {
-        text-indent: 0;
+      /* The built reader wraps a line longer than its block. A scrolled candidate gives
+         each line its source's width back, so the block scrolls instead. */
+      .code-candidate[data-wrap="false"] .lf-code-line {
+        width: max-content;
+        min-width: 100%;
+        box-sizing: border-box;
+        white-space: pre;
       }
 
       .code-measurement {
@@ -849,7 +839,7 @@
         }
       }
     </style>
-<!-- code-comparison.html authored module -->
+<!-- code-comparison.html authored script -->
 <script type="module">
       import {
         keeps,
@@ -1021,6 +1011,19 @@
 
       #lp-code-changes {
         margin-top: var(--sp-3);
+      }
+      /* The four numbers stand in one row where the body holds them and two by two
+         where it doesn't, never three and one. */
+      #lp-status-room {
+        container-type: inline-size;
+      }
+      #lp-status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      @container (width >= 40rem) {
+        #lp-status {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
       }
     </style>
 <!-- alert-review.html authored styles -->
@@ -1286,10 +1289,10 @@
       lf-merge-steps li[data-now] p {
         display: block;
       }
-      html:not([data-lf-live]) lf-merge-steps p {
+      html:not([data-lf-interactive]) lf-merge-steps p {
         display: block;
       }
-      html:not([data-lf-live]) lf-merge-steps li {
+      html:not([data-lf-interactive]) lf-merge-steps li {
         cursor: auto;
       }
       lf-merge-steps .this-run {
@@ -1434,7 +1437,7 @@
         font-size: var(--t-5);
       }
     </style>
-<!-- rust-sort.html authored module -->
+<!-- rust-sort.html authored script -->
 <script type="module">
       // The film indicates the line its step executes; keep that line in view when the
       // source pane scrolls on its own.
@@ -1513,7 +1516,7 @@
       }
 
       /* Cells side by side while each keeps 14rem, and one above the other below that:
-         the thread pair, the metric tiles and the charts wrap a column at a time. */
+         the thread pair and the charts wrap a column at a time. */
       #bg-thread-title-pair,
       #bg-charts {
         display: grid;
@@ -1524,6 +1527,17 @@
 
       #bg-thread-title-pair {
         max-width: 54rem;
+      }
+
+      /* The three metric tiles stand in one row where it holds them and one above the
+         other where it doesn't, never two and one. */
+      #bg-metrics-room {
+        container-type: inline-size;
+      }
+      @container (width < 30rem) {
+        #bg-metrics {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
 
       #bg-panel-presets {
@@ -1804,7 +1818,7 @@
         }
       }
     </style>
-<!-- feature-gallery.html authored module -->
+<!-- feature-gallery.html authored script -->
 <script type="module">
       await customElements.whenDefined("lf-sample");
 
@@ -2481,14 +2495,28 @@ Run the online schema migration before deploying.
           These estimates use a 20°C difference between inside and outside. They compare
           the size of each loss, not the savings a finished job will achieve.
         </p>
-        <lf-chart id="heat-elements" kind="rows" y="estimated watts lost">
+        <lf-chart id="heat-elements">
           <pre>
-element, loss
-single-glazed bay window, 410
-uninsulated loft hatch, 265
-suspended timber floor, 240
-front door and letterbox, 155
-chimney with no cap, 120
+{
+  ariaLabel: "Estimated watts lost by element: bay window 410, loft hatch 265, timber floor 240, front door 155, chimney 120",
+  marginBottom: 40,
+  marginLeft: 150,
+  x: {grid: true, label: "estimated watts lost"},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {element: "single-glazed bay window", loss: 410},
+        {element: "uninsulated loft hatch", loss: 265},
+        {element: "suspended timber floor", loss: 240},
+        {element: "front door and letterbox", loss: 155},
+        {element: "chimney with no cap", loss: 120},
+      ],
+      {x: "loss", y: "element", fill: "var(--series-1)", sort: {y: "-x"}},
+    ),
+    Plot.ruleX([0]),
+  ],
+}
 </pre>
         </lf-chart>
       </section>
@@ -2531,18 +2559,37 @@ chimney with no cap, 120
           This suggests a reduction, but four post-work observations and no control
           house cannot estimate its size.
         </p>
-        <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
+        <lf-chart id="heat-response" data-height="300">
           <pre>
-outside average, before, after
-2.1, 604,
-3.0, 588,
-3.4, 561,
-5.0, 512,
-6.1, 470,
-2.6, , 542
-3.8, , 498
-5.2, , 470
-6.4, , 449
+{
+  ariaLabel: "Weekly gas use against outside temperature: the four weeks after the work sit below the five before at similar temperatures",
+  marginBottom: 40,
+  grid: true,
+  inset: 8,
+  x: {label: "outside average, °C"},
+  y: {label: "gas, kWh a week"},
+  color: {
+    legend: true,
+    domain: ["before", "after"],
+    range: ["var(--series-1)", "var(--series-2)"],
+  },
+  marks: [
+    Plot.dot(
+      [
+        {outside: 2.1, gas: 604, period: "before"},
+        {outside: 3.0, gas: 588, period: "before"},
+        {outside: 3.4, gas: 561, period: "before"},
+        {outside: 5.0, gas: 512, period: "before"},
+        {outside: 6.1, gas: 470, period: "before"},
+        {outside: 2.6, gas: 542, period: "after"},
+        {outside: 3.8, gas: 498, period: "after"},
+        {outside: 5.2, gas: 470, period: "after"},
+        {outside: 6.4, gas: 449, period: "after"},
+      ],
+      {x: "outside", y: "gas", fill: "period", r: 3.5},
+    ),
+  ],
+}
 </pre>
         </lf-chart>
       </section>
@@ -2804,7 +2851,11 @@ export function releaseLabels(releases) {
           Targeting keeps element identity separate from the comparison's visual labels
           and settings.
         </p>
-        <lf-targeting id="code-comparison-targeting" submit-label="Propose exact edit">
+        <lf-targeting
+          id="code-comparison-targeting"
+          data-height="767"
+          submit-label="Propose exact edit"
+        >
           <lf-target-preview id="code-target-preview">
             <section id="target-reader-artifact" class="code-candidate">
               <h3 class="reader-treatment-title">Built reader treatment</h3>
@@ -2835,15 +2886,17 @@ export const summarize = checks =>
       </header>
 
       <div id="lp-body">
-        <div class="layout-tiles" id="lp-status">
-          <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-          <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
-            >checks passing</lf-metric
-          >
-          <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
-            >p95 latency</lf-metric
-          >
-          <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+        <div id="lp-status-room">
+          <div class="layout-tiles" id="lp-status">
+            <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
+              >checks passing</lf-metric
+            >
+            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
+              >p95 latency</lf-metric
+            >
+            <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+          </div>
         </div>
         <aside class="callout warn" id="lp-current-state">
           <strong>Paused at 25%</strong>
@@ -2874,16 +2927,29 @@ export const summarize = checks =>
         </aside>
         <section class="panel" id="lp-traffic">
           <h2>Candidate traffic since deploy</h2>
-          <lf-chart id="lp-traffic-chart" kind="line" y="share of checkout traffic (%)">
+          <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
-minutes since deploy, checkout-v2
-0, 0
-1, 5
-2, 10
-3, 25
-4, 25
-5, 25
-6, 25
+{
+  ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
+  marginBottom: 40,
+  x: {label: "minutes since deploy", ticks: 7},
+  y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
+  marks: [
+    Plot.lineY(
+      [
+        {minute: 0, share: 0},
+        {minute: 1, share: 5},
+        {minute: 2, share: 10},
+        {minute: 3, share: 25},
+        {minute: 4, share: 25},
+        {minute: 5, share: 25},
+        {minute: 6, share: 25},
+      ],
+      {x: "minute", y: "share", stroke: "var(--series-1)", strokeWidth: 2},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
 </pre>
           </lf-chart>
         </section>
@@ -3312,18 +3378,35 @@ minutes since deploy, checkout-v2
                 settlement batch holds the ledger lock. The lag cleared by 03:20 each
                 night without anyone touching it.
               </p>
-              <lf-chart id="ar-export-hours" kind="bars" y="pages by hour (UTC)">
+              <lf-chart id="ar-export-hours" data-height="220">
                 <pre>
-hour, pages
-22:00, 0
-23:00, 0
-00:00, 0
-01:00, 7
-02:00, 9
-03:00, 2
-04:00, 0
-05:00, 0
-06:00, 0
+{
+  ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
+  marginBottom: 40,
+  x: {
+    domain: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"],
+    ticks: ["22:00", "00:00", "02:00", "04:00", "06:00"],
+    label: "hour (UTC)",
+  },
+  y: {grid: true, label: "pages"},
+  marks: [
+    Plot.barY(
+      [
+        {hour: "22:00", pages: 0},
+        {hour: "23:00", pages: 0},
+        {hour: "00:00", pages: 0},
+        {hour: "01:00", pages: 7},
+        {hour: "02:00", pages: 9},
+        {hour: "03:00", pages: 2},
+        {hour: "04:00", pages: 0},
+        {hour: "05:00", pages: 0},
+        {hour: "06:00", pages: 0},
+      ],
+      {x: "hour", y: "pages", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
 </pre>
               </lf-chart>
               <lf-ask id="ar-export-decision">
@@ -3783,6 +3866,7 @@ max-sixty/worktrunk #3865
               </p>
               <lf-diagram
                 id="pr-flow-diagram"
+                data-height="541"
                 parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
               >
                 <pre>
@@ -3831,7 +3915,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" review>
+          <lf-diff id="pr-key-hunk" data-height="524" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -4004,7 +4088,12 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             it. Comments retain their file coordinate—and, for line comments, side,
             line, and quote—even when the file disclosure is closed.
           </p>
-          <lf-diff id="pr-exact-patch" source="pr-review-patch" collapsed>
+          <lf-diff
+            id="pr-exact-patch"
+            data-height="2126"
+            source="pr-review-patch"
+            collapsed
+          >
             <pre></pre>
           </lf-diff>
         </section>
@@ -4013,6 +4102,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       <aside id="pr-rail">
         <lf-pull-request
           id="pr-reviewed-request"
+          data-height="1321"
           source="pr-review-facts"
         ></lf-pull-request>
         <section class="panel" id="pr-history">
@@ -4080,11 +4170,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           <div>
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
-              command: commit, squash, rebase, test, merge, then clean up. The film
-              draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run, including the
-              three ways it stops early. Hover a commit, branch, worktree or hook to see
-              what it is; Alt-click one to comment on it.
+              command. The film draws each step from the flags below it, so ticking
+              <code>--no-ff</code> or a failing test re-plots the run. Hover a commit,
+              branch, worktree or hook to see what it is; Alt-click one to comment on
+              it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>
@@ -4486,6 +4575,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
         </p>
         <lf-diagram
           id="security-before-flow"
+          data-height="117"
           parts="node:R0 node:R1 node:A1 node:R2 node:P1"
         >
           <pre>
@@ -6204,7 +6294,7 @@ expire old keys</code></pre>
                       </li>
                     </ul>
                   </nav>
-                  <section id="queue-guidance">
+                  <section id="queue-instructions">
                     <h4>Queue order</h4>
                     <p>
                       Staff accounts lead. Regional free cohorts follow before paid
@@ -6349,6 +6439,13 @@ observe --cohort staff</code></pre>
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
+            </p>
+            <p id="bg-history-return-guide">
+              Follow
+              <a id="bg-history-reference" href="#bg-kept-draft"
+                >the kept-draft sample</a
+              >, then use browser Back. The viewport and focus return to this link;
+              press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
           </section>
 
@@ -6549,6 +6646,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 back to this passage and reopens the box on the sentence. That
                 destination stands in the sequence only while a kept draft does, so
                 pressing <kbd>g</kbd> with nothing written offers no such place to go.
+              </p>
+              <p id="bg-kept-draft-move">
+                To carry unfinished words to another item, press <kbd>s</kbd> and choose
+                the paragraph above, then type without sending. Move focus to
+                <a id="bg-kept-draft-next" href="#bg-kept-draft-move">this next item</a>
+                and press <kbd>c</kbd>: the box opens on this item with the same words.
+                Sending attaches the comment here. A destination that already holds a
+                draft keeps its own words and leaves the first draft available.
+              </p>
+              <p id="bg-visible-draft-guide">
+                Keep a comment open and scroll its passage out of view: the field
+                remains in the window with its words and focus. Scroll back to see it
+                reattach. On a wide window, Tab to a contents link and press
+                <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
+                disappears; the field remains available, and widening reattaches it.
               </p>
             </section>
           </section>
@@ -6777,12 +6889,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
-                <p id="bg-side-4107-what">
-                  SSO fails for every Northwind user since their IdP certificate
-                  rotated.
-                </p>
                 <lf-ask id="bg-side-4107-ask">
                   <h3 id="bg-side-4107-question">What happens to ESC-4107?</h3>
+                  <p id="bg-side-4107-what">
+                    SSO fails for every Northwind user since their IdP certificate
+                    rotated.
+                  </p>
                   <lf-options id="bg-side-4107-outcome" choose>
                     <lf-option id="bg-side-4107-fix"
                       ><strong>Fix</strong> Upload the new certificate.</lf-option
@@ -6840,7 +6952,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               sample stands at this exhibit's margin; open Page Map to see that same
               contributed control as a full labeled row. Reload to see the one-time
               pulse as Working arrives. A control dims only while its user action is
-              waiting for the log to confirm it.
+              waiting for the log to confirm it. Open a thread and shorten the window:
+              its messages scroll between the header and reply field, and the scrollbar
+              spans those messages alone. Scroll the page to give a short conversation
+              more room; the card expands once all its messages fit. The reply field
+              keeps the same inset at both sides and below it.
             </p>
             <lf-margin-entry-gallery
               id="bg-margin-controls-samples"
@@ -6974,44 +7090,90 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 and log stack once they are narrower than 696px. The log holds its own
                 height and stays on its newest line until you scroll back.
               </p>
-              <div id="bg-metrics" class="layout-tiles">
-                <lf-metric
-                  id="bg-metric-complete"
-                  value="12"
-                  delta="+3"
-                  direction="up-good"
-                  >checks complete</lf-metric
-                >
-                <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
-                  >open failures</lf-metric
-                >
-                <lf-metric id="bg-metric-neutral" value="4 min"
-                  >sample duration</lf-metric
-                >
+              <div id="bg-metrics-room">
+                <div id="bg-metrics" class="layout-tiles">
+                  <lf-metric
+                    id="bg-metric-complete"
+                    value="12"
+                    delta="+3"
+                    direction="up-good"
+                    >checks complete</lf-metric
+                  >
+                  <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
+                    >open failures</lf-metric
+                  >
+                  <lf-metric id="bg-metric-neutral" value="4 min"
+                    >sample duration</lf-metric
+                  >
+                </div>
               </div>
               <div id="bg-charts" data-width="wide">
-                <lf-chart id="bg-chart" kind="line" y="checks complete">
+                <lf-chart id="bg-chart" data-height="240">
                   <pre>
-run, baseline, candidate
-1, 4, 5
-2, 7, 9
-3, 9, 12
+{
+  ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
+  marginBottom: 40,
+  x: {label: "run", ticks: 3},
+  y: {grid: true, label: "checks complete"},
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [
+    Plot.lineY(
+      [
+        {run: 1, arm: "baseline", checks: 4},
+        {run: 2, arm: "baseline", checks: 7},
+        {run: 3, arm: "baseline", checks: 9},
+        {run: 1, arm: "candidate", checks: 5},
+        {run: 2, arm: "candidate", checks: 9},
+        {run: 3, arm: "candidate", checks: 12},
+      ],
+      {x: "run", y: "checks", stroke: "arm", marker: true},
+    ),
+  ],
+}
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-bars" kind="bars" y="checks complete">
+                <lf-chart id="bg-chart-bars" data-height="200">
                   <pre>
-run, checks
-first, 5
-second, 9
-third, 12
+{
+  ariaLabel: "Checks complete by run: first 5, second 9, third 12",
+  x: {domain: ["first", "second", "third"], label: null},
+  y: {grid: true, label: "checks complete"},
+  marks: [
+    Plot.barY(
+      [{run: "first", checks: 5}, {run: "second", checks: 9}, {run: "third", checks: 12}],
+      {x: "run", y: "checks", fill: "var(--series-1)"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
 </pre>
                 </lf-chart>
-                <lf-chart id="bg-chart-stack" kind="stack" y="checks">
+                <lf-chart id="bg-chart-stack" data-height="240">
                   <pre>
-run, passed, failed
-first, 5, 3
-second, 9, 2
-third, 12, 0
+{
+  ariaLabel: "Checks by run and outcome: first 5 passed and 3 failed, second 9 and 2, third 12 and 0",
+  x: {domain: ["first", "second", "third"], label: null},
+  y: {grid: true, label: "checks"},
+  color: {
+    legend: true,
+    domain: ["passed", "failed"],
+    range: ["var(--series-1)", "var(--series-2)"],
+  },
+  marks: [
+    Plot.barY(
+      [
+        {run: "first", outcome: "passed", checks: 5},
+        {run: "first", outcome: "failed", checks: 3},
+        {run: "second", outcome: "passed", checks: 9},
+        {run: "second", outcome: "failed", checks: 2},
+        {run: "third", outcome: "passed", checks: 12},
+        {run: "third", outcome: "failed", checks: 0},
+      ],
+      {x: "run", y: "checks", fill: "outcome"},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
 </pre>
                 </lf-chart>
               </div>
@@ -7079,8 +7241,12 @@ third, 12, 0
                   >walking skeleton</lf-gloss
                 >. Code adds line numbers and Notes, and quotes an excerpt under its
                 file's own numbers with an elided row where it skips; Tree shows file
-                structure.
+                structure. Use Copy code on the right of either block below, or Tab to
+                it and press Enter. The clipboard keeps the code's whitespace and leaves
+                out line numbers and Notes.
               </p>
+              <pre id="bg-plain-code"><code>leaf page check ./proposal
+leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):
@@ -7921,7 +8087,11 @@ switch --readers checkout-api,orders-api</code></pre>
       </p>
       <lf-ask id="targeting-ask">
         <h2>Which exact changes should be made?</h2>
-        <lf-targeting id="targeting-workbench" submit-label="Submit changes">
+        <lf-targeting
+          id="targeting-workbench"
+          data-height="767"
+          submit-label="Submit changes"
+        >
           <lf-target-preview id="targeting-preview">
             <div class="target-grid">
               <article id="target-release" class="target-card">

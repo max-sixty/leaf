@@ -13,7 +13,7 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
 // action button and placeholder current, prevent parallel submissions of one local
 // surface (an impatient second click), and submit with Enter on a physical keyboard. A
-// press on a submit control is that Enter: it leaves the user in the box.
+// press on a submit control is that Enter, pressed from the box.
 // Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
@@ -308,6 +308,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
+    ta.addEventListener("beforeinput", () => readBoxPlace(ta), { capture: true });
     ta.addEventListener("paste", async (event) => {
       const images = [...(event.clipboardData?.items ?? [])]
         .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
@@ -370,12 +371,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       },
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the
-    // user where Enter does: in the box, where the next letters are words rather than page
-    // keys. A pointer press never takes the focus (moving it is mousedown's default), so the
-    // box keeps it throughout and nothing hears it leave. A keyboard press on the control,
-    // or a pointer press while the user stood elsewhere, puts the user in the box before
-    // the submission, so what the send does next starts from the state Enter starts it
-    // from — a composer that gives way to its thread hands the user on the same way.
+    // user where Enter does: in the box, for a box that stays to take more, or wherever the
+    // send hands them on to, as a reply does to its thread (`landSent`), never on the
+    // control, where the next letters would fall on nothing. A pointer press never takes
+    // the focus (moving it is mousedown's default), so the box keeps it until the send
+    // moves it. A keyboard press on the control, or a pointer press while the user stood
+    // elsewhere, puts the user in the box before the submission, so what the send does
+    // next starts from the state Enter starts it from.
     //
     // Except while an input method holds unfinished words: leaving the box is what
     // finishes them, so there the press takes the focus as it always did, and the words

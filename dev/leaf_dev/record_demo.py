@@ -1,12 +1,14 @@
-"""Record docs/demo.gif, the README's two session stills, and the site's card, by
+"""Record the README's demo GIF and two session stills, and the site's card, by
 driving the shipped runtime through one round.
 
-The stills come off the same staged scene as the GIF, the one the landing page's alt
-text describes, so a theme change regenerates them rather than leaving them stale.
+The stills come off the same staged scene as the GIF, the one the README's alt text
+describes, so a theme change regenerates them rather than leaving them stale. The
+four files are published under `demo/` in max-sixty/leaf-assets
+(`leaf_dev.leaf_assets`), which moves Leaf's pin and the README's image URLs.
 
-    uv run leaf-dev record-demo [--output PATH]
+    uv run leaf-dev record-demo [--output DIR]
 
-`--output` names the GIF, and the stills land beside it; it defaults to docs/demo.gif.
+`--output` writes the four files into DIR instead of publishing them.
 """
 
 from __future__ import annotations
@@ -26,15 +28,16 @@ from leaf.projection import folded_positions
 from leaf.registry.storage import require_registry
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import served
+from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from PIL import Image
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
 from leaf_dev.browser import chrome, tab
+from leaf_dev.leaf_assets import publish, stage
 
 LEAF = ROOT / "bin" / "leaf"
-DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
 STILL_SIZE = (1280, 953)
@@ -83,7 +86,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
     """The board with the user's move folded in, as the page draws it: the order an
     agent writes into its next version."""
     state = json.loads(run_leaf("page", "state", str(page_dir)))
-    _, reading, _ = read_served_page(page_dir, read_events(page_dir))
+    _, reading, _ = read_served_page(read_page(page_dir, read_events(page_dir)))
     document = reading.documents[state["active"]["revision"]]
     registry = require_registry(page_dir)
     order = folded_positions(
@@ -369,7 +372,7 @@ def record(
 
 
 def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
-    """The landing page's session stills and the site's card, off the scene `record`
+    """The README's session stills and the site's card, off the scene `record`
     has just left, written into `into` beside the GIF.
 
     The board move `record` delivered stands until the document says what it said,
@@ -428,15 +431,14 @@ def write_gif(frames: list[Image.Image], durations: list[int], output: Path) -> 
 @click.command("record-demo")
 @click.option(
     "--output",
-    type=click.Path(dir_okay=False, path_type=Path),
-    default=DEFAULT_OUTPUT,
-    help="GIF path; the stills are written beside it. Default: docs/demo.gif.",
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Write the recording into this directory instead of publishing it.",
 )
-def record_demo(output: Path) -> None:
-    """Record the demo GIF, README stills and site card."""
-    output = output.resolve()
-    output.parent.mkdir(parents=True, exist_ok=True)
+def record_demo(output: Path | None) -> None:
+    """Record the demo GIF, README stills and site card, and publish them."""
     with tempfile.TemporaryDirectory(prefix="leaf-demo-") as scratch:
+        recording = Path(scratch) / "demo"
+        recording.mkdir()
         page_dir = Path(scratch) / "page"
         # A state home of its own, so the host's open pages stay out of the banner's
         # `All leaves`. Set before any leaf command so each inherits it. The agent's
@@ -459,9 +461,8 @@ def record_demo(output: Path) -> None:
             with chrome() as browser, tab(browser, GIF_SIZE) as page:
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)
-                # The GIF is written first, so a still that fails costs only itself.
-                write_gif(frames, durations, output)
-                shoot_stills(browser, url, page_dir, output.parent)
+                write_gif(frames, durations, recording / "demo.gif")
+                shoot_stills(browser, url, page_dir, recording)
         finally:
             waiter.stop()
             subprocess.run(
@@ -469,4 +470,13 @@ def record_demo(output: Path) -> None:
                 capture_output=True,
                 check=False,
             )
-    click.echo(f"Recorded {output}")
+        files = {path.name: path.read_bytes() for path in recording.iterdir()}
+    if output is not None:
+        output.mkdir(parents=True, exist_ok=True)
+        for name, content in files.items():
+            (output / name).write_bytes(content)
+        click.echo(f"Recorded {output}")
+        return
+    with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
+        revision = publish(stage("demo", files, Path(raw)), "Record the demo")
+    click.echo(f"Recorded max-sixty/leaf-assets@{revision}")

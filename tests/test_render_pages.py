@@ -156,6 +156,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 
+@pytest.mark.watch_shifts
 def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
     """Each trace step paints inside a fixed layout at both wide pane widths."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
@@ -1044,7 +1045,12 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_have_count(0)
+    expect(reply).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
+    assert reply.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 16, "backward"]
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
@@ -1620,17 +1626,45 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     )
 
 
-def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
-    """The room is for the drawing, and until the module has made one what stands in the
-    box is the authored source: evidence, which reads at the column's width from the
-    column's own edge. The mark is written before any module imports, so this is every
-    page's first loading interval and not a corner — the renderer is fetched lazily — and
-    for a page whose module never arrives it is the whole of what the user sees. Held
-    to the room, three sources came out centred at three indents, none of them the
-    column's.
+def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serve):
+    """A live page draws a tab set's first panel alone before its module upgrades it,
+    and the strip the module builds is the only way to the rest. Where the runtime could
+    not start, no strip will come, so every panel stands under its label. Without the
+    startup failure guard the second panel computes to `display: none` and the page
+    keeps a word the user cannot reach."""
+    url = serve(
+        leaf_page(
+            "tabs",
+            '<h1 id="t">Tabs</h1>\n<lf-tabs id="views">'
+            '<lf-tab id="one" label="One"><p id="first">First.</p></lf-tab>'
+            '<lf-tab id="two" label="Two"><p id="second">Second.</p></lf-tab></lf-tabs>',
+        )
+    )
+    page = browser.new_page()
+    page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    ).to_be_visible()
+    expect(page.locator("#views")).not_to_have_class("lf-rendered")
+    expect(page.locator("#first")).to_be_visible()
+    expect(page.locator("#second")).to_be_visible()
+    assert (
+        page.evaluate(
+            "getComputedStyle(document.getElementById('two'), '::before').content"
+        )
+        == '"Two"'
+    )
+    consume_browser_errors(page, "lf-tabs.js", "net::ERR_FAILED")
 
-    The module is blocked outright here because that is the state the failure holds
-    still: what the timed version of it measures is the machine."""
+
+def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
+    """The room is for the drawing. While the renderer loads, a live page gives the box
+    that room from first paint so the drawing lands without moving anything; once the
+    renderer cannot arrive, the page did not start, and the source is the whole of what
+    the user sees. It is evidence, which reads at the column's width from the column's
+    own edge. Held to the room, three sources came out centred at three indents, none of
+    them the column's."""
     url = serve(DIAGRAM_AND_RAIL_PAGE)
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
@@ -2676,8 +2710,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
 
     The task and the note are the two a list of tags could not have named even in
     principle. A task's rail is drawn by `lf-task > lf-task`, so a task frames what it
-    holds only where it is nested, and a note's box is `.lf-code-note`, built by the code
-    block's module and worn by no tag at all. Each let a diagram out ~245px over the
+    holds only where it is nested, and a note's box is drawn by `lf-code > pre > lf-note`,
+    a rule on where the code block's module docks it rather than on the tag. Each let a diagram out ~245px over the
     column until the rule that draws it declared the frame.
 
     The row form is the declaration's limit, and the reason the sizing is asserted
@@ -2714,7 +2748,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
                  boardCard: box('#ek1'), inBoardCard: box('#in-board-card'),
                  metric: box('#me1'), inMetric: box('#in-metric'),
                  task: box('#t-inner'), inTask: box('#in-task'),
-                 note: box('.lf-code-note'), inNote: box('#in-note'),
+                 note: box('lf-code pre > lf-note'), inNote: box('#in-note'),
                  rowGroup: box('#row-pick'), rowCell: box('#row-a'),
                  inRow: box('#in-row'), rowPick: box('#row-a .lf-pick'),
                  ownBox: box('#own-box'), inOwnBox: box('#in-own-box') };
@@ -3381,13 +3415,14 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
     };
   })"""
 
-# Each disclosure and whether the sheet shows what it holds.
+# Each disclosure and whether the sheet shows its authored content. Injected controls
+# may sit beside that content for keyboard order, but are intentionally absent on paper.
 DISCLOSURES = """() => [...document.querySelectorAll('details')]
   .filter(d => !d.closest('.lf-chrome'))
   .map(d => ({
     open: d.open,
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY')
+    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
   }))"""
 

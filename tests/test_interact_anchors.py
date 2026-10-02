@@ -28,8 +28,19 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hook_carrier as hook_carrier_model
+from leaf import passages as passages_model
+from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.registry import storage as registry_storage
+
+
+def test_an_explicit_line_break_separates_quoted_words():
+    document = structure_model.SourceDocument(
+        "<main><p id='line'>Short label here<br>Then a second line.</p></main>"
+    )
+    assert passages_model.page_passages(document).text == (
+        "Short label here Then a second line."
+    )
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
@@ -136,8 +147,6 @@ def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
     assert result.exit_code != 0
     assert "2 times" in result.output
-    # Both readers meet this message — the writer here, and a person selecting text in
-    # the MCP snapshot's panel — so its recourse names no flag.
     assert "name the section" in result.output and "--section" not in result.output
     # Naming a section is one of the two ways out it offers.
     scoped = comment(
@@ -1742,6 +1751,27 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     assert [
         (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+
+
+def test_message_markup_may_not_declare_the_document(page_dir):
+    """A message renders in every revision of its page, so a base, header, or import
+    map in one would redirect, navigate, or break that page for good. Handlers are the
+    author's to write, as in the page itself."""
+    published(page_dir)
+    widget = (
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+    )
+    for declaration in (
+        '<base href="https://outside.example/">',
+        '<meta http-equiv="refresh" content="0;url=https://outside.example/">',
+        '<script type="importmap">{"imports": {}}</script>',
+    ):
+        refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
+        assert refused.exit_code != 0, declaration
+        assert "declares something about the whole document" in refused.output
+    handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
+    assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

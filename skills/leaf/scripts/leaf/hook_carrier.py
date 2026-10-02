@@ -4,8 +4,9 @@ conversation loop. `hooks` reaches this module only for a session holding a page
 
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
-hook returns to that turn's context; the Stop hook's block reason reaches the
-model the same way. So these two hooks are the session's carrier
+hook returns to that turn's context; what the Stop hook returns reaches the
+model the same way, and continues the turn (`Harness.continue_turn`). So these
+two hooks are the session's carrier
 (`Harness.hook_delivers`): each freezes the input pending on the session's
 pages, confirms it, and hands over the whole envelope, and the `leaf wait` the
 model keeps running only ends to open the turn. The model reads no output file
@@ -17,7 +18,7 @@ reader confirms instead of being confirmed unseen."""
 
 import json
 
-from .activity import acknowledged_obligations, blocking_obligations, unanswered
+from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     ReceiptRefused,
     freeze_delivery,
@@ -42,6 +43,27 @@ from .service import (
 )
 
 
+def reclaim(obligations: list[dict]) -> str:
+    """What to do about owed moves a standing claim covers that this turn did not
+    write since their pickup, which hold the turn until it answers them or claims
+    them again (`activity.turn_obligations`): named only for such moves, so a move
+    nobody is at work on is never offered a claim in place of its answer."""
+    subjects = list(
+        dict.fromkeys(
+            obligation["subject"]["id"]
+            for obligation in obligations
+            if obligation["claimed_by"]
+        )
+    )
+    if not subjects:
+        return ""
+    return (
+        f"; the work claim on {', '.join(subjects)} is older than its pickup: "
+        "answer once that work is done, or while it still runs claim it again with "
+        '`leaf status <page> working "<what is still running>" --on <id>`'
+    )
+
+
 def unattended_pages(
     session_id: str, *, prompt_open: bool = False, handing: list[dict] = ()
 ) -> list[tuple[str, str | None]]:
@@ -53,9 +75,9 @@ def unattended_pages(
     once per page. `None` where the line is the whole remedy.
 
     Two invariants hold between turns. A page is watched or idle, so anything
-    else has quietly stopped listening. And every comment delivered into this
-    turn has an answer under it, where `activity.blocking_obligations` says which
-    moves this turn owes.
+    else has quietly stopped listening. And every move delivered into this turn
+    has an answer, or a work claim this turn wrote for it, where
+    `activity.turn_obligations` says which moves this turn owes.
 
     `handing` is the input this same hook hands the turn, which is neither
     unpicked nor owed yet: the reasons describe what is left beside it."""
@@ -85,11 +107,11 @@ def unattended_pages(
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = blocking_obligations(state, carried=carried)
+        stale = turn_obligations(state, carried=carried)
         if stale:
             page_reasons.append(
                 (
-                    f"{page_dir}: {unanswered(stale, 'acknowledged')}.",
+                    f"{page_dir}: {unanswered(stale, 'acknowledged')}{reclaim(stale)}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )
@@ -163,6 +185,18 @@ def unattended_pages(
     return reasons
 
 
+def stop_harness(session_id: str) -> type[Harness]:
+    """The harness this session's hooks run under, as its page claims record it:
+    every claim a session takes names the one harness it runs in. Should every
+    claim have gone since this hook read them, a block continues the turn on any
+    host."""
+    for page_dir in owned_pages(session_id):
+        claim = page_claim(page_dir)
+        if claim is not None and claim["id"] == session_id:
+            return type(claim_harness(claim))
+    return Harness
+
+
 # Claude Code writes a hook's context over this size to a file and hands the turn
 # a 2 KB preview and the path instead: measured at 2.1.283 with ASCII, 9,990
 # characters arrived whole and 10,010 did not. Which unit it counts is unmeasured,
@@ -171,13 +205,13 @@ HOOK_CONTEXT_LIMIT = 10_000
 
 
 def pointer_acknowledgement(delivery_id: str) -> str:
-    """What a delivery too large to hand over inline tells its reader."""
+    """What a delivery too large to hand over inline tells its reader, who confirms
+    it once read."""
     return (
-        "Leaf's hook handed this delivery over as a pointer, because it was too large "
-        "for the turn's context; until it is confirmed, the user's moves read Sent. "
-        "Once all of it is in your context, confirm it: "
-        f"{Harness.run_ack(delivery_id)}: it confirms this delivery and waits for "
-        "the next."
+        "Leaf's hook handed this delivery over as a pointer, because it was too "
+        "large for the turn's context; until it is confirmed, the user's moves "
+        "read Sent. Once all of it is in your context, confirm it with "
+        f"`leaf delivery ack {delivery_id}`."
     )
 
 
@@ -218,7 +252,7 @@ def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None
     ), None
 
 
-def carry_turn(event: str | None, sid: str, payload: dict) -> None:
+def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
     """Answer a prompt, Stop, or other page-reading hook for a session holding a
     page: open or close its turn, hand over its pending input, and name what its
     pages are owed."""
@@ -230,26 +264,25 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
         batches = pending_batches(sid)
         reasons = unattended_pages(sid, prompt_open=True, handing=batches)
     elif event == "Stop":
-        # Input that arrived as the turn ends goes into this same turn. A repeated
-        # Stop takes only the user's: a worker's reports or a page's own errors,
-        # which nobody paces, could otherwise hold a turn open without end, and
-        # the next turn takes them.
+        # The Stop hook keeps a turn going only for what that turn owes: input
+        # that arrived as it ends and is owed an answer, or a debt it names.
+        # Input that owes nothing, such as a resolve, a worker's report or a
+        # page's own error, reaches the agent through its watcher like any other,
+        # and rides along when the turn goes on anyway. A repeated Stop has said
+        # its debts once already, and only newly owed input keeps it going again:
+        # the other input nobody paces, and could hold a turn open without end.
         batches = pending_batches(sid)
-        if payload.get("stop_hook_active") and not any(
-            move["author"] == "user" for batch in batches for move in batch["events"]
-        ):
-            batches = []
+        owed = any("answer" in move for batch in batches for move in batch["events"])
         reasons = unattended_pages(sid, handing=batches)
-        # A first Stop blocked on outstanding Leaf work does not end the
-        # turn: Claude continues in the same turn with this reason as new
-        # context. Stamp only a turn the hook allows to end (cleanly or on
-        # the repeated stop that deliberately fails open).
-        if not batches and (not reasons or payload.get("stop_hook_active")):
-            close_session_turn(sid)
-        # A repeated ordinary debt is the same Stop hook asking again; new
-        # input is not.
-        if payload.get("stop_hook_active") and not batches:
-            return
+        # A Stop that speaks does not end the turn: the host continues the same
+        # turn with what it says as new context. Stamp only a turn the hook lets
+        # end.
+        if not owed and (not reasons or payload.get("stop_hook_active")):
+            # A provider-named turn closes through the synchronous observation
+            # in cmd_hook, which also covers a page acquired mid-turn.
+            if not payload.get("turn_id"):
+                close_session_turn(sid)
+            return True
     else:
         reasons = unattended_pages(sid)
     if not reasons and not batches:
@@ -290,7 +323,7 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
             for page in refused
         )
     if event == "Stop":
-        print(json.dumps({"decision": "block", "reason": message}))
+        print(json.dumps(stop_harness(sid).continue_turn(message)))
     else:
         print(
             json.dumps(

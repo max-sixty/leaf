@@ -4,6 +4,7 @@ A watch revives the server of a live page it finds dead, so this module sits
 above the HTTP servers (`hosting`). Receipt, which every carrier shares, is
 `delivery`'s, so a host hook confirms input without importing a server."""
 
+import contextlib
 import json
 import sys
 import time
@@ -14,16 +15,12 @@ from typing import NamedTuple
 from .activity import blocking_obligations, unanswered
 from .delivery import batch_data, freeze_delivery, receive_delivery
 from .detached import StartRefused
+from .event_endpoint import nudge_unwatched
+from .event_log import read_events
 from .files import file_stamp, next_reading, read_json
 from .host import Harness, claim_harness, session_harness
 from .hosting import start_server
-from .leases import (
-    release_lease,
-    release_session_wait,
-    take_lease,
-    take_session_wait,
-    waiter_lease_path,
-)
+from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
 from .revisioning import activate_source
@@ -39,6 +36,7 @@ from .service import (
     claim_page,
     owned_pages,
     read_status,
+    requires_agent_attention,
     unacknowledged,
 )
 from .work import standing_work_claims, work_subject
@@ -47,6 +45,11 @@ from .work import standing_work_claims, work_subject
 # without a pass on a page whose files have not moved: nothing else a pass reads
 # changes on the clock alone.
 REVIVAL_CHECK_S = 5
+
+# How long a turn-end watch holds input that was already pending as the turn ended:
+# the Stop hook running beside it hands such input to the turn it continues, and
+# this is that hook's timeout (`hooks/hooks.json`).
+STOP_HOOK_S = 20
 
 
 def check_local_claim(state: str) -> None:
@@ -98,8 +101,9 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, the ones the Stop hook holds a turn open
-    for. The check and the transition share the log lock, so an event arriving
+    `activity.blocking_obligations`, a claimed move's included: the Stop hook lets
+    the turn that claimed one end over it, but closing the page answers nothing.
+    The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     # Ahead of the transaction, which reaches `set_status` without a subject:
     # refused here, `idle --on` cannot be reported back as a claim the page
@@ -180,7 +184,6 @@ class Watch:
             waiter_lease_path(page, self.session_id) for page in targets
         )
         self.leases = []
-        self.start_mark = None
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
@@ -190,15 +193,6 @@ class Watch:
     def acquire(self) -> bool:
         """Hold the session lease, or every explicitly watched standalone page."""
         if self.leases:
-            return True
-        if self.session_id:
-            # A host wait also marks its start, for the tool hook that tells the
-            # agent how to close the turn this wait outlives.
-            taken = take_session_wait(self.session_id)
-            if taken is None:
-                return False
-            lease, self.start_mark = taken
-            self.leases.append(lease)
             return True
         for path in self.lease_paths:
             lease = take_lease(path)
@@ -336,10 +330,6 @@ class Watch:
 
     def release(self) -> None:
         """Release this carrier's liveness proof, however it ended."""
-        # The start mark goes before the lease, so the next wait never waits on it.
-        if self.start_mark is not None:
-            release_session_wait(self.session_id, self.start_mark)
-            self.start_mark = None
         for lease in self.leases:
             release_lease(lease)
         self.leases.clear()
@@ -397,8 +387,10 @@ def read_watch_pass(
     watch: Watch,
     named: Path | None,
     deliver: Callable[[PageTick], None],
+    ready: Callable[[PageTick], bool] = lambda reading: True,
 ) -> _WatchPass:
-    """Read pages until this pass completes or one page ends the wait."""
+    """Read pages until this pass completes or one page ends the wait. A batch
+    the watch is not `ready` to hand over waits for a later pass."""
     readings = []
     live = []
     for reading in watch.tick():
@@ -423,7 +415,7 @@ def read_watch_pass(
         # A batch outranks the page's state: a wait already holding events owes
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
-        if reading.batch:
+        if reading.batch and ready(reading):
             deliver(reading)
             return _WatchPass(readings, live, 0)
         if reading.lost:
@@ -485,6 +477,15 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     return 2
 
 
+def new_input_line(page_dir: Path) -> str:
+    """What a watch says on finding input where the host's prompt hook carries it
+    into the turn: it only wakes the session."""
+    return (
+        f"{page_dir} has new input; Leaf's prompt hook puts it in your context with "
+        "this notification"
+    )
+
+
 def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     """Confirm a complete delivery, if given, then watch for the next batch.
 
@@ -512,11 +513,7 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         """Print immutable input; only the consumer can confirm receipt. Where the
         harness's hook carries input into the turn, the wait only wakes it."""
         if harness and harness.hooks_carry():
-            print(
-                f"{reading.page_dir} has new input; Leaf's prompt hook puts it in "
-                "your context with this notification",
-                flush=True,
-            )
+            print(new_input_line(reading.page_dir), flush=True)
         else:
             print(delivery_json(reading, harness), flush=True)
 
@@ -531,3 +528,87 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
             watch.await_news(mark)
     finally:
         watch.release()
+
+
+def _log_end(page_dir: Path) -> int:
+    """The last sequence number in a page's log, or 0 for an empty or gone log."""
+    with contextlib.suppress(FileNotFoundError):
+        return max((event["seq"] for event in read_events(page_dir)), default=0)
+    return 0
+
+
+def watch_between_turns(harness: Harness) -> str | None:
+    """The session's watch run by the host's own Stop hook, which the host starts
+    in the background as each turn ends (`Harness.watches_between_turns`), and
+    what it wakes the session with, or None where it ends without waking it.
+
+    It wakes the session for a page with new input, which the prompt hook then
+    hands over as the turn the wake opens begins, and for live pages none of whose
+    servers can be brought back. It ends silently where another watch already
+    holds the session's lease, no page is left to watch, or the host process that
+    started it has gone (`Harness.host_runs`), leaving the session's input to its
+    `nudge`.
+
+    Input that was already pending as the turn ended waits for the Stop hook
+    beside this one, which hands it to the turn it continues. It is the wake's to
+    carry only once that hook let the turn end over it, or failed to answer within
+    its own timeout. Input arriving later wakes the session at once, between two
+    turns or within one, where it reaches the turn at its next tool result."""
+    watch = Watch(harness)
+    if not watch.acquire():
+        return None
+    # Where each page's log stood as the watch first saw it, and when the Stop
+    # hook's answer over what was pending then is due: an event past that point
+    # arrived since. A page claimed while the watch runs is first seen then.
+    began: dict[Path, tuple[int, float]] = {}
+
+    def first_sight(page_dir: Path, end: int) -> tuple[int, float]:
+        return began.setdefault(page_dir, (end, time.monotonic() + STOP_HOOK_S))
+
+    for page_dir in owned_pages(harness.session):
+        first_sight(page_dir, _log_end(page_dir))
+    woke = []
+
+    def ready(reading: PageTick) -> bool:
+        claim = reading.transaction.active_claim
+        last = reading.batch[-1]["seq"]
+        end, settled = first_sight(reading.page_dir, last)
+        return (
+            (claim is not None and claim.get("turn_closed") is not None)
+            or last > end
+            or time.monotonic() > settled
+        )
+
+    try:
+        while harness.host_runs():
+            mark = watch.mark()
+            reading = read_watch_pass(
+                watch, None, lambda tick: woke.append(tick.page_dir), ready
+            )
+            for tick in reading.readings:
+                if tick.page_dir not in began:
+                    first_sight(tick.page_dir, _log_end(tick.page_dir))
+            if woke:
+                return new_input_line(woke[0])
+            if reading.outcome is not None:
+                return "\n".join(
+                    f"{tick.page_dir}: server is not running; restart it with "
+                    f"`leaf server start {tick.page_dir}`"
+                    for tick in reading.readings
+                    if tick.lost
+                )
+            if not reading.live:
+                return None
+            watch.await_news(mark)
+    finally:
+        watch.release()
+    # Input admitted while this watch held the lease was not nudged, so now the
+    # lease is gone, any such input is nudged as admission would have.
+    for page_dir in owned_pages(harness.session):
+        with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
+            if any(
+                requires_agent_attention(event)
+                for event in unacknowledged(page.events, page.cursor)
+            ):
+                nudge_unwatched(page)
+    return None

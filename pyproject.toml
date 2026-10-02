@@ -21,13 +21,6 @@
 # covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the group,
 # though the lock records it.
 #
-# starlette, uvicorn and anyio serve every page (`hosting.py`, `http.py`). They
-# already arrived through `mcp`, and are stated here because leaf imports them
-# directly: a transitive version that suits an MCP release is not a contract this
-# project's own transport can rest on. Their floors are the lowest this interpreter
-# can resolve, `mcp` holding each above what leaf alone needs, and the server,
-# website and MCP suites were run against exactly those versions.
-#
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
@@ -51,7 +44,6 @@ dependencies = [
   "click>=8",
   "jsonschema>=4",
   "markdown-it-py>=4",
-  "mcp>=2.1.1",
   "packaging>=22",
   "playwright>=1.51",
   "psutil>=6",
@@ -66,7 +58,7 @@ dependencies = [
 ]
 
 [project.scripts]
-leaf = "leaf.cli:cli"
+leaf = "leaf.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.9"]
@@ -119,4 +111,7 @@ leaf-website = { workspace = true }
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
-markers = ["nightly: a pull request can land without it; `--run-nightly` runs it"]
+markers = [
+  "nightly: a pull request can land without it; `--run-nightly` runs it",
+  "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
+]

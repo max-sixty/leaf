@@ -3,8 +3,8 @@
 Every product document under `docs/` is a Leaf source. The build publishes each one as a
 complete page directory, alongside the worked examples. The Worker serves the
 build-generated initial projection at the edge, then gives an interacting browser a
-private copy through Leaf's canonical Python server. The catalog previews come from the
-external revision pinned in `example-previews.json`.
+private copy through Leaf's canonical Python server. The catalog previews and the
+product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
@@ -20,7 +20,7 @@ The build also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the
 routes, and each page's link card. A page's title and description are authored in its
 own source, and the build refuses a page missing either. The rest of the card comes from
 `site_metadata` in `leaf_website` (`worker/`). Each page's card image is named in the manifest:
-`docs/session-card.png` for a product page and the catalog preview for an example.
+the demo's `session-card.png` for a product page and the catalog preview for an example.
 
     uv run leaf-dev site
 
@@ -54,9 +54,9 @@ from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
 from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
 from leaf_dev import ROOT
-from leaf_dev.example_assets import example_previews
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.harness import environment
+from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
     package_selection_args,
     prepare_page,
@@ -81,8 +81,9 @@ PRODUCT_ROUTES = {
 }
 SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
-# by `leaf_dev.record_demo`. An example names its own catalog preview instead.
-DEFAULT_SOCIAL_IMAGE = DOCS / "session-card.png"
+# by `leaf_dev.record_demo`, relative to the asset tree. An example names its own
+# catalog preview instead.
+SOCIAL_CARD = "demo/session-card.png"
 
 
 class Links(HTMLParser):
@@ -235,7 +236,7 @@ def media_url(source: Path) -> str:
     return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
-def social_images(previews: Path) -> dict[str, str]:
+def social_images(assets: Path) -> dict[str, str]:
     """The public card image behind each page root.
 
     Both are named at the page root that publishes the file: the product shot at the
@@ -246,10 +247,10 @@ def social_images(previews: Path) -> dict[str, str]:
     catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
     images = {
         f"{catalog}/{source.stem}": catalog
-        + media_url(previews / f"example-{source.stem}.jpg")
+        + media_url(assets / "examples" / f"example-{source.stem}.jpg")
         for source in catalog_sources()
     }
-    return {"": media_url(DEFAULT_SOCIAL_IMAGE), **images}
+    return {"": media_url(assets / SOCIAL_CARD), **images}
 
 
 def document_metadata(page_dir: Path) -> tuple[str, str]:
@@ -334,7 +335,7 @@ def publish_examples(out: Path, env: dict) -> None:
         print(f"  {source.stem}")
 
 
-def publish_pages(out: Path, env: dict, previews: Path) -> None:
+def publish_pages(out: Path, env: dict, assets: Path) -> None:
     """Canonical interactive product documents and worked examples."""
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
@@ -343,12 +344,13 @@ def publish_pages(out: Path, env: dict, previews: Path) -> None:
         leaf(env, "page", "init", *selection, str(template))
         # Put the authored images behind the content-addressed paths the product
         # sources name before validating and rendering them.
-        product_media = sorted(
-            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
-        )
-        product_media.extend(
-            previews / f"example-{source.stem}.jpg" for source in catalog_sources()
-        )
+        product_media = [
+            assets / SOCIAL_CARD,
+            *(
+                assets / "examples" / f"example-{source.stem}.jpg"
+                for source in catalog_sources()
+            ),
+        ]
         leaf(env, "page", "media", str(template), *map(str, product_media))
         # Each product document is checked in the template, then published as a copy.
         for source in product_sources():
@@ -362,10 +364,10 @@ def publish_pages(out: Path, env: dict, previews: Path) -> None:
 
 
 def publish_live_shells(
-    out: Path, previews: Path, *, include_products: bool = True
+    out: Path, assets: Path, *, include_products: bool = True
 ) -> Path:
     """Materialize the public bytes of every private page directory."""
-    images = social_images(previews)
+    images = social_images(assets)
     digest = hashlib.sha256()
     for path in sorted(
         candidate for candidate in out.rglob("*") if candidate.is_file()
@@ -451,21 +453,21 @@ def publish_live_shells(
     return assets
 
 
-def build_examples(out: Path, *, catalog_previews: Path) -> None:
+def build_examples(out: Path, *, assets: Path) -> None:
     """Build only the public example routes used to record catalog previews."""
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     # `environment()` keeps the builder's host session out of published version notes.
     publish_examples(out, environment())
-    publish_live_shells(out, catalog_previews, include_products=False)
+    publish_live_shells(out, assets, include_products=False)
 
 
-def build(out: Path, *, catalog_previews: Path | None = None) -> None:
-    previews = catalog_previews or example_previews()
+def build(out: Path, *, assets: Path | None = None) -> None:
+    assets = assets or pinned_assets()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_pages(out, environment(), previews)
-    publish_live_shells(out, previews)
+    publish_pages(out, environment(), assets)
+    publish_live_shells(out, assets)
     check_links(out)
 
 

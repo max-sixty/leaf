@@ -15,12 +15,11 @@ from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import record_claim, running_http_server
 from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
+from leaf import session_cleanup as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
@@ -1248,12 +1247,12 @@ def live_leaf(tmp_path, monkeypatch):
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
             "t",
         )
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "running the suite",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
             },
         )
         # A live leaf has a session behind it, and what the drawer's hover says about a
@@ -1271,7 +1270,7 @@ def live_leaf(tmp_path, monkeypatch):
         port = httpd.server_address[1]
         # Desired address and a held, contentless lease are the two facts a real
         # server exposes to neighbouring pages.
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "service.json",
             {
                 "host": "127.0.0.1",
@@ -1935,12 +1934,21 @@ RINGS_DRAWN = f"""async () => {{
     // the control as the control itself. A ring carried by a positioned `::after` is in
     // that layer already, at its own z-index and after every descendant in tree order,
     // so only a descendant lifted to a higher z-index stands over it.
-    const carrier = pseudo && cs.position !== 'static' ? (parseFloat(cs.zIndex) || 0) : null;
+    //
+    // A z-index places a flex or grid item as it places a positioned box, and makes either
+    // a stacking context that holds everything inside it at its own level. The thread
+    // list's ring is the case: a `::after` at z-index 1 over the list, both grid items of
+    // one frame, the list at 0, so an open card filling the list reaches the ring's bottom
+    // run and stays beneath it.
+    const stacked = (s, holder) => s.zIndex !== 'auto'
+      && (s.position !== 'static' || /flex|grid/.test(getComputedStyle(holder).display));
+    const carrier = pseudo && stacked(cs, el) ? (parseFloat(cs.zIndex) || 0) : null;
     const lifted = (n) => {{
       let lift = null;
       for (let a = n; a && a !== el; a = above(a)) {{
         const s = getComputedStyle(a);
-        if (s.position !== 'static') lift = Math.max(lift ?? 0, parseFloat(s.zIndex) || 0);
+        if (stacked(s, above(a))) lift = parseFloat(s.zIndex) || 0;
+        else if (s.position !== 'static') lift = Math.max(lift ?? 0, 0);
       }}
       return lift !== null && (carrier === null || lift > carrier);
     }};

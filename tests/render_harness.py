@@ -42,6 +42,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
+from known_faults import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -49,17 +50,25 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import (
+    example_media,
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+)
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
+SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
+WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -75,10 +84,6 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
 )
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 CORPUS_PAGE = ROOT / "examples" / "corpus.html"
-# The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
-# exactly as `leaf page media` names it in a real page directory. Every builder of
-# a page directory lays this beside the markup (examples/AGENTS.md, "Media").
-EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
@@ -493,7 +498,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             (d / "index.html").write_text(html)
             references = structure_model.SourceDocument(html).media_refs
             for reference in references:
-                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+                fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
@@ -542,7 +547,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         if preview is not None:
-            files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,
@@ -724,6 +729,26 @@ def sending(page, what):
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
     round_trip(page)
+
+
+def watch_message_arrival(root, selector):
+    """Record delivery paint on insertion within a document or declared shadow root."""
+    root.evaluate(
+        """(node, selector) => {
+          const root = node.shadowRoot ?? node;
+          window.__messageArrival = null;
+          const observer = new MutationObserver(() => {
+            const message = root.querySelector(
+              `${selector}[data-attempt][aria-busy="true"]`
+            );
+            if (!message) return;
+            window.__messageArrival = Number(getComputedStyle(message).opacity);
+            observer.disconnect();
+          });
+          observer.observe(root, {childList: true, subtree: true});
+        }""",
+        selector,
+    )
 
 
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
@@ -1049,25 +1074,31 @@ def until_draft_settled(page, ctx: str) -> None:
 
 
 _BROWSER_PROBLEM_LISTS = None
+_TEST = None
 
 
 @contextmanager
-def clean_browser():
+def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves.
+    themselves. The fixture hands over its `test` node, for which `known_faults` says
+    whether to watch for layout shifts (`shift_watch.js`) and which shift or lost words
+    (`words_watch.js`) are its known ones: defects waiting on their fix, which
+    `watched` drops as it hears them.
     """
-    global _BROWSER_PROBLEM_LISTS
+    global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
     captured = []
     _BROWSER_PROBLEM_LISTS = captured
+    _TEST = test
     try:
         yield
     finally:
         _BROWSER_PROBLEM_LISTS = None
+        _TEST = None
     problems = [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
@@ -1076,13 +1107,33 @@ def clean_browser():
     assert problems == [], problems
 
 
+def judge_watches():
+    """Judge every layout shift each watched page makes, once the frames the test's
+    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
+
+    Chrome hands a frame's shifts to the observer only after it paints, and a loss waits
+    a moment for the press that may answer for it, so a test whose last act moves the
+    page or takes words away would end before the report. `conftest.py` calls this as
+    the test body returns, while the pages' servers still answer: a page left painting
+    after its server is gone lets its failed fetches reach the console."""
+    for page, _ in _BROWSER_PROBLEM_LISTS or ():
+        if not page.is_closed():
+            for frame in page.frames:
+                frame.evaluate("() => window.lfShiftsJudged?.()")
+                frame.evaluate("() => window.lfWordsJudged?.()")
+
+
 def watched(page):
     """Collect browser problems into one retained list per page.
 
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses, and by DOM writes that change nothing (`write_watch.js`).
-    Call before navigation so the init script takes effect.
+    the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
+    by layout shifts without input or that carry a field being typed in
+    (`shift_watch.js`), and by typed words leaving the screen without a key or press
+    (`words_watch.js`).
+    Call before navigation so the init scripts take effect.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1094,14 +1145,20 @@ def watched(page):
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
 
+    # A test's known shift is dropped where it is heard, so it never reaches what the
+    # test consumes.
     def console_message(message):
-        if problem := render_gate_model.console_problem(message):
+        problem = render_gate_model.console_problem(message)
+        if problem and not (_TEST and known(_TEST, problem)):
             errors.append(problem)
 
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
+    page.add_init_script(path=WORDS_WATCH_SOURCE)
+    if _TEST is None or watches_shifts(_TEST):
+        page.add_init_script(path=SHIFT_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {
@@ -2036,11 +2093,18 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Wait until the page has finished arriving: rendered, with any notice it opened
-    with gone and the pointer off its controls, so nothing the arrival started is still
-    changing it when a test begins its own reading."""
+    """Prepare a still_page for its reading: rendered, arrival notices retired, and
+    the pointer off its controls. Advance its controlled timer clock through every
+    callback while Date.now stays fixed; the following test keeps real-time timers.
+    """
     rendered(page)
-    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    notice = page.locator(".lf-notice.show")
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while notice.count():
+        assert time.monotonic() < deadline, "the arrival notice never retired"
+        # still_page fixes Date.now but its timer clock otherwise runs in real time.
+        # Run every callback until the notice retires; fast_forward would skip ticks.
+        page.clock.run_for(100)
     page.mouse.move(2, 300)
     rendered(page)
 
@@ -2080,9 +2144,9 @@ def at_rest(page):
     each frame it asks for, each time it moves the focus, and each animation it runs
     without end, in its own document and each one it frames, such as a live sample.
 
-    It starts once the page is `left_alone` and watches for `REST_SECONDS`. Frames are
-    counted where they are asked for, so a loop that writes nothing but still wakes the
-    page every frame is named too."""
+    It starts once the still_page is `left_alone` and watches in real time for
+    `REST_SECONDS`. Frames are counted where they are asked for, so a loop that writes
+    nothing but still wakes the page every frame is named too."""
     left_alone(page)
     frames = page.frames
     for frame in frames:

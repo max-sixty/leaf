@@ -3,16 +3,19 @@
 
    A thread that fits lands whole. A longer one lands its reply area, Send and Resolve
    with it, or the focused control alone where the editor is too tall for both. A reply
-   row pinned to its transcript's foot (the margin card's) reads as shown wherever the
-   transcript stands, so a landing on it lands the thread's end instead. The row is not
-   declared a cover of the transcript: the caret lives in it, and the browser's own
+   row pinned to its scroller's foot (the panel card's) reads as
+   shown wherever the transcript stands, so a landing on it lands the thread's end
+   instead. The margin card's reply stands outside its transcript scroll and a reply
+   landing reveals that transcript's end directly. The row is not declared a cover of
+   the transcript: the caret lives in it, and the browser's own
    caret reveal would scroll the transcript on every keystroke to clear it. A thread too
    tall to show, landed as a whole, lands its reply row where one fits, and
    otherwise stays where it is while any of it is on screen: the nearest edge of a box
    taller than the window is a jump to its top.
 
-   A send lands the turn it adds, and a box growing under the user's keystrokes keeps its
-   controls in the band and the words just above it beside it. Every box a thread or a
+   A send lands the turn it adds, around the box it was sent from even once the user
+   stands outside it, and a box growing under the user's keystrokes keeps its controls in
+   the band and the words just above it beside it. Every box a thread or a
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
@@ -36,9 +39,12 @@ const replyRowOf = (held, control) => {
       : control.closest(REPLY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
-// A reply row pinned to its scroller's foot (the margin card's) always stands in the band,
-// so aiming a scroll at it moves nothing: its place in the transcript is the thread's end.
+// A reply row pinned to its scroller's foot (a panel card's) stands in the band
+// while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
+// in the transcript is the thread's end.
 const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
+const separateTranscript = (held) =>
+  held.querySelector(":scope > .lf-thread-transcript");
 
 const ancestors = function* (node) {
   for (let parent = renderedParent(node); parent; parent = renderedParent(parent))
@@ -81,19 +87,32 @@ export function scrollThreadIntoView(
   block = "nearest",
 ) {
   bringBackSurfaceOf(held, behavior);
+  const transcript = separateTranscript(held);
+  if (transcript && control !== held && replyRowOf(held, control)) {
+    transcript.scrollTo({ top: transcript.scrollHeight, behavior });
+    return;
+  }
+  if (transcript?.contains(control)) {
+    control.scrollIntoView({ behavior, block });
+    return;
+  }
   const target = landingTarget(held, control);
   target.node?.scrollIntoView({ behavior, block: target.block ?? block });
 }
 
-// Taken as the user sends, before the send's own render: once the page has drawn the new
-// turn above the box, land the thread around the box the user sent from — every press
-// of its submit controls leaves them in it (`wireInput`) — so the turn's end shows with
-// the box, unless a newer gesture has taken the user elsewhere. A box the send removed
-// has handed the user on already.
-export function sendLanding(input) {
+// Taken as the user sends: once the page has drawn the new turn above the box, land the
+// thread around the box the user sent from, so the turn's end shows with the box, unless
+// a newer gesture has taken the user away from `standing`. That is where the send left
+// them: the thread or seat holding the box by default, or the page element a reply in
+// the margin card hands them to (`landSent`). A box the send removed has handed the user
+// on already.
+export function sendLanding(input, standing = input.closest(SAYS_IN)) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {};
-  const mayLand = retainUserIntent({ source: held, available: () => held.isConnected });
+  const mayLand = retainUserIntent({
+    source: standing,
+    available: () => held.isConnected,
+  });
   return () =>
     void whenDocumentPresented()
       .then(() => {
@@ -105,36 +124,68 @@ export function sendLanding(input) {
 // A box growing or shrinking under the user's own keystrokes keeps two things: its
 // controls in the band, and the words just above it where they stood beside it. A row in
 // flow grows downward, so the words above stay put and only its foot can leave the band,
-// which the landing brings back. A pinned row keeps its foot and grows upward over the
-// transcript, so the transcript moves by what the row now covers. Reading the row's top in
-// its scroller, rather than its height, leaves out growth the scroller took itself (a
-// card with room to grow) and any scroll the user made between keystrokes.
-const pinnedTops = new WeakMap();
-const pinnedTop = (reply) =>
-  reply.getBoundingClientRect().top - scrollerFor(reply).getBoundingClientRect().top;
+// which the landing brings back. A pinned row keeps its foot and grows upward: into the
+// room between it and the words above it first (the panel card's, standing at the list's
+// foot), then over those words, so the transcript moves by the part of the growth that
+// now covers them. A row that shrinks uncovers words and moves none. The cover is read now
+// and the row's growth from its height, since only the user's words change a row's
+// height: a scroll or a reply arriving between keystrokes moves the cover and must not be
+// paid for.
+const rowHeights = new WeakMap();
+const transcriptPlaces = new WeakMap();
+const covered = (reply) =>
+  (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
+  reply.getBoundingClientRect().top;
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
   const reply = replyRowOf(held, input);
+  // A separate transcript gives up height rather than being covered by the editor.
+  // A reader at its tail keeps the turn beside the growing box; someone reading back
+  // keeps their own offset. The beforeinput reading precedes the editor's layout.
+  const transcript = separateTranscript(held);
+  if (transcript) {
+    const place = transcriptPlaces.get(input);
+    if (
+      place?.transcript === transcript &&
+      place.atTail &&
+      transcript.clientHeight < place.height
+    )
+      transcript.scrollTo({ top: transcript.scrollHeight, behavior: "instant" });
+    transcriptPlaces.delete(input);
+    if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
+    return;
+  }
   if (!pinned(reply)) return scrollThreadIntoView(held, input, "instant");
-  const top = pinnedTop(reply);
-  const was = pinnedTops.get(input);
-  pinnedTops.set(input, top);
-  if (was !== undefined && was !== top)
-    scrollerFor(reply).scrollBy({ top: was - top, behavior: "instant" });
+  const height = reply.getBoundingClientRect().height;
+  const grew = height - (rowHeights.get(input) ?? height);
+  rowHeights.set(input, height);
+  const by = Math.max(0, Math.min(grew, covered(reply)));
+  if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
+  // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
+  if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
 }
-// Where a pinned row stood when the user came into its box, so the first keystroke's
-// growth is measured from there rather than from a reading taken before a landing.
+// The editor's place before its own edit, and on arrival for a first edit delivered
+// without beforeinput: a pinned row's height, or a separate transcript's tail and room.
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
-  if (pinned(reply)) pinnedTops.set(input, pinnedTop(reply));
+  if (pinned(reply)) rowHeights.set(input, reply.getBoundingClientRect().height);
+  const transcript = held && separateTranscript(held);
+  if (transcript)
+    transcriptPlaces.set(input, {
+      transcript,
+      height: transcript.clientHeight,
+      atTail:
+        transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 2,
+    });
 }
 
-// A render that inserts above the control the user stands on, such as a turn arriving
-// above the box they are writing in, moves it by what it inserted. `holdBox` reads where
-// the focused control stands and returns the step that puts it back, so news moves no
-// control under the user's hands. Only one on screen is under their hands: a user who
+// A render that inserts above the control the user stands on, such as an edit growing a
+// turn above the box they are writing in, moves it by what it inserted; an agent's turn
+// arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
+// reads where the focused control stands and returns the step that puts it back, so
+// news moves no control under the user's hands. Only one on screen is under their hands: a user who
 // has scrolled away from it is reading something else, which the news must not move. A
 // pinned row stands still by itself, and a control the render replaced has nothing to
 // hold. The box scrolling the control takes the move first and the boxes around it

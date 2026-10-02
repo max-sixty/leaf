@@ -1,5 +1,5 @@
-/* The marks the runtime paints on the user's words, and the one element paint from
-   the same pass. Stated once and adopted twice: by the document (leaf.js) and by every
+/* Shared annotation paint: passage marks, element indications, and message delivery.
+   Stated once and adopted twice: by the document (leaf.js) and by every
    shadow root a widget renders into (shadow.js, shadowStage). A rule in the document
    styles no glyph inside a shadow tree, so a widget that renders the page's words into
    one (x-shadow) would otherwise show words the user can select and no mark could
@@ -18,8 +18,8 @@
    says how near the user's attention is, in three steps of one hue: --mark for a mark
    the page merely holds, --mark-hover for the one the pointer is indicating, and
    --mark-strong for the one the user is standing in. The ink turns accent for hover
-   and standing: the wash still distinguishes "near here" from "you are here," while the
-   shared contour stays stable through the focus transition of a pointer press.
+   and standing, the two moments a mark is about, and the wash still distinguishes
+   "near here" from "you are here."
 
    Three steps and not two, because the hover is no longer a thing the user does only by
    pointing at the prose. A card in the panel indicates its thread the same way (paintHover
@@ -50,10 +50,17 @@
    reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
    It now shares the comment's solid line because the line locates feedback; the reaction
    glyph in the margin says what kind. */
+/* A newly inserted message starts unconfirmed, so delivery paint is immediate.
+   This sheet reaches every annotation surface, including inline threads inside
+   declared shadow roots. Existing controls keep chrome.css's delayed busy feedback. */
+:is(.lf-msg, .lf-page-thread-msg)[aria-busy="true"] {
+  animation: none;
+  opacity: .5;
+  cursor: progress;
+}
 /* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
    higher one supplies only the properties it states. Hover and the current thread share
-   an accent line, so pressing the current target does not briefly demote it when focus
-   moves to the page. Their washes remain distinct on text, and pointing at one comment
+   an accent line; their washes remain distinct on text, and pointing at one comment
    while standing in another still says both. */
 ::highlight(lf-mark) { background-color: var(--lf-annotation-wash, var(--mark));
   text-decoration: underline 2px solid var(--lf-annotation-line, var(--mark-ink));

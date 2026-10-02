@@ -5,8 +5,8 @@ import json
 from interact_support import fetch, published, state_json
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
-from leaf import files as files_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf import thread as thread_model
 
 
@@ -145,7 +145,7 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     )
     claim_path = service_model.claim_path(page_dir)
     claim_path.parent.mkdir(parents=True, exist_ok=True)
-    files_model.write_json(
+    cleanup_model.write_json(
         claim_path,
         {
             "page": str(page_dir.resolve()),

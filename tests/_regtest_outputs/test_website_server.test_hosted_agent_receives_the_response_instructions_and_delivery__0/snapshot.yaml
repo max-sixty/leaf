@@ -22,8 +22,12 @@ thread/start:
 
     ## Delivery
 
-    New user input reaches you only once the current turn ends, because a delivery
-    starts a turn of its own: once the task is idle, Leaf starts one with the complete
+    While a task with Leaf's trusted tool hook is working, new input can arrive between
+    steps as a `leaf-delivery` pointer. Read it and answer with explicit commands as
+    `references/host-codex.md`, "Delivery", describes. That reply is not bound to
+    your turn's final message.
+
+    Otherwise a delivery starts a turn of its own: once the task is idle, Leaf starts one with the complete
     delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
     threads, presented as one chronological slice per turn. Leaf acknowledges the
     delivery itself once it enters that turn, so this contract leaves no acknowledgement to
@@ -118,10 +122,8 @@ thread/start:
     `--app-server` endpoint other than the one the adapter holds. The adapter watches
     every page this task owns, and a completed turn does not stop it.
 
-    For an inline MCP App, follow `references/host-codex.md`, "Experimental inline MCP
-    App": it starts this same adapter. A `leaf wait` this task already runs, or a
-    watcher task, carries input without the adapter, as that contract's "Routes without
-    the adapter" describes; on those routes there is no App Server turn to bind, so
+    A `leaf wait` this task already runs, or a watcher task, carries input without the
+    adapter, as `references/host-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
     answer with `leaf thread reply`.
 
     If `leaf codex start` refuses to start, do not finish over a live page. Follow its
@@ -140,7 +142,7 @@ thread/start:
     `handling` object and follow those instructions and the `answer` it owes. No work
     claim is required.
 
-    Do not call leaf_present or initialize another page. You may revise index.html and
+    Do not initialize another page. You may revise index.html and
     use the page's normal Leaf controls. Saving valid index.html publishes its revision;
     there is no separate `leaf publish` command. Stamp a version only where an event's
     `answer` asks for one or the user requests a named checkpoint. Leave the page's

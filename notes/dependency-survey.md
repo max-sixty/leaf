@@ -26,7 +26,8 @@ The standing architectural choices are:
 - Comments match rendered text exactly or detach.
 - A page directory remains the durable record and deployment unit.
 - Live revisions preserve user focus, selection, drafts, disclosures, and position.
-- Leaf accompanies the user's existing Codex task through App Server.
+- Leaf accompanies the user's existing coding task through its host adapter;
+  ordinary Codex tasks use the queue and accessible App Servers use delivery turns.
 - Package declarations remain the shared JSON Schema vocabulary read by Python,
   JavaScript, package authors, and generated documentation.
 - Leaf's keyboard scopes, layer ordering, and focus restoration remain domain behavior;
@@ -34,10 +35,8 @@ The standing architectural choices are:
 
 ## Platform cutovers
 
-Two candidates remain conditional:
+The remaining conditional candidate is:
 
 - **Invoker commands:** `command` and `commandfor` can replace imperative dialog and
   popover invocation once Leaf's Chromium floor is at least 135. They do not replace
   Leaf's layer stack, semantic state, or focus-restoration rules.
-- **MCP page ports:** replace `/p/<capability>` multiplexing only after a host proves that
-  wildcard-port `frame_domains` admit the per-page server model.

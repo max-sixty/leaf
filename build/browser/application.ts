@@ -195,6 +195,8 @@ interface WireWorkflow {
     operation: "delivery" | "work" | "response";
   } | null;
   next_actor: "user" | "agent";
+  /** The standing work claims over the move, which the Stop hook reads. */
+  claimed_by: readonly { session: string; turn: string | null; log_floor: number }[];
   quiet: boolean;
   dropped: boolean;
 }
@@ -552,6 +554,11 @@ export function createSemanticApplication({
               ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
             )
             .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
+          new Set(
+            local
+              .filter(({ event }) => event.kind === "undo")
+              .map(({ event }) => event.undoes),
+          ),
         )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
@@ -637,6 +644,7 @@ export function createSemanticApplication({
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         next_actor: rejected ? "user" : "agent",
+        claimed_by: [],
       };
     };
     const workflows = [

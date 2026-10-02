@@ -23,9 +23,8 @@ primitive must give the user something that site would not:
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.
-- **Trust.** A page runs under a locked-down content policy, and an action
-  records its meaning when taken, so a control does what it says and the
-  record shows what the user decided.
+- **Trust.** An action records its meaning when taken, so a control does what
+  it says and the record shows what the user decided.
 - **Presentation craft.** Layout, type, and composition that hold at every
   width and beside every open panel, improved once and inherited by every
   page. A bespoke site starts from nothing each time.
@@ -67,7 +66,7 @@ better app, and say in the commit which behavior moved.
 
 The written contracts do not constrain new code either. No package, host, or
 integration exists outside this repository, so every reader of
-`skills/leaf/references/`, a package's guidance, or a protocol sidecar is in
+`skills/leaf/references/`, a package's instructions, or a protocol sidecar is in
 this tree. What those files state is what the code does now, and a promise to
 nobody. When a change is simpler under a different contract, whether that is
 an id's form, an event's shape, a command's output, or what a host is told
@@ -75,6 +74,14 @@ to key on, change the contract and its consumers in the same change. A
 sentence in a reference saying that something relies on the current shape is
 a consumer to update, never a reason to keep the shape or to carve an
 exception around it.
+
+Leaf's own restrictions do not settle what a feature may do either. When a
+content security policy, a validator's refusal, an import allowlist, or a limit
+on what some markup may carry stands between the user and a feature, raise it
+with the user rather than dropping the feature or working around it quietly.
+Name the restriction, what it blocks, what it protects, and what lifting it
+would cost. It may guard something the user values, or it may be a side effect
+nobody chose, and only the user can weigh the feature against it.
 
 Coherent new features can be tried before every product detail is settled, so
 long as any architectural problem they leave remains easy to fix.
@@ -118,11 +125,10 @@ and Codex install the tracked tree whole.
   projection, vendoring, and export, with their internal contracts beside them;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
-- `skills/leaf/mcp-app/`: the MCP App resource an MCP host reads;
 - `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/hooks.json`: the shared host hooks;
-- `evals/`: cases a headless agent answers, scoring the shipped guidance;
+- `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
@@ -152,7 +158,7 @@ For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
 for agents that use Leaf or extend its package interface.
 
-### Where guidance lives
+### Where instructions live
 
 The sections above **Repository map** are the maintainer's direction; change them
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
@@ -172,9 +178,20 @@ survive one belongs in the page directory or the state home. Runtime
 dependencies, and those a package script declares, state a floor and no cap. The
 host supplies Chrome and `jq`; leaf never downloads a browser.
 
-Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
-`skills/leaf/mcp-app/` are generated and committed where their consumer reads
-them; `build/AGENTS.md` says how to regenerate them.
+Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
+generated and committed where their consumer reads them; `build/AGENTS.md` says
+how to regenerate them.
+
+Every tracked byte ships in every install and stays in history, so the tree
+holds no binary files and no large ones. An image a tool in this repository
+reads, such as the demo recording, a catalog preview, an example page's image,
+or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
+its reader looks for it and pinned by `leaf-assets.json`
+(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+captures, recordings and raw run output, stays in `.tmp/` and reaches the user
+on a Leaf page; a note keeps the finding and the command that reproduces it,
+not the capture. The suite refuses a binary file, and pre-commit refuses a new
+file over 500 KB.
 
 ## Cross-runtime invariants
 
@@ -279,10 +296,10 @@ Before finishing a feature:
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
-  other references point at that section by name. Shipped guidance sets goals
-  for the user's experience and names the surface they read on; it leaves
+  other references point at that section by name. Shipped instructions set goals
+  for the user's experience and name the surface they read on; they leave
   format and phrasing to the agent. Score the change with `evals/` before and
-  after (`/developing-leaf`, "Score a guidance change").
+  after (`/developing-leaf`, "Score an instruction change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and

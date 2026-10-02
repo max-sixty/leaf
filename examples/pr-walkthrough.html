@@ -272,6 +272,7 @@ max-sixty/worktrunk #3865
               </p>
               <lf-diagram
                 id="pr-flow-diagram"
+                data-height="541"
                 parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
               >
                 <pre>
@@ -320,7 +321,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" review>
+          <lf-diff id="pr-key-hunk" data-height="524" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -493,7 +494,12 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             it. Comments retain their file coordinate—and, for line comments, side,
             line, and quote—even when the file disclosure is closed.
           </p>
-          <lf-diff id="pr-exact-patch" source="pr-review-patch" collapsed>
+          <lf-diff
+            id="pr-exact-patch"
+            data-height="2126"
+            source="pr-review-patch"
+            collapsed
+          >
             <pre></pre>
           </lf-diff>
         </section>
@@ -502,6 +508,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       <aside id="pr-rail">
         <lf-pull-request
           id="pr-reviewed-request"
+          data-height="1321"
           source="pr-review-facts"
         ></lf-pull-request>
         <section class="panel" id="pr-history">

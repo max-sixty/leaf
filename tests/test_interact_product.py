@@ -34,6 +34,7 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
@@ -439,7 +440,8 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     for example in examples:
         fixture = read_fixture(example)
 
-        d = tmp_path / example.stem
+        # Named by its path, since notes each keep a `playground.html`.
+        d = tmp_path / "-".join(example.relative_to(ROOT).with_suffix("").parts)
 
         def initialize(target, packages=fixture.packages):
             run_leaf("page", "init", *package_selection_args(packages), str(target))
@@ -1264,7 +1266,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     )
     registry = files_model.read_json(page_dir / "registry.json")
     del registry["$events"]["kinds"]["edit"]
-    files_model.write_json(page_dir / "registry.json", registry)
+    cleanup_model.write_json(page_dir / "registry.json", registry)
     before = events_model.read_events(page_dir)
 
     result = CliRunner().invoke(

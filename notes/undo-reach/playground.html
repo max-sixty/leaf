@@ -1,0 +1,1502 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>How far back z reaches</title>
+    <meta
+      name="description"
+      content="Designs for Leaf's undo key, from a tighter limit to a changes panel with redo, operable on one simulated page and event log so each can be tried before choosing."
+    />
+    <style>
+      #undo-preview {
+        align-content: start;
+      }
+
+      undo-sim {
+        display: block;
+        min-width: 0;
+        container-type: inline-size;
+        font: var(--t-6) / 1.45 var(--sans);
+      }
+
+      undo-sim .sim-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        gap: var(--sp-3);
+        align-items: start;
+      }
+
+      @container (width < 56rem) {
+        undo-sim .sim-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      undo-sim .sim-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+        margin-bottom: var(--sp-2);
+        color: var(--ink-2);
+      }
+
+      undo-sim .sim-clock {
+        margin-inline-start: auto;
+        font-family: var(--mono);
+      }
+
+      undo-sim button {
+        font: inherit;
+        padding: 2px 10px;
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        background: var(--card);
+        color: var(--ink);
+        cursor: pointer;
+      }
+
+      undo-sim button:hover {
+        border-color: var(--accent);
+      }
+
+      undo-sim button[aria-pressed="true"] {
+        background: var(--accent-tint);
+        border-color: var(--accent);
+        font-weight: 650;
+      }
+
+      undo-sim .sim-frame {
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--paper);
+        overflow: hidden;
+      }
+
+      undo-sim .sim-page {
+        height: 17rem;
+        overflow: auto;
+        padding: var(--sp-2) var(--sp-3);
+        display: grid;
+        gap: var(--sp-3);
+        align-content: start;
+      }
+
+      undo-sim .sim-block {
+        padding: var(--sp-2);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        transition: box-shadow 0.2s;
+      }
+
+      undo-sim .sim-block[data-resolved] {
+        background: var(--shade);
+      }
+
+      undo-sim .sim-block[data-flash] {
+        box-shadow: 0 0 0 3px var(--accent);
+      }
+
+      undo-sim .sim-block[data-armed] {
+        box-shadow: 0 0 0 3px var(--warn);
+      }
+
+      undo-sim .sim-block h4 {
+        margin: 0 0 var(--sp-1);
+        font-size: var(--t-6);
+        display: flex;
+        gap: var(--sp-2);
+        align-items: baseline;
+      }
+
+      undo-sim .sim-status {
+        font-weight: 400;
+        color: var(--ink-2);
+      }
+
+      undo-sim .sim-msg {
+        margin: 0 0 var(--sp-1);
+      }
+
+      undo-sim .sim-msg b {
+        font-weight: 650;
+      }
+
+      undo-sim .sim-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-1);
+      }
+
+      undo-sim .sim-filler {
+        color: var(--muted);
+        margin: 0;
+      }
+
+      undo-sim .sim-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2) var(--sp-3);
+        align-items: center;
+        min-height: 2.4rem;
+        padding: var(--sp-1) var(--sp-3);
+        border-top: 1px solid var(--rule);
+        background: var(--card);
+      }
+
+      undo-sim .sim-chip {
+        display: inline-flex;
+        gap: var(--sp-1);
+        align-items: baseline;
+        border: 0;
+        padding: 2px 4px;
+        background: none;
+      }
+
+      undo-sim .sim-chip kbd {
+        font: 600 var(--t-6) / 1 var(--mono);
+        padding: 2px 6px;
+        border: 1px solid var(--border-2);
+        border-radius: 4px;
+      }
+
+      undo-sim .sim-dead {
+        color: var(--muted);
+      }
+
+      undo-sim .sim-notice {
+        min-height: 1.6rem;
+        margin: var(--sp-2) 0 0;
+        color: var(--ink);
+      }
+
+      undo-sim .sim-notice[data-tone="arm"] {
+        color: var(--warn-ink);
+      }
+
+      undo-sim .sim-side {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      undo-sim .sim-side h4 {
+        margin: 0 0 var(--sp-1);
+        font-size: var(--t-6);
+      }
+
+      undo-sim .sim-log {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font: var(--t-6) / 1.35 var(--mono);
+      }
+
+      undo-sim .sim-log li {
+        display: grid;
+        grid-template-columns: 2.4em 6.5em minmax(0, 1fr);
+        gap: 0 var(--sp-1);
+        padding: 1px 0;
+      }
+
+      undo-sim .sim-log .who-agent {
+        color: var(--muted);
+      }
+
+      undo-sim .sim-log [data-withdrawn] .what {
+        text-decoration: line-through;
+        color: var(--muted);
+      }
+
+      undo-sim .sim-log .kind-undo .what {
+        color: var(--accent);
+      }
+
+      undo-sim .sim-log li:has(> .sim-visit) {
+        display: block;
+      }
+
+      undo-sim .sim-log .sim-visit {
+        display: block;
+        border-top: 1px dashed var(--accent);
+        color: var(--accent);
+        font-family: var(--sans);
+        margin: 2px 0;
+      }
+
+      undo-sim .sim-panel {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--paper);
+      }
+
+      undo-sim .sim-panel li {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0 var(--sp-2);
+        align-items: center;
+        padding: var(--sp-1) var(--sp-2);
+        border-top: 1px solid var(--rule);
+      }
+
+      undo-sim .sim-panel li:first-child {
+        border-top: 0;
+      }
+
+      undo-sim .sim-panel li[data-withdrawn] .what {
+        text-decoration: line-through;
+        color: var(--muted);
+      }
+
+      undo-sim .sim-panel .place {
+        border: 0;
+        padding: 0;
+        background: none;
+        color: var(--accent);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      undo-sim .sim-panel .age {
+        color: var(--muted);
+      }
+
+      undo-sim .sim-panel .keys {
+        display: flex;
+        gap: var(--sp-1);
+        align-items: center;
+      }
+
+      undo-sim .sim-panel .reach {
+        font: 600 var(--t-6) / 1 var(--mono);
+        color: var(--accent);
+      }
+    </style>
+    <script type="module">
+      import { once, layoutChanged } from "/runtime/widget-api.js";
+
+      const MINUTE = 1 / 1440;
+      const PLACES = {
+        rollout: "Rollout order",
+        rollback: "Rollback plan",
+        coverage: "Test coverage",
+        scope: "Scope of the migration",
+      };
+      const OPTIONS = {
+        big: "Big bang",
+        canary: "Canary first",
+        region: "Region by region",
+      };
+      const REPLIES = [
+        "Yes, automatic.",
+        "Add the soak test.",
+        "Agreed.",
+        "Let's talk Monday.",
+      ];
+      const UNDOABLE = new Set(["choose", "resolve", "unresolve"]);
+      // The log as a review page carries it three weeks in: the newest thing the
+      // user did was resolve Scope, 21 days ago.
+      const SEED = [
+        {
+          kind: "reply",
+          author: "agent",
+          target: "scope",
+          text: "Is reporting in scope?",
+          t: -24,
+        },
+        { kind: "choose", author: "user", target: "rollout", option: "canary", t: -23 },
+        {
+          kind: "reply",
+          author: "agent",
+          target: "rollback",
+          text: "Should rollback be automatic?",
+          t: -22,
+        },
+        {
+          kind: "reply",
+          author: "user",
+          target: "scope",
+          text: "No, next quarter.",
+          t: -21.01,
+        },
+        { kind: "resolve", author: "user", target: "scope", t: -21 },
+        {
+          kind: "reply",
+          author: "agent",
+          target: "coverage",
+          text: "Load tests cover the canary stage only.",
+          t: -2,
+        },
+      ];
+
+      const quote = (text) => `“${text}”`;
+      const place = (e) => quote(PLACES[e.target]);
+
+      function age(days) {
+        if (days < 2 * MINUTE) return "just now";
+        if (days < 1 / 24) return `${Math.round(days / MINUTE)} min ago`;
+        if (days < 1) return `${Math.round(days * 24)} h ago`;
+        const n = Math.round(days);
+        return `${n} day${n === 1 ? "" : "s"} ago`;
+      }
+
+      // What the gesture did, in the past tense.
+      function did(e) {
+        if (e.kind === "choose") return `chose ${quote(OPTIONS[e.option])}`;
+        if (e.kind === "resolve") return `resolved ${place(e)}`;
+        if (e.kind === "unresolve") return `reopened ${place(e)}`;
+        return `replied ${quote(e.text)} in ${place(e)}`;
+      }
+
+      const PAST = { choose: "chose", resolve: "resolved", unresolve: "reopened" };
+
+      // What taking it back will do, as an imperative.
+      function takeBack(e) {
+        if (e.kind === "choose")
+          return `take back choosing ${quote(OPTIONS[e.option])}`;
+        if (e.kind === "resolve") return `reopen ${place(e)}`;
+        return `resolve ${place(e)} again`;
+      }
+
+      // What putting it back will do.
+      function putBack(e) {
+        if (e.kind === "choose") return `choose ${quote(OPTIONS[e.option])} again`;
+        if (e.kind === "resolve") return `resolve ${place(e)} again`;
+        return `reopen ${place(e)} again`;
+      }
+
+      // What taking it back did, for the notice.
+      function tookBack(e) {
+        if (e.kind === "choose")
+          return `took back choosing ${quote(OPTIONS[e.option])}`;
+        if (e.kind === "resolve") return `reopened ${place(e)}`;
+        return `resolved ${place(e)} again`;
+      }
+
+      // Today's notice words (projection/commands.js), which name the kind only.
+      const TODAY = {
+        resolve: "Reopened the thread",
+        unresolve: "Resolved the thread again",
+        choose: "Took back your last change",
+      };
+
+      const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
+      /* The log is the only state. Everything drawn is folded from it: a gesture
+         stands unless a standing undo names it, and an undo naming an undo is a redo. */
+      function fold(log) {
+        const byId = new Map(log.map((e) => [e.id, e]));
+        const withdrawn = new Set();
+        for (let i = log.length - 1; i >= 0; i--) {
+          const e = log[i];
+          if (e.kind === "undo" && !withdrawn.has(e.id)) withdrawn.add(e.undoes);
+        }
+        const stands = (e) => !withdrawn.has(e.id);
+        // When a gesture last came into force: its own place in the log, or the redo
+        // that put it back.
+        const since = new Map();
+        for (const e of log) if (e.kind !== "undo") since.set(e.id, e.idx);
+        for (const e of log) {
+          if (e.kind !== "undo" || !stands(e)) continue;
+          const undo = byId.get(e.undoes);
+          if (undo.kind === "undo")
+            since.set(undo.undoes, Math.max(since.get(undo.undoes), e.idx));
+        }
+        // Each effect reads at its own log position, as Leaf's folds do: the last
+        // standing event on a unit decides it, and any reply reopens its thread.
+        const unit = (e) => e.target;
+        const effects = log.filter((e) => UNDOABLE.has(e.kind) || e.kind === "reply");
+        const winner = (target) =>
+          effects.filter((e) => unit(e) === target && stands(e)).at(-1) ?? null;
+        const paints = (e) => winner(unit(e)) === e;
+        // Would the gesture paint if it stood again: nothing newer on its unit stands,
+        // so a reply since its undo leaves nothing for a redo to put back.
+        const wouldPaint = (e) =>
+          !effects.some((d) => unit(d) === unit(e) && d.idx > e.idx && stands(d));
+        const user = log.filter((e) => e.author === "user");
+        const acts = user.filter((e) => e.kind !== "undo" && stands(e));
+        acts.sort((a, b) => since.get(b.id) - since.get(a.id));
+        const undoList = acts.filter((e) => UNDOABLE.has(e.kind) && paints(e));
+        const redoList = user
+          .filter((e) => e.kind === "undo" && stands(e))
+          .filter((e) => {
+            const target = byId.get(e.undoes);
+            return target.kind !== "undo" && !stands(target) && wouldPaint(target);
+          })
+          .sort((a, b) => b.idx - a.idx);
+        const lastNew = Math.max(
+          -1,
+          ...user.filter((e) => e.kind !== "undo").map((e) => e.idx),
+        );
+        return {
+          byId,
+          stands,
+          since,
+          winner,
+          paints,
+          wouldPaint,
+          acts,
+          undoList,
+          redoList,
+          lastNew,
+        };
+      }
+
+      customElements.define(
+        "undo-sim",
+        class extends HTMLElement {
+          #values = { reach: "newest", name: false, redo: false, panel: false };
+          #log = [];
+          #now = 0;
+          #visit = 0;
+          #armed = null;
+          #notice = { text: "", tone: "" };
+          #flash = null;
+          #flashTimer = 0;
+          #page = null;
+          #bar = null;
+          #noticeEl = null;
+          #side = null;
+          #clock = null;
+          #blocks = new Map();
+          #playground = null;
+          #change = null;
+          #shownPicks = "";
+
+          connectedCallback() {
+            if (once(this)) {
+              this.#build();
+              this.#start();
+            }
+            this.#connect();
+          }
+
+          disconnectedCallback() {
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.#playground = null;
+          }
+
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected) return;
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.#playground = this.closest("lf-playground");
+            if (!this.#playground) return;
+            this.#change = (event) => {
+              if (event.target !== this.#playground) return;
+              this.#values = event.detail.values;
+              this.#armed = null;
+              this.#render();
+            };
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.#values = this.#playground.values;
+            this.#render();
+          }
+
+          #start() {
+            this.#log = [];
+            this.#now = 0;
+            // The agent has picked up every move in the seeded log.
+            for (const e of SEED) this.#append({ ...e, picked: true });
+            this.#visit = this.#log.length;
+            this.#armed = null;
+            this.#notice = { text: "", tone: "" };
+            if (this.#page) this.#page.scrollTop = 0;
+          }
+
+          #append(e) {
+            e.idx = this.#log.length;
+            e.id = `e${e.idx}`;
+            e.t ??= this.#now;
+            this.#log.push(e);
+            return e;
+          }
+
+          #pickUp() {
+            for (const e of this.#log) e.picked = true;
+          }
+
+          #gesture(e) {
+            this.#now += MINUTE;
+            this.#armed = null;
+            this.#notice = { text: "", tone: "" };
+            this.#append({ author: "user", ...e });
+            this.#render();
+          }
+
+          #build() {
+            const toolbar = document.createElement("div");
+            toolbar.className = "sim-toolbar";
+            toolbar.append(
+              this.#button(
+                "Reload the page",
+                () => {
+                  this.#visit = this.#log.length;
+                  this.#armed = null;
+                  this.#notice = {
+                    text: "Reloaded: a new visit starts here.",
+                    tone: "",
+                  };
+                  this.#page.scrollTop = 0;
+                  this.#render();
+                },
+                "reload",
+              ),
+              this.#button(
+                "Agent picks up your moves",
+                () => {
+                  this.#pickUp();
+                  this.#notice = {
+                    text: "The agent has picked up everything you did.",
+                    tone: "",
+                  };
+                  this.#render();
+                },
+                "pickup",
+              ),
+              this.#button(
+                "A week passes",
+                () => {
+                  this.#now += 7;
+                  this.#pickUp();
+                  this.#render();
+                },
+                "week",
+              ),
+              this.#button(
+                "Start over",
+                () => {
+                  this.#start();
+                  this.#render();
+                },
+                "restart",
+              ),
+            );
+            this.#clock = document.createElement("span");
+            this.#clock.className = "sim-clock";
+            toolbar.append(this.#clock);
+
+            const frame = document.createElement("div");
+            frame.className = "sim-frame";
+            this.#page = document.createElement("div");
+            this.#page.className = "sim-page";
+            this.#page.tabIndex = 0;
+            this.#page.setAttribute("aria-label", "Simulated review page");
+            let queued = false;
+            this.#page.addEventListener("scroll", () => {
+              if (queued) return;
+              queued = true;
+              requestAnimationFrame(() => {
+                queued = false;
+                // An armed target scrolled out of view disarms, so the second press
+                // never acts on something the user no longer sees.
+                if (this.#armed && !this.#inView(this.#armedTarget())) {
+                  this.#armed = null;
+                  this.#notice = { text: "", tone: "" };
+                  this.#render();
+                  return;
+                }
+                // Only "What's in view" reads the view to pick a target, so a scroll
+                // redraws the bar and the panel only when it changes that pick.
+                if (this.#values.reach !== "here") return;
+                const picks = this.#picks();
+                if (picks === this.#shownPicks) return;
+                this.#renderBar();
+                this.#renderSide();
+              });
+            });
+            this.#bar = document.createElement("div");
+            this.#bar.className = "sim-bar";
+            frame.append(this.#page, this.#bar);
+            this.#noticeEl = document.createElement("p");
+            this.#noticeEl.className = "sim-notice";
+            this.#noticeEl.setAttribute("role", "status");
+
+            const main = document.createElement("div");
+            main.append(toolbar, frame, this.#noticeEl);
+            this.#side = document.createElement("div");
+            this.#side.className = "sim-side";
+            const grid = document.createElement("div");
+            grid.className = "sim-grid";
+            grid.append(main, this.#side);
+            this.append(grid);
+
+            // z and Z are the simulated page's own keys while focus is inside it, so
+            // they never reach the Leaf page around the playground.
+            this.addEventListener("keydown", (event) => {
+              if (event.ctrlKey || event.metaKey || event.altKey) return;
+              if (event.key !== "z" && event.key !== "Z") return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.key === "z") this.#pressUndo();
+              else this.#pressRedo();
+            });
+          }
+
+          #button(label, run, key) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = label;
+            button.dataset.key = key;
+            button.addEventListener("click", run);
+            return button;
+          }
+
+          // Whether a target shows at least half of itself, or 5rem, in the page's view.
+          #inView(target) {
+            const block = this.#blocks.get(target);
+            if (!block) return false;
+            const view = this.#page.getBoundingClientRect();
+            const box = block.getBoundingClientRect();
+            const shown =
+              Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top);
+            return shown >= Math.min(box.height / 2, 80);
+          }
+
+          // Each design's reach, applied alike to z's target and Z's.
+          #reach(when, target) {
+            const reach = this.#values.reach;
+            if (reach === "visit") return when >= this.#visit;
+            if (reach === "age") return this.#now - this.#log[when].t < 7;
+            if (reach === "here") return this.#inView(target);
+            return true;
+          }
+
+          #undoTarget(state) {
+            const reach = this.#values.reach;
+            if (reach === "walk") return state.undoList[0] ?? null;
+            if (reach === "here") {
+              const top = state.acts.find((e) => this.#inView(e.target));
+              return top && state.undoList.includes(top) ? top : null;
+            }
+            const head = state.undoList[0];
+            if (!head || head !== state.acts[0]) return null;
+            return this.#reach(state.since.get(head.id), head.target) ? head : null;
+          }
+
+          #redoTarget(state) {
+            if (!this.#values.redo) return null;
+            const head = state.redoList[0];
+            // A new gesture after the undo ends the redo chain, as in Vim.
+            if (!head || head.idx < state.lastNew) return null;
+            const target = state.byId.get(head.undoes);
+            return this.#reach(head.idx, target.target) ? head : null;
+          }
+
+          #picks() {
+            const state = fold(this.#log);
+            return `${this.#undoTarget(state)?.id}/${this.#redoTarget(state)?.id}`;
+          }
+
+          #armedTarget() {
+            const { byId } = fold(this.#log);
+            const e = byId.get(this.#armed);
+            return e.kind === "undo" ? byId.get(e.undoes).target : e.target;
+          }
+
+          // Show, then take: the first press reveals a target that is out of view or
+          // that the agent has already picked up; the second, with it still in view,
+          // takes it.
+          #needsReveal(act, target) {
+            return (
+              this.#values.reach === "confirm" && (act.picked || !this.#inView(target))
+            );
+          }
+
+          #armedAndShown(id, target) {
+            return this.#armed === id && this.#inView(target);
+          }
+
+          #reveal(target) {
+            const block = this.#blocks.get(target);
+            if (!block) return;
+            const view = this.#page.getBoundingClientRect();
+            const box = block.getBoundingClientRect();
+            this.#page.scrollTop += box.top - view.top - 8;
+          }
+
+          #flashTarget(target) {
+            this.#flash = target;
+            clearTimeout(this.#flashTimer);
+            this.#flashTimer = setTimeout(() => {
+              this.#flash = null;
+              this.#renderPage();
+            }, 1400);
+          }
+
+          #pressUndo() {
+            const state = fold(this.#log);
+            const event = this.#undoTarget(state);
+            if (!event) {
+              this.#notice = {
+                text: "z does nothing: the bar doesn't offer it here.",
+                tone: "",
+              };
+              this.#armed = null;
+              this.#render();
+              return;
+            }
+            const act = this.#log[state.since.get(event.id)];
+            if (
+              this.#needsReveal(act, event.target) &&
+              !this.#armedAndShown(event.id, event.target)
+            ) {
+              this.#armed = event.id;
+              this.#reveal(event.target);
+              this.#notice = {
+                text: `Press z again to ${takeBack(event)}: you ${PAST[event.kind]} it ${age(this.#now - act.t)}${act.picked ? ", and the agent has picked it up" : ""}.`,
+                tone: "arm",
+              };
+              this.#render();
+              return;
+            }
+            this.#withdraw(event);
+          }
+
+          #withdraw(event) {
+            this.#now += MINUTE;
+            this.#append({ kind: "undo", author: "user", undoes: event.id });
+            this.#armed = null;
+            this.#notice = {
+              text: `${this.#values.name ? cap(tookBack(event)) : TODAY[event.kind]} — sent`,
+              tone: "",
+            };
+            if (this.#values.reach === "confirm" || this.#values.panel)
+              this.#flashTarget(event.target);
+            this.#render();
+          }
+
+          #pressRedo() {
+            const state = fold(this.#log);
+            const undo = this.#redoTarget(state);
+            if (!undo) {
+              this.#notice = {
+                text: this.#values.redo
+                  ? "Z does nothing: no undo to put back since your last change."
+                  : "There is no redo in this design.",
+                tone: "",
+              };
+              this.#armed = null;
+              this.#render();
+              return;
+            }
+            const target = state.byId.get(undo.undoes);
+            if (
+              this.#needsReveal(undo, target.target) &&
+              !this.#armedAndShown(undo.id, target.target)
+            ) {
+              this.#armed = undo.id;
+              this.#reveal(target.target);
+              this.#notice = {
+                text: `Press Z again to ${putBack(target)}.`,
+                tone: "arm",
+              };
+              this.#render();
+              return;
+            }
+            this.#restore(undo);
+          }
+
+          #restore(undo) {
+            const state = fold(this.#log);
+            const target = state.byId.get(undo.undoes);
+            this.#now += MINUTE;
+            this.#append({ kind: "undo", author: "user", undoes: undo.id });
+            this.#armed = null;
+            this.#notice = {
+              text: `${this.#values.name ? `Put back: ${did(target)}` : "Put back your last change"} — sent`,
+              tone: "",
+            };
+            if (this.#values.reach === "confirm" || this.#values.panel)
+              this.#flashTarget(target.target);
+            this.#render();
+          }
+
+          #render() {
+            if (!this.#page) return;
+            const focusKey = this.contains(document.activeElement)
+              ? document.activeElement.dataset?.key
+              : undefined;
+            this.#clock.textContent =
+              this.#now >= 1 ? `day ${Math.floor(this.#now)}` : "today";
+            this.#renderPage();
+            this.#renderBar();
+            this.#renderSide();
+            this.#noticeEl.textContent = this.#notice.text;
+            if (this.#notice.tone) this.#noticeEl.dataset.tone = this.#notice.tone;
+            else delete this.#noticeEl.dataset.tone;
+            this.#refocus(focusKey);
+            layoutChanged(this);
+          }
+
+          // A redraw replaces the focused control; focus follows its key, or falls to the
+          // simulated page when the control is gone, so z and Z keep reaching it.
+          #refocus(key) {
+            if (!key) return;
+            const next = this.querySelector(`[data-key="${CSS.escape(key)}"]`);
+            (next ?? this.#page).focus({ preventScroll: true });
+          }
+
+          #renderPage() {
+            const state = fold(this.#log);
+            const armedTarget = this.#armed ? this.#armedTarget() : null;
+            const blocks = [];
+            this.#blocks.clear();
+
+            const block = (target) => {
+              const el = document.createElement("section");
+              el.className = "sim-block";
+              if (this.#flash === target) el.dataset.flash = "";
+              if (armedTarget === target) el.dataset.armed = "";
+              this.#blocks.set(target, el);
+              blocks.push(el);
+              return el;
+            };
+
+            const ask = block("rollout");
+            const chosen = state.winner("rollout");
+            const askHead = document.createElement("h4");
+            askHead.textContent = "Ask: Rollout order";
+            const opts = document.createElement("div");
+            opts.className = "sim-row";
+            for (const [option, label] of Object.entries(OPTIONS)) {
+              const b = this.#button(
+                label,
+                () => {
+                  if (state.winner("rollout")?.option === option) return;
+                  this.#gesture({ kind: "choose", target: "rollout", option });
+                },
+                `opt-${option}`,
+              );
+              b.setAttribute("aria-pressed", String(chosen?.option === option));
+              opts.append(b);
+            }
+            ask.append(askHead, opts);
+
+            for (const target of ["rollback", "coverage", "filler", "scope"]) {
+              if (target === "filler") {
+                const p = document.createElement("p");
+                p.className = "sim-filler";
+                p.textContent =
+                  "… the plan's remaining sections: phases, owners, and the risk register …";
+                blocks.push(p, p.cloneNode(true));
+                continue;
+              }
+              const el = block(target);
+              const status = state.winner(target);
+              const resolved = status?.kind === "resolve";
+              if (resolved) el.dataset.resolved = "";
+              const head = document.createElement("h4");
+              head.textContent = `Thread: ${PLACES[target]}`;
+              const s = document.createElement("span");
+              s.className = "sim-status";
+              s.textContent = resolved ? "resolved" : "open";
+              head.append(s);
+              el.append(head);
+              for (const m of this.#log.filter(
+                (e) => e.target === target && e.kind === "reply",
+              )) {
+                const p = document.createElement("p");
+                p.className = "sim-msg";
+                const who = document.createElement("b");
+                who.textContent = m.author === "user" ? "You: " : "Agent: ";
+                p.append(who, m.text);
+                el.append(p);
+              }
+              const row = document.createElement("div");
+              row.className = "sim-row";
+              const replies = this.#log.filter(
+                (e) => e.kind === "reply" && e.author === "user",
+              ).length;
+              row.append(
+                this.#button(
+                  resolved ? "Reopen" : "Resolve",
+                  () => {
+                    this.#gesture({ kind: resolved ? "unresolve" : "resolve", target });
+                  },
+                  `res-${target}`,
+                ),
+                this.#button(
+                  "Reply",
+                  () => {
+                    this.#gesture({
+                      kind: "reply",
+                      target,
+                      text: REPLIES[replies % REPLIES.length],
+                    });
+                  },
+                  `reply-${target}`,
+                ),
+              );
+              el.append(row);
+            }
+            this.#page.replaceChildren(...blocks);
+          }
+
+          #renderBar() {
+            const state = fold(this.#log);
+            this.#shownPicks = this.#picks();
+            const chips = [];
+            const chip = (key, text, run) => {
+              const b = document.createElement("button");
+              b.type = "button";
+              b.className = "sim-chip";
+              b.dataset.key = `chip-${key}`;
+              const k = document.createElement("kbd");
+              k.textContent = key;
+              b.append(k, text);
+              b.addEventListener("click", run);
+              chips.push(b);
+            };
+            const undo = this.#undoTarget(state);
+            if (undo) {
+              chip(
+                "z",
+                this.#values.name
+                  ? `${cap(takeBack(undo))} · ${age(this.#now - this.#log[state.since.get(undo.id)].t)}`
+                  : "Take back the last change you made here",
+                () => this.#pressUndo(),
+              );
+            }
+            const redo = this.#redoTarget(state);
+            if (redo) {
+              const target = state.byId.get(redo.undoes);
+              chip(
+                "Z",
+                this.#values.name
+                  ? cap(putBack(target))
+                  : "Put back what you took back",
+                () => this.#pressRedo(),
+              );
+            }
+            if (!chips.length) {
+              const dead = document.createElement("span");
+              dead.className = "sim-dead";
+              dead.textContent = "The shortcut bar offers no undo here.";
+              chips.push(dead);
+            }
+            const focusKey = this.#bar.contains(document.activeElement)
+              ? document.activeElement.dataset.key
+              : undefined;
+            this.#bar.replaceChildren(...chips);
+            this.#refocus(focusKey);
+          }
+
+          #renderSide() {
+            const state = fold(this.#log);
+            const parts = [];
+            const undo = this.#undoTarget(state);
+            const redo = this.#redoTarget(state);
+
+            if (this.#values.panel) {
+              const heading = document.createElement("h4");
+              heading.textContent = "Your changes";
+              const list = document.createElement("ul");
+              list.className = "sim-panel";
+              const mine = this.#log
+                .filter((e) => e.author === "user" && e.kind !== "undo")
+                .reverse();
+              for (const e of mine) {
+                const li = document.createElement("li");
+                const stands = state.stands(e);
+                if (!stands) li.dataset.withdrawn = "";
+                const text = document.createElement("div");
+                const what = document.createElement("span");
+                what.className = "what";
+                what.textContent = {
+                  choose: `You chose ${quote(OPTIONS[e.option])} on `,
+                  resolve: "You resolved ",
+                  unresolve: "You reopened ",
+                  reply: `You replied ${quote(e.text)} in `,
+                }[e.kind];
+                const link = document.createElement("button");
+                link.type = "button";
+                link.className = "place";
+                link.dataset.key = `place-${e.id}`;
+                link.textContent = PLACES[e.target];
+                link.addEventListener("click", () => {
+                  this.#reveal(e.target);
+                  this.#flashTarget(e.target);
+                  this.#renderPage();
+                });
+                const when = document.createElement("span");
+                when.className = "age";
+                when.textContent = ` · ${age(this.#now - e.t)}`;
+                text.append(what, link, when);
+                const keys = document.createElement("span");
+                keys.className = "keys";
+                if (undo === e) {
+                  const r = document.createElement("span");
+                  r.className = "reach";
+                  r.textContent = "z";
+                  r.title = "z takes this one";
+                  keys.append(r);
+                }
+                if (redo && redo.undoes === e.id) {
+                  const r = document.createElement("span");
+                  r.className = "reach";
+                  r.textContent = "Z";
+                  r.title = "Z puts this one back";
+                  keys.append(r);
+                }
+                if (e.kind === "reply") {
+                  keys.append("said");
+                } else if (stands && state.paints(e)) {
+                  keys.append(
+                    this.#button("Undo", () => this.#withdraw(e), `toggle-${e.id}`),
+                  );
+                } else if (stands) {
+                  keys.append("superseded");
+                } else if (this.#values.redo && state.wouldPaint(e)) {
+                  const standingUndo = this.#log.findLast(
+                    (u) => u.kind === "undo" && u.undoes === e.id && state.stands(u),
+                  );
+                  keys.append(
+                    this.#button(
+                      "Redo",
+                      () => this.#restore(standingUndo),
+                      `toggle-${e.id}`,
+                    ),
+                  );
+                } else {
+                  keys.append("undone");
+                }
+                li.append(text, keys);
+                list.append(li);
+              }
+              parts.push(heading, list);
+            }
+
+            const heading = document.createElement("h4");
+            heading.textContent =
+              "The event log, oldest first (✓ picked up by the agent)";
+            const log = document.createElement("ol");
+            log.className = "sim-log";
+            log.setAttribute("aria-label", "Event log");
+            this.#log.forEach((e, i) => {
+              if (i === this.#visit) {
+                const mark = document.createElement("li");
+                const line = document.createElement("span");
+                line.className = "sim-visit";
+                line.textContent = "page loaded: this visit starts here";
+                mark.append(line);
+                log.append(mark);
+              }
+              const li = document.createElement("li");
+              li.className = `kind-${e.kind}`;
+              if (!state.stands(e)) li.dataset.withdrawn = "";
+              const idx = document.createElement("span");
+              idx.textContent = `#${e.idx}`;
+              const when = document.createElement("span");
+              when.className = e.author === "agent" ? "who-agent" : "";
+              when.textContent = `${e.author === "user" ? "you" : "agent"} ${e.t < 0 ? `${Math.round(e.t)}d` : ""}`;
+              const what = document.createElement("span");
+              what.className = "what";
+              if (e.kind === "undo") {
+                const target = state.byId.get(e.undoes);
+                what.textContent =
+                  target.kind === "undo"
+                    ? `undo #${target.idx} (a redo: #${target.undoes.slice(1)} stands again)`
+                    : `undo #${target.idx}`;
+              } else if (e.kind === "reply") {
+                what.textContent = `reply ${quote(e.text)} · ${PLACES[e.target]}`;
+              } else if (e.kind === "choose") {
+                what.textContent = `choose ${OPTIONS[e.option]} · ${PLACES[e.target]}`;
+              } else {
+                what.textContent = `${e.kind} · ${PLACES[e.target]}`;
+              }
+              if (e.author === "user" && e.picked) what.append(" ✓");
+              li.append(idx, when, what);
+              log.append(li);
+            });
+            if (this.#visit === this.#log.length) {
+              const mark = document.createElement("li");
+              const line = document.createElement("span");
+              line.className = "sim-visit";
+              line.textContent = "page loaded: this visit starts here";
+              mark.append(line);
+              log.append(mark);
+            }
+            parts.push(heading, log);
+            const focusKey = this.#side.contains(document.activeElement)
+              ? document.activeElement.dataset.key
+              : undefined;
+            this.#side.replaceChildren(...parts);
+            this.#refocus(focusKey);
+          }
+        },
+      );
+
+      const REACH = {
+        walk: "Restore the walk from before #1410, which skips past gestures z cannot take back, sent replies included.",
+        newest:
+          "Keep main's rule since #1410: z takes back only your newest gesture, however old.",
+        visit:
+          "Bound z to this visit: it takes back your newest gesture only when you made it since the page loaded, which the browser notes from the log it first reads.",
+        confirm:
+          "Make z show before it takes: it takes back your newest gesture, but when its target is out of view or the agent has already picked the gesture up, the first press scrolls the target into view, outlines it, and names the gesture and its age, and a second press, with the target still in view, takes it back.",
+        age: "Bound z to the last 7 days: it takes back your newest gesture only when you made it within the week.",
+        here: "Scope z to the view: it takes back your newest gesture among the targets on screen, and does nothing when that gesture cannot be taken back.",
+      };
+
+      customElements.whenDefined("lf-playground").then(() => {
+        const playground = document.getElementById("undo-playground");
+        playground.registerInstructionProvider((values) => {
+          const parts = [REACH[values.reach]];
+          if (values.name)
+            parts.push(
+              "Have the shortcut bar's z line and the notice name the gesture and its age rather than its kind alone, from words the server adds to each undo candidate.",
+            );
+          if (values.redo)
+            parts.push(
+              "Add redo on Shift+Z as an undo naming your own standing undo: taken_back counts an undo only while no standing undo names it, the append door admits a redo only when folding without the undo changes what the page shows, the served state carries a redo list beside the undo list, Z takes its head until you make a new gesture, as Vim's Ctrl-R does, and the readers that follow undoes one level (gesture words, browser coverage, the delivery's answer) follow the chain.",
+            );
+          if (values.panel)
+            parts.push(
+              "Add a Changes tray listing your gestures newest first, each linked to its place, with Undo on a gesture that stands" +
+                (values.redo ? " and Redo on one you took back" : "") +
+                ", marking the rows z" +
+                (values.redo ? " and Z" : "") +
+                " would take.",
+            );
+          parts.push(
+            "Build it on the undo-reach branch, update events.md's Undo section and the notice words, and hand me a live preview of review-a-plan with the new behavior.",
+          );
+          return parts.join(" ");
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <main class="layout-wide">
+      <header>
+        <h1>How far back should <kbd>z</kbd> reach?</h1>
+        <p class="lede">
+          Leaf's log already keeps every gesture forever, so the storage half of Vim's
+          persistent undo is there; the safety half is missing. On a page you left three
+          weeks ago, <kbd>z</kbd> reopens a thread you resolved then, below the fold,
+          and no key or control puts back what an undo took.
+        </p>
+      </header>
+
+      <section id="spectrum">
+        <h2>Six reach rules and three add-ons, cheapest first</h2>
+        <p>
+          A reach rule decides which of your gestures <kbd>z</kbd> may take back; the
+          rules differ on how far back that goes and whether it can change something you
+          are not looking at. An add-on combines with any rule.
+        </p>
+        <table id="spectrum-table">
+          <thead>
+            <tr>
+              <th>Reach rule</th>
+              <th>How far back <kbd>z</kbd> reaches</th>
+              <th>Can <kbd>z</kbd> change what you can't see?</th>
+              <th>Build</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="row-walk">
+              <td>Main before #1410</td>
+              <td>No limit, and it walks past sent replies</td>
+              <td>Yes</td>
+              <td>Shipped</td>
+            </tr>
+            <tr id="row-newest">
+              <td>Newest only (main, since #1410)</td>
+              <td>Your newest gesture, however old</td>
+              <td>Yes: the 21-day-old resolve</td>
+              <td>Shipped</td>
+            </tr>
+            <tr id="row-age">
+              <td>Last 7 days</td>
+              <td>A fixed age</td>
+              <td>Yes, within the week</td>
+              <td>Small</td>
+            </tr>
+            <tr id="row-visit">
+              <td>This visit only</td>
+              <td>The page load; a tab left open for weeks is still one visit</td>
+              <td>Yes, for this visit's gestures out of view</td>
+              <td>Small</td>
+            </tr>
+            <tr id="row-confirm">
+              <td>Show, then take</td>
+              <td>No limit</td>
+              <td>
+                No: a target out of view, or one the agent has already picked up, is
+                shown on the first press and taken on the second
+              </td>
+              <td>Medium</td>
+            </tr>
+            <tr id="row-here">
+              <td>Only what's in view</td>
+              <td>The edge of the view, so it moves as you scroll</td>
+              <td>No, though it still reaches an old gesture you can see</td>
+              <td>Medium</td>
+            </tr>
+          </tbody>
+        </table>
+        <table id="addons-table">
+          <thead>
+            <tr>
+              <th>Add-on</th>
+              <th>What it adds</th>
+              <th>Build</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="row-name">
+              <td>Say what <kbd>z</kbd> takes</td>
+              <td>
+                The shortcut bar and the notice name the gesture and its age, where
+                today they name only its kind
+              </td>
+              <td>Small</td>
+            </tr>
+            <tr id="row-redo">
+              <td>Redo on <kbd>Z</kbd></td>
+              <td>
+                Puts back what an undo took, as Vim's Ctrl-R does, until your next
+                change and while it would still show
+              </td>
+              <td>Large</td>
+            </tr>
+            <tr id="row-panel">
+              <td>Changes panel</td>
+              <td>
+                Every gesture you made, newest first, each with Undo, and Redo once redo
+                exists
+              </td>
+              <td>Large</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <lf-ask id="undo-ask">
+        <h2>
+          Which undo should Leaf build: a tighter reach, a visible reach, redo, or a
+          panel?
+        </h2>
+        <p>
+          Pick a rule or a preset, then operate it on the page below. My recommendation
+          is <strong>Show, then take</strong> with the bar naming its target, now: it
+          has no limit and never acts where you aren't looking. Redo is the other half
+          of Vim's safety, but it costs more than it looks (below), so I'd build it
+          second and the Changes panel on top of both.
+        </p>
+
+        <lf-playground
+          id="undo-playground"
+          submit-label="Build this undo"
+          data-height="770"
+        >
+          <lf-playground-control
+            name="reach"
+            label="Where z reaches"
+            kind="choice"
+            value="newest"
+          >
+            <lf-playground-choice
+              value="walk"
+              label="Before #1410: walks past"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="newest"
+              label="Newest (main)"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="age"
+              label="Last 7 days"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="visit"
+              label="This visit"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="confirm"
+              label="Show, then take"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              value="here"
+              label="What's in view"
+            ></lf-playground-choice>
+          </lf-playground-control>
+          <lf-playground-control
+            name="name"
+            label="Say what z takes back"
+            kind="toggle"
+            value="false"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="redo"
+            label="Redo on Shift+Z"
+            kind="toggle"
+            value="false"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="panel"
+            label="Changes panel"
+            kind="toggle"
+            value="false"
+          ></lf-playground-control>
+
+          <lf-playground-preset label="This visit only">
+            <lf-playground-setting for="reach" value="visit"></lf-playground-setting>
+            <lf-playground-setting for="name" value="true"></lf-playground-setting>
+            <lf-playground-setting for="redo" value="false"></lf-playground-setting>
+            <lf-playground-setting for="panel" value="false"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Vim's u and Ctrl-R">
+            <lf-playground-setting for="reach" value="newest"></lf-playground-setting>
+            <lf-playground-setting for="name" value="true"></lf-playground-setting>
+            <lf-playground-setting for="redo" value="true"></lf-playground-setting>
+            <lf-playground-setting for="panel" value="false"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Show, then take, with redo">
+            <lf-playground-setting for="reach" value="confirm"></lf-playground-setting>
+            <lf-playground-setting for="name" value="true"></lf-playground-setting>
+            <lf-playground-setting for="redo" value="true"></lf-playground-setting>
+            <lf-playground-setting for="panel" value="false"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Changes panel">
+            <lf-playground-setting for="reach" value="confirm"></lf-playground-setting>
+            <lf-playground-setting for="name" value="true"></lf-playground-setting>
+            <lf-playground-setting for="redo" value="true"></lf-playground-setting>
+            <lf-playground-setting for="panel" value="true"></lf-playground-setting>
+          </lf-playground-preset>
+
+          <lf-playground-preview id="undo-preview">
+            <p>
+              A review page three weeks in: your newest move was resolving
+              <em>Scope of the migration</em>, 21 days ago, below the fold. Click into
+              the page and press <kbd>z</kbd> or <kbd>Z</kbd>, or press the bar's chips.
+              Every design folds the same log, drawn under the page or beside it.
+            </p>
+            <undo-sim id="undo-sim"></undo-sim>
+          </lf-playground-preview>
+
+          <lf-playground-output id="undo-instruction">
+            Build the chosen undo on the undo-reach branch and hand me a live preview of
+            review-a-plan with it.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+
+      <section id="redo-in-the-log">
+        <h2>Redo fits the log as an undo of an undo, with three costs</h2>
+        <p>
+          Today an <code>undo</code> names one gesture, and <code>taken_back</code>
+          (<code>events.py</code>) returns every id an undo names, which every Python
+          fold reads. Undo is one-way because the door refuses an undo naming an undo,
+          <code>taken_back</code> is a flat set, and the undo list skips undos.
+        </p>
+        <p>
+          Redo is an <code>undo</code> naming your own standing <code>undo</code>.
+          Nothing leaves the log and no counter-event is invented, so the invariant in
+          <code>AGENTS.md</code> holds as written. <code>taken_back</code> changes so
+          that an undo counts only while no standing undo names it. The playground's
+          log, under the simulated page, folds exactly this way: turn on redo, press
+          <kbd>z</kbd> then <kbd>Z</kbd>, and the second undo strikes through the first.
+        </p>
+        <p>
+          The costs are these. First, a restored gesture reads at its original place in
+          the log, as every fold reads effects, so it shows nothing once a later event
+          on the same target stands: any reply, the agent's included, reopens a thread,
+          and a later pick supersedes an earlier one. The door has to refuse that redo,
+          and the one general check is to fold the log with and without the undo and
+          compare what the page shows. In the playground, undo the Scope resolve, reply
+          in Scope, and Redo is no longer offered. Second, readers that follow
+          <code>undoes</code> one level have to follow the chain: the words a delivery
+          carries (<code>GestureWords.says</code>) and the browser's coverage lookups.
+          Third, an undo owes the agent no answer, but a redo brings back the restored
+          gesture's answer obligation, which the stop hook enforces and the delivery
+          never mentions; the delivery must carry it, and the agent's instructions that
+          an undo and its target cancel out needs a clause for a redo.
+        </p>
+        <p>
+          The alternative, re-sending the gesture as a new event, avoids the position
+          problem but loses the gesture's identity: the agent reads a fresh pick, and
+          the history can't pair the undo with what it undid.
+        </p>
+        <p>
+          Vim's undo tree differs in kind. <kbd>g-</kbd> and <kbd>g+</kbd> restore any
+          past state, superseded branches included, where this redo restores only what
+          would still show. The Changes panel offers selective undo instead: any
+          standing gesture, in any order.
+        </p>
+      </section>
+
+      <details id="effort">
+        <summary>What each design changes in the code</summary>
+        <dl>
+          <dt>Last 7 days</dt>
+          <dd>
+            <code>projection/commands.js</code> compares the head's <code>ts</code> with
+            the clock. The 7 is a constant someone has to pick, which is the arbitrary
+            limit you wanted to avoid.
+          </dd>
+          <dt>This visit only</dt>
+          <dd>
+            <code>commands.js</code> notes the undo candidates present at the first
+            reading, and <code>undoable()</code> refuses a head among them. Browser
+            only.
+          </dd>
+          <dt>Say what <kbd>z</kbd> takes</dt>
+          <dd>
+            <code>served_state/document.py</code> adds each candidate's words from
+            <code>GestureWords</code> (<code>gesture_words.py</code>). Today
+            <code>served_state/browser.py</code> builds that only for a page that shows
+            history, so every state read would pay for it. <code>undoSentence</code> and
+            the notice read the words in place of the per-kind words in
+            <code>commands.js</code>.
+          </dd>
+          <dt>Show, then take</dt>
+          <dd>
+            <code>document.py</code> marks each candidate the agent has picked up, from
+            the delivery evidence the workflows already read. <code>commands.js</code>
+            holds an armed state that the next gesture or key clears, and so does a
+            scroll that takes the target out of view. The reveal goes to the target the
+            way an
+            <code>lf-activity</code> row's link does: a thread opens, a widget scrolls
+            into view and is outlined. It needs the words above too.
+          </dd>
+          <dt>Only what's in view</dt>
+          <dd>
+            Every press reads each candidate's geometry, and a thread open in the panel
+            counts as in view. <kbd>z</kbd> then means something different after every
+            scroll.
+          </dd>
+          <dt>Redo on <kbd>Z</kbd></dt>
+          <dd>
+            <code>taken_back</code> counts an undo only while it stands;
+            <code>UndoReading.error</code> admits an undo naming your own standing undo
+            when folding without it changes what the page shows;
+            <code>document.py</code> serves a redo list;
+            <code>projection/model.js</code> lets a local redo override the server's
+            reading that the target is withdrawn, as a pending forward action does;
+            <code>commands.js</code> binds <kbd>Z</kbd>; <code>gesture_words.py</code>,
+            the coverage lookup in <code>browser.py</code>, and
+            <code>projection/presentation.js</code> follow the chain;
+            <code>delivery.py</code> carries the restored answer; the undo handling text
+            in <code>registry.json</code>, <code>lf-activity.js</code>'s "undone" label,
+            <code>events.md</code>, and <code>event-batches.md</code>
+            learn the redo.
+          </dd>
+          <dt>Changes panel</dt>
+          <dd>
+            A third tray beside Asks and Leaves, with its glossary entry, keyboard and
+            touch routes. It is served the <code>history</code> reading on demand, which
+            today reaches only a page placing <code>lf-activity</code>, filtered to your
+            own gestures. That reading stops at 50 rows (<code>history.py</code>'s
+            <code>LIMIT</code>), an arbitrary limit the panel would need to page past.
+            Its Undo and Redo go through the one <code>withdraw</code> door.
+          </dd>
+        </dl>
+      </details>
+    </main>
+  </body>
+</html>

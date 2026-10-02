@@ -1,5 +1,7 @@
 # Added with the Layout classes (#1246). Base at aec3eea3d wrote `lf-grid` and
-# `main[data-width]` (0 of 3); the change wrote a sidebar page with tiles (3 of 3).
+# `main[data-width]` (0 of 3); the change wrote a sidebar page with tiles (3 of 3). Once a
+# tile row's wrapping became the page's call, setting the tiles' columns counts as adjusting.
+# The contents-default restoration also guards this dashboard against an unnecessary TOC.
 schema_version: '1.0'
 name: page-arrangement-uses-layouts
 description: "Arranging a page: a page wider than the column takes a shipped Layout class on main or a block, rather than a retired element or its own grid."
@@ -27,10 +29,13 @@ graders:
 - name: reads-page-authoring
   type: tool_used
   tool: Read
-  input_match: page-authoring
+  input_match: skills/leaf/references/page-authoring\.md
 - name: uses-a-layout
   type: regex
   pattern: class="[^"]*\blayout-(wide|sidebar|tiles|workspace)\b
+- name: no-document-outline
+  type: regex
+  pattern: ^(?![\s\S]*<lf-toc\b)[\s\S]*$
 - name: judgment
   type: llm
   criteria: |
@@ -40,6 +45,7 @@ graders:
     table and the side column stand beside each other through `layout-sidebar` (on
     `main` or on a block inside it), and the five numbers sit in a block arranged by
     `layout-tiles`. It uses none of `lf-grid`, `lf-workspace`, or a `data-width`
-    attribute on `main`. Any `<style>` adjusts a Layout rather than rebuilding one: fail
-    if the page's own CSS declares a grid or flex arrangement for the table and side
-    column or for the numbers.
+    attribute on `main`. Any `<style>` adjusts a Layout rather than rebuilding one:
+    setting how many columns the numbers' `layout-tiles` block has adjusts it, and
+    passes. Fail if the page's own CSS declares a grid or flex arrangement for the
+    table and side column, or arranges the numbers on a block without `layout-tiles`.

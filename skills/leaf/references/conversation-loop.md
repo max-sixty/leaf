@@ -113,20 +113,22 @@ saying what changed and linking to it.
 You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
-role Leaf's guidance gives it, and only as that guidance directs: a command hub worker
-(`leaf page guidance <page> worker`), or a Codex watcher task
+role Leaf's instructions give it, and only as those instructions direct: a command hub worker
+(`leaf page instructions <page> worker`), or a Codex watcher task
 (`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
 inherits your conversation inherits the page with it and may otherwise treat the page
 as its own. Work that needs its own conversation with the user belongs to a session
 of its own, with its own page.
 
-A `working` claim is believed while the turn that wrote it is open. The page is
-told when that turn ends, an interrupted one included, so a claim nothing has
-renewed within a couple of minutes of the ending stops being believed: the banner reports that your turn ended,
-and its explanation keeps the claim's words. A claim nobody renews at all ages out
-after about a quarter of an hour. Before you end a turn while workers run, make your
-last status say what is still running, and write it again in the turn that a worker's
-result or the user's next comment wakes. Within a turn, fold your workers' progress
-into your own status: one sentence covering three workers reads better than three
-claims competing for one row, while claims on different subjects stand side by side at
-the page edge.
+A `working` claim is believed while the turn that wrote it is open. The page is told
+when that turn ends, an interrupted one included, so a claim nothing has renewed
+within a couple of minutes of the ending stops being believed: the banner reports that
+your turn ended, and its explanation keeps the claim's words. A claim nobody renews at
+all ages out after about a quarter of an hour. Before you end a turn while workers
+run, make your last status say what is still running, and write it again in the turn
+that a worker's result or the user's next comment wakes. A move whose answer a worker
+is producing takes that status `--on` it: a claim written in this turn lets the turn
+end before the answer, and the turn that wakes answers the move or claims it again.
+Within a turn, fold your workers' progress into your own status: one sentence covering
+three workers reads better than three claims competing for one row, while claims on
+different subjects stand side by side at the page edge.

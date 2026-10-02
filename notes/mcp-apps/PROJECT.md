@@ -1,74 +1,46 @@
-# MCP Apps research
+# Direct-resource MCP Apps experiment
 
-## Research Questions
+The open experiment is to render Leaf's canonical runtime inside a host's
+`ui://` resource and carry reads and gestures through MCP tools to the existing
+`PageStateService` and event append boundary. It should keep one renderer and
+one durable log, without a nested loopback frame or a reduced snapshot UI.
 
-**Primary**: Can Leaf add MCP Apps as a delivery surface without adding a second interface or state authority?
+## Acceptance criteria
 
-**Secondary**:
+Test in the host the user actually runs:
 
-- What is the smallest server-tool boundary that preserves the page directory and append-only log as Leaf's durable record?
-- Can one current, option-shaped user ask degrade into a useful disposable inline surface?
-- Which host capabilities are prerequisites, conveniences, or policy-dependent enhancements?
+- Its inline renderer accepts the resource and supports Leaf's required content
+  security policy, including evaluation of `lf-chart` bodies.
+- A keyboard choice and an anchored comment reach the durable page log and appear
+  in the Threads panel.
+- Reopening the view reconstructs the same state from the page directory.
+- Version navigation, newly loaded layer assets, and external data use the same
+  transport rather than bypassing it.
+- Delivery reaches an idle task. A host accepting `ui/message` is not evidence
+  that it starts a turn.
 
-## Current Status
+A successful reference-host render does not establish these properties in Codex's
+inline renderer.
 
-MCP Apps is not a current focus (2026-09-27), and the probe no longer passes
-against the current runtime. Its page renders in the reference host, but a choice
-pressed on it never reaches the page's event log: `observe-direct.mjs` stops at
-"No new matching durable event", and the MCP server logs no request or error. Resume
-by comparing the fetch and `EventSource` stand-ins in `probe/direct-entry.js` with
-how the runtime now sends a gesture, before running any experiment below.
+## Probe provenance
 
-### Latest Results: experiment 56
+Leaf removed its experimental MCP Apps transport on 2026-09-29. The last tree
+carrying the implementation and direct-resource probe is `a8ed55e68`. Inspect
+its files without treating them as the current runtime:
 
-The real Leaf design-decision page travels directly in a `ui://` resource in the
-official MCP Apps reference host. Its canonical theme/runtime render; a keyboard
-choice and anchored comment append through the existing event endpoint, and the
-comment appears in Leaf's normal Threads panel. The resource has no nested Leaf
-iframe, makes no external resource requests, and declares no connect, resource,
-or frame domains. The reference host accepts ui/message. Its acceptance is not
-evidence of an idle Codex turn.
+```sh
+git ls-tree -r --name-only a8ed55e68 -- notes/mcp-apps/probe
+```
 
-The reviewed runner reproduced this result from a fresh pinned reference-host
-checkout and passed 21 HTTP host/origin checks. It resolves temporary paths to
-their physical location and keeps that host outside hidden parent directories,
-as required by npm workspace resolution and the host's Express file policy.
+The direct-resource probe initially rendered a design-decision page in the
+official reference host, saved a keyboard choice and an anchored comment, and
+made no network requests. It was not tried in Codex's inline renderer. The
+2026-09-27 run rendered the page but failed to save a choice:
+`observe-direct.mjs` reported “No new matching durable event”. Compare the
+fetch and `EventSource` adapters in
+`a8ed55e68:notes/mcp-apps/probe/direct-entry.js` with the runtime's current gesture
+transport before reusing the probe.
 
-The prototype bundles the existing vendored runtime and widgets, substituting
-MCP tools only for state reads and event writes. It owns no parallel projection
-or durable log. The experiment demonstrates this fixture, not every widget or
-version/data/package operation. A narrow inline comment card and the tall-frame
-probe control expose remaining layout questions.
-
-This was also viewed in Codex's browser pane, but not in Codex's built-in inline
-MCP renderer. The earlier blocked HTTP iframe was a limitation of our wrapper,
-not evidence that direct Leaf resources cannot work. The separate browser-pane
-route rendered the canonical page in Codex and returned a keyboard choice and
-anchored comment through the detached adapter. Those deliveries reached later turns
-of the originating task; a reply, revisions, reload, and version travel preserved
-the standing state. Its actions began while the task was active, so the run did not
-isolate idle wake-up.
-
-### Latest experiment: 56
-
-**Status**: Complete. Direct
-rendering, durable gestures, visible comment UI, accepted ui/message, no-network,
-and HTTP boundary checks pass. Source hashes identify the reviewed code.
-
-## Next Steps
-
-1. Register this direct-resource probe in Codex and inspect its actual inline
-   renderer, not a reference host in a browser tab. A fresh probe connection/task
-   is required; the installed production MCP route has not been replaced.
-2. Test ui/message after that task is idle, with no detached watcher, active goal,
-   or diagnostic tool calls before or after the message. Preserve exact event
-   timing so acceptance and wake are separate observations.
-3. If Codex accepts the direct resource, extend the transport to version/data and
-   dynamic assets and test compact comment layout before choosing a production
-   cutover. These are missing prototype coverage, not MCP protocol prohibitions.
-
-## Reference
-
-- Read the direct-resource result: `cat notes/mcp-apps/experiments/56/README.md`
-- Read its machine result: `jq . notes/mcp-apps/experiments/56/results/reference-host.json`
-- Run the current reference-host probe: `bash notes/mcp-apps/probe/run-direct-probe.sh 57`
+The probe's README records its runner and environment requirements. Its initial
+scope did not carry version navigation, new layer assets, or dynamic external
+data; those remain acceptance work rather than demonstrated capabilities.

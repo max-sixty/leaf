@@ -25,6 +25,7 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -88,7 +89,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
-    EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     RELEASE_FOCUS,
@@ -101,6 +101,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     draft_control,
+    example_media,
     expect_banner_control_offered,
     fills_the_window,
     holding,
@@ -347,7 +348,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description stays unchanged.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -389,7 +390,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description waits for Markdown.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -582,10 +583,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(context).to_be_focused()
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -597,10 +595,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:40 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(added).to_be_focused()
     # Each line already stood in the window once the diff revealed it, so neither
     # trip departed: no history entry, and the address kept no fragment.
     assert page.evaluate("history.length") == entries
@@ -736,13 +731,13 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     media = {
         "/media/051bee487bfb5d13.png": (
-            EXAMPLE_MEDIA / "051bee487bfb5d13.png"
+            example_media() / "051bee487bfb5d13.png"
         ).read_bytes(),
         "/media/a99a1b63048502d0.png": (
-            EXAMPLE_MEDIA / "a99a1b63048502d0.png"
+            example_media() / "a99a1b63048502d0.png"
         ).read_bytes(),
         "/media/3cf0e3efe80c6b01.png": (
-            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+            example_media() / "3cf0e3efe80c6b01.png"
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
@@ -1216,10 +1211,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     )
     media = {
         "/media/3cf0e3efe80c6b01.png": (
-            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+            example_media() / "3cf0e3efe80c6b01.png"
         ).read_bytes(),
         "/media/4f465a0582ab00fe.png": (
-            EXAMPLE_MEDIA / "4f465a0582ab00fe.png"
+            example_media() / "4f465a0582ab00fe.png"
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
@@ -1887,6 +1882,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
     expect(page.locator("html")).to_have_attribute("data-lf-live", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (
@@ -5053,6 +5049,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         "log_floor": claim_floor,
         "agent": "Claude",
         "session": by_source["claim"]["session"],
+        "turn": by_source["claim"]["turn"],
         "disposition": "effective",
     }
     assert by_source["report"] == {
@@ -7678,20 +7675,22 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
-    # the repeatable category walk and the thread-local reply route explicit.
+    # reaches Threads, on the title of the thread it shows open. A stray digit there
+    # neither travels nor picks; t then c makes the repeatable category walk and the
+    # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
-    # completion closes it and the second is the arrival on the list.
+    # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    title = page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")
+    expect(title).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(title).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()
@@ -8436,7 +8435,7 @@ def test_a_command_goal_s_words_flow_as_prose(browser, serve):
           words.selectNodeContents(a.previousSibling);
           const lines = [...words.getClientRects()];
           const box = a.getBoundingClientRect();
-          const chip = a.closest('[data-lf-command-goal]')
+          const chip = a.closest('lf-task')
             .querySelector(':scope > .lf-task-meta > span');
           return {display: getComputedStyle(a).display,
                   sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
@@ -8884,6 +8883,8 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
         "The hunk is complete; see the run and park."
     )
+    # The reply landed where the user was looking, so it waits for them to open it.
+    seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()

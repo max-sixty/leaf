@@ -222,9 +222,7 @@ Claude Code hook:
                 kind: reply
                 to: 1946b466
                 for: 1946b466
-    attention: |-
-      Leaf needs attention:
-      - /path/to/page: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
+    attention: ""
 
 Codex queue:
   codex queue --message: |-

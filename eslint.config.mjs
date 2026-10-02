@@ -386,9 +386,10 @@ const architecturePlugin = {
       meta: { type: "problem", schema: [] },
       create(context) {
         const file = runtimeName(context.filename ?? context.getFilename());
-        // The prepaint bootstrap runs before the module graph and writes only
-        // provisional choices. root-state.js is the sole standing mutation boundary.
-        if (file === "bootstrap.js" || file === "root-state.js") return {};
+        // The bootstrap and the prepaint run before the module graph and write only
+        // what the first paint needs, before any authored revision has replaced the
+        // root's attributes. root-state.js is the sole standing mutation boundary.
+        if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
         const source = context.sourceCode ?? context.getSourceCode();
         const pagePaintAttributes = pagePaintAttributesFrom(
           context.languageOptions.parser,
@@ -734,21 +735,6 @@ export default [
     languageOptions: { globals: { process: "readonly" } },
   },
   {
-    // This transport boot entry loads Leaf after installing the MCP fetch bridge.
-    // It may boot /leaf.js, but must not reach private runtime owners.
-    files: ["notes/mcp-apps/probe/direct-entry.js"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...publicRuntimeBoundary["no-restricted-syntax"]
-          .slice(1)
-          .filter(
-            (rule) => rule.selector !== 'ImportExpression[source.value="/leaf.js"]',
-          ),
-      ],
-    },
-  },
-  {
     // The site verifier resolves the release-scoped runtime URL from the page under
     // test. That URL is data, so its two imports cannot be static dependency edges.
     files: ["dev/leaf_dev/verify_site_browser.js"],
@@ -764,11 +750,6 @@ export default [
           ),
       ],
     },
-  },
-  {
-    files: ["skills/leaf/scripts/leaf/mcp-page-ready.js"],
-    languageOptions: { globals: browserGlobals },
-    rules: { "no-undef": "error" },
   },
   {
     files: ["skills/leaf/scripts/leaf/render-checks/*.js"],

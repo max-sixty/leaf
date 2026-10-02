@@ -56,13 +56,10 @@ from render_cases_navigation import (
     painted,
 )
 from render_cases_widgets import (
-    BAD_CHART_PAGE,
-    CHART_COLLISIONS,
+    BAD_CHARTS,
     CHART_IN_A_MESSAGE_PAGE,
     CHART_MARKS,
-    CHART_MARKUP,
     CHART_PAGE,
-    CROWDED_CHART_PAGE,
     DIFF_CLIPPING,
     DIFF_LANDING,
     DIFF_PRESS,
@@ -70,9 +67,11 @@ from render_cases_widgets import (
     DIFF_ROW_PLACEMENT,
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
+    MESSAGE_CHART,
     MULTI_HUNK_PATCH,
     PANE_DIFF_PAGE,
     SQUEEZED_BOARD_PAGE,
+    chart_markup,
 )
 from render_harness import (
     BOARD_PAGE,
@@ -504,9 +503,9 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     """The root strip sticks under the banner and paints over the document, so what
     passes under it is not on screen: `shownRect`, the one reading of that, clips a
-    block behind the stuck strip to the strip's foot. The strip never reaches the
-    document's top edge, which the banner holds, so it counts as stuck at the sticky
-    inset it is held at. At the top of the page the strip is in flow and hides nothing."""
+    block behind the stuck strip to the strip's foot, which the strip's stated height
+    puts at `--lf-top` inside its panels. At the top of the page the strip is in flow
+    and hides nothing."""
     page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
     resized(page, 1280, 720)
     READ = """async () => {
@@ -517,13 +516,14 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
       return {
         strip: {top: strip.top, bottom: strip.bottom},
         behind: behind.getBoundingClientRect().toJSON(),
-        band: geometry.visibleBand(document.scrollingElement).top,
+        band: geometry.visibleBand(document.scrollingElement, behind).top,
         shown: geometry.shownRect(behind, new Map())?.top,
       };
     }"""
     page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
-    assert page.evaluate(READ)["band"] == 0
+    at_top = page.evaluate(READ)
+    assert at_top["shown"] == pytest.approx(at_top["behind"]["top"], abs=0.5), at_top
     # Stick the strip, then scroll the heading half under it.
     page.evaluate("scrollTo({top: 600, behavior: 'instant'})")
     scroll_settled(page)
@@ -541,6 +541,106 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
     assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
+
+
+def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
+    browser, serve
+):
+    """A diff's file header in a page tab pins under the stuck tab strip rather than
+    over it: each sticky header has a stated height and adds it to `--lf-top` for what
+    it stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen."""
+    path = "src/lib.rs"
+    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -1 +1,201 @@\n fn main() {{\n{rows}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stacked headers",
+                '<h1>Stacked</h1><lf-tabs id="root-tabs">'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                + patch
+                + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
+                "<p>Notes.</p></lf-tab></lf-tabs>",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    read = page.evaluate(
+        """async () => {
+        const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const box = (el) => el.getBoundingClientRect();
+        const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+        const diff = document.querySelector('lf-diff');
+        const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+        const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
+        row.scrollIntoView({block: 'start', behavior: 'instant'});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const landed = {strip: box(strip).bottom, head: box(head).bottom, row: box(row).top};
+        // Half a row under the diff's header.
+        document.scrollingElement.scrollTop += box(row).top - box(head).bottom
+            + box(row).height / 2;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {
+            landed,
+            strip: {top: box(strip).top, bottom: box(strip).bottom},
+            head: {top: box(head).top, bottom: box(head).bottom},
+            row: {top: box(row).top, bottom: box(row).bottom},
+            shown: geometry.shownRect(row, new Map())?.top,
+        };
+    }"""
+    )
+    assert read["head"]["top"] == pytest.approx(read["strip"]["bottom"], abs=0.5), read
+    landed = read["landed"]
+    assert landed["head"] == pytest.approx(landed["strip"] + 35, abs=0.5), landed
+    assert landed["row"] > landed["head"], landed
+    assert read["row"]["top"] < read["head"]["bottom"] < read["row"]["bottom"], read
+    assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
+
+
+def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
+    """A workspace pane's body starts `--lf-top` at minus its top padding and a table
+    starts it at 0, since each scrolls; neither stacks a header, so a cell scrolled to
+    just below the pane's top edge reads as shown from where it stands."""
+    filler = "<p>Filler.</p>" * 40
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Pane table",
+                '<header><h1>Pane table</h1></header><lf-pane id="p1" label="Detail">'
+                "<header><h2>Detail</h2></header><div><p>Lead paragraph.</p>"
+                '<table id="t1"><tbody><tr><td id="c1">one</td><td>1</td></tr>'
+                "<tr><td>two</td><td>2</td></tr></tbody></table>"
+                + filler
+                + "</div></lf-pane>",
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    read = page.evaluate(
+        """async () => {
+        const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const body = document.querySelector('#p1 > div');
+        const cell = document.querySelector('#c1');
+        const band = geometry.shownBand(body);
+        body.scrollTop += cell.getBoundingClientRect().top - band.top - 5;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {
+            band: geometry.shownBand(body).top,
+            cell: cell.getBoundingClientRect().top,
+            shown: geometry.shownRect(cell, new Map())?.top,
+        };
+    }"""
+    )
+    assert read["cell"] == pytest.approx(read["band"] + 5, abs=1), read
+    assert read["shown"] == pytest.approx(read["cell"], abs=0.5), read
 
 
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
@@ -1035,7 +1135,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
           const band = probe.getBoundingClientRect().height;
           probe.remove();
           return {
-            padding: parseFloat(getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom),
+            padding: parseFloat(getComputedStyle(document.body).paddingBottom),
             band,
             line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
           };
@@ -1080,8 +1180,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     page.keyboard.type("A thread on the paragraph.")
     with sending(page, "the comment on the paragraph"):
         page.keyboard.press("ControlOrMeta+Enter")
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # off the paragraph the send landed on, and its card
     row = page.locator('.lf-margin-lane > [data-lf-margin-for="only"]')
     expect(row).to_have_count(1)
     expect(row).to_have_attribute("data-lf-place", "pin")
@@ -1468,7 +1567,8 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
         "Opened src/summary.rs:259 in the exact patch"
     )
 
-    line.click(modifiers=["Alt"])
+    expect(line).to_be_focused()
+    page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     write(
         page.locator(".lf-composer leaf-text"),
@@ -1477,6 +1577,62 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and event.get("text")
+    ]
+    assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
+
+
+@pytest.mark.parametrize("destination", ["call", "patch"])
+def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
+    """Light-DOM data and its shadow-DOM destination keep exact identity."""
+    example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
+    page = open_page(browser, live_url(serve(example)))
+    page.get_by_role("tab", name="CallDiff").click()
+    location = (
+        page.locator("#pr-call-diagram")
+        .get_by_role("link", name="src/summary.rs:259")
+        .first
+    )
+    # Reach the real link through the browser's tab order. The source case reads
+    # keyboard focus inside a generated datum, rather than focusing the datum directly.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if location.evaluate("node => node.matches(':focus')"):
+            break
+    expect(location).to_be_focused()
+    assert location.evaluate("node => node.matches(':focus-visible')")
+    target = location.locator("xpath=..")
+    if destination == "patch":
+        page.keyboard.press("Enter")
+        target = page.locator(
+            '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
+        )
+        expect(target).to_be_focused()
+        expect(page.locator(".lf-live")).to_have_text(
+            "Opened src/summary.rs:259 in the exact patch"
+        )
+        expect(target).to_be_in_viewport()
+    datum = target.get_attribute("data-lf-datum")
+    owner = target.get_attribute("data-lf-projection")
+    revision = target.get_attribute("data-lf-source-revision")
+    assert datum and owner and revision
+    page.keyboard.press("e")
+    expect(
+        page.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).not_to_have_count(0)
+    page.keyboard.press("1")
+    round_trip(page)
+    reaction = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event["kind"] == "comment" and event.get("token")
+    )
+    assert reaction["anchor"]["section"] == owner
+    assert reaction["anchor"]["datum"] == datum
+    assert reaction["anchor"]["source_revision"] == revision
 
 
 def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
@@ -2029,13 +2185,13 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     ]
     # That id is the runtime's, so a passage in the heading is addressed by the
     # section the page wrote, which the file can resolve too.
-    anchor = page.locator("h3").evaluate(
-        """async heading => {
-          const selection = getSelection();
-          selection.selectAllChildren(heading);
+    # The user selects the heading's words.
+    page.locator("h3").click(click_count=3)
+    anchor = page.evaluate(
+        """async () => {
           const { selectionAnchor } = await window.__lfRuntimeImport(
             '/runtime/composing/capture.js');
-          return selectionAnchor(selection);
+          return selectionAnchor(getSelection());
         }"""
     )
     assert anchor["quote"] == "Move one cohort", anchor
@@ -4991,6 +5147,102 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
     )
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
+
+
+def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
+    browser, serve
+):
+    """A candidate can draw only on what the user stands at in the preview, such as a
+    focus treatment inside a sample child, so clicking a choice, a toggle, a preset or
+    Reset, or dragging a slider, changes the candidate without taking the user out of
+    the preview. A text control takes focus to be typed in, and from anywhere else a
+    click takes the user to the control, where the next key acts."""
+    source = leaf_page(
+        "focus playground",
+        """
+<h1>Ring playground</h1>
+<lf-ask id="ring-ask">
+  <h2>Which ring?</h2>
+  <lf-playground id="ring-playground">
+    <lf-playground-preset label="Wide">
+      <lf-playground-setting for="width" value="4"></lf-playground-setting>
+    </lf-playground-preset>
+    <lf-playground-control name="ring" label="Ring" kind="choice" value="thin">
+      <lf-playground-choice value="thin" label="Thin"></lf-playground-choice>
+      <lf-playground-choice value="thick" label="Thick"></lf-playground-choice>
+    </lf-playground-control>
+    <lf-playground-control name="width" label="Width" kind="range" value="2" min="1" max="4" step="1" unit="px"></lf-playground-control>
+    <lf-playground-control name="dim" label="Dim" kind="toggle" value="false"></lf-playground-control>
+    <lf-playground-control name="note" label="Note" kind="text" value="hi"></lf-playground-control>
+    <lf-playground-preview>
+      <button id="preview-button" type="button">A candidate button</button>
+      <lf-sample id="ring-sample" label="ring sample">
+        <template id="ring-page" data-sample>
+          <p>The page the candidate restyles.</p>
+          <button id="child-button" type="button">Where the user stands</button>
+        </template>
+      </lf-sample>
+    </lf-playground-preview>
+    <lf-playground-output>Use the
+      <lf-playground-value for="ring"></lf-playground-value> ring.</lf-playground-output>
+  </lf-playground>
+</lf-ask>
+""",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#ring-playground")
+    child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
+    standing = "button => button.matches(':focus') && document.hasFocus()"
+    values = lambda: playground.evaluate("root => root.values")
+
+    child_button.focus()
+    assert child_button.evaluate(standing)
+    page.get_by_role("radio", name="Thick", exact=True).click()
+    assert values()["ring"] == "thick"
+    assert child_button.evaluate(standing)
+
+    playground.locator("wa-switch").click()
+    assert values()["dim"] is True
+    assert child_button.evaluate(standing), "switch"
+    page.get_by_role("button", name="Wide", exact=True).click()
+    assert values()["width"] == 4
+    assert child_button.evaluate(standing), "preset"
+    slider = playground.locator("wa-slider").bounding_box()
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    assert values()["width"] == 1
+    assert child_button.evaluate(standing), "slider"
+    playground.locator(".lf-playground-reset").click()
+    assert values()["ring"] == "thin"
+    assert child_button.evaluate(standing)
+
+    # The same holds in the preview's own light DOM.
+    preview_button = page.locator("#preview-button")
+    preview_button.focus()
+    page.get_by_role("radio", name="Thick", exact=True).click()
+    expect(preview_button).to_be_focused()
+
+    # A text control is operated from focus, so a press there takes it.
+    note = page.get_by_role("textbox", name="Note")
+    note.click()
+    expect(note).to_be_focused()
+
+    # From outside the preview, a click takes the user to the control, and the next
+    # key acts there.
+    thin = page.get_by_role("radio", name="Thin", exact=True)
+    thin.click()
+    expect(thin).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert values()["ring"] == "thick"
+    playground.locator("wa-switch").click()
+    page.keyboard.press("Space")
+    assert values()["dim"] is False
+
+    # A sample whose page stands on nothing holds no one there.
+    page.frame_locator("#ring-sample iframe").get_by_text(
+        "The page the candidate"
+    ).click()
+    thin.click()
+    expect(thin).to_be_focused()
 
 
 def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
@@ -9774,118 +10026,30 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
 
 
 # Charts. Every reading here is of the composed drawing rather than of the body it was
-# built from: the body is the one thing that cannot be wrong, and everything between it
-# and the picture is the module.
+# built from: the body is Plot's options, and what the module owns is getting them to Plot
+# and the drawing onto the page.
 DREW = {
-    # role: (series, marks each, the element each series is drawn as)
-    "c-bars": (2, 3, "rect"),
-    "c-rows": (1, 2, "rect"),
-    "c-stack": (2, 2, "rect"),
-    "c-line": (1, 1, "path"),
-    "c-dots": (1, 3, "circle"),
+    # chart: (Plot's name for the mark group, shapes drawn, the element each is drawn as)
+    "c-bars": ("bar", 6, "rect"),
+    "c-rows": ("bar", 2, "rect"),
+    "c-stack": ("bar", 4, "rect"),
+    "c-line": ("line", 1, "path"),
+    "c-dots": ("dot", 3, "circle"),
 }
 
 
-def test_every_number_in_a_chart_body_reaches_the_drawing(browser, serve):
-    """A chart that drew nothing still has a box, an axis and no console error, so the
-    render gate passes it: the drawing is the one part of a chart that no other reading
-    is looking at. Each kind is counted rather than merely found, because the module
-    walks a different route to each mark — a bar's height comes from a pair of bounds, a
-    stacked bar's from a running total, a line's from one path over every point — and a
-    route that dropped the last row of its body would leave a chart that still reads as
-    a chart."""
+def test_every_mark_in_a_chart_body_reaches_the_drawing(browser, serve):
+    """A chart that drew nothing still has a box and no console error, so the render gate
+    passes it: the drawing is the one part of a chart no other reading looks at. Each
+    body makes a different shape of call — rows handed to a mark, a faceted mark, marks
+    stacked by Plot, a line over ISO dates on a time scale, dots — and each is counted
+    rather than merely found, because a call that lost its data would still draw axes."""
     page = open_page(browser, serve(CHART_PAGE))
-    for widget, (count, each, tag) in DREW.items():
+    for widget, (part, count, tag) in DREW.items():
         drew = page.evaluate(CHART_MARKS, widget)
         assert drew, f"{widget} drew nothing at all"
-        assert [s["n"] for s in drew["series"]] == list(range(1, count + 1)), (
-            widget,
-            drew,
-        )
-        for series in drew["series"]:
-            assert (series["shapes"], series["tag"].lower()) == (each, tag), (
-                widget,
-                series,
-            )
-
-
-def test_a_bar_s_length_is_the_number_it_stands_for(browser, serve):
-    """Counting the marks says a chart drew; it never says the drawing is the body.
-
-    Three separate defects lived in exactly that gap and every one of them kept the mark
-    count right — two rows sharing an x value drew one bar hidden behind another at a
-    width nothing else on the page was drawn to, a negative segment in a stack drew over
-    the bar below it and read as the total it was meant to reduce, and a fractional
-    series put its own axis labels outside the drawing. So this reads the painted
-    rectangles: their heights against the numbers they stand for, and their widths
-    against the cap the file states, which is the reading that would have caught all
-    three.
-
-    A ratio rather than a pixel count, because the plot's height is the widget's business
-    and the proportion is the chart's claim. Both series, because they are drawn by two
-    marks against one scale, and a scale each would be the commonest way for this to be
-    wrong and still look plausible."""
-    page = open_page(browser, serve(CHART_PAGE))
-    bars = page.evaluate(
-        """(id) => {
-            const svg = document.getElementById(id).querySelector('svg');
-            return [...svg.querySelectorAll('[class^="lf-series-"]')].map((g) =>
-                [...g.querySelectorAll('rect')].map((r) => {
-                    const box = r.getBoundingClientRect();
-                    return [Math.round(box.height * 100) / 100, Math.round(box.width)];
-                }));
-        }""",
-        arg="c-bars",
-    )
-    # The body CHART_PAGE carries, so a drawing that lost a row or drew one twice cannot
-    # agree with it by accident.
-    numbers = [[12, 19, 14], [7, 11, 17]]
-    scale = bars[0][0][0] / numbers[0][0]
-    assert scale > 1, bars
-    for drew, wanted in zip(bars, numbers, strict=True):
-        assert [round(h / scale, 1) for h, _ in drew] == [float(n) for n in wanted], (
-            drew,
-            wanted,
-            scale,
-        )
-        # 48 is the file's own cap on a bar. A band holding two rows that collapsed into
-        # one measured 137 against it, which no count of marks can see.
-        assert all(w <= 49 for _, w in drew), drew
-
-
-def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
-    """An axis draws every label it has and stops there, so a column narrower than the
-    labels need gives the user one long word: five winters at a phone's width read
-    2021-222022-232023-242024-252025-26, on a page that had already shipped. The bars are
-    all still drawn, so a count of marks says the chart is fine and so does every other
-    reading the gate has.
-
-    Every pair of words rather than the neighbours, because the pairs that go wrong are
-    not always adjacent: the value label of a row chart is anchored to the far end of its
-    own axis and lands on the last tick, which it did at every width including the one the
-    corpus is read at.
-
-    A phone first, then the column: a rule that fits a narrow window by dropping labels
-    could drop them everywhere, and the wide reading is what says it did not."""
-    for width in (320, 1200):
-        page = open_page(browser, serve(CROWDED_CHART_PAGE))
-        resized(page, width, 900)
-        page.wait_for_function(
-            """() => [...document.querySelectorAll('lf-chart')].every((el) => {
-                const svg = el.querySelector('svg');
-                return svg && Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
-            })"""
-        )
-        assert page.evaluate(CHART_COLLISIONS) == [], width
-        # And the labels that survive still name the bands, rather than the axis giving up
-        # and drawing none of them.
-        assert (
-            page.evaluate(
-                """() => document.querySelectorAll(
-                 '#crowd-band [data-lf-part="x-axis tick label"] text').length"""
-            )
-            > 0
-        )
+        shapes = drew["marks"].get(part, [])
+        assert [shape[0] for shape in shapes] == [tag] * count, (widget, drew["marks"])
 
 
 def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
@@ -9915,7 +10079,7 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     )
     assert stacked, "no tick names its month on a second line, so nothing is held out"
     # The overlap the second reading needs belongs to the test rather than to whatever
-    # leading lf-chart settles on: the month is pulled onto the day above it, so the two
+    # leading Plot draws with: the month is pulled onto the day above it, so the two
     # boxes have to land on each other whatever step the drawing asked for. `held` does
     # not move, because the hold asks which label a line belongs to and not how far apart
     # a label's lines are.
@@ -9954,11 +10118,10 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     hold reaching for either of those carries the whole drawing with it — every word of a
     chart stops being read against every other word of that chart — and nothing else in
     the suite would say so. The corpus sweeps and the copy assert this pass returns
-    nothing, which a wider hold only makes more true; the chart's own collision test reads
-    CHART_COLLISIONS, which compares whole <text> boxes and never sees this pass; and the
-    exemption above defeats the predicate wholesale, so it reports the same either way.
-    The only standing bug-back on this pass reporting is the float's, and that is an HTML
-    page whose runs never get an SVG label at all."""
+    nothing, which a wider hold only makes more true, and the exemption above defeats the
+    predicate wholesale, so it reports the same either way. The only standing bug-back on
+    this pass reporting is the float's, and that is an HTML page whose runs never get an
+    SVG label at all."""
     page = open_page(browser, serve(CHART_PAGE))
     # The root scrollport must not hide page-content collisions from this reading,
     # whether the chart starts below the fold or the user has scrolled to it.
@@ -9982,51 +10145,72 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     )
 
 
-def test_a_chart_says_its_numbers_to_a_user_who_cannot_see_it(browser, serve):
-    """A drawing is where the body went. The module replaces the widget's own <pre> with
-    it, so after the upgrade the numbers exist on the page as geometry and nowhere else —
-    a user on a screen reader is handed a picture and told it is a picture. The label
-    is the words back, and it carries the numbers rather than a summary of them, because
-    a summary answers a question nobody asked instead of the one the chart is about."""
+def test_a_chart_is_one_picture_named_by_its_author(browser, serve):
+    """A drawing is where the body went: after the upgrade the numbers exist on the page
+    as geometry, so a user on a screen reader hears whatever the drawing is named. The
+    name is the author's `ariaLabel`, which is why a body without one is refused. Plot
+    names every group inside the drawing too — `bar`, `x-axis tick label` — on <g>
+    elements carrying no role, which axe reports as a serious failure; the drawing is one
+    picture instead, and those names are kept as data a test can still ask for."""
     page = open_page(browser, serve(CHART_PAGE))
-    said = page.locator("#c-bars svg").get_attribute("aria-label")
-    assert "merged by quarter" in said, said
-    for series, numbers in (("apps", ("12", "19", "14")), ("infra", ("7", "11", "17"))):
-        assert f"{series}: " in said, said
-        for quarter, number in zip(("Q1", "Q2", "Q3"), numbers):
-            assert f"{quarter} {number}" in said, (quarter, number, said)
-    # And the drawing is one picture rather than a tree of unreachable tick labels.
-    assert page.locator("#c-bars svg").get_attribute("role") == "img"
+    drawing = page.locator("#c-bars svg[role=img]")
+    assert drawing.get_attribute("aria-label") == (
+        "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17"
+    )
+    assert (
+        page.evaluate("() => document.querySelectorAll('#c-bars g[aria-label]').length")
+        == 0
+    )
+    assert (
+        page.evaluate(
+            "() => document.querySelectorAll('#c-bars g[data-lf-part=bar]').length"
+        )
+        > 0
+    )
+    # A colour ramp beside the drawing is an <svg> too, and not the picture.
+    ramp = page.evaluate(
+        """() => [...document.querySelectorAll('#c-dots .lf-chart-drawing svg')]
+             .map((svg) => svg.getAttribute('role'))"""
+    )
+    assert ramp.count("img") == 1 and len(ramp) > 1, ramp
+    assert (
+        page.locator("#c-dots svg[role=img]").get_attribute("aria-label")
+        == "Review minutes against lines changed: 12 and 4, 90 and 26, 310 and 71"
+    )
 
 
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
-    """The colour of a series is the stylesheet's answer to a class, and nothing else.
-
-    The alternative is what a diagram has to do: resolve the tokens in JavaScript and
-    write the values into the drawing. That freezes the browser it was drawn in — a copy
-    exported from a light window opens as a light slab for a dark user, and a scheme
-    flipped mid-read leaves the drawing behind. So this asserts both halves: that each
-    series is painted the token it names, and that no hex colour was written into the
-    drawing at all. The flip is made with no reload, so the nodes under it are the same
-    nodes; a module that had painted them would fail here and pass every static check."""
+    """A series takes the theme's token, `var(--series-N)`, which Plot writes into the
+    drawing as it was given. Resolved to a value in JavaScript it would freeze the scheme
+    the browser was in when the chart was drawn: a copy exported from a light window
+    opens as a light slab for a dark user, and a scheme flipped mid-read leaves the
+    drawing behind. So this asserts both halves: that each series is painted the token it
+    names, and that no hex colour was written into the drawing at all. The flip is made
+    with no reload, so the nodes under it are the same nodes; a drawing that had been
+    painted values would fail here and pass every static check."""
     page = open_page(browser, serve(CHART_PAGE))
 
     def worn():
         drew = page.evaluate(CHART_MARKS, "c-bars")
         assert drew["painted"] == [], drew["painted"]
-        return [(s["token"], s["worn"]) for s in drew["series"]]
+        fills = [fill for _, fill, _ in drew["marks"]["bar"]]
+        return drew["tokens"], fills
 
-    light = worn()
-    for token, paint in light:
-        assert token in paint, (token, paint)
-    assert light[0][0] != light[1][0], "two series wearing one colour proves nothing"
+    tokens, fills = worn()
+    assert tokens[0] != tokens[1], "two series wearing one colour proves nothing"
+    assert sorted(set(fills)) == sorted(tokens), (tokens, fills)
 
     page.emulate_media(color_scheme="dark")
-    dark = worn()
-    for token, paint in dark:
-        assert token in paint, (token, paint)
-    assert [t for t, _ in dark] != [t for t, _ in light], (
-        "the dark palette must differ, or the flip proves nothing"
+    dark, fills = worn()
+    assert dark != tokens, "the dark palette must differ, or the flip proves nothing"
+    assert sorted(set(fills)) == sorted(dark), (dark, fills)
+    # And the paper Plot fills its halos and tips with is the page's, not its white.
+    assert (
+        page.evaluate(
+            """() => getComputedStyle(document.querySelector('#c-bars svg[role=img]'))
+             .getPropertyValue('--plot-background').trim()"""
+        )
+        != "white"
     )
 
 
@@ -10048,7 +10232,8 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     resized(page, 620, 900)
     page.wait_for_function(
         """(id) => {
-            const el = document.getElementById(id), svg = el.querySelector('svg');
+            const el = document.getElementById(id);
+            const svg = el.querySelector('svg[role=img]');
             return svg && Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
         }""",
         arg="c-bars",
@@ -10061,106 +10246,82 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     assert after["tick"] == before["tick"], (before, after)
 
 
-def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve):
-    """The body is the author's, and the author is the only party who can fix it, so a
-    refusal names the row rather than the exception. Two refusals, because they are
-    different claims: a cell that is not a number is a typo, and a sixth series is a
-    palette that has no step for it — the colours are stepped to stay apart under
-    colour-blind vision, and a seventh drawn in the second's colour is a chart that lies
-    to some users and to no others."""
-    page = open_page(browser, serve(BAD_CHART_PAGE))
-    cell = page.locator("#bad-cell .lf-error").inner_text()
-    assert "row 3" in cell and "twelve" in cell, cell
-    count = page.locator("#bad-count .lf-error").inner_text()
-    assert "6 series" in count and "at most 5" in count, count
-    # The three a mark count cannot see. A repeated x draws one row on top of another in
-    # the band they share, a negative segment draws over the bar it was meant to shorten
-    # and the column reads as the total without it, and a blank column takes a colour and
-    # a line in the key for a series that is never drawn.
-    assert "share the x value Q1" in page.locator("#bad-twice .lf-error").inner_text()
-    assert "cannot be negative" in page.locator("#bad-sign .lf-error").inner_text()
-    assert "infra has no numbers" in page.locator("#bad-blank .lf-error").inner_text()
-    # The source stays under the message: a refusal the user cannot check is half a
-    # refusal.
-    expect(page.locator("#bad-cell .lf-error pre")).to_contain_text("Q2, twelve")
-    # A refusal is a box, never a console line: a body the module will not draw is the
-    # author's to fix and nobody else's to hear about, and an error on the console is a
-    # render-gate finding on every page that carries one.
-
-
-def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
-    """`new Date("2026-06-01")` is UTC midnight, and a scale that renders it in the
-    user's own zone puts it under May 31 for everybody west of Greenwich — a chart of
-    daily totals silently one day out, in some users' browsers and not the author's.
-    The context is pinned to a zone where that is true, and the page is asked to confirm
-    it: without that confirmation this test passes on a machine whose clock happens to
-    be UTC, which is most of them in a container."""
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900},
-        color_scheme="light",
-        timezone_id="America/Anchorage",
-    )
-    page = open_page(browser, serve(CHART_PAGE), context=context)
-    assert page.evaluate('() => new Date("2026-06-01").getDate()') == 31, (
-        "the context must sit west of Greenwich, or the reading proves nothing"
-    )
-    ticks = page.evaluate(
-        """() => [...document.querySelectorAll(
-             '#c-line [data-lf-part="x-axis tick label"] text')].map(t => t.textContent)"""
-    )
-    assert ticks, "the line chart must draw a dated axis"
-    assert not any("May" in tick or "31" in tick for tick in ticks), ticks
-    assert any("Jun" in tick for tick in ticks), ticks
-
-
-def test_a_column_of_moments_is_time_only_where_each_states_its_zone(browser, serve):
-    """A moment that states its zone is one instant for every reader, so a column of them
-    is a time axis, and twelve hours of them are ticked by the hour rather than held to a
-    day. Without a zone the browser would read the moment in the viewer's own zone, so
-    that column stays the words the body wrote. Two labels naming one instant would draw
-    two rows at one x on a line, and are refused like two rows sharing a label; a bar
-    chart keeps a slot per label, so there they are two bars."""
-    hours = "".join(f"2026-06-01T{h:02}:00Z, {h}\n" for h in range(12))
+def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
+    """The page lays a chart's box out before Plot draws (x-height), so the drawing fills
+    that box rather than sizing it: with a legend Plot sets above it, the legend and the
+    drawing together end at the box's foot, and the box keeps the height it had at first
+    paint. Drawn at the options' own height instead, the legend overhangs the box."""
+    body = """{
+  ariaLabel: "Merged by team: backend 12, frontend 19",
+  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
+                    {x: "team", y: "n", fill: "team"})],
+}"""
     source = leaf_page(
-        "moments",
-        f"""
-<h1 id="t">Moments</h1>
-<lf-chart id="c-zoned" kind="line" y="queue depth"><pre>
-hour, depth
-{hours}</pre></lf-chart>
-<lf-chart id="c-bare" kind="line" y="queue depth"><pre>
-hour, depth
-2026-06-01T09:00, 4
-2026-06-01T10:00, 7
-</pre></lf-chart>
-<lf-chart id="c-same" kind="line" y="queue depth"><pre>
-day, depth
-2026-06, 4
-2026-06-01, 7
-</pre></lf-chart>
-<lf-chart id="c-bars" kind="bars" y="queue depth"><pre>
-day, depth
-2026-06, 4
-2026-06-01, 7
-</pre></lf-chart>
-""",
+        "tall chart",
+        '<h1 id="t">Merged</h1>\n'
+        + chart_markup("c-tall", body).replace(
+            '<lf-chart id="c-tall">', '<lf-chart id="c-tall" data-height="240">'
+        ),
     )
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, timezone_id="America/Anchorage"
+    page = open_page(browser, serve(source))
+    box = page.evaluate(
+        """() => {
+            const el = document.getElementById('c-tall');
+            const own = el.getBoundingClientRect();
+            const drawing = el.querySelector('.lf-chart-drawing').getBoundingClientRect();
+            const svg = el.querySelector('svg[role=img]').getBoundingClientRect();
+            return {height: own.height, bottom: own.bottom,
+                    drawing: drawing.bottom, svg: svg.bottom,
+                    legends: el.querySelectorAll('svg:not([role=img]), div[class$=swatches]').length};
+        }"""
     )
-    page = open_page(browser, serve(source), context=context)
-    ticks = """(id) => [...document.querySelectorAll(
-        `#${id} [data-lf-part="x-axis tick label"] text`)].map((t) => t.textContent)"""
-    zoned = page.evaluate(ticks, "c-zoned")
-    assert len(zoned) >= 4, zoned
-    assert not any("T" in tick for tick in zoned), zoned
-    # UTC, whatever the reader's zone: the first hour is 12 AM, not the day before.
-    assert "May" not in " ".join(zoned), zoned
-    assert page.evaluate(ticks, "c-bare") == ["2026-06-01T09:00", "2026-06-01T10:00"]
-    expect(page.locator("#c-same .lf-error")).to_contain_text(
-        "2026-06-01 is the same x as another row"
+    assert box["height"] == 240, box
+    assert box["legends"], box
+    assert box["svg"] == box["drawing"] == box["bottom"], box
+
+
+def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
+    """The body is the author's, and the author is the only party who can fix it, so a
+    refusal says what is wrong in the author's terms and keeps the source under it: code
+    that does not parse, a chart with no name for a user who cannot see it, a call to
+    something Plot does not export, a value that is not Plot's options, a drawing Plot
+    already made, which is how Plot's own examples end, and a height the page could not
+    have laid out before the chart drew."""
+    said = {
+        "bad-syntax": "does not parse",
+        "bad-label": "ariaLabel",
+        "bad-mark": "Plot.barz is not a function",
+        "bad-shape": "the options Plot.plot takes",
+        "bad-drawn": "rather than Plot.plot(...)",
+        "bad-height": "as data-height on the element",
+    }
+    for chart_id, body in BAD_CHARTS.items():
+        source = leaf_page(
+            "bad chart",
+            f'<h1 id="t">Bad</h1>\n<lf-chart id="{chart_id}"><pre>\n{body}\n</pre></lf-chart>',
+        )
+        page = open_page(browser, serve(source))
+        expect(page.locator(f"#{chart_id} .lf-error")).to_contain_text(said[chart_id])
+        # The source stays under the message: a refusal the user cannot check is half a
+        # refusal.
+        expect(page.locator(f"#{chart_id} .lf-error pre")).to_contain_text("marks")
+
+
+def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):
+    """The body is JavaScript, so what Plot takes as a function reaches it as one — here
+    a tick format — and the body reads the width the host draws at, which is how it fits
+    its labels to the room. The label below is the wider one only if the body was
+    handed the width: without it, the comparison is false."""
+    page = open_page(browser, serve(CHART_PAGE))
+    ticks = page.locator(
+        '#c-stack [data-lf-part="y-axis tick label"] text'
+    ).all_text_contents()
+    assert ticks and all(tick.endswith("h") for tick in ticks), ticks
+    assert page.evaluate(CHART_MARKS, "c-rows")["room"] > 500
+    expect(page.locator('#c-rows [data-lf-part="x-axis label"]')).to_contain_text(
+        "open issues"
     )
-    assert page.evaluate(ticks, "c-bars") == ["2026-06", "2026-06-01"]
 
 
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
@@ -10174,13 +10335,13 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     The room is changed by the window, the one thing that changes it; what this is about
     is that a redraw happened at all, which the drawing's own width says."""
     page = open_page(browser, serve(CHART_PAGE), context=None)
-    page.wait_for_function("() => document.querySelector('#c-bars svg')")
+    page.wait_for_function("() => document.querySelector('#c-bars svg[role=img]')")
     plant_quiet_word(page, "#c-bars", "")
     read = """() => {
         const el = document.getElementById('c-bars');
         return { room: Math.round(el.clientWidth),
                  notes: el.querySelectorAll('.lf-ui').length,
-                 drawn: Number(el.querySelector('svg').getAttribute('width')) };
+                 drawn: Number(el.querySelector('svg[role=img]').getAttribute('width')) };
     }"""
     before = page.evaluate(read)
     assert before["notes"] > 0, "the chart holds no word of the runtime's"
@@ -10188,7 +10349,8 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     resized(page, 620, 900)
     page.wait_for_function(
         """(was) => {
-            const el = document.getElementById('c-bars'), svg = el.querySelector('svg');
+            const el = document.getElementById('c-bars');
+            const svg = el.querySelector('svg[role=img]');
             return svg && Number(svg.getAttribute('width')) !== was;
         }""",
         arg=before["drawn"],
@@ -10201,8 +10363,10 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
 def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     browser, serve
 ):
-    """A chart connected inside a closed panel must draw at its visible width once
-    the user opens the panel and the thread.
+    """A chart an agent sends in a reply is markup like any other, which is why the body
+    is JSON rather than a script: a message carries no module. It connects inside a
+    closed panel and must draw at its visible width once the user opens the panel and
+    the thread.
 
     A closed native details element can answer layout queries with a nonzero width.
     Read the visible drawing after opening both disclosures; an intermediate absence
@@ -10228,7 +10392,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "parent": "c-chart",
             "revision": 1,
             "text": "Like this:",
-            "markup": CHART_MARKUP.format(id="msg-chart"),
+            "markup": chart_markup("msg-chart", MESSAGE_CHART),
         },
     )
     page = open_page(browser, url)
@@ -10239,16 +10403,17 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator(".lf-thread-summary").click()
-    expect(page.locator("#msg-chart svg")).to_be_visible()
+    expect(page.locator("#msg-chart svg[role=img]")).to_be_visible()
     page.wait_for_function(
         """() => {
-            const el = document.getElementById('msg-chart'), svg = el.querySelector('svg');
+            const el = document.getElementById('msg-chart');
+            const svg = el.querySelector('svg[role=img]');
             return svg && Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
         }"""
     )
     drawn = page.evaluate(CHART_MARKS, "msg-chart")
     assert drawn["room"] > 100, drawn
-    assert [s["shapes"] for s in drawn["series"]] == [2], drawn
+    assert len(drawn["marks"]["bar"]) == 2, drawn
 
 
 def _bound_diff(browser, serve):
@@ -10978,16 +11143,14 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     expect(line).to_have_css("white-space", "pre")
 
 
-def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
+def test_a_phone_keeps_a_long_diff_path_to_one_line_and_its_file_name_whole(
     iphone, serve
 ):
-    """A file's header on a phone, with the review press beside it. The triangle stood
-    alone on the first line and the path wrapped below it, back to the header's left
-    edge, because the triangle was the line's first word and the path had no break in
-    it but the ones `overflow-wrap` forces; and a padding held the press's column open
-    down the whole header, so those forced breaks cut names mid-word
-    ("skills/wor|ktrunk"). The path now starts on the triangle's line, every line of
-    it starts at one left edge, and each break falls after a slash."""
+    """A file's header on a phone, with the review press beside it. The header pins over
+    its rows, so it is one line of a stated height, which is what the rows under it
+    stack below (`--lf-top`). A path too long for that line gives way from its
+    folders: the file's own name stays whole, the folders end in an ellipsis, and the
+    header's title holds the whole path."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
@@ -11006,44 +11169,27 @@ def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
         context=iphone,
     )
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
-    lines = page.evaluate(
+    head = page.evaluate(
         """() => {
         const head = document.querySelector('lf-diff').shadowRoot
             .querySelector('summary');
-        const text = head.querySelector('.lf-diff-path');
-        const range = document.createRange();
-        const lines = [];
-        for (const node of text.childNodes) {
-            if (node.nodeType !== Node.TEXT_NODE) continue;
-            for (let i = 0; i < node.length; i++) {
-                range.setStart(node, i);
-                range.setEnd(node, i + 1);
-                const box = range.getBoundingClientRect();
-                const last = lines.at(-1);
-                if (last && Math.abs(box.top - last.top) < 2) last.text += node.data[i];
-                else lines.push({ top: box.top, left: Math.round(box.left),
-                                  text: node.data[i] });
-            }
-        }
-        const s = getComputedStyle(head);
-        return { lines, contentTop: head.getBoundingClientRect().top
-                   + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) };
+        const path = head.querySelector('.lf-diff-path');
+        const dir = path.querySelector('.lf-diff-dir');
+        const base = path.querySelector('.lf-diff-base');
+        return {
+            height: head.getBoundingClientRect().height,
+            stated: parseFloat(getComputedStyle(head).blockSize),
+            title: path.title,
+            base: base.textContent,
+            baseCut: base.scrollWidth > base.clientWidth,
+            dirCut: dir.scrollWidth > dir.clientWidth,
+        };
     }"""
     )
-    rows = lines["lines"]
-    assert len(rows) > 1, f"the path fits one line, so nothing wrapped: {rows}"
-    assert rows[0]["top"] - lines["contentTop"] < 8, (
-        f"the path did not start on the triangle's line: {lines}"
-    )
-    # To a pixel: the first line is drawn back by the triangle's width, which the
-    # engine's font sets.
-    lefts = [row["left"] for row in rows]
-    assert max(lefts) - min(lefts) <= 1, (
-        f"a wrapped line of the path does not start where its first line does: {rows}"
-    )
-    assert all(row["text"].endswith("/") for row in rows[:-1]), (
-        f"the path broke inside a name: {[row['text'] for row in rows]}"
-    )
+    assert head["dirCut"], f"the path fit the phone's line, so nothing gave way: {head}"
+    assert head["height"] == pytest.approx(head["stated"], abs=0.5), head
+    assert head["base"] == "config.md" and not head["baseCut"], head
+    assert head["title"] == path, head
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,
@@ -11199,7 +11345,7 @@ fn merge_sort()
     assert rows.evaluate_all(
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
                    ? ['elided', r.dataset.elided, r.textContent]
-                   : r.classList.contains('lf-code-note') ? ['note']
+                   : r.localName === 'lf-note' ? ['note']
                    : [getComputedStyle(r, '::before').content, r.classList.contains('hi')])"""
     ) == [
         ['"1505"', False],
@@ -11214,12 +11360,13 @@ fn merge_sort()
 
     code_x, note_x = page.evaluate(
         """() => {
-          const range = document.createRange();
-          const text = document.querySelector('#walk .lf-code-line');
-          range.setStart(text.firstChild.firstChild ?? text.firstChild, 0);
-          return [range.getBoundingClientRect().left,
-                  document.querySelector('#walk .lf-code-note lf-note')
-                    .getBoundingClientRect().left];
+          const start = (node) => {
+            const range = document.createRange();
+            range.setStart(node.firstChild.firstChild ?? node.firstChild, 0);
+            return range.getBoundingClientRect().left;
+          };
+          return [start(document.querySelector('#walk .lf-code-line')),
+                  start(document.querySelector('#walk pre > lf-note'))];
         }"""
     )
     assert abs(code_x - note_x) < 1, (code_x, note_x)
@@ -11241,10 +11388,27 @@ fn merge_sort()
     assert page.evaluate("document.querySelector('#film').point('3')") is False
     expect(marked).to_have_count(0)
 
-    copied = page.evaluate(
-        """() => { getSelection().selectAllChildren(document.querySelector('#walk pre'));
-                   return getSelection().toString(); }"""
+    # The user drags from the excerpt's first word to its last.
+    ends = page.locator("#walk pre").evaluate(
+        """pre => {
+          const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT,
+            (node) => node.data.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP);
+          const texts = [];
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node);
+          const glyph = (node, at) => {
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + 1);
+            return range.getBoundingClientRect();
+          };
+          const first = texts[0], last = texts.at(-1);
+          const a = glyph(first, first.data.search(/\\S/));
+          const b = glyph(last, last.data.trimEnd().length - 1);
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
     )
+    select(page, *ends)
+    copied = page.evaluate("() => getSelection().toString()")
     # The notes come along on lines of their own, as authored text; the numbers,
     # the elided mark and its count do not.
     assert copied == (
@@ -11252,3 +11416,67 @@ fn merge_sort()
         "    while end > 0 {\n        let mut start = end - 1;\nOne run per pass.\n"
         "        start -= 1;"
     )
+
+
+def test_a_code_line_longer_than_its_block_wraps_under_its_own_indent(browser, serve):
+    """A line longer than its lf-code block wraps inside the frame rather than running
+    past it behind a scrollbar, where a reader on a narrow window never saw its end. The
+    rows after the first hang two characters past the line's own indent, so a wrapped
+    call deep in a block stays under the code it belongs to, and the gutter stands the
+    whole height of the line. What no line box can break, a hash, breaks anywhere."""
+    call = "        return compute(" + ", ".join(f"arg_{i}" for i in range(40)) + ")"
+    digest = "".join(f"{i:02x}" for i in range(100))
+    url = serve(
+        leaf_page(
+            "wrap",
+            f"""
+<h1 id="t">Wrap</h1>
+<lf-code id="walk" language="python"><pre>
+def ceiling(limit):
+{call}
+{digest}
+</pre></lf-code>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#walk .lf-code-line")).to_have_count(3)
+    reading = page.evaluate(
+        """() => {
+          const pre = document.querySelector('#walk pre');
+          const [first, ...long] = pre.querySelectorAll('.lf-code-line');
+          const glyph = document.createRange();
+          const text = document.createTreeWalker(first, NodeFilter.SHOW_TEXT).nextNode();
+          glyph.setStart(text, 0);
+          glyph.setEnd(text, 1);
+          const {left: codeX, width: ch} = glyph.getBoundingClientRect();
+          // Each row's first painted glyph, in characters from the first line's first.
+          const rows = (line) => {
+            const range = document.createRange();
+            range.selectNodeContents(line);
+            const starts = new Map();
+            for (const r of range.getClientRects()) {
+              if (!r.width || !r.height) continue;
+              const top = Math.round(r.top);
+              starts.set(top, Math.min(starts.get(top) ?? Infinity, r.left));
+            }
+            return [...starts].sort(([a], [b]) => a - b)
+              .map(([, left]) => Math.round((left - codeX) / ch));
+          };
+          return {
+            scrolls: pre.scrollWidth > pre.clientWidth,
+            rows: long.map(rows),
+            gutterSpans: long.map((line) =>
+              getComputedStyle(line, '::before').height ===
+                `${line.getBoundingClientRect().height}px`),
+          };
+        }"""
+    )
+    assert reading["scrolls"] is False, reading
+    call_rows, digest_rows = reading["rows"]
+    # The call's leading spaces are text, so its first row starts at the code's edge.
+    assert call_rows[0] == 0 and len(call_rows) > 1, reading
+    assert set(call_rows[1:]) == {10}, reading
+    assert digest_rows[0] == 0 and len(digest_rows) > 1, reading
+    assert set(digest_rows[1:]) == {2}, reading
+    assert reading["gutterSpans"] == [True, True], reading

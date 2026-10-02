@@ -46,7 +46,6 @@ from .files import (
     stamped_version,
     version_num,
     version_revisions,
-    write_json,
 )
 from .interaction_log import append_interactions, client_records, now_iso
 from .layer import foreign_runtime
@@ -85,11 +84,8 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import (
-    EXTERNAL_SOURCES,
-    FRAME_ANCESTORS_CSP,
-    PAGE_CSP,
-)
+from .session_cleanup import write_json
+from .structure import FRAME_ANCESTORS_CSP
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
 # a word before saying it is still there.
@@ -159,8 +155,8 @@ def page_delivery(
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
     The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
-    and starts under the current layer CSP, the import map its layer modules resolve
-    through, and the runtime bootstrap with its server incarnation probe, so historical
+    and starts under the import map its layer modules resolve through and the runtime
+    bootstrap with its server incarnation probe, so historical
     sources inherit the current delivery boundary without carrying delivery markup
     themselves. `write_live_shell` delivers published documents the same way.
     """
@@ -173,32 +169,17 @@ def page_delivery(
         else ""
     )
 
-    def runtime(nonce: str | None) -> str:
-        return (
-            f'<script nonce="{nonce}" data-lf-runtime data-lf-server="{server_id}" '
-            f'data-lf-layer="{layer_id}"{release} '
-            f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
-            f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-            f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
-            f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
-            f"{bootstrap}</script>"
-        )
+    runtime = (
+        f'<script data-lf-runtime data-lf-server="{server_id}" '
+        f'data-lf-layer="{layer_id}"{release} '
+        f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
+        f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
+        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+        f"{bootstrap}</script>"
+    )
 
-    # 'unsafe-eval' is delivered for the drivers rather than for the page. An
-    # automated browser compiles a wait predicate with eval on each poll — Playwright
-    # keeps a compiled function but recompiles a bare expression — and only the poll
-    # that runs inside the driver's own evaluate call inherits permission from it. A
-    # script-src without the allowance therefore refuses any wait whose fact is not
-    # already true when the poll is installed, which surfaces as an intermittent red
-    # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs. Published documents carry the allowance
-    # to users no driver polls.
     return Delivery(
         address=address,
-        policy=lambda nonce: (
-            PAGE_CSP
-            + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
-        ),
         import_map=layer_import_map(assets),
         runtime=runtime,
         page_root=page_root,
@@ -216,8 +197,7 @@ class PageEndpoint:
     banner has to be able to show.
     """
 
-    # One value for the whole transport rather than a per-request binding: the MCP
-    # delivery server clears it, because it serves into a frame it cannot name.
+    # A page refuses every frame; `SampleEndpoint` answers into its parent page's.
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def __init__(
@@ -258,8 +238,8 @@ class PageEndpoint:
         # A website release spans its document, static layer and container image.
         # Ordinary page servers have no release boundary beyond their vendored layer.
         self.release = release
-        # Empty on the ordinary one-page server. The MCP delivery server sets this to
-        # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+        # Empty on the ordinary one-page server. A published site and a sample's child
+        # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
         self.page_root = page_root
         # The generation this answer speaks, which a route narrows to the revision it
         # actually served.
@@ -404,12 +384,12 @@ class PageEndpoint:
                 raise ValueError(f"unknown view revision r{view_revision}")
             registry = self._registry(view_revision)
         elif self.page_snapshot is not None:
-            registry = self.page_snapshot.registry
+            registry = self.page_snapshot.context.registry
         else:
             registry = require_registry(self.page_dir)
         self.response_layer = registry["$layer"]["generation"]
         if self.page_snapshot is not None:
-            reading = self.page_snapshot.data["sources"].get(source)
+            reading = self.page_snapshot.context.data["sources"].get(source)
         elif contract := read_contracts(self.page_dir).get(source):
             reading = read_source(self.page_dir, source, contract, registry)
         else:
@@ -536,7 +516,7 @@ class PageEndpoint:
         """Encode a body whose producer has already addressed its dependencies."""
         is_html = ctype.startswith("text/html")
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
-        if is_html and self.frame_ancestors_policy:
+        if is_html:
             headers["Content-Security-Policy"] = self.frame_ancestors_policy
         return Response(body, status_code=status, headers=headers)
 
@@ -700,9 +680,6 @@ class PageEndpoint:
         child.parent = self
         child.passive = sample.passive
         child.asset_root = sample.asset_root
-        child.frame_ancestors_policy = (
-            "frame-ancestors 'self'" if self.frame_ancestors_policy else None
-        )
         with sample.lock:
             if sample.closed:
                 return self._not_found()
@@ -712,9 +689,9 @@ class PageEndpoint:
 
     def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
-            revision = self.page_snapshot.active["revision"]
+            revision = self.page_snapshot.context.active["revision"]
             artifact = self.page_snapshot.artifacts[revision]
-            version = self.page_snapshot.active["version"]
+            version = self.page_snapshot.context.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir)
@@ -740,7 +717,7 @@ class PageEndpoint:
         """One revision's document under its captured vocabulary, without
         materializing its bundle."""
         if self.page_snapshot is not None:
-            return self.page_snapshot.readings[revision]
+            return self.page_snapshot.context.revision(revision)
         return read_revision(self.page_dir, revision)
 
     def _registry(self, revision: int) -> dict:
@@ -845,13 +822,13 @@ class PageEndpoint:
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
             events = (
-                list(self.page_snapshot.events)
+                list(self.page_snapshot.context.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
             mapping = version_revisions(events)
             published = (
-                {item["version"] for item in self.page_snapshot.versions}
+                {item["version"] for item in self.page_snapshot.context.versions}
                 if self.page_snapshot is not None
                 else set(published_versions(self.page_dir, events))
             )
@@ -868,7 +845,7 @@ class PageEndpoint:
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
-                set(self.page_snapshot.readings)
+                self.page_snapshot.context.revisions
                 if self.page_snapshot is not None
                 else set(list_revisions(self.page_dir))
             )
@@ -883,7 +860,7 @@ class PageEndpoint:
                 return self._json({"error": "unknown revision"}, 404)
             artifact = self._artifact(revision)
             events = (
-                list(self.page_snapshot.events)
+                list(self.page_snapshot.context.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
@@ -892,7 +869,7 @@ class PageEndpoint:
             )
         if path == "/registry.json":
             revision = (
-                self.page_snapshot.active["revision"]
+                self.page_snapshot.context.active["revision"]
                 if self.page_snapshot is not None
                 else latest_revision(self.page_dir)
             )
@@ -1020,7 +997,7 @@ class PageEndpoint:
             current_layer = self._registry(view_revision)["$layer"]["generation"]
         else:
             active_revision = (
-                self.page_snapshot.active["revision"]
+                self.page_snapshot.context.active["revision"]
                 if self.page_snapshot is not None
                 else latest_revision(self.page_dir)
             )
@@ -1053,8 +1030,8 @@ class PageEndpoint:
             try:
                 if self.page_snapshot is not None:
                     artifact = self._artifact(revision)
-                    events = list(self.page_snapshot.events)
-                    data = self.page_snapshot.data
+                    events = list(self.page_snapshot.context.events)
+                    data = self.page_snapshot.context.data
                     asset_root = self._sample_asset_root(revision)
                 else:
                     with PageTransaction(self.page_dir) as page:
@@ -1095,6 +1072,9 @@ class PageEndpoint:
 
 class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
+
+    # Drawn in a frame on its parent page, which is the same origin.
+    frame_ancestors_policy = "frame-ancestors 'self'"
 
     def authorized(self) -> bool:
         return True
@@ -1141,7 +1121,9 @@ def page_endpoint(
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
     identity = (
-        page_snapshot.layer if page_snapshot is not None else layer_metadata(page_dir)
+        page_snapshot.context.layer
+        if page_snapshot is not None
+        else layer_metadata(page_dir)
     )
     if refusal := foreign_runtime(page_dir, identity):
         sys.exit(refusal)

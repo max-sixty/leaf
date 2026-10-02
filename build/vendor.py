@@ -4,8 +4,6 @@
 Nothing builds them at install time, so they are tracked. The files under
 `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
 `page init` copies them into a page directory and a user's browser runs them.
-The resource under `skills/leaf/mcp-app/` is read straight from the install by
-an MCP host, so no page carries it.
 
 They arrive two ways, which is the shape of this file. Where upstream already
 publishes a file a browser can load, vendoring is three values — the package,
@@ -13,8 +11,8 @@ the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
 Either way, what comes out passes through `build/browser/shipped.mjs`, the
-owner `build/browser/build.mjs` shares: it refuses a module the page CSP
-forbids and writes the bundle's license notices (`vendor`).
+owner `build/browser/build.mjs` shares: it refuses a module an export cannot
+load and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
@@ -39,7 +37,6 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
-MCP_APP = ROOT / "skills/leaf/mcp-app"
 PIERRE_SOURCE = ROOT / "build/pierre"
 NODE_MODULES = ROOT / "node_modules"
 
@@ -224,8 +221,8 @@ def build_codemirror(work: Path) -> list[Path]:
 def build_agentic_mermaid(work: Path) -> list[Path]:
     """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
 
-    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf loads one
-    self-contained file under its self-only CSP, so esbuild resolves the locked
+    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf pages have no
+    package resolver and load one self-contained file, so esbuild resolves the locked
     dependency set and leaves no runtime chunk or package lookup behind. The package
     entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
     keeps the native rasterizer and the code-mode parser out of the bundle.
@@ -258,8 +255,8 @@ def build_floating_ui(work: Path) -> list[Path]:
     """Bundle the browser's anchored-positioning primitive.
 
     Floating UI's DOM package publishes browser ESM, but leaves its core and utility
-    packages as bare imports. Leaf pages run under a self-only CSP and have no package
-    resolver, so the three packages become one browser-native module. Only the
+    packages as bare imports. Leaf pages have no package resolver,
+    so the three packages become one browser-native module. Only the
     positioning and lifecycle middleware used by Leaf's floating chrome are exported;
     esbuild drops the rest.
     """
@@ -305,7 +302,7 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
+    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
@@ -325,7 +322,7 @@ def build_webawesome(work: Path) -> list[Path]:
 
 
 def build_plot(work: Path) -> list[Path]:
-    """Observable Plot draws lf-chart. Nothing published is loadable as it
+    """Observable Plot, which lf-chart hands a page's author. Nothing published is loadable as it
     stands, and there are three things to try: `src/index.js` is browser-native
     ESM but imports d3 by bare specifier; `dist/plot.umd.min.js` leaves d3
     external too, reading a `d3` global the page would have to have loaded first;
@@ -336,14 +333,13 @@ def build_plot(work: Path) -> list[Path]:
     ESM file with no specifier left in it. The alternative is vendoring d3 whole
     beside it, which is 100KB more and two files whose versions can drift apart.
 
-    The whole of Plot goes in rather than the marks lf-chart happens to use
-    today. Naming the marks here would put the module's mark list in a second
-    place, where a chart kind added in the module renders as a TypeError instead;
-    the list is worth about 100KB, against a 385KB bundle.
+    The whole of Plot goes in, since an author writes the chart in Plot's own API
+    and may reach for any of it.
     """
     out = package_vendor("default") / "plot.esm.js"
     (work / "entry.mjs").write_text(
-        'export * from "@observablehq/plot";\n', encoding="utf-8"
+        'export * from "@observablehq/plot";\n',
+        encoding="utf-8",
     )
     esbuild(
         "entry.mjs",
@@ -393,58 +389,12 @@ def build_pierre(work: Path) -> list[Path]:
     return [out]
 
 
-def build_mcp_app(work: Path) -> list[Path]:
-    """Bundle the adaptive MCP App into one self-contained `ui://` resource.
-
-    An MCP host reads one HTML blob from the server; it does not fetch Leaf's
-    ordinary app assets. The SDK, application code, styles, and existing Leaf
-    mark are therefore inlined into committed files that an installed plugin can
-    serve without npm or network access. A complete-page result may frame the
-    process-scoped page server, while a snapshot result stays inside the same
-    standalone resource.
-    """
-    source = ROOT / "build/mcp-app"
-    entry = work / "page-entry.js"
-    bundle = work / "page-bundle.js"
-    out = MCP_APP / "page-app.html"
-    shutil.copyfile(source / "page-app.js", entry)
-    esbuild(
-        entry.name,
-        "--bundle",
-        "--format=iife",
-        "--platform=browser",
-        "--target=chrome105",
-        "--minify",
-        "--legal-comments=inline",
-        f"--banner:js=/*! @modelcontextprotocol/ext-apps {version('@modelcontextprotocol/ext-apps')}"
-        " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
-        f"--outfile={bundle}",
-        cwd=work,
-    )
-    html = (source / "page-app.html").read_text(encoding="utf-8")
-    html = html.replace(
-        "/* LEAF_MCP_STYLE */",
-        (source / "page-app.css").read_text(encoding="utf-8").strip(),
-    )
-    html = html.replace(
-        "/* LEAF_MCP_SCRIPT */",
-        bundle.read_text(encoding="utf-8").strip().replace("</script", "<\\/script"),
-    )
-    html = html.replace(
-        "<!-- LEAF_MCP_ICON -->",
-        (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
-    )
-    out.write_text(html, encoding="utf-8")
-    return [out]
-
-
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "agentic-mermaid": build_agentic_mermaid,
     "codemirror": build_codemirror,
     "floating-ui": build_floating_ui,
     "highlight": build_highlight,
     "jsdiff": build_jsdiff,
-    "mcp-app": build_mcp_app,
     "plot": build_plot,
     "pierre": build_pierre,
     "webawesome": build_webawesome,
@@ -468,10 +418,8 @@ def vendor(name: str) -> list[Path]:
     """Make one bundle, then pass it through `build/browser/shipped.mjs`.
 
     That module owns what a committed bundle must be and carry: it refuses a module
-    the page CSP forbids, and writes `<bundle>.LICENSES.txt` from the packages the
-    build's `meta.json` says reached it. The MCP App's resource is HTML that its host
-    reads under the host's own policy, so it has no module to check and still takes
-    notices.
+    an export cannot load, and writes `<bundle>.LICENSES.txt` from the packages the
+    build's `meta.json` says reached it.
     """
     # Under the root, so a bare import in an entry, and in a build script that imports
     # esbuild, resolves the way Node's does: up to the root `node_modules`.

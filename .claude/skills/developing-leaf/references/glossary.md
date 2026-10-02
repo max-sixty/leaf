@@ -34,7 +34,7 @@ concept uses the same word.
 Core Leaf owns revision activation, scoped serving, executable and inert-input
 boundaries, target identity, event admission, comments, and export. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
-and guidance. A page instance owns its content, page-local modules, styles, assets, and
+and instructions. A page instance owns its content, page-local modules, styles, assets, and
 declarations, semantic target choices, drafts, and package selection. A user session
 owns focus, scroll, selection, and disposable exploration state; durable user choices
 enter the page instance through Leaf's event path.
@@ -86,7 +86,7 @@ item.
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky header** | A sticky box declared through `declareStickyHeaders` that stands over the top of the scroller it sticks in, such as an `lf-diff` file header or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it. The geometry beneath (`insetBand`) trims a box stuck at either edge, though every declared one sticks at the top |
+| **Sticky header** | A sticky box of stated height that stands over the top of the scroller it sticks in, such as an `lf-diff` file header or a root `lf-tabs` strip. It sticks at `--lf-top` and adds its height to `--lf-top` for what it stands over, so headers stack. What passes under it is not on screen (`headerInset`), and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); the stylesheet decides, for a pane the workspace Layout's media query, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -131,6 +131,7 @@ The margin projection has a separate registration and layout hierarchy:
 | **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of the centred `main` holds it, and only `data-rail="right"` on `body` makes the shell give it up |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement (`settleResidency`) admits them in that order where the room beside `main` holds them, moving the column over by `--lf-shift`, and writes `data-lf-margin` on `main` |
 | **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it. It is an overlay: it covers what lies under it, and nothing reserves room for it or moves when it comes, goes, or changes place |
+| **Folded pin** | A pin whose face, a contributed primary and one more control, found no room for both and stands as its options' toggle alone (`data-lf-folded`), seated at that size, wearing the marker face of the kind its primary contribution declares. Placement folds it; the gesture that opens any options opens it, as does the keyboard standing at its target, spreading its actions leftward over whatever stands beside it, the toggle staying under the press |
 | **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
 | **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |

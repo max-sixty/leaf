@@ -1,12 +1,42 @@
 {
   "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "[ -z \"$CLAUDECODE\" ] || exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\" --watch",
+            "asyncRewake": true,
+            "rewakeMessage": "Leaf:",
+            "timeout": 604800
           }
         ]
       }
@@ -16,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
             "timeout": 20
           }
         ]
@@ -27,21 +57,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" session-end 2>/dev/null || true",
             "timeout": 3
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "if": "Bash(*leaf wait*)",
-            "command": "[ -n \"$CLAUDECODE\" ] && python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"; exit 0",
-            "timeout": 10
           }
         ]
       }

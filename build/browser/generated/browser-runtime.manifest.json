@@ -21,7 +21,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "1fac8c9767d5a23c5bf23f9692eecc4674665051c207a86bf496e676978a05c5",
+  "lockfileSha256": "5544cd381239dc8dee775996840de14b1858b7fca869a39899a70d3f1f50d8d8",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -37,11 +37,10 @@
     "@codemirror/view": "6.43.13",
     "@floating-ui/dom": "1.8.0",
     "@happy-dom/global-registrator": "20.14.5",
-    "@lezer/highlight": "1.2.4",
+    "@lezer/highlight": "1.2.5",
     "@lezer/markdown": "1.7.2",
-    "@modelcontextprotocol/ext-apps": "2.0.0",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.5.0",
+    "@pierre/diffs": "1.5.1",
     "@preact/signals-core": "1.14.4",
     "@shikijs/core": "4.4.3",
     "@shikijs/engine-javascript": "4.4.3",
@@ -162,12 +161,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 27353,
-      "sha256": "5e59a700fb9cb67415bac9b62d9f4bcbe0aa5acd1a5a6dd991d750201ece073e"
+      "bytes": 27501,
+      "sha256": "e1984c78da1db0d7c35d242b9fef01a45d8a8ea8ad81748d6cb458b00e9d6917"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 175628,
-      "sha256": "96c4eaa18ab617b3dacedea81987944b6bbce7b91f217b3df5e0bd61ce911241"
+      "bytes": 176568,
+      "sha256": "8c339c05cee2b9e42e51d9f4fe10dd5cd75117baa05ed9af2239750a88d2bb6a"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

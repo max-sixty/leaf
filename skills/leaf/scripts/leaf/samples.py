@@ -17,11 +17,10 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 
 from .data import source_file
-from .event_log import now_iso
-from .files import write_json
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
+from .session_cleanup import now_iso, write_json
 from .structure import SourceDocument
 from .thread_context import sample_events
 

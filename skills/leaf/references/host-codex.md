@@ -26,11 +26,16 @@ the adapter below carries input back to this same task.
 Starting the command again for another page adds that page to the same task-wide
 watch, and a completed turn does not stop the adapter.
 
-New user input reaches you after the current turn ends. The adapter hands each
-delivery to `codex queue`, which queues it as the task's next user message: a
+While your turn is running, Leaf's asynchronous tool hook offers new input between
+steps, after the current model request and tool calls finish. Read its pointer
+with `leaf delivery read <id>`; reading it confirms pickup in this turn. The
+hook cannot interrupt a running request or start an idle turn.
+
+When your task is idle, or a hook's pointer was not read before the turn ended,
+the adapter hands the delivery to `codex queue` as the task's next user message: a
 `leaf-delivery` XML element shown as one line in a code block, naming
 `leaf delivery read <id>`, which resolves the immutable envelope. The adapter
-acknowledges the delivery once Codex's queue accepts it, so do not run `leaf wait` or
+acknowledges queued delivery once Codex's queue accepts it, so do not run `leaf wait` or
 `leaf wait --ack` while it holds the task. The same delivery id may return after an
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
@@ -39,8 +44,8 @@ Answer every obligation with the operation its delivered `answering` clause name
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the status you declare.
 
-This is Claude Code's delivery with the wait and the acknowledgement moved into the
-adapter: input arrives between turns, and the answers are the same commands.
+The tool hook and adapter share one delivery record, so input read during work is
+not queued again. Without a running trusted tool hook, delivery uses the queue.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
@@ -60,24 +65,3 @@ above.
   background follow-up, and acknowledges it; this task runs no wait at all. Take it
   only when the user authorizes a visible watcher task, and follow
   `references/codex-watcher.md`.
-
-## Experimental inline MCP App
-
-Use the bundled model tool whose exposed name ends in `leaf_present` when the
-user requests an inline MCP App or a host-capability experiment. Pass the
-initialized page's absolute directory. The app attempts to frame the canonical
-page from a process-scoped localhost origin; hosts that disallow that frame get a
-comments-only snapshot. That snapshot has no package actions or version travel;
-open the full browser page whenever the observed mode lacks what the user needs.
-
-Judge the rendered mode from the visible app or host diagnostics. Model-visible
-text and a successful tool call do not establish which UI the host displayed.
-If visual evidence is unavailable, say the rendering is unverified. Use
-`leaf_present_snapshot` only when deliberately requesting the comments-only view;
-the app already handles automatic fallback. Do not call app-only tools from the
-model.
-
-Set the page to `waiting` and start the same Codex adapter before handing over an
-inline app. Name the review and report its observed mode or unverified rendering;
-its ephemeral iframe URL is not a durable browser handoff. A successful
-`ui/message` response is not a delivery receipt.

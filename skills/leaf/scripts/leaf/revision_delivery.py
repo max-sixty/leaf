@@ -19,18 +19,19 @@ document's import map sends to its revision (`layer_import_map`), so layer modul
 served as captured.
 
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
-server and the static live shell, a standalone export, and the MCP app's snapshot. A
+server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
-the same way. It also paints what each element's registry entry declares for the
-stylesheet to read (`mark_declared`), so the first paint lays out what a script would
-otherwise only mark once the registry loads.
+the same way. It also paints what each element's registry entry declares, and the size
+of the page media it names, for the stylesheet to read (`mark_declared`), so the first
+paint lays out what a script would otherwise only mark once the registry loads or an
+image once it decodes.
 """
 
 import html
 import json
 import posixpath
 import re
-import secrets
+import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -48,6 +49,7 @@ from .structure import (
     rel_tokens,
     review_mode,
     rewrite_attribute_references,
+    script_kind,
     source_index,
 )
 
@@ -143,7 +145,7 @@ def rebase_document(
 ) -> str:
     """Re-address every reference an HTML document makes, and nothing else in it.
 
-    The references are an authored module's `src` and its literal imports, a
+    The references are an authored script's `src` and its literal imports, a
     stylesheet link, every URL `attribute_references` reads, and the URLs of each
     `style` element and attribute — in the document and in each declarative shadow
     root it serializes. Authored prose is also the anchorable record, so a
@@ -217,7 +219,9 @@ def rebase_document(
                 body = source[start:end]
                 if tag == "style":
                     delivered = rebase_css(body, "/index.html", address)
-                elif attrs.get("type") == "module" and not attrs.get("src"):
+                elif script_kind(attrs) in {"module", "classic"} and not attrs.get(
+                    "src"
+                ):
                     delivered = rebase_module(
                         body.encode("utf-8"), "/index.html", address
                     ).decode("utf-8")
@@ -231,14 +235,59 @@ def rebase_document(
     return source
 
 
-def mark_declared(source: str, registry: Mapping) -> str:
+def media_size(data: bytes) -> tuple[int, int] | None:
+    """The width and height an image states in its header, for the raster formats page
+    media holds (`schema.MEDIA_TYPES`), or None where the bytes state none: an SVG, whose
+    size is its layout's, or a file cut short. A JPEG's EXIF rotation is not applied."""
+    if (
+        len(data) >= 24
+        and data.startswith(b"\x89PNG\r\n\x1a\n")
+        and data[12:16] == b"IHDR"
+    ):
+        return struct.unpack(">II", data[16:24])
+    if data.startswith((b"GIF87a", b"GIF89a")) and len(data) >= 10:
+        return struct.unpack("<HH", data[6:10])
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP" and len(data) >= 30:
+        chunk = data[12:16]
+        if chunk == b"VP8 ":
+            width, height = struct.unpack("<HH", data[26:30])
+            return width & 0x3FFF, height & 0x3FFF
+        if chunk == b"VP8L":
+            bits = int.from_bytes(data[21:25], "little")
+            return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+        if chunk == b"VP8X":
+            return (
+                int.from_bytes(data[24:27], "little") + 1,
+                int.from_bytes(data[27:30], "little") + 1,
+            )
+        return None
+    if data.startswith(b"\xff\xd8"):
+        at = 2
+        while at + 9 <= len(data) and data[at] == 0xFF:
+            marker = data[at + 1]
+            (length,) = struct.unpack(">H", data[at + 2 : at + 4])
+            # Every start-of-frame marker but the three that share its range.
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                height, width = struct.unpack(">HH", data[at + 5 : at + 9])
+                return width, height
+            at += 2 + length
+    return None
+
+
+def mark_declared(
+    source: str, registry: Mapping, resources: Mapping[str, Resource]
+) -> str:
     """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
-    rest byte-for-byte.
+    rest byte-for-byte, and the size of the page media it names.
 
     A mark painted by the runtime would land a registry fetch after the document first
-    draws, so a workspace would draw its panes before knowing they are panes. What a
-    template holds is inert until a module clones it, and a declarative shadow tree's
-    content is its host's to style, so neither is marked.
+    draws, so a workspace would draw its panes before knowing they are panes. An image
+    has no size until it decodes, so an element naming page media in its attributes is
+    painted with the box that holds any of them, the largest width and the largest
+    height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
+    out a frame that the images arrive in. What a template holds is inert until a
+    module clones it, and a declarative shadow tree's content is its host's to style, so
+    neither is marked.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -255,6 +304,17 @@ def mark_declared(source: str, registry: Mapping) -> str:
                 marks[mark["paint"]] = attrs[authored]
             elif declared := declaration.get(key):
                 marks[mark["paint"]] = "" if declared is True else str(declared)
+        sizes = [
+            size
+            for value in attrs.values()
+            if value
+            and value.startswith(f"/{MEDIA_DIR}/")
+            and (media := resources.get(value)) is not None
+            and (size := media_size(media.data)) is not None
+        ]
+        if sizes:
+            marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
+            marks["data-lf-media-height"] = str(max(height for _, height in sizes))
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
@@ -420,20 +480,17 @@ class Delivery:
 
     Every host delivers a document the same way (`compose_document`), and these fields
     are the whole of what hosts differ in: where the document's references go, whether
-    its stylesheets are embedded, the policy and runtime script a served or exported
-    page starts under, and the marks a host puts on the document around its source.
+    its stylesheets are embedded, the runtime script a served or exported page starts
+    under, and the marks a host puts on the document around its source.
     """
 
     address: Address
     # Embeds stylesheets in place of linking them: a stylesheet's CSS by its path.
     inline_stylesheet: Callable[[str], str] | None = None
-    # The content security policy naming one delivery's script nonce. A document with
-    # none carries no nonce, and its host supplies the policy.
-    policy: Callable[[str], str] | None = None
     import_map: dict | None = None
-    # The runtime's own inline script, given the nonce. A document with one runs the
-    # layer, so it also carries the layer's adopted sheets (`delivery_sheets`).
-    runtime: Callable[[str | None], str] | None = None
+    # The runtime's own inline script. A document with one runs the layer, so it also
+    # carries the layer's adopted sheets (`delivery_sheets`) and the prepaint.
+    runtime: str | None = None
     # The host's own head metadata, such as a published page's link card.
     head: str = ""
     # The page root the document names as canonical: the live root, each stamped
@@ -442,7 +499,6 @@ class Delivery:
     page_root: str | None = None
     html_attributes: Mapping[str, str] = field(default_factory=dict)
     body_attributes: Mapping[str, str] = field(default_factory=dict)
-    body_end: str = ""
 
 
 def compose_document(
@@ -458,31 +514,31 @@ def compose_document(
 ) -> str:
     """Deliver one authored document under a host's `delivery`.
 
-    The source is marked with what its `registry` declares (`mark_declared`) and
-    re-addressed (`rebase_document`), and then receives delivery's head
+    The source is marked with what its `registry` declares and the size of the media
+    it names (`mark_declared`), re-addressed (`rebase_document`), and then receives
+    delivery's head
     right after the head's start tag, ahead of any authored executable content: the
-    prelude, the policy, the import map, the runtime script, the theme, the adopted
-    sheets, the host's metadata, the runtime entry, and the canonical address, each
-    where the host has one. The root carries the host's attributes and the page's
+    prelude, the import map, the canonical address, the prepaint, the runtime script,
+    the theme, the adopted sheets, the host's metadata, and the runtime entry, each
+    where the host has one. A document with a runtime, served or exported, carries the
+    prepaint (`runtime/prepaint.js`), which says before the first paint what the
+    runtime will draw and whether it could not start. It reads the canonical address,
+    so that comes first; it names a startup fault before the host's runtime script
+    hears of it, so it comes before that; and it stands before the theme, since a
+    script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
     reserve the banner a sign-off page will draw before the runtime draws it. The
-    import map precedes every script, since a browser
-    reads no map once a module has begun to load. With a policy, one nonce per
-    document marks delivery's scripts and every inline script the source arrived
-    with, placed after addressing so its offsets are the ones the browser reads. A
-    document written once and served many times (`live_shell`) shares its nonce with
-    every reader, so it keeps out only markup that cannot read the page.
+    import map precedes every script, since a browser reads no map once a module has
+    begun to load.
     """
     source = rebase_document(
-        mark_declared(source, registry),
+        mark_declared(source, registry, resources),
         delivery.address,
         inline_stylesheet=delivery.inline_stylesheet,
     )
     document = SourceDocument(source)
     if "head" not in document.wrapper_tags:
         raise ValueError("document has no explicit <head>")
-    nonce = secrets.token_urlsafe(16) if delivery.policy is not None else None
-    marked = f' nonce="{nonce}"' if nonce else ""
     theme = (
         f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
         if delivery.inline_stylesheet is not None
@@ -491,18 +547,23 @@ def compose_document(
     head = (
         delivery_prelude(document, revision, version, executable, widgets)
         + (
-            '<meta http-equiv="Content-Security-Policy" '
-            f'content="{html.escape(delivery.policy(nonce), quote=True)}">'
-            if nonce
-            else ""
-        )
-        + (
-            f'<script type="importmap"{marked} data-lf-runtime>'
+            '<script type="importmap" data-lf-runtime>'
             f"{json_script(delivery.import_map)}</script>"
             if delivery.import_map is not None
             else ""
         )
-        + (delivery.runtime(nonce) if delivery.runtime is not None else "")
+        + (
+            f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
+            if delivery.page_root is not None
+            else ""
+        )
+        + (
+            "<script data-lf-runtime>"
+            f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
+            if delivery.runtime is not None
+            else ""
+        )
+        + (delivery.runtime or "")
         + theme
         + (
             delivery_sheets(resources, delivery.address)
@@ -511,18 +572,9 @@ def compose_document(
         )
         + delivery.head
         + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
-        + (
-            f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
-            if delivery.page_root is not None
-            else ""
-        )
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]
-    if nonce:
-        insertions += [
-            (script["start_tag_end"] - 1, marked) for script in document.inline_scripts
-        ]
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review
@@ -542,9 +594,6 @@ def compose_document(
                 _attributes(delivery.body_attributes),
             )
         )
-    if delivery.body_end:
-        close = document.body_close if document.body_close is not None else len(source)
-        insertions.append((close, delivery.body_end))
     for offset, text in sorted(insertions, key=lambda item: item[0], reverse=True):
         source = source[:offset] + text + source[offset:]
     return UTF8_BOM + source

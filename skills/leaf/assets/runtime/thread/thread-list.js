@@ -9,8 +9,8 @@
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
-   Following lands the thread's end, reply box included, so the turn's newest words
-   stand just above the box, however tall the turn has grown.
+   Following keeps the reply box where it stands at the list's foot, and the turn's
+   newest words end above it however tall the turn has grown.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
 
@@ -46,7 +46,6 @@
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
 import { nextRender } from "../rendering.js";
-import { scrollBehavior } from "../motion.js";
 import { placeKeeper } from "../user-place.js";
 import { landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -106,22 +105,23 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // did not change and lets the pressed title travel, measured at 186px on an ordinary
   // panel and off the top of the scrollport from the first visible row. So disclosure takes
   // the same hold the renders take. `toggle` arrives with the reflow already in the
-  // geometry, so the hold is taken on the way down, while the activation is still the click
-  // default action pending, and corrected on the frame that paints it. Both routes to that
-  // press land the right card: `takeScrollHold` leads with the card under the pointer, and
-  // with the card holding focus when the hand is elsewhere, which is where Enter or Space
-  // on a title is standing.
+  // geometry, so the hold is taken on the way down, while the closed title's focus or click
+  // has yet to reach the list that opens it (thread-list-view.js), and corrected on the
+  // frame that paints it. A title already open changes nothing, and a hold there would
+  // undo a landing's own scroll. Every route lands the right card: `takeScrollHold` leads
+  // with the card under the pointer, and with the card holding focus when the hand is
+  // elsewhere.
   function holdThroughDisclosure(panelIsOpen) {
-    threadsBox.addEventListener(
-      "click",
-      (event) => {
-        const summary = event.target?.closest?.(".lf-thread-summary");
-        if (!summary || !summary.parentElement?.matches?.(".lf-thread")) return;
-        const hold = takeScrollHold(panelIsOpen);
-        if (hold) nextRender(() => finishScrollHold(hold, panelIsOpen));
-      },
-      true,
-    );
+    const hold = (event) => {
+      const summary = event.target?.closest?.(".lf-thread-summary");
+      const card = summary?.parentElement;
+      if (!card?.matches?.(".lf-thread") || card.open) return;
+      if (event.type === "focusin" && summary.matches(":active")) return;
+      const taken = takeScrollHold(panelIsOpen);
+      if (taken) nextRender(() => finishScrollHold(taken, panelIsOpen));
+    };
+    for (const type of ["focusin", "click"])
+      threadsBox.addEventListener(type, hold, true);
   }
 
   // The list's place through every change to its content (user-place.js). A card is
@@ -185,6 +185,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     return {
       id: incoming.at(-1)?.id ?? nextLatest.id,
       top: threadsBox.scrollTop,
+      end: tailEnd,
+      box: card.querySelector(":scope > .lf-compose")?.getBoundingClientRect().top,
       current: retainUserIntent({ available: panelIsOpen }),
     };
   }
@@ -194,16 +196,20 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // restores that reading through the same owners while preserving native identities.
   let renderGeneration = 0;
 
-  // Following lands the thread's end, its reply box included, at the band's foot: the
-  // place hold kept the card's top still, so the turn pushed the box the user may be
-  // typing in down past the foot. The turn's newest words stand just above the box, so a
-  // turn that keeps growing stays followed too.
-  function followThreadEnd(newest) {
-    const band = landingBand(threadsBox);
-    const end = newest.closest(".lf-thread")?.getBoundingClientRect().bottom;
-    if (!band || end === undefined) return;
-    const by = end - band.bottom;
-    if (by > 0) threadsBox.scrollBy({ top: by, behavior: scrollBehavior() });
+  // Following grows the thread up into the room scrolled past: the card's end stays where
+  // it stood, so nothing after it moves, and the newest words end above the reply box,
+  // however tall the turn has grown. The box stands at the list's foot (chrome.css), pinned
+  // there while the card's end lies below it, so the words may reach past where it stood
+  // by more than the card grew. The scroll lands in the render's own frame. In a list too
+  // short to scroll, the open card fills the list and the reply takes the free room above
+  // its box, so neither the card's end nor the box moves and there is nothing to follow.
+  function followThreadEnd(newest, incoming) {
+    const card = newest.closest(".lf-thread");
+    const by = Math.max(
+      card.getBoundingClientRect().bottom - incoming.end,
+      newest.getBoundingClientRect().bottom - (incoming.box ?? Infinity),
+    );
+    if (by > 0) threadsBox.scrollBy({ top: by, behavior: "instant" });
   }
 
   const rowModel = (all, commands) => {
@@ -232,7 +238,11 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // and so is the order it shows it in. The page's order is kept either way for the
     // walk with the panel shut.
     const narrowing = commands.narrowing.model(threads, places);
-    const shown = narrowing.shown;
+    const shown = threads.filter(
+      (thread) =>
+        narrowing.shown.includes(thread) ||
+        threadsBox.keepsDraftVisible(threadKey(thread), narrowing.intent),
+    );
     const inPage = inPageOrder(threads, commands.placedAt);
     const recent = narrowing.intent.order === "recent";
     const ordered = recent ? inRecentOrder(threads) : inPage;
@@ -280,6 +290,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       );
     return Object.freeze({
       rows: Object.freeze(rows),
+      intent: narrowing.intent,
       count: open.length,
       unread: threads.filter((t) => t.unread.length).length,
       narrowing: narrowing.presentation,
@@ -413,7 +424,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
           ? threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
           : null;
-      if (newest) followThreadEnd(newest);
+      if (newest) followThreadEnd(newest, incoming);
     } catch (error) {
       if (!current()) return;
       await retainCommitted(current, reading, error);

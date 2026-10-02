@@ -1164,7 +1164,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # Retiring a background draft must not interrupt an unrelated typing surface.
     search = page.get_by_role("searchbox", name="Find in threads")
-    search.focus()
+    search.click()
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
@@ -1876,8 +1876,9 @@ diff --git a/value.txt b/value.txt
 def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     browser, serve
 ):
-    """The shared placement path listens to nested scroll boxes, clips target
-    geometry to what is actually shown, and retracts the bar once none remains."""
+    """The shared placement path listens to nested scroll boxes and clips target
+    geometry to what is actually shown. Once none remains the bar waits out of view,
+    and it stands again, focus returned, when the target is scrolled back."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -1918,8 +1919,9 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
 
     diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
     expect(bar).to_be_hidden()
-    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    assert page.evaluate("() => document.activeElement === document.body")
+    diagram.evaluate("element => { element.scrollLeft = 0; }")
+    expect(bar).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(

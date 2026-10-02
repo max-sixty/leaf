@@ -2,7 +2,10 @@
 
 ## Measured facts
 
-When one measured scalar belongs inside a sentence, freeze it with its provenance:
+Use `lf-num` for a repeatably measured scalar inside a sentence, with the snapshot
+that established it. A headline KPI belongs in `lf-metric`; a number without a
+repeatable measurement feed remains ordinary text. Freeze a measured prose value
+with its provenance:
 
 ```html
 The import takes <lf-num source="import-latency"
@@ -56,13 +59,12 @@ and cannot read them. Give a mark particular to the subject a page-local class o
 same tokens. Keep the `<figcaption>` for what the drawing cannot show, and inspect
 each rendered figure as you would a diagram.
 
-Use `lf-chart` rather than Mermaid's XY or pie charts for quantities that need Leaf's
-data-first chart vocabulary: a comparison across a few categories, a run over time, a
-ranking, a composition, or two numbers against each other. `lf-chart` needs no
-package. A handful of numbers the sentence beside them can carry is prose; a chart is
-for when the shape of the numbers is the point. Use
-`<pre><code class="language-…">` for selectable literal source and
-`lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
+Use `lf-chart` rather than Mermaid's XY or pie charts for quantities: its body is
+Observable Plot code, the options `Plot.plot` takes, so any chart Plot draws is
+available in Plot's own API. `lf-chart` needs no package. A handful of numbers the
+sentence beside them can carry is prose; a chart is for when the shape of the
+numbers is the point. Use `<pre><code class="language-…">` for selectable literal
+source and `lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.
 The registry's `$languages.names` lists
@@ -109,8 +111,12 @@ jq -Rs . SKILL.md | leaf data set <page> leaf-skill
 sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
 ```
 
-A patch goes through the `diff` package's producer script; `leaf page guidance <page>
-producer` gives the command, as it gives each contract's own instructions.
+A patch goes through the `diff` package's producer script; the contract's
+instructions give the command:
+
+```bash
+leaf page instructions <page> producer --contract unified-diff
+```
 
 A bound widget shows its source's current value, in every version and thread that
 binds it. Evidence a review must keep exactly gets a source id of its own, such as the
@@ -128,15 +134,18 @@ images. Never inline image bytes. Put invented examples inside `lf-sample` and
 make them visibly fictional. Render tickets, source locations, and URLs as real
 links.
 
-For a real visual change, use `lf-shot` with before and after captures from the
-same viewport, of the versions the page compares. Before writing the prose and
-`alt` around a pair, open both images and compare them where the change should be.
-Add `outlines`, and the pair outlines each region where its images differ and counts
-them on its rail. Leave it off where most outlines would mark what the pair is not
-about, such as live data that moved between captures you cannot retake, and say in
-the prose where to look. Either way, the rail reads "identical", "only slight
-changes" where no pixel moved far, or "changed throughout" where most of the image
-changed. Where it reads "identical", or no outline stands where the prose puts the
-change, capture a case that shows the change, or say that nothing changed. Where it
-reads "only slight changes", the reader will hardly see the change, so name it in the
-prose, or say that nothing but redrawing changed.
+For a page-scale visual change, use `lf-shot` with before and after captures from
+the same viewport, of the versions the page compares. For a small change, crop
+both frames to the changed area or show the element itself at real size.
+Before writing the prose and `alt` around a pair, open both images and compare
+them where the change should be.
+Add `outlines`, and each frame outlines what changed and, dashed, what only moved,
+where it sits in that frame, and the rail counts them. Leave it off where most
+outlines would mark what the pair is not about, such as live data that moved between
+captures you cannot retake, and say in the prose where to look. Either way, the rail
+reads "identical", "only slight changes" where no pixel moved far, or "changed
+throughout" where most of the image changed. Where it reads "identical", or no
+outline stands where the prose puts the change, capture a case that shows the
+change, or say that nothing changed. Where it reads "only slight changes", the
+reader will hardly see the change, so name it in the prose, or say that nothing but
+redrawing changed.

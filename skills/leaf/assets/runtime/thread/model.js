@@ -61,8 +61,10 @@ const pendingSeat = (message) =>
 
 // The user's own pending gestures, folded into the server's threads. A reply joins the
 // thread it answers; a comment opens one where it was written; settlement changes its
-// state. They leave again when the server accepts or refuses them, so this is a reading
-// of the same outbox and log the server projects rather than a second store beside it.
+// state; taking back a reaction, the one message the user can withdraw, drops it from
+// its thread, and a thread it opened goes with it, as the log's reading will. They leave
+// again when the server accepts or refuses them, so this is a reading of the same
+// outbox and log the server projects rather than a second store beside it.
 //
 // The derived facts a pending thread carries are the ones the user just made true: a
 // thread the user opened with words is a thread rather than a mark, and its attention
@@ -75,13 +77,19 @@ const sending = (message) => ({
   workflow: message.id,
 });
 
-export function foldThreads(threads, messages, reactions, settlements) {
-  if (!messages.length && !reactions.length && !settlements.length) return threads;
+export function foldThreads(threads, messages, reactions, settlements, withdrawn) {
+  if (!messages.length && !reactions.length && !settlements.length && !withdrawn.size)
+    return threads;
   // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
-  const copies = threads.map((thread) => ({ ...thread, msgs: [...thread.msgs] }));
+  const copies = threads
+    .filter((thread) => !withdrawn.has(thread.root.id))
+    .map((thread) => ({
+      ...thread,
+      msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
+    }));
   const byName = threadNames(copies);
   const opened = [];
   // Open both kinds before attaching either kind of reply. The delivery queue lets a

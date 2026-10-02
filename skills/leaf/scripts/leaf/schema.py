@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from .session_cleanup import EVENTS_FILE
+
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
@@ -241,12 +243,12 @@ AWAITS_SCHEMA = {
     },
     "additionalProperties": False,
 }
-# A list of the widget's own attribute names. One shape for the three keys that hold
-# one, since the shape is a consequence of what they name rather than three decisions.
-GUIDANCE_SCHEMA = {
+# Package and data-contract instructions address their declared audiences. Widget
+# authoring instructions have one reader and therefore use a plain string below.
+INSTRUCTIONS_SCHEMA = {
     "type": "object",
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {"type": "string", "minLength": 1},
+    "additionalProperties": {"type": "string", "pattern": r"\S"},
 }
 DATA_INPUTS_SCHEMA = {
     "type": "object",
@@ -314,7 +316,7 @@ EXTENSION_SCHEMA = {
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
-        "x-guidance": GUIDANCE_SCHEMA,
+        "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
@@ -353,7 +355,10 @@ EXTENSION_SCHEMA = {
                 {"const": "whole"},
                 {
                     "type": "object",
-                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "properties": {
+                        "parts": _ATTRIBUTE_NAME,
+                        "complete": {"const": True},
+                    },
                     "required": ["parts"],
                     "additionalProperties": False,
                 },
@@ -374,7 +379,24 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
+        # A default height in CSS pixels, or `true` for a widget that has none and
+        # reserves only what an occurrence's data-height states.
+        "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
+        # Child selectors, each matched inside the element, for the painted boxes that
+        # draw its own face: a margin pin whose target is the element may stand on them.
+        # Only a light-DOM child by tag and classes, so a malformed selector is refused
+        # here rather than throwing in the browser's layout pass.
+        "x-face": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
+            },
+            "minItems": 1,
+            "uniqueItems": True,
+        },
         "x-history": {"const": True},
+        "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -413,10 +435,13 @@ ATTRIBUTE_KEYS = (
 )
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
-# (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
-# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
-# selector can ask. `authored` is the attribute an occurrence writes to override its
-# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
+# (x-height), the reading structure it supplies (x-reading-role), and whether it shows
+# one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
+# before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
+# each is painted where a selector can ask. `authored` is
+# the attribute an occurrence writes to override its tag's declaration. `message` says
+# whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
 # document's to hand out; a message renders in the panel, whose width bounds it.
 #
@@ -430,7 +455,9 @@ DECLARED_MARKS = {
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
     "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+    "x-views": {"paint": "data-lf-views", "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -438,17 +465,14 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-# Outside the layer roots: an MCP host reads a resource here from the install over
-# the tool transport, so `page init` never copies one into a page directory.
-MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
-GUIDANCE_DIR = "guidance"
-PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+INSTRUCTIONS_DIR = "instructions"
+PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
 # package is installed or bundled. A page never vendors them: they are the agent's.
 SCRIPTS_DIR = "scripts"
-GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
+INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
@@ -471,7 +495,6 @@ MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
-EVENTS_FILE = "events.jsonl"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
@@ -520,7 +543,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
-# and event-backed version addresses. Agent-side guidance stays vendored but is read
+# and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.

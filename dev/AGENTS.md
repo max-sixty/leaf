@@ -45,6 +45,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
+  The copies share every fixed path a test writes in the checkout, such as an export
+  under `.tmp/`, so a failure naming one is the copies racing there, not load.
 - `leaf-dev bugback NODEID...` runs the tests on HEAD and with the branch's non-test
   change reverted, in a scratch worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
@@ -59,9 +61,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev delivery-eval [BASE_REF]` compares how a live Claude Code agent handles a
   comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
   a dollar each.
-- `leaf-dev guidance-eval [CASE]...` runs the guidance cases in `evals/` on the merge
-  base's guidance and the working tree's at once, and prints each case's passes per
-  arm (`/developing-leaf`, "Score a guidance change").
+- `leaf-dev instructions-eval [CASE]...` runs the instructions cases in `evals/` on the merge
+  base's instructions and the working tree's at once, and prints each case's passes per
+  arm (`/developing-leaf`, "Score an instruction change").
 
 ## Examples and previews
 
@@ -72,9 +74,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 
 ## Website and demo
 
-CI, `worker/`'s npm scripts and `.config/wt.toml` run these. Outside `.tmp/`, they
-write only the catalog pin in `example-previews.json` and the demo frames the README
-and site cards draw.
+CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
+write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
+in `leaf-assets.json` and the README's image URLs that name it.
 
 - `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, and
   `npm run dev --prefix worker` builds and serves it through `wrangler dev`.
@@ -86,17 +88,20 @@ and site cards draw.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
-- `leaf-dev fetch-previews` fetches the catalog previews pinned in
-  `example-previews.json` (`example_assets.py`, which the site build also calls).
-  `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures them,
-  republishes them to `max-sixty/leaf-assets`, and updates the pin.
-- `leaf-dev record-demo` regenerates `docs/demo.gif`, the README stills, and
-  `docs/session-card.png`.
+- `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in
+  `leaf-assets.json` (`leaf_assets.py`, which the site build also calls).
+  `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures the catalog
+  previews under its `examples/`, republishes them, and moves the pin.
+- `leaf-dev record-demo` regenerates the README's demo GIF and stills and the site's
+  card under its `demo/`, and publishes them the same way.
+- `leaf-dev publish-media IMAGE...` adds images the example pages show under its
+  `examples/media/`, and moves the pin.
 
 ## Codex
 
-- `leaf-dev verify-codex-task` runs one real Codex task with this working tree's
-  plugin through `leaf codex start`'s App Server adapter. It posts comments while the
+- `leaf-dev verify-codex-task` runs real Codex tasks with this working tree's
+  plugin through both transports of `leaf codex start`. It posts comments while the
   task is idle, mid-turn, and after the adapter is killed, and fails when a comment is
-  not answered exactly once or the page's claim does not name the task's last turn,
+  not answered exactly once, queue-backed work does not pick up and answer a comment
+  in the same active turn, or the page's claim does not name the task's last turn,
   closed. It spends the host's Codex login, so CI does not run it.

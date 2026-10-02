@@ -2,18 +2,12 @@
 # Only page paths, event/delivery identities and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
 
-no watcher:
-  decision: block
-  reason: |-
-    Leaf needs attention:
-    - <page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
-
 idle before pickup:
   exit: 1
   output: |
     1 update nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
-wait wakes the session: |
+the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
 
 delivered at prompt:
@@ -84,17 +78,16 @@ delivered at prompt:
               kind: reply
               to: event-2
               for: event-2
-  attention: |-
-    Leaf needs attention:
-    - <page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
+  attention: ''
 
 acknowledged at stop:
-  decision: block
-  reason: |-
-    Leaf needs attention:
-    - <page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`).
+  hookSpecificOutput:
+    hookEventName: Stop
+    additionalContext: |-
+      Leaf needs attention:
+      - <page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`).
 
-    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+      Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 idle before answer:
   exit: 1

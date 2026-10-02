@@ -23,7 +23,7 @@ graders:
 - name: reads-packages
   type: tool_used
   tool: Read
-  input_match: packages
+  input_match: skills/leaf/references/packages\.md
 - name: watches-threads
   type: regex
   pattern: watchThreads\s*\(

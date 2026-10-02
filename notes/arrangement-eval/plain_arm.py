@@ -4,13 +4,13 @@
 `layout-sidebar`, `layout-tiles`, `layout-workspace`), the `lf-pane` element, the width
 attribute (`data-width`), the rail declaration (`data-rail`), the margin idioms
 (`section.panel`, `aside.sidebar`, `aside.sidenote`) and the margin reading
-(`data-lf-margin`), and every sentence of guidance or check advice that names them. In
+(`data-lf-margin`), and every sentence of instructions or check advice that names them. In
 their place the authoring reference tells the agent to lay the page out in its own CSS
 and lists the theme's published sizes. Widgets, the theme's typography, the render
-checks, and the rest of the guidance are untouched, so the two arms differ only in how a
+checks, and the rest of the instructions are untouched, so the two arms differ only in how a
 page is arranged.
 
-The authoring reference's arrangement guidance, from "Composing a page" up to "Draw the
+The authoring reference's arrangement instructions, from "Composing a page" up to "Draw the
 subject", is replaced whole, so a rewrite inside it needs no new anchor here. Every other
 edit is an exact replacement that must match once. A payload whose text has moved fails
 here rather than yielding an arm that still carries the vocabulary; update the anchors,
@@ -183,6 +183,11 @@ def build(arm: Path) -> str:
 
 def patch_references(skill: Path) -> None:
     authoring = skill / "references/page-authoring.md"
+    replace(
+        authoring,
+        "Longer asides belong in prose, a disclosure, or a sidenote.",
+        "Longer asides belong in prose or a disclosure.",
+    )
     replace(authoring, '<main class="layout-column">…</main>', "<main>…</main>")
     replace_section(
         authoring, "## Composing a page\n", "## Draw the subject\n", COMPOSING
@@ -202,30 +207,14 @@ def patch_registry(skill: Path) -> None:
     # payload would otherwise find the element there.
     (skill / "packages/default/widgets/lf-pane.js").unlink(missing_ok=True)
     edits = {
-        ("lf-metric", "description"): [
+        ("lf-metric", "x-instructions"): [
             (
-                " A row of metrics is lf-metric tiles in a `layout-tiles` block.",
-                " A row of metrics is a row of lf-metric tiles.",
+                "Place metric tiles in a layout-tiles block.",
+                "Place metric tiles in a row.",
             )
         ],
         ("lf-metric", "x-example"): [
             ('<div class="layout-tiles">', '<div class="k-row">')
-        ],
-        ("lf-gloss", "description"): [
-            ("a details disclosure, or a sidenote.", "or a details disclosure.")
-        ],
-        ("lf-toc", "description"): [
-            (
-                "places one in an `aside.sidebar` near the opening by default",
-                "places one near the opening by default",
-            ),
-            (
-                (
-                    "A workspace page (`main.layout-workspace`) uses its regions for navigation"
-                    " instead of a page-wide contents sidebar, and root page tabs supply"
-                ),
-                "Root page tabs supply",
-            ),
         ],
         ("lf-toc", "x-example"): [
             ('<aside class="sidebar" id="plan-sidebar">', '<nav id="plan-sidebar">'),
@@ -250,8 +239,8 @@ def patch_registry(skill: Path) -> None:
         "; a note they lose nothing by skipping goes in the margin (aside.sidenote)",
         (
             " An authored occurrence may override the default with"
-            " data-width=column|wide|available; the runtime resolves that choice into"
-            " data-lf-space and the theme allocates it without moving the prose axis."
+            " data-width=column|wide|available; delivery paints that choice into the"
+            " served document as data-lf-space and the theme allocates it without moving the prose axis."
         ),
     ):
         if text.count(old) != 1:
@@ -262,11 +251,11 @@ def patch_registry(skill: Path) -> None:
 
 
 def patch_packages(skill: Path) -> None:
-    """The optional packages' guidance names the Layout a page of theirs takes."""
+    """The optional packages' instructions names the Layout a page of theirs takes."""
     packages = skill / "packages"
     for rel, old, new in (
         (
-            "command-hub/guidance/author.md",
+            "command-hub/instructions/author.md",
             'On a sidebar page (`<main class="layout-sidebar">`), lay the tree',
             "On a page with a side track beside its body, lay the tree",
         ),
@@ -276,7 +265,7 @@ def patch_packages(skill: Path) -> None:
             '<div class=\\"hub\\">',
         ),
         (
-            "monitoring/guidance/author.md",
+            "monitoring/instructions/author.md",
             (
                 'beside its `aside`, `<main class="layout-sidebar">` with the `aside` written'
                 " after the body."
@@ -284,27 +273,27 @@ def patch_packages(skill: Path) -> None:
             "beside a side track written after it.",
         ),
         (
-            "monitoring/guidance/author.md",
+            "monitoring/instructions/author.md",
             "observed and required values in the `aside`.",
             "observed and required values in the side track.",
         ),
         (
-            "monitoring/guidance/author.md",
+            "monitoring/instructions/author.md",
             "rollback procedure in the `aside` or below",
             "rollback procedure in the side track or below",
         ),
         (
-            "monitoring/guidance/author.md",
+            "monitoring/instructions/author.md",
             "as `lf-metric` tiles in a `layout-tiles` block,",
             "as a row of `lf-metric` tiles,",
         ),
         (
-            "swipe/guidance/author.md",
+            "swipe/instructions/author.md",
             'on a wide page (`<main class="layout-wide">`) it puts',
             "on a wide page it puts",
         ),
         (
-            "playground/guidance/author.md",
+            "playground/instructions/author.md",
             (
                 'belongs on a wide page (`<main class="layout-wide">`), or on a workspace page'
                 ' (`<main class="layout-workspace">`) whose body is the playground\'s Ask,'
@@ -313,7 +302,7 @@ def patch_packages(skill: Path) -> None:
             "belongs on a wide page.",
         ),
         (
-            "visual-review/guidance/author.md",
+            "visual-review/instructions/author.md",
             (
                 "make `lf-visual-review` the body of a workspace page,"
                 ' `<main class="layout-workspace">`, after an optional `header`. Where the'
@@ -340,8 +329,8 @@ def patch_advice(skill: Path) -> None:
 
 
 def check_clean(arm: Path) -> None:
-    """Fail if the vocabulary survives in the guidance an author reads: the skill, its
-    references, every package's registry and guidance, and the Layouts' stylesheet.
+    """Fail if the vocabulary survives in the instructions an author reads: the skill, its
+    references, every package's registry and instructions, and the Layouts' stylesheet.
 
     Not covered, and so still readable by a plain author who searches for it:
     `references/packages.md`, the package-author reference, which names `lf-pane` as
@@ -352,7 +341,7 @@ def check_clean(arm: Path) -> None:
         skill / "SKILL.md",
         *sorted((skill / "references").glob("*.md")),
         *sorted((skill / "packages").glob("*/registry.json")),
-        *sorted((skill / "packages").glob("*/guidance/**/*.md")),
+        *sorted((skill / "packages").glob("*/instructions/**/*.md")),
         skill / "assets/registry.json",
         skill / "assets/layouts.css",
     ]

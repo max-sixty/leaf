@@ -4,15 +4,25 @@
    Count and narrowing paint share the rows' checkpoint and update boundary.
    The list owns the one expanded visible thread and writes every shown card's
    disclosure from that choice, while cards retain their message and editor nodes; a
-   card the browser opens itself, as find-in-page does, becomes the choice. The cards
+   card whose title takes focus, by Tab, press or script, and a card the browser opens
+   itself, as find-in-page does, become the choice. The cards
    carry no native `name`: its exclusivity closes a card the moment it is named beside
    an open one, which the list's own choice then opens again. This mechanical state
    never publishes a new application epoch. Narrowing keeps the
-   selected card when visible and otherwise selects the first visible card. */
+   selected card when visible and otherwise selects the first visible card.
+
+   Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
+   Escape from the panel's general box, a fold that took the focused card — so
+   every key answers for the thread the screen shows selected. The list keeps focus
+   itself only while it shows no card, and its ring never outlines one, and no title
+   holds focus closed: focus, selection and the open card never part. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
+import { replyHasWords } from "./replies.js";
+import { focusThread } from "./focus.js";
+import { passOn } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -31,6 +41,7 @@ class ThreadListView extends RetainedFace {
   #expandedKey = null;
   #draftViews = new Set();
   #draftFrame = 0;
+  #intent = null;
 
   #visibleRows() {
     const eligible = new Set(
@@ -52,14 +63,21 @@ class ThreadListView extends RetainedFace {
     for (const row of visible) row.node.toggleAttribute("open", row === chosen);
   }
 
-  #chooseFromSummary(card, event) {
-    event.preventDefault();
+  // An open title is still the user's focus stop for the thread. A second press leaves
+  // it selected; choosing another title moves disclosure.
+  #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
-    if (!row) return;
-    // An open title is still the user's focus stop for the thread. A
-    // second press leaves it selected; choosing another title moves disclosure.
+    if (!row || row.key === this.#expandedKey) return;
     this.#expandedKey = row.key;
     this.#showExpanded();
+  }
+
+  // A filter change can put a draft away; incoming settlement cannot. The model
+  // builder combines this mechanical lifetime with the new narrowing result,
+  // so visibility, disclosure and navigation consume one complete reading.
+  keepsDraftVisible(key, intent) {
+    const view = this.#views.get(`thread:${key}`);
+    return this.#intent === intent && view?.model.visible && replyHasWords(key);
   }
 
   navigationThreads() {
@@ -87,6 +105,21 @@ class ThreadListView extends RetainedFace {
 
   constructor() {
     super(EMPTY_MODEL);
+    this.addEventListener("focus", () => {
+      this.#showExpanded();
+      const open = this.#visibleRows().find((row) => row.key === this.#expandedKey);
+      if (!open) return;
+      focusThread(open.node, { preventScroll: true });
+      passOn(this, focused());
+    });
+    // A title pressed by a pointer takes focus on the way down and opens on its click,
+    // where the press's landing and the list's place hold already stand (landing.js,
+    // thread-list.js); every other focus opens it as it arrives.
+    this.addEventListener("focusin", (event) => {
+      const title = event.target;
+      if (title.matches?.(".lf-thread-summary") && !title.matches(":active"))
+        this.#choose(title.parentElement);
+    });
   }
   configure(commands, initialModel) {
     if (this.#commands) return;
@@ -139,6 +172,7 @@ class ThreadListView extends RetainedFace {
   willUpdate(changed) {
     if (!changed.has("model") || !this.#commands) return;
     this.#focusListAfterPaint ||= this.contains(focused());
+    this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
     for (const row of this.model.rows) {
@@ -165,13 +199,16 @@ class ThreadListView extends RetainedFace {
           opened();
         });
         view.node.addEventListener("click", (event) => {
-          if (event.target.closest(".lf-thread-summary")?.parentElement === view.node)
-            this.#chooseFromSummary(view.node, event);
+          if (event.target.closest(".lf-thread-summary")?.parentElement !== view.node)
+            return;
+          event.preventDefault();
+          this.#choose(view.node);
         });
       }
       let descriptor = row.descriptor;
       const prior = view.model;
-      if (this.#retaining || !descriptor.resolved) finishFold(view.node);
+      if (this.#retaining || !descriptor.resolved || descriptor.visible)
+        finishFold(view.node);
       const folding =
         !this.#retaining &&
         descriptor.resolved &&
@@ -198,7 +235,10 @@ class ThreadListView extends RetainedFace {
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
-    this.#rows = rows;
+    // The list says it shows nothing once the last card has given its room back. Said
+    // while that card still folds, the words stood above it and carried it down.
+    const giving = rows.some((row) => row.kind === "thread" && isFolding(row.node));
+    this.#rows = giving ? rows.filter((row) => row.kind !== "empty") : rows;
   }
 
   // A folded row says whether its reply holds a draft. A send empties the box and
@@ -209,8 +249,13 @@ class ThreadListView extends RetainedFace {
     this.#draftViews.add(view);
     this.#draftFrame ||= nextRender(() => {
       this.#draftFrame = 0;
+      let reconcile = false;
       for (const changed of this.#draftViews)
-        if ([...this.#views.values()].includes(changed)) changed.present(changed.model);
+        if ([...this.#views.values()].includes(changed)) {
+          changed.present(changed.model);
+          reconcile ||= changed.model.resolved;
+        }
+      if (reconcile) this.#commands.repaintThread();
       this.#draftViews.clear();
     });
   }

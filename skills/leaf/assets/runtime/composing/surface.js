@@ -20,24 +20,29 @@
    Until that press the native handles and menu have the passage to themselves. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
-   80ch and then wraps. Without a horizontal rail, a quoted passage chooses the
-   vertical side with more reachable room; on a touch screen it prefers below whenever
-   the page can make room there. The field keeps that side and moves the reading
-   region only enough to keep the passage
-   and field visible together; it finally scrolls internally. Beside a target, the
-   field's top stays at the target's line while the field grows downward, as an
-   editor's page does, so the lines already written stay where the user wrote them and
-   Send moves down a line per wrap. Only at the visible boundary's foot does the field
-   rise to stay in view, and past the whole boundary it scrolls. A target the gesture
-   pointed into stands the field level with the row it pointed at rather than at the
-   target's top (pointed-place.js).
-   The target chooses a placement from the field's minimum footprint once. Later
-   content and margin controls cannot re-seat it. A region too small for
+   80ch and then wraps.
+
+   Where the bar stands is the rule the thread card a sent comment becomes stands by
+   too (comment-placement.js), so Send changes the surface without moving it: the side
+   is chosen once for the card's footprint, beside the words where that room holds the
+   card, else under or over them by the room the page can make, and the bar keeps it.
+   Under or over a quoted passage, the field moves the reading region only enough to
+   keep the passage and field visible together (`makeRoom`); it finally scrolls
+   internally. Beside a target, the field's top stays at the target's line while the
+   field grows downward, as an editor's page does, so the lines already written stay
+   where the user wrote them and Send moves down a line per wrap. Only at the visible
+   boundary's foot does the field rise to stay in view, and past the whole boundary it
+   scrolls. A target the gesture pointed into stands the field level with the row it
+   pointed at rather than at the target's top (pointed-place.js). Later content and
+   margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
-   When the target fills the viewport, the viewport still caps the field. When a
-   thread panel leaves no usable band for the response bar, placement withdraws it
-   without discarding its draft. If the disappearing bar held focus, the visible
-   Threads list takes it; an unrelated focused control keeps it. A partially exposed
+   When the target fills the viewport, the viewport still caps the field. Geometry
+   decides where the bar stands, never whether it stands. An open editor whose
+   existing subject has no visible attachment stands in the usable window instead,
+   keeping its draft, anchor, and focus. It reattaches when the subject shows again.
+   Only when no usable window remains does placement withhold it and return focus to
+   the visible Threads list where the panel took the room, else the page; an unrelated
+   focused control keeps it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Shift+Enter
    inserts a newline; Enter sends. Tab extends the bar with the layer's reaction
    tokens. A layer with no reaction vocabulary keeps the bar's Comment and Suggest
@@ -50,13 +55,14 @@
    durable draft without moving focus. Submitted words still in flight remain owned by
    their original anchor, while a later target starts clean and keeps focus.
 
-   A quoted passage keeps its resolved block clear when choosing the initial side, while
-   the exact words supply its vertical attachment. The reading region and fixed Leaf
-   chrome are the only collision boundary: page and margin content may be overlaid.
-   Leaf chooses the stable side from the block and its reachable reading room. Floating
-   UI owns coordinate conversion, overflow, and reflow updates; CSS owns content sizing
-   within the width and height its middleware supplies. The viewport holds the bar in
-   only while its target is on screen, so a target scrolled away takes the bar with it.
+   A quoted passage keeps its resolved block clear when choosing the side, while the
+   exact words supply its vertical attachment. The reading region and fixed Leaf chrome
+   are the only collision boundary: page content may be overlaid, and the margin row the
+   comment's thread will stand by is kept clear where the room past it holds a card.
+   Floating UI owns coordinate conversion, overflow, and reflow updates; CSS owns
+   content sizing within the width and height its middleware supplies. The viewport
+   holds the bar in while its target is on screen. An open editor without a visible
+   attachment stays in the window until the target returns or the user puts it away.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
@@ -77,14 +83,18 @@ import {
   showBannerControl,
 } from "../banner-toolbar.js";
 import {
+  clippedContents,
+  clippedRect,
+  pagePlaneRect,
   seenRect,
-  shellRight,
+  shownBox,
   shownExtent,
   shownParts,
   shownRect,
-  shownWindow,
+  skipped,
 } from "../geometry.js";
 import {
+  passageBox,
   targetElement,
   targetParts,
   targetPlace,
@@ -99,8 +109,14 @@ import {
 
 import { paintReactionStanding } from "../reaction-standing.js";
 import { threadInput, standingThread } from "../thread/landing.js";
+import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
-import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
+import {
+  coveringAuxiliarySurface,
+  pageCommand,
+  pageRung,
+  pageScope,
+} from "../keyboard/register.js";
 
 import { elementById, inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
@@ -116,7 +132,7 @@ import { shadowHost, under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
-import { union } from "../rect.js";
+import { overlaps, union } from "../rect.js";
 import { anchorLabel } from "../thread/messages.js";
 
 import { reactionsAt } from "../thread/model.js";
@@ -127,23 +143,26 @@ import {
   effectiveScroller,
   shownRegionBounds,
 } from "../reading-regions.js";
-import { moveScrollerBy } from "../scrolling.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
+import {
+  cardMinimum,
+  commentBoundary,
+  commentPlacement,
+  makeRoom,
+  reachableRoom,
+} from "../comment-placement.js";
+import { marginSpot } from "../margin-layout.js";
 import { pointBand, standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
 
-// The two routes to one Comment capability: the page's own, and the Threads list's local
-// one. The destination box's placeholder names whichever of them dispatch would answer.
-const COMMENT_COMMANDS = ["comment.create", "comment.write"];
-
 export function createResponseSurface({
-  panelElements: { generalInput, panel, threadsBox },
+  panelElements: { generalInput, panel, threadsBox, inPanel },
   panelIsOpen,
   landIn,
   setPanel,
   threadHere,
   threadTarget,
-  standingElement,
+  standingTarget,
   composerHolds,
   responseOptionsAreOpen,
   markAt,
@@ -152,6 +171,7 @@ export function createResponseSurface({
   visualActionAnchor,
   hideComposer,
   openComposer,
+  carryComposerToReply,
   resetResponseOptions,
   responseOptionsAvailable,
   setResponseOptions,
@@ -179,19 +199,12 @@ export function createResponseSurface({
   // ---------- selection → comment ----------
   // The response surface is fixed chrome, anchored to its passage's block while the
   // passage holds it (floating.js), and Floating UI follows the passage through every
-  // scroll ancestor, so it floats in the part of the window the page shows
-  // (`shownWindow`), whose visible viewport autoUpdate also follows: within a reading
-  // region's shown box when it has one, else within the document page shell, whose right
-  // edge stops short of the root scrollport's gutter. The panel stands over the page, so
-  // an open panel's own left edge bounds the shell too: where it stands, which offsetLeft
-  // reads through its slide.
-  const floatBoundary = (bounds = null) =>
-    shownWindow({
-      within: bounds ?? {
-        right: Math.min(shellRight(), panel.open ? panel.offsetLeft : Infinity),
-      },
-      gap: 8,
-    });
+  // scroll ancestor, so it floats in the boundary the thread card stands in too
+  // (comment-placement.js, `commentBoundary`), whose visible viewport autoUpdate also
+  // follows. The panel stands over the page, so an open panel's own left edge bounds the
+  // shell too: where it stands, which offsetLeft reads through its slide.
+  const floatBoundary = (region = null) =>
+    commentBoundary({ region, right: panel.open ? panel.offsetLeft : Infinity });
   let fabAnchor = null;
   let fabOrigin = null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
@@ -199,12 +212,16 @@ export function createResponseSurface({
   let fabPoint = null;
   let fabFloating = true;
   let fabInlineOutlet = null;
-  let fabPlacement = null;
-  let fabInlineConnection = null;
-  let fabPlacementInput = null;
+  // The side the bar holds and its inline start, by the rule the thread card it becomes
+  // stands by too (comment-placement.js).
+  const fabPlacement = commentPlacement();
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
   let fabPositionFrame = 0;
+  // Whether the bar the user has is waiting out of view for room to stand
+  // (withholdFab), and where it takes them back to when it stands again.
+  let fabWithheld = false;
+  let fabWithheldFocus = null;
   const fabPosition = floatingPlacement({
     floating: fabBar,
     update: () => scheduleFabPosition(),
@@ -259,9 +276,7 @@ export function createResponseSurface({
     fabContentHeight = null;
     if (!reset) return;
     if (!repositioning) answerFabPosition(false);
-    fabPlacement = null;
-    fabInlineConnection = null;
-    fabPlacementInput = null;
+    fabPlacement.forget();
     fabMinimumWidth = null;
     fabMinimumComposer = null;
     fabBar.removeAttribute("data-lf-placement");
@@ -298,6 +313,7 @@ export function createResponseSurface({
     fabBar.style.display = "inline-flex";
     fabBar.style.removeProperty("visibility");
     answerFabPosition(true);
+    stoodAgain();
     return true;
   }
 
@@ -313,11 +329,8 @@ export function createResponseSurface({
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;
     moveFab(responseHome);
-    if (place && fabAnchor) {
-      if (!placeFab()) showFab(null);
-      else if (restoreFocus)
-        void fabPositioned().then((positioned) => positioned && restoreFocus());
-    }
+    if (place && fabAnchor && standFab() && restoreFocus)
+      void fabPositioned().then((positioned) => positioned && restoreFocus());
     return true;
   }
 
@@ -381,21 +394,23 @@ export function createResponseSurface({
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
     if (!anchor || !standsIn(anchor, found)) return null;
-    const segments = anchor.quote ? targetSegments(found) : [];
-    if (segments.length) {
-      const range = document.createRange();
-      range.setStart(segments[0].node, segments[0].start);
-      range.setEnd(segments.at(-1).node, segments.at(-1).end);
-      return range.getBoundingClientRect();
-    }
+    const words = anchor.quote ? passageBox(found) : null;
+    if (words) return words;
+    // In the page's plane, as the quoted words above are: the page's own boxes cut it (a
+    // pane or a board scrolled past it), and the window does not, so an item the user
+    // scrolls off screen still has an attachment box. `placeFab` reads whether that
+    // attachment is visible before choosing page or window placement.
     const clips = new Map();
     const box = union(
       targetParts(found)
-        .map((part) => shownRect(part, clips))
+        .map((part) => pagePlaneRect(shownBox(part), part, clips))
         .filter(Boolean),
     );
+    // A pointed row is small enough to stand by whole, so it supplies the attachment.
     const point = box && fabPointIn(targetElement(found));
-    return point ? pointBand(box, point) : box;
+    return point
+      ? pointBand(union(targetParts(found).map((part) => shownBox(part))), point)
+      : box;
   }
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
@@ -403,99 +418,48 @@ export function createResponseSurface({
   // short selection cannot lend the words around it to the response field. Keep the bar
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab(target = anchorBox(fabAnchor)) {
-    if (!fabAnchor || !target) return false;
+    if (!fabAnchor) return false;
     const owner = fabTargetAt();
-    const block = fabAnchor.quote && owner;
-    const readingRegion = owner && containingReadingRegionFor(owner);
-    let regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    let boundary = floatBoundary(regionBounds);
-    // Keep the response within its pane while that pane can hold the compact control.
-    // A resize can narrow the pane; scrolling can leave only a short visible strip.
-    // The response is already a viewport-plane overlay, so let the viewport carry it
-    // instead of withdrawing the draft and dropping focus while the user types.
-    if (
-      regionBounds &&
-      (!fabFits(regionBounds) || boundary.height < minimumFabHeight())
-    ) {
-      regionBounds = null;
-      boundary = floatBoundary();
-    }
-    if (boundary.width <= 0 || boundary.height <= 0) return false;
+    // An open editor stays in front of its writer. Its subject still owns the draft
+    // when a resize, disclosure or scroll removes the subject's visible box; only its
+    // placement becomes unanchored, in the window, until that box returns.
     const clips = new Map();
-    const parts = block ? shownParts(block) : [];
-    // Room is a reading of the whole block; clipping changes as the user scrolls.
-    // Attachment uses the visible part so the field still meets what is on screen.
-    const roomRect = (block && shownExtent(block)) || target;
-    const keepClear =
-      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) || roomRect;
+    const visible =
+      target &&
+      owner &&
+      !skipped(owner) &&
+      (fabAnchor.quote
+        ? clippedContents(target, owner, clips)
+        : clippedRect(target, owner, clips));
+    const windowBoundary = floatBoundary();
+    const unanchored = Boolean(
+      composerOpen && owner && !(visible && overlaps(visible, windowBoundary)),
+    );
+    if (!target && !unanchored) return false;
+    const block = fabAnchor.quote && owner;
+    const readingRegion = !unanchored && owner && containingReadingRegionFor(owner);
+    const boundary = readingRegion
+      ? floatBoundary(shownRegionBounds(readingRegion))
+      : windowBoundary;
+    if (boundary.width <= 0 || boundary.height <= 0) return false;
+    const point = !fabAnchor.quote && owner && fabPointIn(owner);
+    const holder = block || (!point && owner);
+    const parts = holder ? shownParts(holder) : [];
+    // Room is a reading of the whole block or element, as the card reads it; clipping
+    // changes as the user scrolls. Attachment uses the visible part so the field still
+    // meets what is on screen. A pointed row is read whole already.
+    const roomRect = unanchored ? null : (holder && shownExtent(holder)) || target;
+    const keepClear = unanchored
+      ? null
+      : union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
+        (block ? roomRect : target);
     const scroller = effectiveScroller(readingRegion ?? owner);
-    const visibleVerticalRoom = (side) =>
-      side === "top"
-        ? roomRect.top - boundary.top - 6
-        : boundary.bottom - roomRect.bottom - 6;
-    const verticalRoom = (side) => {
-      const travel =
-        side === "top"
-          ? scroller.scrollTop
-          : Math.max(
-              0,
-              scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
-            );
-      return Math.max(
-        0,
-        Math.min(
-          boundary.height - roomRect.height - 6,
-          visibleVerticalRoom(side) + travel,
-        ),
-      );
-    };
-    const sideRoom = (side) =>
-      side === "right"
-        ? boundary.right - keepClear.right - 6
-        : keepClear.left - boundary.left - 6;
-    const initialPlacement = () => {
-      if (!block) return "right-start";
-      const minimum = minimumFabWidth();
-      if (Math.ceil(sideRoom("right")) >= Math.ceil(minimum)) return "right-start";
-      if (Math.ceil(sideRoom("left")) >= Math.ceil(minimum)) return "left-start";
-      const below = verticalRoom("bottom");
-      const above = verticalRoom("top");
-      // Prefer below on touch screens. This keeps Leaf away from a native selection menu
-      // above the passage, but the browser does not expose that menu's actual bounds.
-      if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-end";
-      return below > above ||
-        (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))
-        ? "bottom-end"
-        : "top-end";
-    };
-    // Choose once for the target's horizontal geometry within a reading boundary. Its
-    // vertical position moves whenever the user scrolls, but its reachable room does
-    // not: visible room and remaining travel trade one-for-one. Keeping that movement
-    // out of the cache key prevents scrolling and content growth from re-seating the
-    // response while still reconsidering a resized pane or a changed margin rail.
-    const placementInput = [
-      boundary.left,
-      boundary.top,
-      boundary.right,
-      boundary.bottom,
-      keepClear.left,
-      keepClear.right,
-    ];
-    if (
-      fabPlacementInput &&
-      placementInput.some(
-        (value, index) => Math.abs(value - fabPlacementInput[index]) > 0.5,
-      )
-    ) {
-      fabPlacement = null;
-      fabInlineConnection = null;
-      fabContentHeight = null;
-    }
-
-    // Width before coordinates: Floating UI chooses a side from the compact surface,
-    // then its size pass gives CSS that attachment's actual inline room. If a later
-    // resize makes the chosen side narrower than the minimum control, use the whole
-    // boundary and let shift overlap the target instead of silently moving the draft.
+    const verticalRoom = (side) =>
+      reachableRoom(side, roomRect, boundary, scroller).reachable;
+    // Width before coordinates: the side is chosen from the card's minimum, then the size
+    // pass gives CSS that side's actual inline room. If a later resize makes the chosen
+    // side narrower than the bar's minimum, use the whole boundary and let shift overlap
+    // the target instead of silently moving the draft.
     const setWidth = (available) => {
       const minimum = minimumFabWidth();
       const width =
@@ -515,33 +479,41 @@ export function createResponseSurface({
       const extra = Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight);
       fabBar.style.setProperty("--lf-float-h", `${Math.max(0, available - extra)}px`);
     };
-    const requestedPlacement = fabPlacement ?? initialPlacement();
-    const requestedSide = requestedPlacement.split("-", 1)[0];
-    const quotedVertical = block && /^(top|bottom)$/.test(requestedSide);
-    const fallbackPlacements = {
-      "right-start": ["left-start", "top-end", "bottom-end"],
-      "left-start": ["right-start", "top-end", "bottom-end"],
-      "top-end": ["bottom-end", "right-start", "left-start"],
-      "bottom-end": ["top-end", "right-start", "left-start"],
-    }[requestedPlacement];
-    if (fabPlacement === null) setWidth(boundary.width);
-    const room = quotedVertical ? verticalRoom(requestedSide) : boundary.height;
-    // A passage's vertical side is chosen from the room the page can make there, and the
-    // travel below makes it, so only a side that cannot hold the bar is left to Floating
-    // UI's flip. Flipping a settled side on pixels re-decided it over the pixel between
-    // the bar as measured here and the bar as laid out.
-    const settledSide = quotedVertical && room >= minimumFabHeight();
-    setHeight(settledSide ? room : boundary.height);
+    // A side under or over is chosen from the room the page can make there, and the
+    // travel below makes it, so the bar is given that room to grow into; beside, or where
+    // that side cannot hold the bar, the whole boundary.
+    const vertical = (side) => /^(top|bottom)$/.test(side);
+    const heightFor = (side) => {
+      const room = !unanchored && vertical(side) ? verticalRoom(side) : 0;
+      return room >= minimumFabHeight() ? room : boundary.height;
+    };
+    const { side, fresh } = fabPlacement.choose({
+      clear: keepClear,
+      extent: roomRect,
+      boundary,
+      minimum: { width: cardMinimum() },
+      scroller,
+      coarse: coarsePointer.matches,
+    });
+    if (fresh) {
+      fabContentHeight = null;
+      setWidth(boundary.width);
+    }
+    setHeight(heightFor(side));
     // The choices deliberately wrap inside the response surface, so their intrinsic
     // scroll width is not a fit requirement. Only the compact control's minimum is: a
     // covering panel may genuinely leave less than that, while an ordinary narrow page
     // still has a usable surface once the choices reflow below the field.
-    if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
+    if (
+      boundary.height < minimumFabHeight() ||
+      Math.ceil(boundary.width) < Math.ceil(minimumFabWidth())
+    )
+      return false;
 
-    // A vertical passage comment belongs beyond the passage, not shifted back across it.
+    // Under or over, the bar belongs beyond what it is about, not shifted back across it.
     // When its intrinsic content height changes, use the reading region's remaining
     // travel before asking the field to scroll. The placed height also changes when the
-    // passage clips at a boundary; keying this to the content keeps that wheel gesture as
+    // target clips at a boundary; keying this to the content keeps that wheel gesture as
     // navigation rather than undoing it on the next frame.
     const height = fabBar.offsetHeight;
     const contentHeight = composerOpen
@@ -550,152 +522,59 @@ export function createResponseSurface({
     const contentChanged =
       fabContentHeight === null || Math.abs(contentHeight - fabContentHeight) > 0.5;
     fabContentHeight = contentHeight;
-    if (quotedVertical && contentChanged) {
-      const overflow =
-        requestedSide === "top"
-          ? boundary.top - (keepClear.top - 6 - height)
-          : keepClear.bottom + 6 + height - boundary.bottom;
-      const available =
-        requestedSide === "top"
-          ? scroller.scrollTop
-          : Math.max(
-              0,
-              scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
-            );
-      const movement = Math.max(0, Math.min(overflow, available));
-      if (movement > 0.5) {
-        const before = scroller.scrollTop;
-        moveScrollerBy(scroller, requestedSide === "top" ? -movement : movement);
-        if (Math.abs(scroller.scrollTop - before) > 0.5) {
-          fabPlacementInput = null;
-          return placeFab();
-        }
-      }
+    if (
+      !unanchored &&
+      vertical(side) &&
+      contentChanged &&
+      makeRoom(side, keepClear, roomRect, height, boundary, scroller)
+    ) {
+      fabPlacement.scrolled();
+      return placeFab();
     }
 
-    const reference = {
-      contextElement: owner ?? document.documentElement,
-      getBoundingClientRect: () => keepClear,
-    };
-    const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
     const epoch = fabPosition.begin();
-    const initial = fabPlacement === null;
     const stillCurrent = () => fabPosition.current(epoch) && fabAnchor && fabFloating;
-    // Above or below, the field starts where the compact control would, ended on the
-    // passage's right edge, and grows rightward from there. The start is the minimum's,
-    // not the bar's first measured width, which a restored draft's words widen: one draft
-    // then gets the same lane wherever it is opened.
-    const inlineConnection = () => fabInlineConnection ?? -minimumFabWidth();
     void floatingUi()
-      .then(
-        ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
-          if (!stillCurrent()) return null;
-          watchFabPosition(owner ?? document.documentElement, autoUpdate);
-          // Whether the boundary, rather than the passage, holds the bar's block
-          // position: shifted there and not limited back to the passage, the bar stands
-          // in the window's plane (floating.js).
-          let heldIn = false;
-          const attachment = limitShift(({ placement }) => {
-            const vertical = /^(top|bottom)/.test(placement);
-            return { mainAxis: !vertical, crossAxis: vertical };
-          });
-          // Held at a reading region's edge, the bar goes where the page takes the region.
-          const plane = ({ y, middlewareData }) =>
-            heldIn &&
-            Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 &&
-            heldByWindow(y, y + fabBar.offsetHeight, 8)
-              ? "window"
-              : "page";
-          return fabPosition.position(
-            computePosition,
-            reference,
-            {
-              placement: requestedPlacement,
-              middleware: [
-                offset(({ placement, rects }) => {
-                  const beside = /^(left|right)/.test(placement);
-                  return {
-                    mainAxis: 6,
-                    // The paragraph chooses the horizontal lane and the selected line
-                    // where in it the field's top stands, which it keeps as the field
-                    // grows downward; above or below, preserve the initial inline start.
-                    crossAxis: beside
-                      ? target.top - 6 - keepClear.top
-                      : inlineConnection() + rects.floating.width,
-                  };
-                }),
-                // Size precedes the one initial flip so the decision sees the width into
-                // which the compact control can actually shrink. This is Floating UI's
-                // documented initial-placement composition; putting size last makes a
-                // fractional CSS pixel look like a missing margin rail.
-                size({
-                  ...overflow,
-                  apply({ availableWidth, placement }) {
-                    if (!stillCurrent()) return;
-                    const side = placement.split("-", 1)[0];
-                    const laneWidth =
-                      side === "right"
-                        ? boundary.right - keepClear.right - 6
-                        : side === "left"
-                          ? keepClear.left - boundary.left - 6
-                          : boundary.right - (keepClear.right + inlineConnection());
-                    // A side placement consumes its current rail. Above or below, the
-                    // relative connection preserves the field's inline start as its content
-                    // grows while allowing target reflow to carry that start with it.
-                    setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                    const vertical = block && /^(top|bottom)$/.test(side);
-                    const available = vertical ? verticalRoom(side) : boundary.height;
-                    setHeight(
-                      vertical && available >= minimumFabHeight()
-                        ? available
-                        : boundary.height,
-                    );
-                  },
-                }),
-                initial &&
-                  !settledSide &&
-                  flip({
-                    ...overflow,
-                    crossAxis: false,
-                    fallbackPlacements,
-                    fallbackStrategy: "bestFit",
-                  }),
-                // The viewport holds the bar in only while its target is still there: past
-                // that the bar leaves with it, rather than staying pinned to the viewport's
-                // edge over whatever the user scrolled to. Only the block axis is limited;
-                // the reading boundary still holds the bar in across it.
-                shift({
-                  ...overflow,
-                  mainAxis: true,
-                  crossAxis: true,
-                  limiter: {
-                    ...attachment,
-                    fn(state) {
-                      const limited = attachment.fn(state);
-                      heldIn = Math.abs(limited.y - state.y) < 0.5;
-                      return limited;
-                    },
-                  },
-                }),
-              ],
-            },
-            plane,
-            owner ?? document.documentElement,
-          );
-        },
-      )
+      .then((ui) => {
+        if (!stillCurrent()) return null;
+        watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
+        const { reference, placement, middleware, heldIn } = fabPlacement.options(ui, {
+          clear: keepClear,
+          row: target?.top,
+          margin: !unanchored && owner && marginSpot(owner, fabPointIn(owner)),
+          boundary,
+          minimum: { width: cardMinimum() },
+          fit({ side: placed, width, scale }) {
+            if (!stillCurrent()) return;
+            setWidth(width);
+            setHeight(heightFor(placed) / scale.y);
+          },
+        });
+        // Held at a reading region's edge, the bar goes where the page takes the region.
+        const plane = (answer) =>
+          unanchored ||
+          (heldIn(answer) && heldByWindow(answer.y, answer.y + fabBar.offsetHeight, 8))
+            ? "window"
+            : "page";
+        return fabPosition.position(
+          ui.computePosition,
+          {
+            contextElement: owner ?? document.documentElement,
+            getBoundingClientRect: () => reference,
+          },
+          { placement, middleware },
+          plane,
+          owner ?? document.documentElement,
+        );
+      })
       .then((position) => {
-        if (!position) return;
-        const { x, y, placement } = position;
-        if (!stillCurrent()) return;
-        fabPlacement ??= placement;
-        if (!/^(left|right)/.test(placement))
-          fabInlineConnection ??= x - keepClear.right;
-        fabPlacementInput = placementInput;
-        keeps(fabBar, "data-lf-placement", fabPlacement);
-        fabPosition.stand(x, y);
+        if (!position || !stillCurrent()) return;
+        fabPlacement.landed(position);
+        keeps(fabBar, "data-lf-placement", position.placement);
+        fabPosition.stand(position);
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
+        stoodAgain();
         return true;
       })
       .catch((error) => {
@@ -738,6 +617,10 @@ export function createResponseSurface({
     if (!anchor || (fabInlineOutlet && !keptInline)) restoreFab({ place: false });
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
+    if (!anchor || !sameAnchor(previous, anchor)) {
+      fabWithheld = false;
+      fabWithheldFocus = null;
+    }
     if (!anchor && composerOpen) hideComposer();
     // A gesture opening the bar says where in its target the bar stands, `null` for
     // nowhere; re-placing the bar on the same anchor keeps where the last one said, and
@@ -785,18 +668,25 @@ export function createResponseSurface({
       // A margin control can name an item whose rendered box is currently off
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
-      // skipped. Every route that actually shows the bar keeps the geometry gate.
+      // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
+      // is for opening: the bar already standing on this anchor, placed again, is
+      // withheld rather than put away (standFab).
       if (place && fabFloating && !placeFab(target ?? anchorBox(fabAnchor))) {
-        fabAnchor = null;
-        fabOrigin = null;
-        stopFabPositioning({ reset: true });
-        resetResponseOptions();
-        fabBar.removeAttribute("data-lf-target-only");
-        fabInputTakingFocus = false;
-        if (composerOpen) hideComposer();
-        fabBar.style.display = "none";
-        fabInput.style.display = "none";
-        fab.style.display = "none";
+        if (sameAnchor(previous, fabAnchor) && anchorStands(fabAnchor)) withholdFab();
+        else {
+          fabAnchor = null;
+          fabOrigin = null;
+          fabWithheld = false;
+          fabWithheldFocus = null;
+          stopFabPositioning({ reset: true });
+          resetResponseOptions();
+          fabBar.removeAttribute("data-lf-target-only");
+          fabInputTakingFocus = false;
+          if (composerOpen) hideComposer();
+          fabBar.style.display = "none";
+          fabInput.style.display = "none";
+          fab.style.display = "none";
+        }
       }
     }
     // A bar raised on a new target takes the thread card down: the card stands above
@@ -826,15 +716,49 @@ export function createResponseSurface({
     showFab(null);
   }
   function refreshFab() {
-    // A target row holds its anchor without floating the bar; layout cannot reject that
-    // semantic place merely because the target's rendered box has scrolled away.
     if (!fabAnchor || !fabFloating) return;
-    if (fabAnchor.quote && (composerOpen || fabHoldsCapturedPassage())) {
-      if (!placeFab() && fabBar.hasAttribute("data-lf-placement"))
-        showFab(null, null, { returnFocus: "page" });
-    } else if (fabAnchor.quote) updateFab();
-    else if (!placeFab() && fabBar.hasAttribute("data-lf-placement"))
+    // A bare selection's bar is the selection's, and goes with it.
+    if (fabAnchor.quote && !composerOpen && !fabHoldsCapturedPassage()) updateFab();
+    else standFab();
+  }
+  // Stands the bar the user already has again. Geometry says where it stands, never
+  // whether: the bar goes when a gesture puts it away or when its subject leaves the
+  // document, and never because a scroll, a resize, a panel or a closed disclosure left
+  // it no attachment. An open editor uses the window while its subject is hidden;
+  // a bar with no usable room is withheld, draft, anchor and all, and the next
+  // placement that finds room stands it again.
+  function standFab() {
+    if (!anchorStands(fabAnchor)) {
       showFab(null, null, { returnFocus: "page" });
+      return false;
+    }
+    if (placeFab()) return true;
+    withholdFab();
+    return false;
+  }
+  // Withholds the bar while the usable window cannot contain it, keeping its draft,
+  // anchor, side, and caret. Hiding a focused bar drops focus to nowhere, so it keeps
+  // the user's place (`holdFocus`) and returns focus when room comes back, unless they
+  // focused something else meanwhile. Where a covering panel took the room, its
+  // Threads list takes focus. While the bar waits, its composer scope and selection
+  // rung stand down; `c` brings it back.
+  function withholdFab() {
+    if (fabWithheld) return;
+    fabWithheld = true;
+    const held = holdFocus(fabBar);
+    const toPanel = held && panelIsOpen() && !fabFits();
+    stopFabPositioning({ reset: false });
+    fabBar.style.visibility = "hidden";
+    if (toPanel) threadsBox.focus({ preventScroll: true });
+    else fabWithheldFocus = held;
+  }
+  // The bar is in view again, by whichever placement put it there.
+  function stoodAgain() {
+    if (!fabWithheld) return;
+    fabWithheld = false;
+    const returning = fabWithheldFocus;
+    fabWithheldFocus = null;
+    returning?.();
   }
   // The durable anchor names the authored coordinate an event can replay, while the
   // margin needs the rendered block the gesture is visibly on. Those are deliberately
@@ -912,10 +836,6 @@ export function createResponseSurface({
     // place a response box against. `nearest` reveals it while leaving a target already
     // in front of the user exactly where it is.
     scrollRevealedElement(addressable, "instant", "nearest");
-  }
-
-  function commentOnAddressable(addressable) {
-    commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
@@ -1277,6 +1197,7 @@ export function createResponseSurface({
     // inline, it is in flow and the browser's own reveals reach it.
     declareOffFlowSurface(fabBar, {
       floats: () => Boolean(fabAnchor && fabFloating),
+      away: () => fabWithheld,
       bringBack: (behavior) => {
         const found = resolveAnchor(fabAnchor, pageText());
         const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;
@@ -1482,8 +1403,10 @@ export function createResponseSurface({
   // already crosses there. A page key that takes the user somewhere owes them an answer
   // once they are standing there.
   //
-  // One aim and then one climb, rather than four cases. The pointer's aim outranks
-  // position, being the more recent thing the user said; below it the answer walks
+  // One live aim and then one climb, rather than four cases. A selection outranks
+  // position; a captured target does too until the user stands elsewhere. The draft
+  // keeps its words independently of which target the next press names. Below the
+  // aim, the answer walks
   // outward from where they are standing — the nearest thread's box, then the nearest
   // addressable element, then the page, which is what is left when they are standing
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
@@ -1500,8 +1423,36 @@ export function createResponseSurface({
         box: selectionComment,
         go: commentOnTouchSelection,
       };
+    const here = standingTarget();
     const anchor = fabAnchorAt();
-    if (anchor)
+    // The thread the user is at continues where it is about what they stand on: they
+    // are in it, or its target lies within the element they stand at — the Ask holding
+    // focus, answered or not, else the element itself — as an Ask's options group does
+    // when the user holds one of its marks. A card showing an enclosing block's thread is
+    // about that block, so an element inside it, such as an Ask in a commented task,
+    // takes a thread of its own, and a selection still starts one on its words.
+
+    const inline = threadHere();
+    const target = inline && threadTarget(inline);
+    const inlineBox =
+      inline &&
+      (!here ||
+        inline.contains(focused()) ||
+        (target && under(target, heldAsk() ?? here.element))) &&
+      threadInput(inline);
+    const said =
+      standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    // A captured passage outranks the focus it preceded, but a kept draft is not a
+    // standing target. Read both page and thread standing before choosing the aim.
+    // After the user lands elsewhere, Comment names that new place;
+    // commentOnTarget carries the old words without replacing a destination's
+    // independent draft.
+    if (
+      anchor &&
+      (pageSelection() ||
+        fabHoldsCapturedPassage() ||
+        (!said && (!here || here.element === fabTargetAt())))
+    )
       return {
         ...commenting(
           anchor.quote
@@ -1511,34 +1462,20 @@ export function createResponseSurface({
         box: fabInput,
         go: focusFabComment,
       };
-    // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the Ask holding
-    // focus, answered or not, else the element itself — as an Ask's options group does
-    // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an Ask in a commented task,
-    // takes a thread of its own, and a selection still starts one on its words.
-    const here = standingElement();
-    const inline = threadHere();
-    const target = inline && threadTarget(inline);
-    const inlineBox =
-      inline &&
-      (!here ||
-        inline.contains(focused()) ||
-        (target && under(target, heldAsk() ?? here))) &&
-      threadInput(inline);
-    const said =
-      standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     if (said)
       return {
         ...commenting("thread"),
         box: said.box,
-        go: () => landIn(said),
+        go: () => {
+          carryComposerToReply(replyDraftContext(said.box));
+          landIn(said);
+        },
       };
     if (here)
       return {
-        ...commenting(addressableWord(here)),
+        ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
-        go: () => commentOnAddressable(here),
+        go: () => commentOnTarget(here),
       };
     return {
       ...commenting("page"),
@@ -1557,7 +1494,7 @@ export function createResponseSurface({
   // still decides whether either row can be reached from the current scope.
   const commentHint = () => ({
     box: commentDestination().box,
-    label: activeCommandLabel(COMMENT_COMMANDS),
+    label: activeCommandLabel(["comment.create"]),
   });
 
   // c goes where commenting happens: a live selection gets the composer (what the floating
@@ -1568,9 +1505,8 @@ export function createResponseSurface({
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
-  // Standing outranks the page and not the pointer: a user who has just selected words or
-  // raised the 💬 on something has said what they mean more recently than the focus they
-  // left behind, which is the order the destination reading above uses.
+  // Standing outranks the page; a live selection or a newly captured target outranks
+  // standing. The draft stored on an earlier target supplies words, not that priority.
   pageCommand({
     id: "comment.create",
     touch: false,
@@ -1583,7 +1519,15 @@ export function createResponseSurface({
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
-    when: () => anchoringIsReady() || !pageSelection(),
+    //
+    // One row answers from the page and from the Threads panel alike, whether the panel
+    // stands beside the page or covers it: a covering surface drops every page row not
+    // marked `covering`, and a copy of this one in the panel's scope knew only the page box.
+    // Under any other covering surface there is nothing here to comment on.
+    covering: true,
+    when: () =>
+      (anchoringIsReady() || !pageSelection()) &&
+      (!coveringAuxiliarySurface() || inPanel(panelIsOpen)),
     run: () => {
       updateFab(); // the selection may be newer than the mouseup that last placed the bar
       commentDestination().go();
@@ -1594,7 +1538,7 @@ export function createResponseSurface({
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
-    at: () => composerOpen,
+    at: () => composerOpen && !fabWithheld,
     rows: [
       {
         id: "comment.options",
@@ -1625,7 +1569,7 @@ export function createResponseSurface({
   // user just chose, so it keeps its binding and its place in the reference while
   // yielding the short line's promoted slot to them.
   pageRung("selection", () =>
-    pageSelection() || fabAnchorAt()
+    pageSelection() || (fabAnchorAt() && !fabWithheld)
       ? {
           says: "unselect",
           does: "Clear the selection",
@@ -1649,7 +1593,6 @@ export function createResponseSurface({
     fabTargetAt,
     fabReturnTo,
     bringForward,
-    commentOnAddressable,
     commentOnTarget,
     focusFabComment,
     fabOptionsAvailable,

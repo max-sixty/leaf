@@ -62,10 +62,11 @@ retry key `attempt`, then adds these delivery readings:
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply`, `turn` or `markup`) with the address it is written
   under, the same object `leaf page state` lists for the move's workflow. The
-  event's `answering` clauses say how to write it. Until the answer is written, the
-  Stop hook holds the turn open and `leaf status idle` refuses. Re-read current
-  state before writing because later evidence may already have settled the
-  requirement. A `reply` or `turn` answer carries both `to`, the thread
+  event's `answering` clauses say how to write it. Until the answer is written,
+  `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
+  claimed the move's work (`references/conversation-loop.md`, "Long-running work").
+  Re-read current state before writing because later evidence may already have
+  settled the requirement. A `reply` or `turn` answer carries both `to`, the thread
   address to write under, and `for`, the exact event whose answer the write must
   still satisfy; a `turn` answer also names the reply `attempt` its turn commits
   under, and `leaf thread reply` refuses it. An event without one owes nothing of its own:
@@ -127,9 +128,10 @@ retry, even if a later delivery also includes newer events; your host contract o
 the wait and acknowledgement route.
 
 `leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
-ending named on stderr. On exit 0 it prints one JSON envelope, or, where the
-host's hook carries input, one line naming the page with new input. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
-that restarted a dead server says so on stderr. The endings:
+ending named on stderr. The input is one JSON envelope, or, where the host's hook
+carries input, one line naming the page with new input. Exit 1 from `leaf wait
+--ack` means the acknowledgement was refused. A wait that restarted a dead server
+says so on stderr. The exit 2 endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.
@@ -149,10 +151,6 @@ Empty stdout alone is not evidence that the host stopped the process, and no rea
 to run a named wait again. Resume with an unnamed wait only when the host itself
 reports that it canceled or killed the command, or on a signal your host contract
 names.
-
-An embedded MCP App changes where the page is drawn, not this carrier. Its
-events enter the same log, and a successful `ui/message` response is not a
-delivery receipt.
 
 ## After the batch
 

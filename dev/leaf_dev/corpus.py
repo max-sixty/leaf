@@ -11,6 +11,7 @@ corpus's own page directory, so its markup still names a declared element there.
     uv run leaf-dev corpus
 """
 
+import html
 import json
 import re
 import shutil
@@ -149,8 +150,12 @@ def build() -> str:
                 f"<!-- {source.name} authored styles -->\n<style>{parsed.css}</style>"
             )
         authored_assets.extend(
-            f'<!-- {source.name} authored module -->\n<script type="module">'
-            f"{script['body']}</script>"
+            f"<!-- {source.name} authored script -->\n<script"
+            + "".join(
+                f' {name}="{html.escape(value, quote=True)}"'
+                for name, value in script["attrs"].items()
+            )
+            + f">{script['body']}</script>"
             for script in parsed.inline_scripts
         )
         for i in ["corpus-" + stem] + parsed.all_ids:

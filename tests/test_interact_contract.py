@@ -1181,72 +1181,6 @@ def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
     assert "visual anchor 'node:A'" in result.output
 
 
-def test_report_validation_and_append_cannot_straddle_revendoring(
-    page_dir, monkeypatch
-):
-    _tasks_version(page_dir, "active")
-    publish(page_dir)
-    registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
-    task.pop("x-state")
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
-
-    report_validated = threading.Event()
-    release_report = threading.Event()
-    init_waiting = threading.Event()
-    real_append = service_model.PageTransaction._append_record
-    real_page_locked = vendoring_model.page_locked
-
-    def paused_append(page, event):
-        if event["kind"] == "report":
-            report_validated.set()
-            assert release_report.wait(5)
-        return real_append(page, event)
-
-    @contextlib.contextmanager
-    def observed_page_locked(locked):
-        if locked == page_dir and threading.current_thread().name == "re-vendor":
-            init_waiting.set()
-        with real_page_locked(locked) as held:
-            yield held
-
-    monkeypatch.setattr(service_model.PageTransaction, "_append_record", paused_append)
-    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    outcomes, errors = [], []
-
-    def report():
-        try:
-            thread_model.cmd_report(page_dir, "t-parser", "status", ("status=done",))
-            outcomes.append("reported")
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    def revendoring():
-        try:
-            vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
-            outcomes.append("revendored")
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    reporting = threading.Thread(target=report, name="report")
-    reporting.start()
-    assert report_validated.wait(5)
-    initing = threading.Thread(target=revendoring, name="re-vendor")
-    initing.start()
-    assert init_waiting.wait(5)
-    release_report.set()
-    reporting.join(timeout=5)
-    initing.join(timeout=5)
-
-    assert not reporting.is_alive() and not initing.is_alive()
-    assert outcomes == ["reported"]
-    assert len(errors) == 1 and "report contract" in str(errors[0])
-    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
-    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
-
-
 def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
     """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
     `page init` repeats is read on its own: a malformed entry or a missing layer
@@ -1354,6 +1288,8 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
     )
 
     assert "no longer speaks" in refusal and "status" in refusal
+    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
+    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
 def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(

@@ -547,11 +547,7 @@ export function createMarginProjection({
   // that cannot land yet — its owner not connected, no room — is answered by a later
   // placement, or by the close that abandons it.
   const placedThreadPreview = () => {
-    if (!previewPositionResult) {
-      const pending = {};
-      pending.promise = new Promise((resolve) => (pending.resolve = resolve));
-      previewPositionResult = pending;
-    }
+    previewPositionResult ??= Promise.withResolvers();
     cancelRender(previewPositionFrame);
     previewPositionFrame = 0;
     placeThreadPreview();
@@ -804,13 +800,13 @@ export function createMarginProjection({
       row: place.row,
       extent: place.extent,
       boundary,
-      minimum: { width: cardMinimum() },
+      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
-    if (hold) previewHold = { ...hold, transcript: measureTranscript() };
-    if (fresh) previewHold = null;
     const transcript = measureTranscript();
+    if (hold) previewHold = { ...hold, transcript };
+    if (fresh) previewHold = null;
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
     // measurement on the next. Borrow the reply's line for that turn, keyed by the
@@ -843,7 +839,7 @@ export function createMarginProjection({
           column: place.column,
           margin: place.margin,
           boundary,
-          minimum: { width: cardMinimum() },
+          minimumWidth: cardMinimum(),
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             const room = Math.min(cardMeasure(), width);

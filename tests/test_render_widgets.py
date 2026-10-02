@@ -10777,6 +10777,50 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
     assert page.evaluate(reading) == before
 
 
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("changes_kind", [False, True])
+def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
+    browser, serve, manifest, changes_kind
+):
+    """A replacement carries its source focus; core carries the reply and its caret."""
+    patch = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-old\n+new\n"
+    )
+    next_patch = (
+        "diff --git a/old.py b/a.py\nsimilarity index 100%\n"
+        "rename from old.py\nrename to a.py\n"
+        if changes_kind
+        else patch.replace("+new\n", "+newer\n")
+    )
+    value = patch_manifest if manifest else lambda patch: patch
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+    page = open_page(browser, url)
+    row = page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')
+    row.hover()
+    page.get_by_title("Comment on a.py · new line 1", exact=True).click()
+    write(page.locator(".lf-composer leaf-text"), "Please clarify this.")
+    with sending(page, "a line comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
+    draft = "An unsent reader draft"
+    write(reply, draft)
+    page.keyboard.press("Home")
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    for _ in range(4):
+        page.keyboard.press("Shift+ArrowRight")
+    reading = "e => ({scroll: scrollY, value: e.value, start: e.selectionStart, end: e.selectionEnd})"
+    before = reply.evaluate(reading)
+    assert before["end"] - before["start"] == 4
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
+    told(page)
+    rendered(page)
+    current = page.locator(".lf-thread-reply leaf-text:focus-within")
+    expect(current).to_have_js_property("value", draft)
+    assert current.evaluate(reading) == before
+
+
 WEB_AWESOME_SHEET = """sheets => sheets.some(
   sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-color-picker'))
 )"""

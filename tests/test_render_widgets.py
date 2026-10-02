@@ -10923,6 +10923,73 @@ _RING_WITHIN = """(el, frame) => {
 }"""
 
 
+@pytest.mark.parametrize(
+    "engine", ["browser", "webkit_browser"], ids=["chromium", "webkit"]
+)
+@pytest.mark.parametrize("wide_host", [False, True], ids=["code", "outer-reader"])
+def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
+    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
+    source = leaf_page(
+        "Nested patch reader",
+        '<h1>Review</h1><div id="reader" data-bound="start">'
+        '<lf-diff id="patch"><pre>'
+        "diff --git a/reading.py b/reading.py\n"
+        "--- a/reading.py\n+++ b/reading.py\n@@ -1 +1 @@\n"
+        '-return "The previous release remains available for inspection."\n'
+        '+return "The current release remains available for inspection."\n'
+        "</pre></lf-diff></div>",
+        head="<style>#reader { width: 500px; }"
+        f"#patch {{ width: {1000 if wide_host else 300}px; }}</style>",
+    )
+    driver = request.getfixturevalue(engine)
+    url = serve(source)
+    page = open_page(driver, url)
+    resized(page, 1000, 900)
+    code = page.locator("#patch code[data-code]")
+    reader = page.locator("#reader") if wide_host else code
+    assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
+    if wide_host:
+        assert code.evaluate("el => el.scrollWidth === el.clientWidth")
+    box = code.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + 120, box["y"] + 25)
+    page.mouse.wheel(200, 0)
+    page.wait_for_function(
+        "wide => { const host = document.querySelector('#patch'); "
+        "const box = wide ? document.querySelector('#reader') : "
+        "host.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }",
+        arg=wide_host,
+    )
+    assert reader.evaluate("el => el.scrollLeft") > 0
+
+
+@pytest.mark.parametrize("left", [0, 150])
+def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
+    browser, serve, left
+):
+    """A hunk step moves vertically without travelling sideways through its host."""
+    source = leaf_page(
+        "Sideways patch",
+        '<h1>Review</h1><div id="sideways">'
+        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
+        "</div>",
+        head="<style>#sideways { width: 500px; overflow: auto; }"
+        "#patch { width: 1000px; }</style>",
+    )
+    url = serve(source)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.keyboard.press("Tab")
+    page.locator("#patch summary").first.focus()
+    page.locator("#sideways").evaluate("(el, left) => { el.scrollLeft = left; }", left)
+    before = page.locator("#sideways").evaluate("el => el.scrollLeft")
+    assert before == left
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
+    scroll_settled(page)
+    assert page.locator("#sideways").evaluate("el => el.scrollLeft") == before
+
+
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):

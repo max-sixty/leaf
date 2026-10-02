@@ -19,6 +19,13 @@
    reply editors keep mirroring through candidate detachment; their presentation owner
    disposes the subscription when removal commits.
 
+   An editor belongs to its existing draft subscription. A root editor has the context's
+   one current connected, visible destination; reply mirrors use the current Thread
+   route instead. Revision continuity carries words, generation, caret and local scroll
+   under that identity. It restores only the same active generation and only after the
+   original input intent has landed the actual editor. Hidden editors are never opened
+   by this mechanical handoff, and a newer edit is never overwritten by it.
+
    A draft generation stores `{text, attempt, base, payload?}` while active and
    `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
    creates the generation, not on Send, and is reused by every tab that sends it.
@@ -69,6 +76,8 @@
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
+import { focused } from "./keyboard/scopes.js";
+import { focusDestination, readCaret } from "./focus.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -402,23 +411,77 @@ export function sendMessage(ctx, owns, send) {
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
 
-// A draft written in another view, routed to whatever is showing it here. The document is
-// semantic publication, as it is for replayed actions, and that is what supplies the
-// index this needs — from a draft's context to the box on screen — without a map of our
-// own to hold in step with the panel: a box that has left the document takes its view off
-// with it (mirrorDraft). The callback takes the store's vocabulary: active words and
-// their optional submission payload, or null and no payload for settlement.
+// Existing draft subscriptions own current editor identity and lifetime. The store
+// supplies active words and an optional submission payload, or null and no payload
+// for settlement. Editor membership is mechanical: connected root editors recover
+// by context, and retained reply mirrors land through their current thread owner.
+// Unsubscribing retires that membership alongside the listener.
 //
 // It does not run on subscribe, which is where this parts company with controller state. The
 // draft a box opens with and the news that another tab changed one are different facts,
 // and the boxes answer them differently: a draft editor opens on recovery at load and
 // stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
 // it and so may move nothing.
-export function watchDraft(ctx, callback) {
+const draftEditors = new Set();
+
+// A subscription owns its editor's context and lifetime. Each context has one root
+// editor; replies explicitly declare mirrors and land through their thread owner.
+// A revision carries mechanical editing, never another copy of the draft's words.
+export function captureDraftEditing() {
+  const input = focused();
+  const editor = [...draftEditors].find((view) => view.input === input);
+  if (!editor) return null;
+  return {
+    context: editor.ctx,
+    mirrored: editor.mirrored,
+    attempt: activeDraftRecord(editor.ctx)?.attempt,
+    words: input.value,
+    selection: readCaret(input),
+    scroll: [input.scrollLeft, input.scrollTop],
+  };
+}
+
+export const draftEditingStands = (editing) =>
+  Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
+
+export function draftEditingDestination(editing) {
+  const input = [...draftEditors].find(
+    (view) =>
+      view.ctx === editing.context &&
+      !view.mirrored &&
+      view.input.isConnected &&
+      view.input.checkVisibility({ visibilityProperty: true }),
+  )?.input;
+  return input ?? null;
+}
+
+export function restoreDraftEditing(editing, input) {
+  if (!draftEditingStands(editing)) return false;
+  const editor = [...draftEditors].find((view) => view.input === input);
+  if (
+    !editor ||
+    editor.ctx !== editing.context ||
+    !input.isConnected ||
+    !input.checkVisibility() ||
+    input.value !== editing.words ||
+    focused() !== input
+  )
+    return false;
+  focusDestination(input, editing.selection);
+  [input.scrollLeft, input.scrollTop] = editing.scroll;
+  return true;
+}
+
+export function watchDraft(ctx, callback, { input = null, mirrored = false } = {}) {
+  const editor = input && { ctx, input, mirrored };
+  if (editor) draftEditors.add(editor);
   const update = (ev) =>
     ev.detail.ctx === ctx && callback(ev.detail.value, ev.detail.payload);
   document.addEventListener(DRAFT_NEWS, update);
-  return () => document.removeEventListener(DRAFT_NEWS, update);
+  return () => {
+    document.removeEventListener(DRAFT_NEWS, update);
+    if (editor) draftEditors.delete(editor);
+  };
 }
 addEventListener("storage", (ev) => {
   const prefix = whereDraft("").key;
@@ -454,11 +517,20 @@ addEventListener("storage", (ev) => {
 // A retained editor remains a draft view during candidate detachment and receives
 // concurrent draft changes before rollback reconnects it. Its owner explicitly disposes
 // that lifetime on committed removal. Ordinary inputs retire on disconnection.
-export function mirrorDraft(ta, sync, ctx, { retained = false } = {}) {
-  const off = watchDraft(ctx, (value) => {
-    if (!retained && !ta.isConnected) return off();
-    sync.load(value ?? "");
-  });
+export function mirrorDraft(
+  ta,
+  sync,
+  ctx,
+  { retained = false, mirrored = false } = {},
+) {
+  const off = watchDraft(
+    ctx,
+    (value) => {
+      if (!retained && !ta.isConnected) return off();
+      sync.load(value ?? "");
+    },
+    { input: ta, mirrored },
+  );
   return off;
 }
 // Reply drafts are never pruned. A thread resolving is not a discard: another

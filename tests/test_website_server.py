@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from email.message import Message
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,6 +35,7 @@ from interact_support import (
 )
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
+from leaf.codex_state import delivery_lock_path
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
@@ -45,6 +47,7 @@ from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt, open_session_turn
+from leaf.session_cleanup import flocked
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, verify_site
 from playwright.sync_api import expect
@@ -58,7 +61,13 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
     open_session_turn(thread_id, turn)
-    accept_codex_delivery(thread_id, turn)
+    with flocked(delivery_lock_path(thread_id)):
+        [(path, _)] = [
+            (path, record)
+            for path, record in delivery_records(thread_id)
+            if record["state"] == "offering"
+        ]
+    accept_codex_delivery(thread_id, path.stem, turn)
 
 
 @pytest.fixture(autouse=True)
@@ -4091,6 +4100,45 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 
     assert "first contentful paint not observed" in line
     assert "first contentful paint 0 ms" not in line
+
+
+def test_startup_resources_outlive_the_browser_timing_buffer(browser):
+    """The real verifier counts every response, including beyond Chrome's 250 entries."""
+    count = 260
+    script = b"/* startup resource */"
+    document = (
+        "<!doctype html><html><head><title>Startup resources</title></head><body>"
+        + "".join(f'<script src="/resource-{n}.js"></script>' for n in range(count))
+        + "<script>document.body.setAttribute('data-lf-upgraded', '');"
+        "document.body.setAttribute('data-lf-presented', '');</script></body></html>"
+    ).encode()
+
+    class Resources(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = script if self.path.endswith(".js") else document
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header(
+                "Content-Type",
+                "text/javascript" if self.path.endswith(".js") else "text/html",
+            )
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_arguments):
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)
+    with running_http_server(httpd):
+        page = browser.new_page()
+        page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+        page.goto(f"http://127.0.0.1:{httpd.server_address[1]}/")
+        reading = page.evaluate("window.__leafVerifier.startupReading")
+        for milestone in ("upgraded", "presented"):
+            assert reading[milestone]["code_requests"] == count
+            assert reading[milestone]["code_bytes"] == count * len(script)
+        names = page.evaluate("window.__leafVerifier.resourceNames")
+        assert sum("/resource-" in name for name in names) == count
 
 
 @pytest.mark.parametrize(

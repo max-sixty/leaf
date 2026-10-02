@@ -46,7 +46,6 @@ from .files import (
     stamped_version,
     version_num,
     version_revisions,
-    write_json,
 )
 from .interaction_log import append_interactions, client_records, now_iso
 from .layer import foreign_runtime
@@ -85,6 +84,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
+from .session_cleanup import write_json
 from .structure import FRAME_ANCESTORS_CSP
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without

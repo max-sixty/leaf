@@ -1,5 +1,5 @@
 # Added for #1491: a grid can satisfy the same-dimensions table rule while its
-# purpose is a pattern across measurements. Compare the earlier guidance with the
+# purpose is a pattern across measurements. Compare the earlier instructions with the
 # explicit chart priority; the exact-value request checks the secondary table route.
 schema_version: '1.0'
 name: numeric-grid-shows-shape

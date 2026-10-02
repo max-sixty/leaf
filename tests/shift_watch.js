@@ -1,7 +1,7 @@
 // Watches every page for layout shifts the "Stability" rule forbids
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it after write_watch.js
-// on every page a test opens (render_harness.watched), so every test checks it, except
-// a nightly-marked one for now (known_faults.py, `watches_shifts`).
+// on every ordinary test's page and on nightly tests marked watch_shifts
+// (known_faults.py, `watches_shifts`).
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,
@@ -14,12 +14,17 @@
 // and `insert_text` and a committed composition do, is not input to Chrome, but its
 // trusted `beforeinput` is typing here. Two rules read the API:
 //
-// - Nothing moves without input. News, a page loading, and whatever a timer or a
-//   server's answer changes may repaint a box or grow it into free room, but a box
-//   Chrome reports moved in a frame without input moved something the user did not ask
-//   to move. It is reported for every element the frame moved, once per element, named
-//   by write_watch.js's `lfPlace`. The tests whose pages still do are
+// - Reading content and controls do not move without input. News, a page loading, and
+//   whatever a timer or a server's answer changes may repaint a box or grow it into
+//   free room. Forbidden motion is reported for every source Chrome names, once per
+//   element, named by write_watch.js's `lfPlace`. The tests whose pages still do are
 //   `known_faults.py`.
+//   Message metadata may rearrange within its stationary header. Its renderer owns
+//   `.lf-msg-meta`, which holds passive age and receipt labels. This exception requires
+//   a stable header, unchanged neighbours and both painted positions inside the header;
+//   a metadata group containing a control gets no exception. It is not a pixel budget.
+//   When Chrome's five-source cap is full, frame readings must also show that no
+//   other visible box was repositioned. Metadata must not hide omitted protected motion.
 // - Typing never carries its field. A keystroke may grow its field, at whichever edge
 //   its layout grows it: down in a card, up in a composer pinned to the panel's foot. It
 //   never moves the field whole, as a "Draft" mark appearing in the header above a reply
@@ -153,12 +158,21 @@
   // frame is its latest at or before it.
   const frames = [];
   const placed = new WeakMap();
+  const scrolled = new WeakMap();
   const read = (time) => {
     // The judging fixture's own reading may postdate the start of the frame after it.
     const at = Math.max(time, frames.at(-1) ?? time);
     frames.push(at);
     prune(frames);
     for (const node of everything()) {
+      const scrolls = scrolled.get(node) ?? [];
+      const scroll = { left: node.scrollLeft, top: node.scrollTop };
+      const prior = scrolls.at(-1)?.scroll;
+      if (prior?.left !== scroll.left || prior?.top !== scroll.top) {
+        scrolls.push({ at, scroll });
+        prune(scrolls, (item) => item.at);
+        scrolled.set(node, scrolls);
+      }
       const rect = node.getBoundingClientRect();
       const seen = placed.get(node) ?? [];
       const last = seen.at(-1)?.rect;
@@ -175,6 +189,24 @@
     }
   };
   const boxAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at)?.rect;
+  // Layout coordinates remove scrolling, which Chrome also removes from its shifts.
+  const layoutAt = (node, at) => {
+    const rect = boxAt(node, at);
+    if (!rect) return null;
+    let left = rect.left,
+      top = rect.top;
+    for (
+      let child = node, parent = up(child);
+      parent instanceof Element;
+      child = parent, parent = up(parent)
+    ) {
+      if (getComputedStyle(child).position === "fixed") break;
+      const scroll = scrolled.get(parent)?.findLast((item) => item.at <= at)?.scroll;
+      left += scroll?.left ?? 0;
+      top += scroll?.top ?? 0;
+    }
+    return { left, top, right: left + rect.width, bottom: top + rect.height };
+  };
   // Each input's rendering: when it began; the start of its second frame; the motion
   // it began, and the start of the latest frame that motion moved; whether news has
   // landed since; and a keystroke's typing, which holds its field; the box of the field
@@ -337,12 +369,103 @@
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
     (presented === null || startTime < presented);
+  const passiveMetadata = ({ node, previousRect, currentRect }, around) => {
+    const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    const metadata = element?.closest?.(".lf-msg-meta");
+    if (!metadata || around.length !== 3) return false;
+    const interactive =
+      "a[href], button, input, textarea, select, summary, [tabindex], [contenteditable], [role]";
+    if (metadata.matches(interactive) || metadata.querySelector(interactive))
+      return false;
+    let header = up(metadata);
+    while (header instanceof Element && getComputedStyle(header).display === "contents")
+      header = up(header);
+    if (!(header instanceof Element)) return false;
+    const stationary = (node) => {
+      const rects = around.map((at) => layoutAt(node, at));
+      const screen = around.map((at) => boxAt(node, at));
+      return (
+        rects.every(Boolean) &&
+        (rects.every((rect) => !moved(rect, rects[2])) ||
+          screen.every((rect) => !moved(rect, screen[2])))
+      );
+    };
+    if (!stationary(header)) return false;
+    for (const neighbour of header.querySelectorAll("*"))
+      if (!holds(metadata, neighbour) && !stationary(neighbour)) return false;
+    const inside = (rect) =>
+      around.some((at) => {
+        const frame = boxAt(header, at);
+        return (
+          rect.left >= frame.left - 1 &&
+          rect.top >= frame.top - 1 &&
+          rect.right <= frame.right + 1 &&
+          rect.bottom <= frame.bottom + 1
+        );
+      });
+    return inside(previousRect) && inside(currentRect);
+  };
+  const metadataOnly = (entry, around) => {
+    if (entry.sources.length < 5) return true;
+    if (around.length !== 3) return false;
+    const visible = (node, rect, at) => {
+      let left = Math.max(0, rect.left),
+        top = Math.max(0, rect.top);
+      let right = Math.min(innerWidth, rect.right),
+        bottom = Math.min(innerHeight, rect.bottom);
+      for (let parent = node; parent instanceof Element; parent = up(parent)) {
+        const style = getComputedStyle(parent);
+        if (
+          (parent === node && style.visibility !== "visible") ||
+          style.opacity === "0"
+        )
+          return false;
+        if (parent === node) continue;
+        const clip = boxAt(parent, at);
+        if (!clip) return false;
+        if (style.overflowX !== "visible") {
+          left = Math.max(left, clip.left);
+          right = Math.min(right, clip.right);
+        }
+        if (style.overflowY !== "visible") {
+          top = Math.max(top, clip.top);
+          bottom = Math.min(bottom, clip.bottom);
+        }
+      }
+      return right > left && bottom > top;
+    };
+    for (const node of everything()) {
+      const rects = around.map((at) => boxAt(node, at));
+      if (!rects.every(Boolean)) continue;
+      for (let before = 0; before < 2; before++) {
+        const previousRect = rects[before];
+        const currentRect = rects[2];
+        const from = layoutAt(node, around[before]);
+        const to = layoutAt(node, around[2]);
+        if (
+          (Math.abs(currentRect.left - previousRect.left) >= 1 ||
+            Math.abs(currentRect.top - previousRect.top) >= 1) &&
+          (Math.abs(to.left - from.left) >= 1 || Math.abs(to.top - from.top) >= 1) &&
+          (visible(node, previousRect, around[before]) ||
+            visible(node, currentRect, around[2])) &&
+          !passiveMetadata({ node, previousRect, currentRect }, around)
+        )
+          return false;
+      }
+    }
+    return true;
+  };
   // `before` and `after` are the starts of the frames either side of the shift's.
   // `frame` indexes the start of the shift's frame in `frames`.
   const unasked = (entry, frame) => {
     if (presenting(entry)) return;
     const around = frame < 1 ? [] : frames.slice(frame - 1, frame + 2);
-    for (const { node, previousRect, currentRect } of entry.sources) {
+    const passive = new Set(
+      entry.sources.filter((source) => passiveMetadata(source, around)),
+    );
+    const complete = passive.size > 0 && metadataOnly(entry, around);
+    for (const source of entry.sources) {
+      const { node, previousRect, currentRect } = source;
       const read = node ? around.map((at) => boxAt(node, at)) : [];
       if (
         read.length === 3 &&
@@ -350,6 +473,7 @@
         !read.some((box) => moved(box, read[2]))
       )
         continue;
+      if (complete && passive.has(source)) continue;
       report(
         `${name(node)} moved without input`,
         by(previousRect, currentRect) + beside(entry.sources, node),

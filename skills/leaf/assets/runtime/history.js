@@ -15,8 +15,11 @@
  * names a place the page no longer shows: the offset was saved over a page that has
  * changed, so travel reveals the place and lands on it. Any other traversal is
  * intercepted only so the browser restores the entry's saved offset, which it does for
- * an intercepted traversal. Focus stays where it is either way, as an unintercepted
- * traversal leaves it.
+ * an intercepted traversal. Each entry also holds the browser focus and selection it
+ * was left with. Back and Forward restore that working place after its owner has
+ * revealed the view, so the next command reads the returned place from the browser.
+ * These are return checkpoints, never a reading of the user's current position; a
+ * newer gesture cancels a delayed return, and a node removed since is not restored.
  *
  * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
  * and is a trip to the element it names. Travel claims it (`followFragment`) where the
@@ -27,7 +30,54 @@
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
  * landings. */
 
+import { deepFocus, focusDestination, readCaret } from "./focus.js";
+import { pageRange } from "./passages.js";
+import { retainUserIntent } from "./user-intent.js";
+import { placeOf } from "./standing-target.js";
+import { upFrom } from "./shadow.js";
+
 const claims = new Set();
+const places = new Map();
+
+// Read once when leaving an entry. Plain endpoints keep a removed passage from being
+// silently retargeted by a live Range. pageRange shares the declared-shadow reading
+// used for commenting; the selection's direction also keeps its working end.
+function readPlace() {
+  const focus = deepFocus();
+  const selection = getSelection();
+  const range = selection.rangeCount ? pageRange(selection) : null;
+  const ends = range && [
+    [range.startContainer, range.startOffset],
+    [range.endContainer, range.endOffset],
+  ];
+  if (ends && selection.direction === "backward") ends.reverse();
+  return { focus, place: placeOf(focus), caret: readCaret(focus), ends };
+}
+
+const drawn = (node) =>
+  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+
+function returnPlace({ focus, place, caret, ends }) {
+  if (focus !== document.body && drawn(focus)) focusDestination(focus, caret);
+  // A thread card may have closed on departure. Its page target is the same working
+  // place from the other side, and remains a browser focus destination on return.
+  else if (drawn(place)) focusDestination(place);
+  else deepFocus()?.blur();
+  const selection = getSelection();
+  selection.removeAllRanges();
+  // Editing the passage can remove its saved endpoint. That checkpoint then has no
+  // selection to restore, and the returned viewport supplies the next walk's origin.
+  if (
+    ends?.every(
+      ([node, offset]) =>
+        drawn(node.nodeType === 1 ? node : upFrom(node)) &&
+        offset <= (node.nodeType === 3 ? node.length : node.childNodes.length),
+    )
+  ) {
+    const [[anchor, start], [end, stop]] = ends;
+    selection.setBaseAndExtent(anchor, start, end, stop);
+  }
+}
 
 // Whether this document is writing an entry itself. The Navigation API fires `navigate`
 // synchronously inside `pushState` and `replaceState`, and those events look like a
@@ -65,13 +115,29 @@ export function mountHistory({ followFragment, returnToFragment }) {
   window.navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
+    if (event.navigationType !== "replace") {
+      const live = new Set(window.navigation.entries().map((entry) => entry.key));
+      for (const key of places.keys()) if (!live.has(key)) places.delete(key);
+      places.set(window.navigation.currentEntry.key, readPlace());
+    }
     if (event.navigationType === "traverse") {
       const handler = claimed(url) ?? returnToFragment(url);
-      event.intercept(
-        handler
-          ? { scroll: "manual", focusReset: "manual", handler }
-          : { focusReset: "manual" },
-      );
+      const place = places.get(event.destination.key);
+      const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
+      event.intercept({
+        scroll: "manual",
+        focusReset: "manual",
+        handler: async () => {
+          let work;
+          mayReturn.handoff(() => {
+            work = handler?.();
+          });
+          await work;
+          if (!mayReturn()) return;
+          if (!handler) event.scroll();
+          if (place) returnPlace(place);
+        },
+      });
       return;
     }
     // A followed link again to the fragment already shown is a `replace` with no hash

@@ -33,9 +33,10 @@ other page files and the external state listed below.
 - `registry.json` — effective widget schemas and layer metadata. Composition and
   identity are defined in [layer-registry.md](layer-registry.md).
 
-- `guidance/` — package-owned guidance grouped by audience. Files with the same name
-  concatenate in package order, each under a heading naming its package;
-  `page guidance` reads any audience
+- `instructions/` — shared package instructions grouped by audience. Files with the
+  same name concatenate in package order, each under a heading naming its package.
+  `page instructions` composes them with selected registry instructions
+  (`../../references/packages.md`, "Package contract").
 
 - `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
 

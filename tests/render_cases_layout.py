@@ -15,12 +15,11 @@ from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import record_claim, running_http_server
 from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
+from leaf import session_cleanup as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
@@ -1248,12 +1247,12 @@ def live_leaf(tmp_path, monkeypatch):
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
             "t",
         )
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "running the suite",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
             },
         )
         # A live leaf has a session behind it, and what the drawer's hover says about a
@@ -1271,7 +1270,7 @@ def live_leaf(tmp_path, monkeypatch):
         port = httpd.server_address[1]
         # Desired address and a held, contentless lease are the two facts a real
         # server exposes to neighbouring pages.
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "service.json",
             {
                 "host": "127.0.0.1",

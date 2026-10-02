@@ -60,6 +60,7 @@ from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry, require_registry
@@ -4649,7 +4650,7 @@ def test_a_reader_that_closes_the_pipe_ends_page_events_quietly(page_dir):
     0 and prints nothing past what the reader took. The log outgrows a pipe's buffer,
     or the write that finds the reader gone never happens."""
     record = {"kind": "comment", "author": "user", "text": "x" * 200}
-    (page_dir / schema_model.EVENTS_FILE).write_text(
+    (page_dir / cleanup_model.EVENTS_FILE).write_text(
         "".join(json.dumps({**record, "id": f"e{n}"}) + "\n" for n in range(2000))
     )
     for follow in ([], ["--follow"]):

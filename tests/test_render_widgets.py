@@ -743,9 +743,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name, and each tab counts the Asks in its panel the user still owes: an answer
-    clears its tab's count while the others keep theirs, and moves no row. A tab's name
-    is its label whatever the row shows, and a panel bounds what it holds."""
+    name. Answering an item's Ask moves no row. A tab's name is its label whatever
+    the row shows, and a panel bounds what it holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -785,8 +784,6 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     }"""
     wide = page.evaluate(boxes)
     assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
-    owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
-    expect(owed).to_have_text(["1", "1", "1"])
     bounds = page.evaluate("""() => ({
       board: document.querySelector('#board').getBoundingClientRect().right,
       panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
@@ -797,6 +794,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
         ".map((b) => b.getBoundingClientRect().height)"
@@ -810,7 +809,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(owed).to_have_text(["", "1", "1"])
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     assert page.evaluate(rows) == heights
 
     resized(page, 390, 844)
@@ -1567,7 +1566,8 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
         "Opened src/summary.rs:259 in the exact patch"
     )
 
-    line.click(modifiers=["Alt"])
+    expect(line).to_be_focused()
+    page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     write(
         page.locator(".lf-composer leaf-text"),
@@ -1576,6 +1576,62 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and event.get("text")
+    ]
+    assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
+
+
+@pytest.mark.parametrize("destination", ["call", "patch"])
+def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
+    """Light-DOM data and its shadow-DOM destination keep exact identity."""
+    example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
+    page = open_page(browser, live_url(serve(example)))
+    page.get_by_role("tab", name="CallDiff").click()
+    location = (
+        page.locator("#pr-call-diagram")
+        .get_by_role("link", name="src/summary.rs:259")
+        .first
+    )
+    # Reach the real link through the browser's tab order. The source case reads
+    # keyboard focus inside a generated datum, rather than focusing the datum directly.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if location.evaluate("node => node.matches(':focus')"):
+            break
+    expect(location).to_be_focused()
+    assert location.evaluate("node => node.matches(':focus-visible')")
+    target = location.locator("xpath=..")
+    if destination == "patch":
+        page.keyboard.press("Enter")
+        target = page.locator(
+            '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
+        )
+        expect(target).to_be_focused()
+        expect(page.locator(".lf-live")).to_have_text(
+            "Opened src/summary.rs:259 in the exact patch"
+        )
+        expect(target).to_be_in_viewport()
+    datum = target.get_attribute("data-lf-datum")
+    owner = target.get_attribute("data-lf-projection")
+    revision = target.get_attribute("data-lf-source-revision")
+    assert datum and owner and revision
+    page.keyboard.press("e")
+    expect(
+        page.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).not_to_have_count(0)
+    page.keyboard.press("1")
+    round_trip(page)
+    reaction = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event["kind"] == "comment" and event.get("token")
+    )
+    assert reaction["anchor"]["section"] == owner
+    assert reaction["anchor"]["datum"] == datum
+    assert reaction["anchor"]["source_revision"] == revision
 
 
 def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):

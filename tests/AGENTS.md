@@ -34,7 +34,7 @@ names. Both landing gates pass `--nightly-changed-since`, which adds the nightly
 whose own lines the change edits.
 
 A change lands only on a green landing gate. Every other nightly test is CI's to
-report: the `nightly` job in `ci.yaml` runs the complete suite once main moves, and
+report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
 `tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
 run the everyday gate and the few browser tests that hold the behavior you changed,
 named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
@@ -45,7 +45,7 @@ names by node id.
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
 never for instruction text. Review the affected recordings when changing interaction
-guidance, and after an intentional change reset only the affected test and read the
+instructions, and after an intentional change reset only the affected test and read the
 diff.
 
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
@@ -167,8 +167,10 @@ inside `lfUnwatched`.
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
-both; the nightly-marked tests watch again once the defect most of their shifts share is
-fixed (`known_faults.watches_shifts`). Playwright's clicks and keys are input, as is a
+both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
+after the widget prepaint fixes (`known_faults.watches_shifts`). The watcher still
+exempts first presentation, whose remaining defects the widget quality check records
+in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
 news are not, even in the half second after a click, so a test delivers news whenever
 its story does. Fix what moved rather than consuming
@@ -180,8 +182,7 @@ Typed words leaving the screen without a key or press, which the "Words stay whe
 they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
 included. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
-must do it the way a user does. `known_faults.py` names the tests whose pages still lose
-words, each a defect waiting on its fix.
+must do it the way a user does.
 
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):

@@ -819,9 +819,9 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
 
 def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
     """A side is chosen for the field and its More press, narrower than Suggest and six
-    reactions at rest. Beside the open Threads panel at 1024px the bar had 256px for
-    that 288px row and the reactions dropped whole beneath Suggest. They give up spare
-    padding before the row breaks, so the row holds and stays inside the bar."""
+    reactions at rest. Constrain the bar beside the open Threads panel to the
+    280px space that previously made reactions drop beneath Suggest. They give
+    up spare padding before the row breaks, so it stays inside the bar."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1024, 768)
     page.locator(".lf-threads-toggle").click()
@@ -833,6 +833,7 @@ def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
     page.keyboard.press("Tab")
     choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
     expect(choices).to_have_count(7)
+    bar.evaluate("element => { element.style.maxWidth = '280px'; }")
     rendered(page)
     row = bar.evaluate("""bar => {
       const box = bar.getBoundingClientRect();
@@ -1164,7 +1165,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # Retiring a background draft must not interrupt an unrelated typing surface.
     search = page.get_by_role("searchbox", name="Find in threads")
-    search.focus()
+    search.click()
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
@@ -1877,8 +1878,9 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     browser, serve
 ):
     """The shared placement path listens to nested scroll boxes and clips target
-    geometry to what is actually shown. Once none remains the bar waits out of view,
-    and it stands again, focus returned, when the target is scrolled back."""
+    geometry to what is actually shown. While its editor is open, the bar stays
+    available in the window when the target scrolls away, then rejoins the target
+    when it returns."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -1918,9 +1920,12 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     ), (before_target, before_bar, after_target, after_bar)
 
     diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
-    expect(bar).to_be_hidden()
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(bar).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     diagram.evaluate("element => { element.scrollLeft = 0; }")
     expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("data-lf-plane", "page")
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
@@ -2677,7 +2682,7 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
     list the user was walking. The open list is where the mode stands."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 844)
-    page.keyboard.press("Shift+t")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # The reply strip that shows is in the panel; the page's own strips stand under it.
     page.evaluate(

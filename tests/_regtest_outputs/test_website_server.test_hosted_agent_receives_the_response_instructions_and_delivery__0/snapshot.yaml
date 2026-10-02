@@ -22,8 +22,12 @@ thread/start:
 
     ## Delivery
 
-    New user input reaches you only once the current turn ends, because a delivery
-    starts a turn of its own: once the task is idle, Leaf starts one with the complete
+    While a task with Leaf's trusted tool hook is working, new input can arrive between
+    steps as a `leaf-delivery` pointer. Read it and answer with explicit commands as
+    `references/host-codex.md`, "Delivery", describes. That reply is not bound to
+    your turn's final message.
+
+    Otherwise a delivery starts a turn of its own: once the task is idle, Leaf starts one with the complete
     delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
     threads, presented as one chronological slice per turn. Leaf acknowledges the
     delivery itself once it enters that turn, so this contract leaves no acknowledgement to

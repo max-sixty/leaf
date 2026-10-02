@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from .files import json_bytes, read_json
+from .files import read_json
 from .leases import lock_is_held
 from .machine import state_home
 from .schema import (
@@ -18,6 +18,7 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
+from .session_cleanup import json_bytes
 
 
 def running_server(page_dir: Path):

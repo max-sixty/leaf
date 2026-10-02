@@ -610,6 +610,34 @@ def shrunk_label_advice(page) -> list[str]:
     ]
 
 
+def overflowing_regions(page, viewport: dict) -> list[dict]:
+    """Each region of a screen that runs past the room it has, as `overflowingRegions`
+    reads it, with the viewport it was read at.
+
+    A full-height workspace is a screen the reader moves through rather than scrolls,
+    so its regions should show what they hold, and one that scrolls is the exception
+    (page-authoring.md, A workspace). Read at the desktop viewport, a size a reader
+    works at. Advice rather than a failure: a region that scrolls still shows
+    everything, and whether to trim it or split it is the author's call."""
+    _settle_at(page, viewport["width"], viewport["height"])
+    return [
+        {**region, "viewport": viewport}
+        for region in evaluate_probe(page, "overflowingRegions")
+    ]
+
+
+def overflowing_region_advice(region: dict) -> str:
+    """The advice an overflowing region (`overflowing_regions`) is given."""
+    viewport = region["viewport"]
+    return (
+        f"at {viewport['width']}x{viewport['height']} {region['at']} runs "
+        f"{region['over']}px past the region it scrolls in: a workspace is a "
+        "screen the reader moves through, so trim it to what the region shows "
+        "or split it, unless the region is a reader for something long, such "
+        "as a source file or a log (page-authoring.md, A workspace)"
+    )
+
+
 def unreserved_height_advice(page, declarations: dict) -> list[str]:
     """Advice naming each widget whose module drew it at a height its first paint did
     not reserve (x-height), with the data-height that would have.

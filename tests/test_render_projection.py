@@ -25,6 +25,7 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -347,7 +348,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description stays unchanged.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -389,7 +390,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description waits for Markdown.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -582,10 +583,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(context).to_be_focused()
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -597,10 +595,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:40 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(added).to_be_focused()
     # Each line already stood in the window once the diff revealed it, so neither
     # trip departed: no history entry, and the address kept no fragment.
     assert page.evaluate("history.length") == entries
@@ -7680,20 +7675,22 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
-    # the repeatable category walk and the thread-local reply route explicit.
+    # reaches Threads, on the title of the thread it shows open. A stray digit there
+    # neither travels nor picks; t then c makes the repeatable category walk and the
+    # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
-    # completion closes it and the second is the arrival on the list.
+    # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    title = page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")
+    expect(title).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(title).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()

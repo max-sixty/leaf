@@ -8,6 +8,7 @@ import "../vendor/webawesome.esm.js";
 import {
   cancelRender,
   commands,
+  countAreas,
   describeDifference,
   compoundReadingRegionId,
   consumeThreads,
@@ -848,17 +849,19 @@ customElements.define(
         const ratio = record.capture.deviceScaleFactor;
         const focus = record.focus;
         const outside = focus
-          ? difference.regions.filter(
-              (region) =>
-                region.x >= (focus.x + focus.width) * ratio ||
-                region.x + region.width <= focus.x * ratio ||
-                region.y >= (focus.y + focus.height) * ratio ||
-                region.y + region.height <= focus.y * ratio,
-            ).length
-          : 0;
+          ? countAreas(
+              difference.regions.filter(
+                (region) =>
+                  region.x >= (focus.x + focus.width) * ratio ||
+                  region.x + region.width <= focus.x * ratio ||
+                  region.y >= (focus.y + focus.height) * ratio ||
+                  region.y + region.height <= focus.y * ratio,
+              ),
+            )
+          : { changed: 0, moved: 0 };
+        const left = outside.changed + outside.moved;
         parts.push(
-          describeDifference(difference) +
-            (outside ? ` (${outside} outside the focus)` : ""),
+          describeDifference(difference) + (left ? ` (${left} outside the focus)` : ""),
         );
       }
       setText(entry.article.querySelector(".lf-vr-case-position"), parts.join(" · "));

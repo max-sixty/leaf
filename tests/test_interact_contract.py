@@ -1959,8 +1959,8 @@ def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
             "must be a canonical data source string",
         ),
         (
-            lambda entry: entry.update({"x-guidance": {"author": ""}}),
-            "should be non-empty",
+            lambda entry: entry.update({"x-instructions": ""}),
+            "registry extensions are invalid",
         ),
     ],
 )

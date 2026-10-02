@@ -1,7 +1,7 @@
 # Added with `leaf package check PACKAGE --render`, the widget quality report a
 # package's author runs before any page uses a widget. This case checks that an agent
 # finishing a package widget reaches for the report and reads its findings as advice.
-# Measured when added: 0 of 3 on the guidance before the report existed, 3 of 3 after.
+# Measured when added: 0 of 3 on the instructions before the report existed, 3 of 3 after.
 schema_version: '1.0'
 name: widget-checked-before-handoff
 description: "A finished package widget is checked with package check --render, whose findings are advice."

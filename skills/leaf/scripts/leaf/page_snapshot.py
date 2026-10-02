@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .data import read_data
-from .event_log import now_iso
 from .files import (
     list_revisions,
     revision_label,
@@ -27,6 +26,7 @@ from .revision_artifact import (
 from .served_state.context import PageRead
 from .served_state.reading import join_reading
 from .service import PageTransaction
+from .session_cleanup import now_iso
 from .structure import SourceDocument
 
 

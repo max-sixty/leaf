@@ -180,6 +180,7 @@ import {
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
+import { retainUserIntent } from "./runtime/user-intent.js";
 
 const panelElements = createThreadPanelElements({ id: "lf-threads" });
 const { panel, closeBtn, panelFoot, threadsBox, narrowingView } = panelElements;
@@ -679,12 +680,16 @@ threadPanelController = createThreadPanelController({
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
 if (window.frameElement?.hasAttribute("data-lf-contained")) {
-  window.frameElement.lfShowThread = async (id, { surface, status, waiting }) => {
+  window.frameElement.lfShowThread = async (
+    id,
+    { surface, status, waiting, signal },
+  ) => {
     if (surface === "panel")
-      return threadPanelController.showView({ thread: id, status, waiting });
-    threadPanelController.setPanel(false);
+      return threadPanelController.showView({ thread: id, status, waiting, signal });
+    const intent = retainUserIntent({ available: () => !signal.aborted });
+    intent.handoff(() => threadPanelController.setPanel(false));
     return Boolean(
-      await app.margin.openPageThread(id, { focus: "thread", travel: false }),
+      await app.margin.openPageThread(id, { focus: "thread", travel: false, intent }),
     );
   };
 }

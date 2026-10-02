@@ -192,6 +192,35 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(reset).to_be_enabled(timeout=30000)
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    reset.focus()
+    expect(reset).to_be_focused()
+    assert (
+        page.locator("#on-you-sample").evaluate(
+            "sample => sample.showThread('98850286')"
+        )
+        is True
+    )
+    expect(reset).to_be_focused()
+    expect(anchored).to_be_visible()
+
+    # A cancelled arrival must leave newer focus inside the child alone.
+    assert (
+        page.locator("#on-you-sample").evaluate(
+            """async sample => {
+          const frame = sample.querySelector('iframe');
+          const real = frame.lfShowThread;
+          frame.lfShowThread = (...args) => {
+            const operation = real(...args);
+            frame.contentDocument.querySelector('.lf-threads-toggle').focus();
+            return operation;
+          };
+          try { return await sample.showThread('98850286'); }
+          finally { frame.lfShowThread = real; }
+        }"""
+        )
+        is False
+    )
+    expect(views["you"].locator(".lf-threads-toggle")).to_be_focused()
 
     views["you"].get_by_role("button", name=re.compile("Open threads")).click()
     expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
@@ -273,8 +302,19 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     # Completion is the presented view, not a request to press private controls.
     result = page.locator("#bg-panel-sample").evaluate(
         """async sample => {
+          const frame = sample.querySelector('iframe');
+          const real = frame.lfShowThread;
+          let started;
+          const invocation = new Promise(resolve => started = resolve);
+          frame.lfShowThread = (...args) => {
+            const operation = real(...args);
+            started();
+            return operation;
+          };
           const first = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
             {surface: 'panel', waiting: 'user'});
+          await invocation;
+          frame.lfShowThread = real;
           const latest = sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
             {surface: 'panel', status: 'resolved'});
           return Promise.all([first, latest]);
@@ -287,8 +327,19 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     ).to_have_text("Projector map")
     result = page.locator("#bg-panel-sample").evaluate(
         """async sample => {
+          const frame = sample.querySelector('iframe');
+          const real = frame.lfShowThread;
+          let started;
+          const invocation = new Promise(resolve => started = resolve);
+          frame.lfShowThread = (...args) => {
+            const operation = real(...args);
+            started();
+            return operation;
+          };
           const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
             {surface: 'panel', waiting: 'user'});
+          await invocation;
+          frame.lfShowThread = real;
           await sample.reset();
           return old;
         }"""

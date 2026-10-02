@@ -10,6 +10,7 @@
 import { handBack, letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";
+import { retainUserIntent } from "./user-intent.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { closestAcross } from "./passages.js";
 import { declareSide } from "./standing-target.js";
@@ -55,12 +56,16 @@ export function createThreadPanelController({
     if (open || panelIsOpen()) auxiliarySurfaces.select(open ? key : null, options);
   }
   let viewRequest = 0;
-  async function showView({ status, waiting, thread } = {}) {
+  async function showView({ status, waiting, thread, signal } = {}) {
     const request = ++viewRequest;
-    setPanel(true);
+    const intent = retainUserIntent({
+      available: () => request === viewRequest && !signal.aborted && panel.isConnected,
+      fallback: threadsBox,
+    });
+    intent.handoff(() => setPanel(true));
     await narrowing.select({ status, waiting });
-    if (request !== viewRequest || !panelIsOpen()) return false;
-    return thread ? showThread(thread, { focus: false }) : true;
+    if (!intent() || !panelIsOpen()) return false;
+    return thread ? Boolean(await showThread(thread, { focus: false, intent })) : true;
   }
 
   function paintPanel(open, phase) {

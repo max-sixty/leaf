@@ -18,8 +18,7 @@ vars:
     Start both with the same workshop conversation: I asked whether Sunday keeps
     the hourly service, and the agent confirmed that it does. Let me switch each
     conversation between its page card and the Threads panel using outer controls.
-    I want Reset to bring
-    that exchange back. Comments about which design to build should reach our chat."
+    I want Reset to bring that exchange back. Comments about which design to build should reach our chat."
 
     An earlier study used `data-sample-threads` and a companion JSONL copied from
     the thread gallery. The review page has no log yet. We need one HTML source
@@ -60,9 +59,9 @@ assert:
     the child templates. Fail if it relies on data-sample-threads, a companion
     JSONL or posting fixture events from JavaScript, or duplicates fixture anchor
     paragraphs outside the templates to attach fictional parent threads.
-- name: selects-live-conversation-view
-  type: llm
-  criteria: |
+- type: llm-rubric
+  metric: selects-live-conversation-view
+  value: |
     Pass only if outer controls call the lf-sample element's showThread method
     with a fixture root id and select page versus panel with its surface option,
     and lf-sample-ready reapplies the chosen view after Reset. Fail if controls

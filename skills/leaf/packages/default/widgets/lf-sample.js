@@ -29,7 +29,7 @@ customElements.define(
     #fitting = 0;
     #ready;
     #mounting = false;
-    #viewRequest = 0;
+    #viewOperation;
 
     get ready() {
       return this.#ready;
@@ -64,7 +64,9 @@ customElements.define(
 
     disconnectedCallback() {
       queueMicrotask(() => {
-        if (this.isConnected || !this.#host) return;
+        if (this.isConnected) return;
+        this.#viewOperation?.abort();
+        if (!this.#host) return;
         const host = this.#host;
         this.#host = null;
         cancelRender(this.#fitting);
@@ -157,22 +159,44 @@ customElements.define(
     // Latest selection wins, including a selection waiting on a replacement child.
     // The outer control remains the keyboard stop while the child draws its view.
     async showThread(id, { surface = "page", status, waiting } = {}) {
-      const request = ++this.#viewRequest;
+      this.#viewOperation?.abort();
+      const operation = new AbortController();
+      this.#viewOperation = operation;
+      const { signal } = operation;
       const ready = this.#ready;
-      await ready;
-      if (request !== this.#viewRequest || ready !== this.#ready || !this.isConnected)
-        return false;
-      const invoker = this.ownerDocument.activeElement;
-      const shown = await this.#host.showThread(id, { surface, status, waiting });
-      if (request !== this.#viewRequest || ready !== this.#ready || !this.isConnected)
-        return false;
-      if (this.ownerDocument.activeElement === this.#frame && invoker !== this.#frame)
-        invoker?.focus({ preventScroll: true });
-      return shown;
+      let cancelled;
+      const cancellation = new Promise((resolve) => {
+        cancelled = () => resolve(false);
+        signal.addEventListener("abort", cancelled, { once: true });
+      });
+      const select = async () => {
+        await ready;
+        if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
+        const invoker = this.ownerDocument.activeElement;
+        const shown = await this.#host.showThread(id, {
+          surface,
+          status,
+          waiting,
+          signal,
+        });
+        if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
+        if (
+          shown &&
+          this.ownerDocument.activeElement === this.#frame &&
+          invoker !== this.#frame
+        )
+          invoker?.focus({ preventScroll: true });
+        return shown;
+      };
+      try {
+        return await Promise.race([select(), cancellation]);
+      } finally {
+        signal.removeEventListener("abort", cancelled);
+      }
     }
 
     async reset() {
-      ++this.#viewRequest;
+      this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
         this.connectedCallback();

@@ -670,4 +670,33 @@ def test_send_grows_thread_around_the_words(
         expect(
             card.get_by_text("The same placement works for a reply.")
         ).to_be_visible()
+
+        # The first sent message, subsequent turns, metadata and the empty reply
+        # share one reading edge, both during the handoff and after reopening.
+        def reading_edges():
+            return card.evaluate("""card => {
+              const firstGlyph = node => {
+                const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+                while (walker.nextNode()) {
+                  const text = walker.currentNode;
+                  const at = text.textContent.search(/\\S/);
+                  if (at < 0) continue;
+                  const range = document.createRange();
+                  range.setStart(text, at); range.setEnd(text, at + 1);
+                  return range.getBoundingClientRect().left;
+                }
+              };
+              return [...card.querySelectorAll('.lf-page-thread-head > b, .lf-page-thread-body, .lf-compose-placeholder > span')]
+                .map(firstGlyph);
+            }""")
+
+        edges = reading_edges()
+        assert len(edges) == 5, edges
+        assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
+        card.locator(".lf-margin-preview-close").click()
+        page.keyboard.press("Enter")
+        rendered(page)
+        edges = reading_edges()
+        assert len(edges) == 5, edges
+        assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
     judge_watches()

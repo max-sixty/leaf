@@ -260,7 +260,7 @@ export function createMarginProjection({
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     let from = "path:";
-    for (let node = target; node;) {
+    for (let node = target; node; ) {
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (projection/data.js).
@@ -295,7 +295,7 @@ export function createMarginProjection({
     // tree from a later target inside one of its nested shadow hosts.
     const ancestry = (target) => {
       const chain = [];
-      for (let node = target; node;) {
+      for (let node = target; node; ) {
         chain.push(node);
         node = renderedParent(node);
       }
@@ -425,7 +425,6 @@ export function createMarginProjection({
   function threadTransitionOrigin(element, frame = null) {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
-    const border = (edge) => parseFloat(style[`border${edge}Width`]);
     return {
       frame,
       left: box.left,
@@ -434,9 +433,13 @@ export function createMarginProjection({
       height: box.height,
       messageWidth: parseFloat(style.width),
       messageHeight: parseFloat(style.height),
-      padding: ["Top", "Right", "Bottom", "Left"]
-        .map((edge) => `${parseFloat(style[`padding${edge}`]) + border(edge)}px`)
+      paddingBlock: ["Start", "End"]
+        .map(
+          (edge) =>
+            `${parseFloat(style[`paddingBlock${edge}`]) + parseFloat(style[`borderBlock${edge}Width`])}px`,
+        )
         .join(" "),
+      paddingEnd: `${parseFloat(style.paddingInlineEnd) + parseFloat(style.borderInlineEndWidth)}px`,
       font: style.font,
       scroll: element.scrollTop,
     };
@@ -512,7 +515,8 @@ export function createMarginProjection({
       "--lf-comment-width": previewOrigin && `${origin.frame.width}px`,
       "--lf-comment-message-width": previewOrigin && `${origin.messageWidth}px`,
       "--lf-comment-message-height": previewOrigin && `${origin.messageHeight}px`,
-      "--lf-comment-message-padding": previewOrigin && origin.padding,
+      "--lf-comment-message-pad-block": previewOrigin && origin.paddingBlock,
+      "--lf-comment-message-pad-end": previewOrigin && origin.paddingEnd,
       "--lf-comment-message-font": previewOrigin && origin.font,
     };
     for (const [name, value] of Object.entries(properties))

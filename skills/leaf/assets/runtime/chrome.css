@@ -1259,6 +1259,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
+    /* Every turn, author and field starts its words on this shared reading edge.
+       Fields subtract their border; messages inherit the transcript's inset. */
+    --lf-comment-text-inset: 13px;
     --lf-comment-head: max(28px, var(--aim-floor));
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
@@ -1320,7 +1323,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
-    --lf-compose-pad-inline-start: 12px;
+    --lf-compose-pad-inline-start: calc(var(--lf-comment-text-inset) - 1px);
     flex: 0 1 auto; }
   .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
   .lf-fab-bar .lf-compose-submit {
@@ -1548,11 +1551,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-comment-frame] {
     width: min(var(--lf-comment-width), var(--lf-thread-width));
   }
-  .lf-margin-preview[data-lf-comment-frame] .lf-thread-transcript { padding-inline: 0; }
   .lf-margin-preview[data-lf-comment-frame] .lf-page-thread-msg:first-of-type > .lf-page-thread-body {
-    box-sizing: border-box; width: min(100%, var(--lf-comment-message-width));
+    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-comment-text-inset)));
     max-height: var(--lf-comment-message-height); overflow-y: auto; margin-top: var(--lf-comment-body-gap);
-    padding: var(--lf-comment-message-padding);
+    padding-block: var(--lf-comment-message-pad-block);
+    padding-inline: 0 var(--lf-comment-message-pad-end);
     font: var(--lf-comment-message-font); color: var(--ink-2);
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-page-thread-msg:first-of-type > .lf-page-thread-body > p {
@@ -1581,7 +1584,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-page-thread { display: flex; flex-direction: column;
     min-height: 0; min-width: 0; }
   .lf-margin-thread .lf-thread-transcript { min-height: 0; overflow-y: auto;
-    overscroll-behavior: contain; padding-inline: var(--sp-2);
+    overscroll-behavior: contain; padding-inline: var(--lf-comment-text-inset) 0;
     scroll-padding-block: var(--focus-ring-room); }
   /* The thread's first message opens directly at the card edge. */
   .lf-margin-thread .lf-page-thread-msg:first-of-type { margin-top: 0; }
@@ -1599,12 +1602,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     flex: none; align-items: stretch; margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }
-  .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
+  .lf-margin-thread .lf-compose-field {
+    --lf-compose-pad-inline-start: calc(var(--lf-comment-text-inset) - 1px); }
+  .lf-margin-thread .lf-say leaf-text {
+    padding-inline-start: var(--lf-compose-pad-inline-start); }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: var(--lf-thread-editor-room, 50vh); }
   .lf-margin-preview .lf-thread-root-meta { flex: none;
     align-items: center; gap: 4px; min-height: var(--lf-comment-head);
-    padding-inline: var(--sp-2) 0; }
+    padding-inline: var(--lf-comment-text-inset) 0; }
   .lf-margin-preview .lf-thread-root-meta > .lf-page-thread-head {
     display: flex; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
   .lf-margin-preview .lf-page-thread-head .lf-msg-meta {

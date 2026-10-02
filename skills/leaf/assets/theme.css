@@ -758,22 +758,22 @@ body {
   border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
-/* A single-line field or select a widget offers wears the text box's frame at a
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
    button's height, so a row of them beside .lf-btn reads as one set of controls. With
    no face the browser drew its own: a 2px inset border and square corners, 21px tall
    beside 30px buttons. At a class's weight, so a component rule naming its own field
    still wins by standing later. */
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
   padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 6px;
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui:focus-visible {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field):focus-visible {
   outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
+:is(input, textarea):is(.lf-ui, .field)::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--focus-ring);
   --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }

@@ -192,6 +192,8 @@ export class HeldNews {
     );
     const shown = this.#draw(prior, reading);
     this.#shown = read ? shown : null;
+    // Waiting for all of the seat to go keeps news held a little longer than it needs,
+    // never shorter.
     if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
     else this.#stop();
     return shown;

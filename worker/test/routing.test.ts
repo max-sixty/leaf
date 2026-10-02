@@ -129,8 +129,8 @@ describe("website page routing", () => {
       isPageSessionFileRequest(route("/examples/triage-board/shadow.css"), manifest),
     ).toBe(false);
     expect(route("/examples.html")).toBeNull();
-    // Only the namespace the manifest names: a page serves no guidance.
-    expect(route("/examples/triage-board/guidance/author.md")).toBeNull();
+    // Only the namespace the manifest names: a page serves no instructions.
+    expect(route("/examples/triage-board/instructions/author.md")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();
     // A crawler reads these two off the asset binding; a page route would hand
     // each user a container session before it had seen a page.

@@ -11,8 +11,8 @@ from leaf.schema import (
     DATA_CONTRACT_NAME,
     DECLARED_MARKS,
     EXTENSION_SCHEMA,
-    GUIDANCE_SCHEMA,
     HTML_NAME,
+    INSTRUCTIONS_SCHEMA,
 )
 
 from .contract import (
@@ -103,7 +103,7 @@ def validate_event_handling(events: dict, kinds: dict, path) -> None:
     consumer assumes: a declared event kind or answer kind, a non-empty list of
     clauses, each a non-empty `text` and an optional `when` that is a valid JSON
     Schema. The complete vendored registry must carry both maps; individual kind
-    guidance remains optional."""
+    instructions remain optional."""
     for key, known in (("handling", kinds), ("answering", ANSWER_KINDS)):
         declared = events.get(key)
         if not isinstance(declared, dict) or any(
@@ -207,14 +207,14 @@ def validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration) - {"description", "schema", "guidance", "records"}
+            or set(declaration) - {"description", "schema", "instructions", "records"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional guidance and records"
+                "schema, with optional instructions and records"
             )
         records = declaration.get("records")
         if records is not None and (
@@ -229,16 +229,16 @@ def validate_layer_declarations(
                 f"{path}: $data contract {contract!r} records must name distinct "
                 "non-empty items and key fields, and optionally a deferred field"
             )
-        guidance_errors = sorted(
-            json_validator(GUIDANCE_SCHEMA).iter_errors(
-                declaration.get("guidance", {})
+        instructions_errors = sorted(
+            json_validator(INSTRUCTIONS_SCHEMA).iter_errors(
+                declaration.get("instructions", {})
             ),
             key=str,
         )
-        if guidance_errors:
+        if instructions_errors:
             raise RegistryError(
-                f"{path}: $data contract {contract!r} guidance is invalid: "
-                f"{guidance_errors[0].message}"
+                f"{path}: $data contract {contract!r} instructions are invalid: "
+                f"{instructions_errors[0].message}"
             )
         try:
             Draft202012Validator.check_schema(declaration["schema"])

@@ -8,8 +8,8 @@ the tree (`pinned_copy`):
   `examples/media/` the images the example pages show (`leaf_dev.page_fixtures`);
 - `demo/` holds the README's recording and stills and the site's card
   (`leaf_dev.record_demo`);
-- `evals/<case>/` holds what a guidance case hands its child
-  (`leaf_dev.guidance_eval`).
+- `evals/<case>/` holds what an instruction case hands its child
+  (`leaf_dev.instructions_eval`).
 
 `leaf-assets.json` pins one commit, so every Leaf checkout reads one immutable set; the
 README's image URLs name the same commit. Downloads land under .tmp, which both local

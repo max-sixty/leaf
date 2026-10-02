@@ -141,7 +141,6 @@ import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { pointBand, standingPoint } from "./pointed-place.js";
 import {
-  TEXT_FIELD,
   declareRelease,
   focusDestination,
   handBack,
@@ -149,6 +148,7 @@ import {
   letGo,
   placeChrome,
 } from "./focus.js";
+import { TEXT_FIELD } from "./control-selectors.js";
 import { closeControl, el, offer } from "./widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 import { setChildren } from "./dom-children.js";

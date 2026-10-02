@@ -24,13 +24,13 @@
    `position-visibility` hides a row whose anchor its scroller has clipped away, but not
    one whose anchor is invalid (missing, `display: contents`, inside
    `content-visibility: hidden`): every position function in the stylesheet therefore
-   parks the row off screen when its anchor fails, and this pass marks a row withheld,
-   out of the tab order, when its target has no shown part in its region.
+   parks the row off screen when its anchor fails. A target or its anchored part leaving
+   withholds the row before the next paint; layout withholds it when its region hides it.
 
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "./focus.js";
+import { TAB_STOP } from "./control-selectors.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
 import { shadowHost, under, upFrom } from "./shadow.js";
@@ -46,6 +46,10 @@ import { keeps, layoutPx } from "./keeps.js";
 import { declarationFor } from "./registry.js";
 
 const rows = new Map();
+// The box the last pass anchored each row through. A contents target's first shown
+// part can leave while the declared target remains, and it is that box's departure
+// that invalidates the browser's anchor before the next pass reads its replacement.
+const anchors = new WeakMap();
 const GAP = 4;
 // The id of the thread card a margin row opens (margin-projection.js).
 export const THREAD_CARD = "lf-margin-preview";
@@ -202,15 +206,32 @@ export function scheduleMarginEntryLabels() {
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
   paintPins();
-  hearScrolls(document);
+  hearTargetChanges(document);
 }
 
-// A scroll event does not leave its shadow tree, so a target inside one is heard on each
-// tree holding it as well as on the document.
+// Neither scroll events nor mutation records leave their shadow tree, so a target
+// inside one is heard on each tree holding it as well as on the document.
 const heard = new WeakSet();
-function hearScrolls(root) {
+function hearTargetChanges(root) {
   if (heard.has(root)) return;
   heard.add(root);
+  // Resize delivery follows layout. A target or its anchored part removed by a widget
+  // would therefore paint the row's fallback before the next layout pass withheld it.
+  // Hear those moves at their mutation checkpoint, before paint;
+  // a remove-and-reinsert in one batch is a move, not a departure.
+  new MutationObserver((records) => {
+    const moved = records
+      .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
+      .filter((node) => node instanceof Element);
+    for (const [row, options] of rows) {
+      const target = options.anchor();
+      const anchor = anchors.get(row);
+      if (!moved.some((node) => under(target, node) || under(anchor, node))) continue;
+      if (!target?.isConnected || (anchor && !anchor.isConnected))
+        row.classList.toggle("lf-withheld", true);
+      scheduleMarginLayout();
+    }
+  }).observe(root, { childList: true, subtree: true });
   root.addEventListener(
     "scroll",
     (event) => {
@@ -623,6 +644,7 @@ export function registerMarginRow(row, options = {}) {
 
 export function unregisterMarginRow(row) {
   rows.delete(row);
+  anchors.delete(row);
   if (row) {
     row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
@@ -793,6 +815,7 @@ export function layoutMarginRows() {
       continue;
     }
     const anchor = anchorElement(target);
+    anchors.set(row, anchor);
     // Level with the row a gesture pointed into, where the row's comment has one
     // (pointed-place.js); otherwise level with the target's top.
     const point = options.point?.() ?? null;
@@ -802,7 +825,7 @@ export function layoutMarginRows() {
       shadowHost(root);
       root = root.host.getRootNode()
     )
-      hearScrolls(root);
+      hearTargetChanges(root);
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();

@@ -36,7 +36,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
-import { TEXT_BOX } from "./focus.js";
+import { WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -217,66 +217,6 @@ export function quoted(el) {
   const exhibits = tagsDeclaring((entry) => entry["x-exhibit"]);
   return exhibits.length > 0 && el.closest(exhibits.join(",")) !== null;
 }
-
-// What a page's own markup works: a link to follow, a control to set, a disclosure to
-// open, a player to start. Browser-native interactive content, the ARIA widget roles,
-// and the platform's explicit focus/edit/drag markers are one boundary shared by every
-// gesture owner. `summary` stands for `details`, because only the summary is the press and
-// the body under it is prose the user may point at like any other. Nothing embedded
-// (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
-// listing them would guard a gesture no listener out here can see.
-// Two kinds, read apart where the question is whether a picture is a control's
-// rendering. A press is one control whose whole box is the gesture: what it holds, an
-// icon or a thumbnail, is how the control looks. A region is somewhere a gesture can
-// land that holds content of its own: a tab stop focus rests on, a composite widget
-// whose items are the presses, an editing surface, a drag source.
-const PRESS_SELECTORS = [
-  "a",
-  "audio[controls]",
-  "button",
-  "img[usemap]",
-  "input:not([type='hidden'])",
-  "label",
-  "select",
-  "summary",
-  TEXT_BOX,
-  "video[controls]",
-  "[role='button']",
-  "[role='checkbox']",
-  "[role='combobox']",
-  "[role='link']",
-  "[role='menuitem']",
-  "[role='menuitemcheckbox']",
-  "[role='menuitemradio']",
-  "[role='option']",
-  "[role='radio']",
-  "[role='scrollbar']",
-  "[role='searchbox']",
-  "[role='separator'][tabindex]",
-  "[role='slider']",
-  "[role='spinbutton']",
-  "[role='switch']",
-  "[role='tab']",
-  "[role='textbox']",
-  "[role='treeitem']",
-];
-const REGION_SELECTORS = [
-  "[tabindex]:not([tabindex='-1'])",
-  "[contenteditable]:not([contenteditable='false'])",
-  "[draggable='true']",
-  "[role='application']",
-  "[role='grid']",
-  "[role='gridcell']",
-  "[role='listbox']",
-  "[role='menu']",
-  "[role='menubar']",
-  "[role='radiogroup']",
-  "[role='tablist']",
-  "[role='tree']",
-  "[role='treegrid']",
-];
-export const PRESSES = PRESS_SELECTORS.join(",");
-export const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and

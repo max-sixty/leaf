@@ -70,12 +70,19 @@ inspection layer.
 
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. Without a gesture, a box
-may grow or shrink into free room, but reading content and controls stay put. Passive
-message metadata may rearrange inside a stationary header when it moves no neighbour
-and stays inside the header. Its age and receipt need no reserved-width slots;
-controls and ordinary reading text never take this exception. News grows where the
-reader isn't looking: above the screen, where scroll anchoring takes the growth into
-what they scrolled past, or below it. So a thread's reply box stands at the foot of the
+may grow or shrink into free room, but reading content and controls stay put.
+Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
+region, such as a conversation header, declares its own stationary box: labels may
+repack inside it while every contained control stays put. A `controls` region,
+such as the adaptive shortcut bar, permits its hints and controls to repack inside
+its stationary box. Declare the box that owns the available room, rather than an
+auto-sized inner label group or a boxless wrapper. A nested region must hold its own
+boundary and every enclosing declaration's guarantees; it never borrows an outer
+declaration or relaxes one, including across a shadow root. Both painted positions stay inside
+that boundary, and neighbours and ordinary page reading content stay put. Typing
+still cannot carry its field.
+News grows where the reader isn't looking: above the screen, where scroll anchoring
+takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they

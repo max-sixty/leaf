@@ -4,6 +4,7 @@ import json
 import re
 from itertools import pairwise
 
+import pytest
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -416,9 +417,16 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#direction")).to_have_count(1)
+    message_top = page.locator("#direction").evaluate(
+        "node => node.getBoundingClientRect().top"
+    )
     with sending(page, "choose North in the authored reply"):
         page.locator("#north .lf-pick").click()
     round_trip(page)
+    assert (
+        page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
+        == message_top
+    )
     assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
       .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
@@ -921,7 +929,10 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     )
 
 
-def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
+@pytest.mark.parametrize("expanded", [False, True])
+def test_admission_holds_approval_until_the_answer_is_in_the_log(
+    browser, serve, expanded
+):
     """An answer the log has not taken in cannot open the irreversible approval.
 
     The pick is the user's at once — that is their own gesture drawn on their own
@@ -945,6 +956,16 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
         "title", "Answer every Ask before approving this work"
     )
 
+    if expanded:
+        page.keyboard.press("?")
+        expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+            "data-lf-expanded", "true"
+        )
+    # Admission may repack contextual hints and More inside the same bottom band.
+    band = page.locator(".lf-shortcut-bar")
+    before = band.bounding_box()
+    assert before is not None
+
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -953,6 +974,9 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+
+    rendered(page)
+    assert band.bounding_box() == before
 
 
 PAGE_DECLARATION = {

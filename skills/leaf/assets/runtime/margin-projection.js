@@ -228,7 +228,7 @@ import { renderedParent, shadowHost, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
-const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
+const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 
 export function createMarginProjection({
   panel,
@@ -415,7 +415,7 @@ export function createMarginProjection({
     previewTranscript = transcript;
     previewPlace = transcript
       ? placeKeeper(transcript, {
-          items: ".lf-page-thread-msg[data-event]",
+          items: ".lf-msg[data-event]",
           identity: (message) => message.dataset.event,
         })
       : null;
@@ -843,7 +843,7 @@ export function createMarginProjection({
   function measureTranscript() {
     return [...previewList.querySelectorAll(".lf-margin-thread")].reduce(
       (sum, thread) =>
-        [...thread.querySelectorAll(".lf-say")].reduce(
+        [...thread.querySelectorAll(".lf-thread-reply")].reduce(
           (turns, row) => turns - boxHeight(row),
           sum +
             boxHeight(thread) +
@@ -864,7 +864,7 @@ export function createMarginProjection({
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
       (preview.offsetHeight - previewList.clientHeight);
     for (const input of previewList.querySelectorAll(REPLY_BOX)) {
-      const row = input.closest(".lf-say");
+      const row = input.closest(".lf-thread-reply");
       const thread = row.closest(".lf-page-thread");
       const style = getComputedStyle(thread);
       const box = getComputedStyle(input);
@@ -976,13 +976,11 @@ export function createMarginProjection({
     // box it empties (`landSent`), and the turn it adds must not move the reply row or
     // Send from under the press.
     const newest = [
-      ...(replyEditor
-        ?.closest(".lf-page-thread")
-        ?.querySelectorAll(".lf-page-thread-msg") ?? []),
+      ...(replyEditor?.closest(".lf-page-thread")?.querySelectorAll(".lf-msg") ?? []),
     ].at(-1);
     const drafting = Boolean(
       replyEditor?.checkVisibility() &&
-      (replyEditor.closest(".lf-say").contains(document.activeElement) ||
+      (replyEditor.closest(".lf-thread-reply").contains(document.activeElement) ||
         replyEditor.value !== "" ||
         newest?.matches('.user[aria-busy="true"]')),
     );
@@ -2478,10 +2476,10 @@ export function createMarginProjection({
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-thread-transcript > .lf-page-thread-msg";
+      ".lf-page-thread > .lf-thread-transcript > .lf-msg";
     const replySelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-say";
+      ".lf-page-thread > .lf-thread-reply";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = previewTranscript?.getBoundingClientRect();
@@ -3299,7 +3297,7 @@ export function createMarginProjection({
     });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusout", (event) => {
-      const row = event.target.closest?.(".lf-say");
+      const row = event.target.closest?.(".lf-thread-reply");
       if (
         row &&
         !row.contains(event.relatedTarget) &&

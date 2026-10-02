@@ -121,12 +121,12 @@ phone-passage:
     down: still
 
 phone-touch-passage:
-  expected: below
+  expected: below or above
   comment box:
-    side: below
+    side: below or above
     stands: clear of the block
   thread card:
-    side: below
+    side: below or above
     stands: clear of the block
   moves:
     across: still

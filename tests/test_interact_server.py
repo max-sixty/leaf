@@ -53,6 +53,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
@@ -3246,9 +3247,9 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         requester.start()
         assert entered.wait(timeout=5), "the server did not accept the request"
         closer.start()
-        assert not closed.wait(timeout=0.1), (
-            "close returned with a request still active"
-        )
+        assert not closed.wait(
+            timeout=0.1
+        ), "close returned with a request still active"
         release.set()
         closer.join(timeout=5)
         requester.join(timeout=5)
@@ -4235,10 +4236,13 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
     assert not json.loads((page_dir / "service.json").read_text())["enabled"]
 
 
+@pytest.mark.parametrize("owned", [False, True])
 def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, owned
 ):
+    """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
+    owner = host_model.session_harness() if owned else None
     assert hosting_model.start_server(page_dir, standing=True)
     transitioned = threading.Event()
     resume = threading.Event()
@@ -4256,7 +4260,10 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
     stopped = []
     stopping = threading.Thread(
-        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
+        target=lambda: stopped.append(
+            hosting_model.cmd_stop(page_dir, **({"owner": owner} if owned else {}))
+        ),
+        daemon=True,
     )
     try:
         stopping.start()
@@ -4266,10 +4273,16 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             bool,
             failure="the first server did not release its lease",
         )
+        if owned:
+            with service_model.PageTransaction(page_dir) as transaction:
+                transaction.take_claim(
+                    host_model.ClaudeCodeHarness("successor", "Claude")
+                )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
         stopping.join(timeout=3)
         assert stopped == [True]
+        assert bool(server_model.running_server(page_dir)) == owned
     finally:
         resume.set()
         cleanup_model.write_json(
@@ -5003,15 +5016,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     log.write_text("\n".join(lines), encoding="utf-8")
 
     events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
-        "the tear took the reply with it, so nothing below is being read"
-    )
+    assert [e["id"] for e in events if e["kind"] == "reply"] == [
+        "r-kept"
+    ], "the tear took the reply with it, so nothing below is being read"
     names = thread_context_model.thread_names(events)
     assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == ["c-lost"], (
-        f"the two readings put the reply in different threads: {list(threads)}"
-    )
+    assert list(threads) == [
+        "c-lost"
+    ], f"the two readings put the reply in different threads: {list(threads)}"
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
     # The lost id names the thread; its root is the reply that survived, under that
     # reply's own id, because a reply or resolve addressed to the root has to name a

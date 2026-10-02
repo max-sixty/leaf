@@ -108,3 +108,5 @@ in `leaf-assets.json` and the README's image URLs that name it.
   not answered exactly once, queue-backed work does not pick up and answer a comment
   in the same active turn, or the page's claim does not name the task's last turn,
   closed. It spends the host's Codex login, so CI does not run it.
+  `--preview` runs that journey through `leaf-dev preview --user`, also checking
+  the retained keyed URL and feedback after automatic page-server recovery.

@@ -125,6 +125,20 @@ def claim_is_active(claim: dict | None) -> bool:
     return pid_alive(claim["pid"])
 
 
+def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
+    """Whether the record names this harness, or neither names a claimant.
+
+    Identity is independent of liveness: readers pass the active claim when
+    asking who owns the page now; cleanup passes the recorded claim so it may
+    retire its own expired service but cannot disable a successor's.
+    """
+    if harness is None:
+        return claim is None
+    return bool(
+        claim and (claim["harness"], claim["id"]) == (harness.name, harness.session)
+    )
+
+
 def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     """Whether anything has touched this page inside ACTIVITY_GRACE_SECS.
 
@@ -274,12 +288,7 @@ class PageTransaction:
 
     def owned_by(self, harness: "Harness | None") -> bool:
         """Whether this transaction may act for the given waiter."""
-        if harness is None:
-            return self.active_claim is None
-        claim = self.active_claim
-        return bool(
-            claim and (claim["harness"], claim["id"]) == (harness.name, harness.session)
-        )
+        return claimant_matches(self.active_claim, harness)
 
     def release_claim(self) -> None:
         claim = self.claim

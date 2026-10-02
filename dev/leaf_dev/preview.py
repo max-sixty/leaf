@@ -270,7 +270,14 @@ class PreviewService:
             # joins an existing task-wide adapter, whose lifetime it owns itself.
             with starting_claim(self.page):
                 started = start_server(self.page)
-                cmd_codex_start(self.page)
+                try:
+                    cmd_codex_start(self.page)
+                except BaseException:
+                    # The server committed before the adapter did. Withdraw it
+                    # while this claim still names us; starting_claim restores
+                    # the previous claim after this resource cleanup completes.
+                    self.stop()
+                    raise
                 return started
         return claim_and_start(self.page)
 
@@ -332,10 +339,11 @@ class PreviewService:
 
     def stop(self) -> None:
         """Take the server down for good, as the preview ends."""
+        from leaf.host import session_harness
         from leaf.hosting import cmd_stop
 
         if self.user:
-            cmd_stop(self.page)
+            cmd_stop(self.page, owner=session_harness())
         else:
             self._close_temporary()
 
@@ -359,15 +367,17 @@ class PreviewService:
         recorded port was taken), and the watcher tries it again."""
         from leaf.files import read_json
         from leaf.host import session_harness
-        from leaf.service import PageTransaction
+        from leaf.service import claim_is_active, claimant_matches, page_claim
 
         if not self.user:
             return not self.running
         service = read_json(self.page / "service.json")
         if not service or not service["enabled"]:
             return True
-        with PageTransaction(self.page) as transaction:
-            return not transaction.owned_by(session_harness())
+        claim = page_claim(self.page)
+        return not claimant_matches(
+            claim if claim_is_active(claim) else None, session_harness()
+        )
 
 
 def refresh_preview(
@@ -624,7 +634,7 @@ def serve_preview(
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = {path for _, path in next(changes)}
-            if not service.running and service.ended:
+            if service.ended:
                 return  # the service was stopped, or the owning session ended
             if service.user and not service.running:
                 service.serve_again()

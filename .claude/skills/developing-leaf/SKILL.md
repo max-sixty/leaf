@@ -173,6 +173,11 @@ App Server's id. Run it after a change to `codex.py`,
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
+For a change to preview startup or lifetime, add `--preview`. It starts the
+canonical user preview in each task, checks the keyed URL across those turns,
+and interrupts its isolated server between turns to prove that the preview
+restores both the address and working feedback without a source edit.
+
 ## Compare checkout versions
 
 Build the baseline in a detached worktree at the merge base:

@@ -15,12 +15,13 @@ import sys
 import threading
 import time
 import zlib
+from enum import Enum, auto
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, start_detached
 from .files import read_json
-from .host import session_harness
+from .host import Harness, session_harness
 from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -32,7 +33,13 @@ from .server import (
     running_server,
     stop_when_service_ends,
 )
-from .service import PageTransaction, claim_is_active, page_claim, starting_claim
+from .service import (
+    PageTransaction,
+    claim_is_active,
+    claimant_matches,
+    page_claim,
+    starting_claim,
+)
 from .session_cleanup import require_cross_process_locking, write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
@@ -270,13 +277,10 @@ def _serve_claim(
         sys.exit("service was stopped; not reviving")
 
     harness = session_harness()
-    claim = page.claim
     claimed = bool(
         not standing
         and harness is not None
-        and claim is not None
-        and claim["released"] is None
-        and (claim["harness"], claim["id"]) == (harness.name, harness.session)
+        and claimant_matches(page.active_claim, harness)
     )
     if not standing and harness is not None and not claimed:
         sys.exit(
@@ -486,7 +490,16 @@ def claim_and_start(
         return start_server(page_dir, host, standing)
 
 
-def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
+class _StopScope(Enum):
+    ANY_OWNER = auto()
+
+
+def cmd_stop(
+    page_dir: Path,
+    restart: str | None = None,
+    *,
+    owner: Harness | None | _StopScope = _StopScope.ANY_OWNER,
+) -> bool:
     """Disable the desired service, wait until its process lease is released, and
     say whether a server was running.
 
@@ -506,7 +519,19 @@ def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
     stopped = False
     first = True
     while True:
-        with page_locked(page_dir):
+        # A resource owner's cleanup cannot disable its successor's service.
+        # Check that identity in every transition, including after waiting for
+        # the former server to exit. Explicit stops supply no owner restriction.
+        with (
+            page_locked(page_dir),
+            PageTransaction(page_dir)
+            if owner is not _StopScope.ANY_OWNER
+            else contextlib.nullcontext() as page,
+        ):
+            if owner is not _StopScope.ANY_OWNER and not claimant_matches(
+                page.claim, owner
+            ):
+                return stopped
             # The server may release its lease immediately after we disable it.
             stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
@@ -618,10 +643,7 @@ def _restarts_for_this_session(page_dir: Path) -> bool:
     if not claim_is_active(claim):
         return False
     harness = session_harness()
-    if harness is None or (claim["harness"], claim["id"]) != (
-        harness.name,
-        harness.session,
-    ):
+    if harness is None or not claimant_matches(claim, harness):
         sys.exit(
             f"{page_dir} is served for another session, and only that session can "
             "start its server again; re-vendor it from there, or take the page over "

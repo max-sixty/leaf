@@ -1377,7 +1377,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     updates its source or removes it with its block without duplicating controls.
     """
     colored = '\n  print("' + "long source " * 30 + '")\t\n'
-    plain = "  printf '" + "hello " * 30 + "\\n'\t\n"
+    suffix = "VISIBLE_END"
+    plain = "dense_source_" * 30 + suffix
     widget = 'def greet():\n    return "hello"'
 
     def document(colored_source=colored, plain_source=plain, *, keep_colored=True):
@@ -1392,7 +1393,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
                 if keep_colored
                 else ""
             )
-            + '<pre id="plain"><code>'
+            + '<pre id="plain" tabindex="0"><code>'
             + escape(plain_source)
             + '</code></pre><lf-code id="numbered" language="python" hi="2"><pre>'
             + escape(widget)
@@ -1552,6 +1553,113 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     touch_button.tap()
     expect(touch_button).to_have_accessible_name("Code copied")
     assert touch.evaluate("navigator.clipboard.readText()") == plain
+    touch_pre = touch.locator("#plain")
+    frame = touch_pre.bounding_box()
+    touch_pre.tap(position={"x": 20, "y": 20})
+    expect(touch_pre).to_be_focused()
+    expect(touch_pre).to_have_attribute("tabindex", "0")
+    expect(touch_control).to_have_css("opacity", "0")
+    expect(touch_control).to_have_css("pointer-events", "none")
+    assert touch_pre.bounding_box() == frame
+
+    # The source owns a finger's horizontal swipe, even though the copy control
+    # initially occupied its first line. Focus must not cancel the native scroll.
+    cdp = touch_context.new_cdp_session(touch)
+    assert frame
+    x, y = frame["x"] + frame["width"] - 60, frame["y"] + 20
+    cdp.send(
+        "Input.dispatchTouchEvent",
+        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+    )
+    for step in range(1, 15):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": "touchMove",
+                "touchPoints": [{"x": x - 240 * step / 14, "y": y}],
+            },
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    touch.wait_for_function("document.querySelector('#plain').scrollLeft > 0")
+    scroll_settled(touch)
+    touch_pre.evaluate("pre => pre.scrollLeft = pre.scrollWidth")
+
+    def select_suffix():
+        reading = touch_pre.evaluate(
+            """(pre, suffix) => {
+          const text = pre.querySelector('code').firstChild;
+          const range = new Range();
+          range.setStart(text, text.length - suffix.length);
+          range.setEnd(text, text.length);
+          const rect = range.getBoundingClientRect();
+          const copy = pre.nextElementSibling;
+          const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
+          return {opacity: getComputedStyle(copy).opacity,
+                  covered: hit === copy || copy.contains(hit),
+                  suffix: range.toString(),
+                  start: [rect.left, rect.top + rect.height / 2],
+                  end: [rect.right, rect.top + rect.height / 2],
+                  frame: [pre.getBoundingClientRect().left, pre.getBoundingClientRect().right]};
+        }""",
+            suffix,
+        )
+        assert reading["opacity"] == "0" and not reading["covered"], reading
+        assert reading["suffix"] == suffix
+        assert reading["frame"][0] < reading["start"][0]
+        assert reading["end"][0] < reading["frame"][1]
+        hold_selection(touch, reading["start"], reading["end"])
+        assert touch.evaluate("window.getSelection().toString()") == suffix
+        touch.mouse.up()
+
+    select_suffix()
+    touch.locator("#title").tap()
+    expect(touch_control).to_have_css("opacity", "1")
+    expect(touch_control).to_have_css("pointer-events", "auto")
+    expect(touch_pre).to_have_attribute("tabindex", "0")
+
+    # A fitting dense line has the same reading route: its final characters must
+    # stay available even though they sit beneath the resting copy control.
+    fitting = touch_pre.evaluate(
+        """(pre, suffix) => {
+          const code = pre.querySelector('code');
+          const range = new Range();
+          range.setStart(code.firstChild, 0);
+          range.setEnd(code.firstChild, 1);
+          const width = range.getBoundingClientRect().width;
+          const style = getComputedStyle(pre);
+          const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          return 'x'.repeat(Math.floor(available / width) - suffix.length) + suffix;
+        }""",
+        suffix,
+    )
+    touch.locator("#plain > code").evaluate(
+        "(code, source) => code.textContent = source", fitting
+    )
+    assert touch_pre.evaluate("pre => pre.scrollWidth === pre.clientWidth")
+    touch_pre.tap(position={"x": 20, "y": 20})
+    expect(touch_pre).to_be_focused()
+    select_suffix()
+    touch.locator("#title").tap()
+    expect(touch_control).to_have_css("opacity", "1")
+    touch_pre.tap(position={"x": 20, "y": 20})
+    expect(touch_control).to_have_css("opacity", "0")
+    touch.keyboard.press("Tab")
+    expect(touch_button).to_be_focused()
+    assert touch_button.evaluate("button => button.matches(':focus-visible')")
+    expect(touch_control).to_have_css("opacity", "1")
+    expect(touch_pre).to_have_attribute("tabindex", "0")
+    assert touch_pre.bounding_box() == frame
+
+    # A wrapping widget has no authored stop to retain. Its touch focus is lent
+    # for the reading gesture and disappears when the user leaves its source.
+    numbered_pre = touch.locator("#numbered > pre")
+    assert numbered_pre.get_attribute("tabindex") is None
+    numbered_pre.tap(position={"x": 20, "y": 20})
+    expect(numbered_pre).to_be_focused()
+    expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "0")
+    touch.locator("#title").tap()
+    expect(numbered_pre).not_to_have_attribute("tabindex")
+    expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "1")
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):

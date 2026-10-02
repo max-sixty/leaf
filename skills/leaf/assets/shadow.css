@@ -758,7 +758,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 pre:hover + .lf-code-copy,
 .lf-code-copy:is(:hover, :focus-within) { opacity: 1; }
-@media (hover: none) { .lf-code-copy { opacity: 1; } }
+@media (pointer: coarse), (hover: none) {
+  .lf-code-copy { opacity: 1; }
+  pre:focus + .lf-code-copy { opacity: 0; pointer-events: none; }
+}
 .lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);

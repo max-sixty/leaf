@@ -137,6 +137,12 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def code_source_by_touch(page: Page) -> None:
+    """Reading code by touch, with the corner control disclosed away."""
+    code_note(page)
+    page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
+
+
 def pane_focused(page: Page) -> None:
     """A workspace pane's body focused by keyboard: a pane standing flush with the
     workspace's own scrollport, which clipped a ring drawn outside the body."""
@@ -176,6 +182,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_note,
         code_copy_by_pointer,
         code_copy_by_keyboard,
+        code_source_by_touch,
         pane_focused,
         element_thread,
         versions_menu,
@@ -234,6 +241,13 @@ STATES = (
         "walkthrough-copy-touch",
         "pr-walkthrough",
         code_note,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "walkthrough-source-touch",
+        "pr-walkthrough",
+        code_source_by_touch,
         viewport=(390, 844),
         touch=True,
     ),

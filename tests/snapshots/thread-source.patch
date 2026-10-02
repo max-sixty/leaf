@@ -581,6 +581,37 @@ index d1b242070..3b882a98b 100644
    activateShortcutMore = () => {
      setGoToSequence(false);
      setReact(false);
+diff --git a/skills/leaf/assets/runtime/margin-layout.js b/skills/leaf/assets/runtime/margin-layout.js
+index be5bceac7..282a65bc5 100644
+--- a/skills/leaf/assets/runtime/margin-layout.js
++++ b/skills/leaf/assets/runtime/margin-layout.js
+@@ -9,6 +9,8 @@
+    (theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its seat as
+    `--lf-inset-top` and `--lf-inset-right`, and the push packing gives it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
+    document scrolls or a pane does, with no pass at all.
++   Resize deliveries settle placement before their native paint; deferring that pass
++   to the next frame would show a row at its stale seat after its target changed.
+ 
+    The layer is a static, zero-height block. A positioned wrapper would become every row's
+    containing block, and a row can only anchor to what stands inside its containing block,
+@@ -204,7 +206,7 @@ export function scheduleMarginEntryLabels() {
+ // but the document's may take a target out of view or bring it back, so it is heard once,
+ // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
+ export function mountMarginLayer(root) {
+-  layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
++  layer = { root, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
+   paintPins();
+   hearTargetChanges(document);
+ }
+@@ -624,7 +626,7 @@ function scheduleMarginLayout() {
+ function observeLayout() {
+   const column = marginColumn();
+   if (!observer) {
+-    observer = sizeObserver(scheduleMarginLayout);
++    observer = sizeObserver(layoutMarginRows);
+     observer.observe(document.body);
+   }
+   if (observedColumn === column) return;
 diff --git a/skills/leaf/assets/runtime/margin-projection.js b/skills/leaf/assets/runtime/margin-projection.js
 index 92a05691c..92f000b0a 100644
 --- a/skills/leaf/assets/runtime/margin-projection.js

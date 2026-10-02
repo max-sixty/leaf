@@ -24,7 +24,7 @@
  * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
  * and is a trip to the element it names. Travel claims it (`followFragment`) where the
  * fragment names an element of the page, and lands it through the browser's own
- * fragment scroll once travel has cleared and revealed the way; any other fragment
+ * fragment placement rule once travel has cleared and revealed the way; any other fragment
  * keeps native landing. An entry this document writes through `pushEntry` or
  * `replaceEntry`, as travel and a tab set do, is not a fragment navigation and is never
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
@@ -143,7 +143,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
     // A followed link again to the fragment already shown is a `replace` with no hash
     // change, and still a trip: its target may have been shut since.
     if (writing || event.formData || !url.hash) return;
-    const handler = followFragment(url, () => event.scroll());
+    const handler = followFragment(url);
     if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });
   });
 }

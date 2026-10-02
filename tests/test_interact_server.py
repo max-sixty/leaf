@@ -4104,9 +4104,12 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     assert [(c.value, c.discard) for c in jar] == [(TOKEN, False)]
 
     # An old global cookie is not another way through the current admission door.
-    assert fetch(
-        f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"}
-    )[0] == 403
+    assert (
+        fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
+            0
+        ]
+        == 403
+    )
 
     # No query this time: the runtime's own fetches never carry one.
     with opener.open(f"{server}/api/state") as polled:

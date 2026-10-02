@@ -30,9 +30,13 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/references/authoring-asks\.md
-- type: regex
+- type: javascript
   metric: has-asks
-  value: <lf-ask\b
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-ask\b
+    flags: i
+    negate: false
 - type: llm-rubric
   metric: judgment
   value: |

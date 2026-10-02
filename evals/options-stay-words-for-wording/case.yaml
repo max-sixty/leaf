@@ -40,9 +40,17 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/packages/default/registry\.json
-- type: regex
+- type: javascript
   metric: has-options
-  value: <lf-option\b
-- type: regex
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-option\b
+    flags: i
+    negate: false
+- type: javascript
   metric: options-draw-nothing
-  value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
+    flags: i
+    negate: true

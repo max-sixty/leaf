@@ -35,9 +35,17 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/references/page-authoring\.md
-- type: regex
+- type: javascript
   metric: pair-in-one-lf-shot
-  value: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*save-before\.png)(?=[^>]*\bafter=["'][^"']*save-after\.png)
-- type: regex
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*save-before\.png)(?=[^>]*\bafter=["'][^"']*save-after\.png)
+    flags: i
+    negate: false
+- type: javascript
   metric: draws-nothing
-  value: <svg\b|<lf-diagram\b
+  value: file://text-regex.cjs
+  config:
+    pattern: <svg\b|<lf-diagram\b
+    flags: i
+    negate: true

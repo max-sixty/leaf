@@ -25,9 +25,13 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/references/page-authoring\.md
-- type: regex
+- type: javascript
   metric: charts-the-pattern
-  value: <lf-chart\b
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-chart\b
+    flags: i
+    negate: false
 - type: llm-rubric
   metric: judgment
   value: |

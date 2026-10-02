@@ -27,7 +27,7 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/SKILL\.md
-- type: regex
+- type: not-regex
   metric: page-url
   value: http://127\.0\.0\.1:42041/
 - type: llm-rubric

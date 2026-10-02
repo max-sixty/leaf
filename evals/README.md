@@ -28,6 +28,10 @@ names the reading. Keep provenance in the leading comment and the clause under
 matrix, and judge. A JavaScript reference assertion uses `reference-read.cjs`
 and `config.path`, a regex for the expected file address.
 
+Use `not-regex` for a forbidden pattern. Promptfoo's native regex assertions have
+no flags; `text-regex.cjs` preserves case-insensitive patterns using `config.pattern`,
+`config.flags`, and `config.negate`.
+
 Reference assertions check successful reads rather than attempted tool use.
 Codex shell matching is evidence of a read, not exact proof of the bytes consumed;
 inspect the trace when that distinction matters. Native Claude Skill results and

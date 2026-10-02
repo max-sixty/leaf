@@ -39,9 +39,13 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/references/authoring-evidence\.md
-- type: regex
+- type: javascript
   metric: pair-outlined
-  value: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
+    flags: i
+    negate: false
 - type: llm-rubric
   metric: judgment
   value: |

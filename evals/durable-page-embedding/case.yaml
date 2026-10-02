@@ -35,9 +35,13 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/references/page-authoring\.md
-- type: regex
+- type: javascript
   metric: has-frame
-  value: <iframe\b[^>]*\bsrc=["\x27](?:http://127\.0\.0\.1:44930/|/|\./)?versions/v2\.html\?pin#release-review["\x27]
+  value: file://text-regex.cjs
+  config:
+    pattern: <iframe\b[^>]*\bsrc=["\x27](?:http://127\.0\.0\.1:44930/|/|\./)?versions/v2\.html\?pin#release-review["\x27]
+    flags: i
+    negate: false
 - type: llm-rubric
   metric: judgment
   value: |

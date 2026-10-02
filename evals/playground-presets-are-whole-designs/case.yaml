@@ -46,9 +46,13 @@ assert:
   value: file://reference-read.cjs
   config:
     path: skills/leaf/packages/playground/instructions/author\.md
-- type: regex
+- type: javascript
   metric: has-presets
-  value: <lf-playground-preset\b
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-playground-preset\b
+    flags: i
+    negate: false
 - type: llm-rubric
   metric: realistic-product-copy
   value: |

@@ -36,7 +36,7 @@ import {
   shownRegionBounds,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
+import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { reveal } from "./widget-elements.js";
@@ -157,7 +157,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   if (!view) return;
   const box = region ? effectiveScroller(region) : pageScroller;
   if (view.end) {
-    box.scrollTo({ top: box.scrollHeight, behavior: "instant" });
+    scrollToEnd(box);
     return;
   }
   const boxTop = landingBand(box).top;

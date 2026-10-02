@@ -15,6 +15,7 @@
  * whoever reads the comment without the page.
  */
 
+import { targetElement, targetPlace } from "../resolved-target.js";
 import { clippedContents, documentPoint, shownBox } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../collapse.js";
@@ -431,8 +432,9 @@ export function createDrawingController({
     if (!draft.anchor) drawings.push({ drawing: draft.drawing, target: null });
     else {
       const place = pendingAt();
-      if (place?.status !== "outdated" && place?.target)
-        drawings.push({ drawing: draft.drawing, target: place.target });
+      const target = targetElement(place) ?? targetPlace(place);
+      if (place?.status !== "outdated" && target)
+        drawings.push({ drawing: draft.drawing, target });
     }
     return drawings;
   }

@@ -28,10 +28,15 @@ Max's real tasks.
   revision on each result. Give comparable agents the same content and acceptance
   criteria, and counterbalance task order.
 
-  The [arrangement evaluation](arrangement-eval/README.md) measures Layout vocabulary
+  The [arrangement evaluation](../evals/arrangement/README.md) measures Layout vocabulary
   against page CSS. The [agent-usability baseline](agent-usability-evals.md#current-observations)
   measures reading, revision and the live loop. Neither establishes the advantage of
   Leaf's complete authoring and feedback cycle over plain HTML.
+
+  Add this study as a complete scenario through the shared
+  [Promptfoo runner](../evals/README.md), with independent usable-output judgments
+  and execution checks. The existing arrangement arm retains Leaf's runtime;
+  this comparison needs a plain HTML authoring and feedback cycle.
 
   Assess usable output independently and retain failures, time/tokens, custom CSS
   and repair iterations. Use those results to choose which instructions or primitive to

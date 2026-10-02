@@ -96,11 +96,35 @@ ALIVE_S = 5.0
 # servers. Each is cheap to read once and dear to read twenty times a second, and two
 # seconds is the staleness the poll gave every fact, so it is the staleness these keep.
 PRESENCE_S = presence_model.PRESENCE_CACHE_S
+# How deeply a POSTed body may nest its arrays and objects. What reads a body after the
+# parse recurses: schema validation runs into the interpreter's recursion limit a few
+# hundred levels down, and a log line is parsed again by every later reader, on
+# whatever stack that reader has. Past the bound one of them would raise rather than
+# answer, which the browser reads as a retryable fault and re-posts for the life of the
+# tab. Leaf's own events nest a handful of levels.
+MAX_POSTED_DEPTH = 64
+TOO_DEEP = f"event nests deeper than {MAX_POSTED_DEPTH} levels"
 
 
 def reject_json_constant(value: str) -> None:
     """Reject Python's non-standard NaN and infinity JSON extensions."""
     raise ValueError(f"invalid JSON constant {value}")
+
+
+def nests_deeper_than(value, limit: int) -> bool:
+    """Whether parsed JSON holds an array or object more than `limit` levels down.
+
+    Read a level at a time rather than by recursion, since the value has not been
+    bounded yet."""
+    level = [value]
+    for _ in range(limit):
+        level = [
+            child
+            for held in level
+            if isinstance(held, (dict, list))
+            for child in (held.values() if isinstance(held, dict) else held)
+        ]
+    return any(isinstance(held, (dict, list)) for held in level)
 
 
 def _query_int(raw, name: str, minimum: int) -> int:
@@ -566,8 +590,13 @@ class PageEndpoint:
             return {}, "event exceeds the 10 MiB limit"
         try:
             posted = json.loads(body, parse_constant=reject_json_constant)
-        except (ValueError, RecursionError):
+        except RecursionError:
+            # The parser's own stack ran out, far deeper than the bound.
+            return {}, TOO_DEEP
+        except ValueError:
             return {}, "invalid JSON"
+        if nests_deeper_than(posted, MAX_POSTED_DEPTH):
+            return {}, TOO_DEEP
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"
         return posted, None

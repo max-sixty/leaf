@@ -2220,16 +2220,18 @@ def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(
         const composer = document.querySelector('.lf-fab-bar');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
-        document.scrollingElement.scrollTop += 240;
+        document.scrollingElement.scrollTop += 80;
         return before;
     }""")
-    rendered(page)
-    moved = page.evaluate("""() => ({
-      composer: document.querySelector('.lf-fab-bar').getBoundingClientRect().top,
-      passage: document.getElementById('p30').getBoundingClientRect().top})""")
-    assert moved["passage"] < before["passage"], (before, moved)
-    assert moved["composer"] > 0, (before, moved)
-    assert moved["composer"] <= before["composer"] + 0.5, (before, moved)
+    page.wait_for_function(
+        """before => {
+          const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect().top;
+          const passage = document.getElementById('p30').getBoundingClientRect().top;
+          return passage < before.passage
+            && composer - before.composer === passage - before.passage;
+        }""",
+        arg=before,
+    )
     page.evaluate("document.scrollingElement.scrollTop += 2 * innerHeight")
     page.wait_for_function(
         "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"

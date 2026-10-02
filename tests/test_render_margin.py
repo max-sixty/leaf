@@ -7289,7 +7289,9 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert narrow["replyWidth"] >= 160, narrow
     # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
-    assert narrow["cardRight"] <= narrow["mainRight"] + 2, narrow
+    assert narrow["cardLeft"] == pytest.approx(
+        narrow["wordsRight"] - narrow["minimum"], abs=0.5
+    ), narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     # Clear of its words under or over them, the card leaves its cluster uncovered.
     assert (

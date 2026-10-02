@@ -1436,6 +1436,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     """Core page visuals paint after upgrade while agent state still waits."""
     url = serve(FEATURE_GALLERY)
     held = []
+    release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.add_init_script(
@@ -1451,9 +1452,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     )
 
     def hold_parent_state(route):
-        # Hold only the initial reading. After presentation the gallery asks for
-        # its stamped history as declared arrival work; that request must finish.
-        if route.request.frame == page.main_frame and not held:
+        if route.request.frame == page.main_frame and not release_state:
             held.append(route)
         else:
             route.continue_()
@@ -1476,7 +1475,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
-    held[0].continue_()
+    release_state = True
+    for route in held:
+        route.continue_()
     wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(

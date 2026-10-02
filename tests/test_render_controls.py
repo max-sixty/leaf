@@ -164,7 +164,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         views["you"].get_by_role("dialog", name="Thread for Agenda and room photo.")
     ).to_be_visible()
     expect(
-        views["you"].get_by_role("dialog", name="Thread for Agenda and room photo.")
+        views["you"]
+        .get_by_role("dialog", name="Thread for Agenda and room photo.")
         .get_by_role("textbox", name="Reply")
     ).to_be_visible()
 

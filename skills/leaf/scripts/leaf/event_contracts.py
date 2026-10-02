@@ -30,12 +30,12 @@ from leaf.registry.contract import (
     WRITERS,
     created_child,
     event_spec,
-    schema_error,
     state_specs,
     verb_writer,
     visual_parts,
 )
 from leaf.registry.reactions import reaction_tokens
+from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode

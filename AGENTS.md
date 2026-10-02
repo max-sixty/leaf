@@ -297,7 +297,7 @@ Before finishing a feature:
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
   other references point at that section by name. Shipped instructions set goals
-  for the user's experience and names the surface they read on; it leaves
+  for the user's experience and name the surface they read on; they leave
   format and phrasing to the agent. Score the change with `evals/` before and
   after (`/developing-leaf`, "Score an instruction change").
 

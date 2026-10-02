@@ -408,6 +408,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   rather than one region, a border that changed length draws a thin outline, and a
   changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which
   a worker would take off it.
+- **Reduce plugin-update downloads by cleaning Git history.** Remove historical
+  images and obsolete large JavaScript bundles while preserving current files.
+  A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
+  across remote refs and local worktrees, retaining the commit mapping and testing
+  that updates preserve active work without restoring the removed history.
 - **Consider dragging thread cards and comment boxes.** Once both share placement,
   try temporary, passage-relative movement from a handle. Keep it only if scrolling,
   typing, and resizing stay predictable and the implementation stays simple.

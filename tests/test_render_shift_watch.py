@@ -14,7 +14,6 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
-    ticked,
 )
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
@@ -71,9 +70,9 @@ def test_a_shift_without_input_fails(browser, distance):
 
 
 PASSIVE_LABELS = """<!doctype html><body class="lf-chrome" style="margin:0; font:12px monospace">
-<div id="row" style="display:flex; align-items:baseline; width:360px; line-height:24px">
-  <div id="header" style="display:contents">
-    <b>You</b><span data-lf-reflow="text" style="display:flex; gap:8px; margin-left:8px">
+<div id="row" data-lf-reflow="text" style="display:flex; align-items:baseline; width:360px; line-height:24px">
+  <div id="header" style="display:flex; align-items:baseline">
+    <b>You</b><span id="labels" style="display:flex; gap:8px; margin-left:8px">
       <time id="age">just now</time><span id="receipt">Sent</span>
     </span>
   </div>
@@ -88,6 +87,12 @@ PASSIVE_LABELS = """<!doctype html><body class="lf-chrome" style="margin:0; font
     [
         ("", None),
         ("informational_group", None),
+        ("stationary_control", None),
+        ("boxless_header", None),
+        ("nested_stable_region", None),
+        ("nested_unstable_region", "span#receipt"),
+        ("nested_boxless_region", "span#receipt"),
+        ("moving_region", "div#row"),
         ("contained_aria_control", "span#receipt"),
         ("tabbable_group", "span#receipt"),
         ("outside_runtime", "span#receipt"),
@@ -110,6 +115,29 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
             'id="row"', 'id="row" data-lf-runtime'
         )
     page.goto("data:text/html," + quote(source))
+    if fault in {
+        "boxless_header",
+        "nested_stable_region",
+        "nested_unstable_region",
+        "nested_boxless_region",
+    }:
+        page.locator("#header").evaluate(
+            """(node, fault) => {
+              if (fault !== 'boxless_header') node.setAttribute('data-lf-reflow', 'text');
+              if (fault === 'boxless_header' || fault === 'nested_boxless_region')
+                node.style.display = 'contents';
+              if (fault === 'nested_stable_region') node.style.width = '180px';
+            }""",
+            fault,
+        )
+    if fault == "stationary_control":
+        page.locator("#row").evaluate(
+            """row => {
+              const control = document.createElement('button');
+              control.id = 'action'; control.textContent = 'Resolve';
+              control.style.marginInlineStart = 'auto'; row.append(control);
+            }"""
+        )
     if fault in {"informational_group", "contained_aria_control", "tabbable_group"}:
         page.locator("#receipt").evaluate(
             """(node, fault) => {
@@ -135,7 +163,7 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
               const button = document.createElement('button');
               button.id = 'action';
               button.textContent = 'Act';
-              document.querySelector(fault === 'contained_control' ? '[data-lf-reflow]' : '#row')
+              document.querySelector(fault === 'contained_control' ? '#labels' : '#row')
                 .append(button);
             }""",
             fault,
@@ -143,17 +171,28 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
     page.evaluate(PAINTED)
     receipt = page.locator("#receipt")
     before = receipt.bounding_box()
+    owner_before = page.locator("#row").bounding_box()
+    control_before = (
+        page.locator("#action").bounding_box()
+        if fault == "stationary_control"
+        else None
+    )
     page.evaluate(
         """fault => {
           document.getElementById('age').textContent = '1m ago';
           const metadata = document.getElementById('age').parentElement;
           if (fault === 'growing_header') metadata.style.paddingBlockStart = '20px';
+          if (fault === 'moving_region') document.getElementById('row').style.marginLeft = '6px';
           if (fault === 'escaping_label') metadata.style.paddingInlineStart = '420px';
         }""",
         fault,
     )
     judge_watches()
     assert receipt.bounding_box()["x"] != before["x"]
+    if not protected:
+        assert page.locator("#row").bounding_box() == owner_before
+    if control_before:
+        assert page.locator("#action").bounding_box() == control_before
     if protected:
         errors = consume_browser_errors(page, "moved without input")
         assert any(f"{protected} moved without input" in error for error in errors), (
@@ -166,6 +205,10 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
     [
         ("", None),
         ("text_only", "button#action"),
+        ("enclosing_text", "button#action"),
+        ("enclosing_controls", None),
+        ("escaping_outer", "button#action"),
+        ("moving_outer", "div#outer"),
         ("undeclared", "button#action"),
         ("outside_runtime", "button#action"),
         ("boxless_region", "button#action"),
@@ -189,6 +232,25 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
             "</body>"
         )
     )
+    if fault in {
+        "enclosing_text",
+        "enclosing_controls",
+        "escaping_outer",
+        "moving_outer",
+    }:
+        page.locator("#region").evaluate(
+            """(region, fault) => {
+              const outer = document.createElement('div');
+              outer.id = 'outer';
+              outer.setAttribute('data-lf-reflow', fault === 'enclosing_text' ? 'text' : 'controls');
+              outer.style.cssText = 'width:360px;height:40px';
+              if (fault === 'escaping_outer') outer.style.width = '140px';
+              region.replaceWith(outer); outer.append(region);
+              if (fault === 'moving_outer')
+                region.style.cssText += ';position:fixed;left:0;top:0';
+            }""",
+            fault,
+        )
     if fault == "text_only":
         page.locator("#region").evaluate(
             "node => node.setAttribute('data-lf-reflow', 'text')"
@@ -203,11 +265,18 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         page.locator("#region").evaluate("node => node.style.display = 'contents'")
     page.evaluate(PAINTED)
     before = page.locator("#action").bounding_box()
+    region_before = page.locator("#region").bounding_box()
+    outer_before = (
+        page.locator("#outer").bounding_box()
+        if page.locator("#outer").count()
+        else None
+    )
     page.evaluate(
         """fault => {
           document.getElementById('hint').textContent = 'A longer hint';
           const region = document.getElementById('region');
           if (fault === 'moving_region') region.style.marginLeft = '6px';
+          if (fault === 'moving_outer') document.getElementById('outer').style.marginLeft = '6px';
           if (fault === 'growing_region') region.style.height = '60px';
           if (fault === 'escaping_control') region.style.gap = '300px';
           if (fault === 'moving_neighbour')
@@ -217,11 +286,24 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
     )
     judge_watches()
     assert page.locator("#action").bounding_box()["x"] != before["x"]
+    if not protected or fault == "moving_outer":
+        assert page.locator("#region").bounding_box() == region_before
+    if outer_before and not protected:
+        assert page.locator("#outer").bounding_box() == outer_before
     if protected:
         errors = consume_browser_errors(page, "moved without input")
         assert any(f"{protected} moved without input" in error for error in errors), (
             errors
         )
+
+
+CAPPED_METADATA = "".join(
+    '<div data-lf-reflow="text" style="display:flex;width:360px;height:30px;align-items:baseline">'
+    '<b>You</b><span class="lf-msg-meta" style="display:flex;gap:8px;margin-left:8px">'
+    f'<time>just now</time><span id="receipt{n}" style="width:150px">Sent</span>'
+    "</span></div>"
+    for n in range(6)
+)
 
 
 @pytest.mark.parametrize(
@@ -246,13 +328,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
 )
 def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
     """Five receipt sources pass only when an omitted control also holds still."""
-    rows = "".join(
-        f'<div style="display:flex;width:360px;height:30px;align-items:baseline">'
-        '<b>You</b><span class="lf-msg-meta" data-lf-reflow="text" style="display:flex;gap:8px;margin-left:8px">'
-        f'<time>just now</time><span id="receipt{n}" style="width:150px">Sent</span>'
-        "</span></div>"
-        for n in range(6)
-    )
+    rows = CAPPED_METADATA
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     button = (
         '<button id="action" style="font-size:8px;padding:0;width:40px;height:12px;'
@@ -364,6 +440,75 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         "moved_then_hidden",
         "moved_then_removed",
     }:
+        consume_browser_errors(page, "moved without input")
+
+
+@pytest.mark.parametrize("outer_mode", ["text", "controls"])
+@pytest.mark.parametrize("shadow_mode", ["open", "closed"])
+@pytest.mark.parametrize("departure", ["", "reparent", "remove"])
+def test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap(
+    browser, outer_mode, shadow_mode, departure
+):
+    """Omitted shadow controls keep the region guarantees under which they painted."""
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body class="lf-chrome" style="margin:0;font:12px monospace">'
+            + CAPPED_METADATA
+            + f'<div id="outer" data-lf-reflow="{outer_mode}" style="width:400px;height:80px">'
+            '<div id="host" style="width:240px;height:40px"></div></div></body>'
+        )
+    )
+    page.evaluate(
+        """mode => {
+          window.nestedRoot = document.getElementById('host').attachShadow({mode});
+          nestedRoot.innerHTML = '<div id="inner" data-lf-runtime data-lf-reflow="controls" '
+            + 'style="width:240px;height:40px;display:flex;align-items:center;gap:8px">'
+            + '<span id="hint">Short hint</span><button id="action">More</button></div>';
+        }""",
+        shadow_mode,
+    )
+    page.evaluate(PAINTED)
+    read = """() => Object.fromEntries(['outer', 'inner', 'action'].map(id => [id,
+      (document.getElementById(id) ?? nestedRoot.getElementById(id))
+        .getBoundingClientRect().toJSON()]))"""
+    before = page.evaluate(read)
+    page.evaluate(
+        """departure => {
+          window.sources = [];
+          new PerformanceObserver(list => {
+            for (const entry of list.getEntries()) {
+              sources.push(entry.sources.map(source => source.node?.id));
+              const control = nestedRoot.getElementById('action');
+              if (!control) continue;
+              window.paintedControl = control.getBoundingClientRect().toJSON();
+              if (departure === 'remove') control.remove();
+              if (departure === 'reparent') {
+                control.style.position = 'fixed';
+                control.style.left = paintedControl.x + 'px';
+                control.style.top = paintedControl.y + 'px';
+                document.body.append(control);
+              }
+            }
+          }).observe({type: 'layout-shift'});
+          for (const age of document.querySelectorAll('time')) age.textContent = '1m ago';
+          nestedRoot.getElementById('hint').textContent = 'A longer hint';
+        }""",
+        departure,
+    )
+    judge_watches()
+    sources = page.evaluate("window.sources")
+    assert len(sources) == 1 and len(sources[0]) == 5, sources
+    assert all(source.startswith("receipt") for source in sources[0]), sources
+    assert page.evaluate("window.paintedControl.x") != before["action"]["x"]
+    after = page.evaluate(
+        """() => Object.fromEntries(['outer', 'inner'].map(id => [id,
+          (document.getElementById(id) ?? nestedRoot.getElementById(id))
+            .getBoundingClientRect().toJSON()]))"""
+    )
+    assert after == {key: before[key] for key in after}
+    if outer_mode == "text":
         consume_browser_errors(page, "moved without input")
 
 
@@ -594,10 +739,33 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     timestamp = header.locator("time")
     expect(receipt).to_have_text("Sent")
     expect(timestamp).to_have_text("just now")
+    # Age changes are news after Chrome's recent-input grace, even when opening the
+    # surface and resizing it happened immediately before this clock transition.
+    page.wait_for_timeout(600)
     protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
     boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
     before = protected.evaluate_all(boxes)
     assert before
+    owner = surface_root.locator(".lf-thread-root-meta").first
+    owner_before = owner.bounding_box()
+    receipt.evaluate(
+        """receipt => {
+          window.ageShifts = [];
+          new PerformanceObserver(list => {
+            for (const entry of list.getEntries()) {
+              for (const source of entry.sources) {
+                if (source.node === receipt || receipt.contains(source.node)) {
+                  window.ageShifts.push({
+                    input: entry.hadRecentInput,
+                    before: source.previousRect.toJSON(),
+                    after: source.currentRect.toJSON(),
+                  });
+                }
+              }
+            }
+          }).observe({type: 'layout-shift'});
+        }"""
+    )
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     now = datetime.now().astimezone()
@@ -606,7 +774,30 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         (timedelta(minutes=10), "10m ago"),
         (timedelta(hours=3), "3h ago"),
     ]:
-        page.clock.set_fixed_time(now + delta)
-        ticked(page)
+        receipt_before = receipt.bounding_box()
+        header_before = header.bounding_box()
+        count = page.evaluate("window.ageShifts.length")
+        # Advance Leaf's calibrated server clock without changing the browser's
+        # monotonic clock: native LayoutShift and frame readings must share time.
+        page.evaluate(
+            """async now => {
+              const clock = await window.__lfRuntimeImport('/runtime/presence.js');
+              const {reportPageError} = await window.__lfRuntimeImport('/runtime/layer-client.js');
+              clock.observeServerNow(now);
+              await clock.tickClock(reportPageError);
+            }""",
+            (now + delta).isoformat(),
+        )
         expect(timestamp).to_have_text(age)
+        judge_watches()
+        native = page.evaluate("window.ageShifts")[count:]
+        assert native and all(not entry["input"] for entry in native)
+        assert any(entry["before"]["x"] != entry["after"]["x"] for entry in native)
+        assert receipt.bounding_box()["x"] != receipt_before["x"]
+        header_after = header.bounding_box()
+        assert (header_after["x"], header_after["y"]) == (
+            header_before["x"],
+            header_before["y"],
+        )
+        assert owner.bounding_box() == owner_before
         assert protected.evaluate_all(boxes) == before

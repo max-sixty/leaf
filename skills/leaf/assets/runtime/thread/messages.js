@@ -1,7 +1,9 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
-   metadata, prose, workflow and reaction placement have one owner. An
+   metadata, prose, workflow and reaction placement have one owner. Message headers
+   declare their stationary text-reflow boundary; a hoisted root header leaves that
+   declaration to the thread's complete metadata row. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
@@ -200,6 +202,7 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
     }
+    keeps(this.#header, "data-lf-reflow", externalHeader ? null : "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -222,7 +225,7 @@ export class MessageView {
     render(
       html`
         <b>${model.by}</b
-        ><span class="lf-msg-meta" data-lf-reflow="text"
+        ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${
             model.workflowLabel
               ? html`<span class="lf-msg-sending" title=${model.workflowTitle}

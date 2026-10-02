@@ -72,11 +72,15 @@ The page holds still under the user's aim. A state change may repaint any box bu
 must not move controls next to the gesture that caused it. Without a gesture, a box
 may grow or shrink into free room, but reading content and controls stay put.
 Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
-group, such as message age and receipt labels, may repack inside its stationary
-owner and contains no controls. A `controls` group, such as the adaptive shortcut
-bar, may repack its hints and controls inside its own stationary box. Both painted
-positions stay inside that boundary, and neighbours and ordinary page reading
-content stay put. Typing still cannot carry its field.
+region, such as a conversation header, declares its own stationary box: labels may
+repack inside it while every contained control stays put. A `controls` region,
+such as the adaptive shortcut bar, permits its hints and controls to repack inside
+its stationary box. Declare the box that owns the available room, rather than an
+auto-sized inner label group or a boxless wrapper. A nested region must hold its own
+boundary and every enclosing declaration's guarantees; it never borrows an outer
+declaration or relaxes one, including across a shadow root. Both painted positions stay inside
+that boundary, and neighbours and ordinary page reading content stay put. Typing
+still cannot carry its field.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a

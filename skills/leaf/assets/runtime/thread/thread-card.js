@@ -146,6 +146,7 @@ function navigationSummary(navigation, model) {
   // card under the reader.
   return html`<summary
     class="lf-thread-summary"
+    data-lf-reflow="text"
     title=${pendingTitle ? nothing : title}
   >
     <span class="lf-thread-topic" data-lf-pending-title=${pendingTitle ? "" : nothing}
@@ -432,7 +433,7 @@ export class ThreadView {
       ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
         headerActions && messages[0]
-          ? html`<div class="lf-thread-root-meta">
+          ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
               ${messages[0].header}${news} ${headerActions}
             </div>`
           : nothing

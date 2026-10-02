@@ -4,6 +4,10 @@
 // (render_harness.py, `watches_shifts`).
 // The harness binds `interactive` from runtime/control-selectors.js, so the sensor
 // and gesture owners share the definition of a control without loading the runtime.
+// Shift proof requires native browser timing: performance.now, animation frames,
+// event timestamps and LayoutShift.startTime share one monotonic timeline. A test
+// that changes message age advances Leaf's calibrated server clock, not Playwright's
+// browser clock, which replaces performance and frames but leaves native shifts alone.
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,
@@ -21,8 +25,8 @@
 //   free room. Forbidden motion is reported for every source Chrome names, once per
 //   element, named by write_watch.js's `lfPlace`.
 //   Runtime surfaces declare bounded reflow with `data-lf-reflow`: text groups may
-//   repack inside their stationary owner; control groups may repack inside their own
-//   stationary box. Text declarations cannot contain controls. Both painted positions
+//   repack inside their stationary box while contained controls stay put; control
+//   groups may repack their controls too. Both painted positions
 //   remain inside that boundary, and undeclared neighbours stay put. This covers
 //   message metadata and adaptive command bars; it is not a pixel budget.
 //   When Chrome's five-source cap is full, frame readings must also show that no
@@ -184,6 +188,9 @@
         opacity: style.opacity,
         overflowX: style.overflowX,
         overflowY: style.overflowY,
+        reflow: node.getAttribute("data-lf-reflow"),
+        runtime: node.matches(".lf-chrome, [data-lf-runtime]"),
+        control: node.matches(interactive),
       };
       const seen = placed.get(node) ?? [];
       const last = seen.at(-1);
@@ -203,6 +210,16 @@
   const readingAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at);
   const boxAt = (node, at) => readingAt(node, at)?.rect;
   const paintAt = (node, at) => readingAt(node, at)?.paint;
+  const ancestryAt = (node, at) => {
+    const ancestors = [];
+    for (
+      let parent = node;
+      parent instanceof Element;
+      parent = paintAt(parent, at)?.parent
+    )
+      ancestors.push(parent);
+    return ancestors;
+  };
   // Layout coordinates remove scrolling, which Chrome also removes from its shifts.
   const layoutAt = (node, at) => {
     const rect = boxAt(node, at);
@@ -383,26 +400,16 @@
     document.querySelector("script[data-lf-entry]") &&
     (presented === null || startTime < presented);
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
-    const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-    const projection = element?.closest?.("[data-lf-reflow]");
-    // Runtime ownership follows passages.js `leafSurface`, including inline threads.
-    if (!projection?.closest(".lf-chrome, [data-lf-runtime]") || around.length !== 3)
-      return false;
-    const mode = projection.getAttribute("data-lf-reflow");
-    if (mode !== "text" && mode !== "controls") return false;
-    if (
-      mode === "text" &&
-      (projection.matches(interactive) || projection.querySelector(interactive))
-    )
-      return false;
-    let header = mode === "controls" ? projection : up(projection);
-    while (
-      mode === "text" &&
-      header instanceof Element &&
-      getComputedStyle(header).display === "contents"
-    )
-      header = up(header);
-    if (!(header instanceof Element)) return false;
+    const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
+    if (around.length !== 3) return false;
+    const regions = new Set(
+      around.flatMap(({ at }) =>
+        ancestryAt(element, at).filter(
+          (ancestor) => typeof paintAt(ancestor, at)?.reflow === "string",
+        ),
+      ),
+    );
+    if (!regions.size) return false;
     const stationary = (node) => {
       const rects = around.map(({ at }) => layoutAt(node, at));
       const screen = around.map(({ at }) => boxAt(node, at));
@@ -412,20 +419,42 @@
           screen.every((rect) => !moved(rect, screen[2])))
       );
     };
-    if (!stationary(header)) return false;
-    for (const neighbour of header.querySelectorAll("*"))
-      if (!holds(projection, neighbour) && !stationary(neighbour)) return false;
-    const inside = (rect) =>
-      around.some(({ at }) => {
-        const frame = boxAt(header, at);
-        return (
-          rect.left >= frame.left - 1 &&
-          rect.top >= frame.top - 1 &&
-          rect.right <= frame.right + 1 &&
-          rect.bottom <= frame.bottom + 1
-        );
-      });
-    return inside(previousRect) && inside(currentRect);
+    // Each declaration owns its actual box. Nested regions keep every enclosing
+    // guarantee, without borrowing a valid boundary to excuse an invalid one.
+    for (const region of regions) {
+      // Runtime ownership follows passages.js `leafSurface`, including inline threads.
+      if (
+        !around.every(({ at }) =>
+          ancestryAt(region, at).some((owner) => paintAt(owner, at)?.runtime),
+        )
+      )
+        return false;
+      const modes = around.map(({ at }) => paintAt(region, at)?.reflow);
+      if (modes.some((mode) => mode !== "text" && mode !== "controls")) return false;
+      if (!stationary(region)) return false;
+      if (modes.includes("text")) {
+        for (const { at, nodes } of around)
+          for (const control of nodes)
+            if (
+              paintAt(control, at)?.control &&
+              ancestryAt(control, at).includes(region) &&
+              !stationary(control)
+            )
+              return false;
+      }
+      const inside = (rect) =>
+        around.some(({ at }) => {
+          const frame = boxAt(region, at);
+          return (
+            rect.left >= frame.left - 1 &&
+            rect.top >= frame.top - 1 &&
+            rect.right <= frame.right + 1 &&
+            rect.bottom <= frame.bottom + 1
+          );
+        });
+      if (!inside(previousRect) || !inside(currentRect)) return false;
+    }
+    return true;
   };
   const confinedReflowOnly = (entry, around) => {
     if (entry.sources.length < 5) return true;

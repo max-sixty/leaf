@@ -86,7 +86,7 @@ the margin behind its marker (`thread/held-news.js`). In the Threads panel, a ca
 news takes out of the view, as another actor resolving its thread under Open does,
 stays where it stands, drawn as the news left it in the shape it stood in, until its
 going would move nothing the user sees or they change the view
-(`thread/thread-list-view.js`, `keepsShown`). A region whose rows only the log or the
+(`thread/thread-list-view.js`, `keeping`). A region whose rows only the log or the
 clock decides, so no first paint can size it, stands at a fixed height and scrolls
 inside it, as a command's readings do (command-hub's `lf-command.js`). A change the
 user requested may reflow the content it replaces, shown as motion the eye can follow.

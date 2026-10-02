@@ -59,7 +59,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, kept = false, grow = false, search = null },
+  { visible = true, kept = null, grow = false, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -100,8 +100,8 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
-    // A card the panel keeps though its view no longer admits it (thread-list-view.js,
-    // `keepsShown`) keeps the shape it stood in, so the news that changed it moves
+    // A card the panel keeps though its view no longer admits it, and why ("news" or
+    // "draft", thread-list-view.js, `keeping`), keeps the shape it stood in, so the news that changed it moves
     // nothing: its reply box, on which an open card's room rests; the control row above
     // its first message, where Reopen wears Resolve's face, done; and its summary's
     // status row (ThreadView).
@@ -130,9 +130,9 @@ export function threadReading(
       word,
       label,
       pending: settling,
-      icon: !resolved || kept,
+      icon: !resolved || Boolean(kept),
     }),
-    reply: !resolved || kept,
+    reply: !resolved || Boolean(kept),
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
     messages: Object.freeze(messages),
   });

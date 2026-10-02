@@ -17,7 +17,7 @@
    itself only while it shows no card, and its ring never outlines one, and no title
    holds focus closed: focus, selection and the open card never part.
 
-   The list also decides when a card leaves it (`keepsShown`), and news takes no card
+   The list also decides when a card leaves it (`keeping`), and news takes no card
    out from in front of the user: a card another actor resolves under Open stays where
    it stands, drawn resolved, until its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
@@ -94,27 +94,31 @@ class ThreadListView extends RetainedFace {
     this.#showExpanded();
   }
 
-  // Whether a shown card the view no longer admits stays shown: the narrowing says which
-  // threads the view admits (narrowing.js), this says when a card it stops admitting
-  // leaves, and the model builder combines the two into one reading. A change of view
-  // puts any card away. A card whose reply holds words stays, so settlement never puts a
-  // draft away. The user's own gesture on the thread (`gesturedOn`) takes the card in
-  // the turn it is drawn; a settlement folds it out (willUpdate). Any other
-  // change is news, and its card stays, drawn as the news left it, while its going would
-  // move something the user sees: while any of it shows, since every card after it would
-  // rise, and, as the card the list shows open, while the panel shows, since another card
-  // would open in its place. Its leaving the window asks for the render that lets it go
-  // (`#watchKept`), as does its closing when the user opens another card.
-  keepsShown(thread, intent) {
+  // Why a shown card the view no longer admits stays shown, or null where it goes: the
+  // narrowing says which threads the view admits (narrowing.js), this says when a card
+  // it stops admitting leaves, and the model builder combines the two into one reading.
+  // A change of view puts any card away. What took the card out of the view is read in
+  // the render that first does, and its card carries the answer while it stays. The
+  // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
+  // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
+  // never puts a draft away; a settlement folds it out (willUpdate). Anything else is
+  // news ("news"), and its card stays, drawn as the news left it, while its going would
+  // move something the user sees: while any of it shows, since every card after it
+  // would rise, and, as the card the list shows open, while the panel shows, since
+  // another card would open in its place. Out of sight it stays only for its words. Its
+  // leaving the window asks for the render that lets it go (`#watchKept`), as does its
+  // closing when the user opens another card.
+  keeping(thread, intent) {
     const key = threadKey(thread);
     const view = this.#views.get(`thread:${key}`);
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
-      return false;
-    if (replyHasWords(key)) return true;
-    if (gesturedOn(thread)) return false;
-    return view.node.open
+      return null;
+    const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
+    const seen = view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));
+    if (news && seen) return "news";
+    return replyHasWords(key) ? "draft" : null;
   }
 
   #watchKept() {

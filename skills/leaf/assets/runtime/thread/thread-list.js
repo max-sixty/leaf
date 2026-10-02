@@ -238,12 +238,11 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // and so is the order it shows it in. The page's order is kept either way for the
     // walk with the panel shut.
     const narrowing = commands.narrowing.model(threads, places);
-    const kept = new Set(
-      threads.filter(
-        (thread) =>
-          !narrowing.shown.includes(thread) &&
-          threadsBox.keepsShown(thread, narrowing.intent),
-      ),
+    const kept = new Map(
+      threads
+        .filter((thread) => !narrowing.shown.includes(thread))
+        .map((thread) => [thread, threadsBox.keeping(thread, narrowing.intent)])
+        .filter(([, why]) => why),
     );
     const shown = threads.filter(
       (thread) => narrowing.shown.includes(thread) || kept.has(thread),
@@ -278,7 +277,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           key: `thread:${threadKey(t)}`,
           descriptor: threadReading(t, "panel", commands.card, {
             visible: visible.has(t),
-            kept: kept.has(t),
+            kept: kept.get(t) ?? null,
             grow,
             search: threadSearchReading(t, narrowing.intent.finding),
           }),

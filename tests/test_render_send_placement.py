@@ -356,9 +356,9 @@ def sent(browser, serve, name):
     # A card that scrolled the page is read where it stands on the page the box stood on.
     carried = page.evaluate("scrollY") - scrolled
     if phone_room is not None:
-        assert (
-            carried == 0
-        ), "The touch handoff must keep the page and its boundary still"
+        assert carried == 0, (
+            "The touch handoff must keep the page and its boundary still"
+        )
     placed = {
         edge: value + (carried if edge in ("top", "bottom") else 0)
         for edge, value in page.evaluate(RECT, ".lf-margin-preview").items()

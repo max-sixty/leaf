@@ -1385,6 +1385,7 @@ def serious_axe_violations(page):
         },
         "resultTypes": ["violations"],
     }
+
     # A hidden iframe can still have an about:blank document. Inspect only
     # documents the reader can reach, including through visible parent frames.
     def visible(frame):

@@ -3042,7 +3042,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     first.locator(".lf-thread-summary").click()
     page.mouse.move(2, 2)
     expect(first).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
-    first_quote = first.locator(":scope > .lf-thread-head > .lf-quote")
+    first_quote = first.locator(".lf-thread-head > .lf-quote")
     resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
     quote_resting = first_quote.evaluate(
         "element => getComputedStyle(element).backgroundColor"
@@ -3112,7 +3112,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
     thread.locator(".lf-thread-summary").click()
     page.mouse.move(2, 2)
     expect(thread).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
-    quote = thread.locator(":scope > .lf-thread-head > .lf-quote")
+    quote = thread.locator(".lf-thread-head > .lf-quote")
     card_resting = thread.evaluate(
         "element => getComputedStyle(element).backgroundColor"
     )
@@ -4493,8 +4493,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
               const blocks = [...thread.querySelectorAll(
-                ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
-                ':scope > .lf-msg .lf-msg-text > *'), compose]
+                ':scope > *, :scope > .lf-thread-content > *, .lf-msg .lf-msg-body > *, ' +
+                '.lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
                   top: block.getBoundingClientRect().top,

@@ -320,6 +320,23 @@
         }
       }
     </style>
+    <script id="bg-window-history" type="application/json">
+      [
+        {
+          "id": "bg-window-question",
+          "kind": "comment",
+          "author": "user",
+          "anchor": { "section": "bg-window-sample-copy" },
+          "text": "Does Sunday keep this timetable?"
+        },
+        {
+          "kind": "reply",
+          "author": "agent",
+          "parent": "bg-window-question",
+          "text": "Yes, both weekend days use the same hourly service."
+        }
+      ]
+    </script>
     <script type="module">
       import { afterPresentation } from "/runtime/widget-api.js";
 
@@ -426,9 +443,8 @@
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
         button.addEventListener("click", () => selectPanelView(button.dataset.view));
       }
-      sample.addEventListener("click", (event) => {
-        if (!selected || !event.target.closest(".lf-sample-controls button")) return;
-        queueMicrotask(() => selectPanelView(selected, sample.ready));
+      sample.addEventListener("lf-sample-ready", () => {
+        if (selected) selectPanelView(selected);
       });
     </script>
   </head>
@@ -1664,14 +1680,19 @@ gallery/
                   its bottom bar holds its shortcuts, and the frame keeps a window's
                   height however short the page is. Press its
                   <strong>Open threads</strong>
-                  button to see the Threads panel at that height.
+                  button to see its authored conversation. Add a reply, then Reset: the
+                  original conversation returns, and this gallery gets no thread.
                 </p>
                 <lf-sample
                   id="bg-window-sample"
                   label="practice release note, windowed"
                   window
                 >
-                  <template id="bg-window-sample-page" data-sample>
+                  <template
+                    id="bg-window-sample-page"
+                    data-sample
+                    data-sample-events="bg-window-history"
+                  >
                     <p class="eyebrow">practice page</p>
                     <h1>Weekend train service</h1>
                     <p id="bg-window-sample-copy">

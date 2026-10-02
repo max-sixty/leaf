@@ -323,6 +323,8 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
+  focusForNavigation: (target) => app.margin.focusForNavigation(target),
+  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
@@ -499,7 +501,7 @@ asks = createAskView({
   presentedControl: app.margin.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
-  scrollToElement: anchorTravel.scrollToElement,
+  arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
   announce,
   repaint,

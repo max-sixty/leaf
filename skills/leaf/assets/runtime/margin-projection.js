@@ -41,9 +41,9 @@
    holds one edge at its distance from the line it stands level with (`previewHold`):
    its top, so a turn arriving or the reply gaining a line leaves the transcript and the
    reply's first lines where the user reads them, and the reply's foot and Send move
-   down a line per wrap; its foot, with the reply row on it, where a turn joins the
-   transcript while the user drafts, and where the card stands over what it is about
-   and is read. Opening it on another thread lets it choose its spot afresh. A scroll
+   down a line per wrap; its foot, with the reply row on it, for the turn that joins the
+   transcript while the user drafts or sends, and where the card stands over what it is
+   about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
    never closes it: the card leaves with what it is about and comes back with it.
 
    The reply editor grows with its words, the card downward until its foot meets the
@@ -187,7 +187,13 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed, focusSurface, heldOut, showHeld } from "./thread/surfaces.js";
+import {
+  claimed,
+  focusSurface,
+  surfaceFocusTarget,
+  heldOut,
+  showHeld,
+} from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -1008,15 +1014,21 @@ export function createMarginProjection({
     const transcript = measureTranscript();
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
-    // measurement on the next. Keep the reply's line through those passes, then
-    // release it on the next edit so the editor grows below its first line.
+    // measurement on the next. Borrow the reply's line for that turn, keyed by the
+    // projected message's stable key so admitting a Send keeps the same hold. A later
+    // reading turn or a new edit releases it; an arriving turn while drafting borrows it
+    // anew, and a Send borrows it through the handoff out of the reply row.
+    const thread = threadCardThread();
+    const latest = thread && turns(thread).at(-1);
     const newDraft = drafting && !previewHold?.drafting;
     const continuedDraft =
       drafting && replyEditor?.value && replyEditor.value !== previewHold?.draftText;
     const keepReplyLine = Boolean(
+      latest &&
       !newDraft &&
       !continuedDraft &&
-      (previewHold?.keepReplyLine || (turned && (drafting || previewHold?.drafting))),
+      ((previewHold?.replyTurn && previewHold.replyTurn === latest.key) ||
+        (turned && (drafting || (previewHold?.drafting && latest.author === "user")))),
     );
     const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
     void floatingUi()
@@ -1082,7 +1094,7 @@ export function createMarginProjection({
           ...spot,
           transcript,
           drafting,
-          keepReplyLine,
+          replyTurn: keepReplyLine ? latest.key : null,
           draftText: replyEditor?.value,
         };
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
@@ -1648,7 +1660,7 @@ export function createMarginProjection({
     const wasSuppressingOptionsArrival = suppressingOptionsArrival;
     suppressingOptionsArrival = true;
     try {
-      control.focus({ preventScroll: true });
+      focusDestination(control);
     } finally {
       suppressingOptionsArrival = wasSuppressingOptionsArrival;
     }
@@ -2938,7 +2950,7 @@ export function createMarginProjection({
           ?.querySelector(".lf-page-thread");
         if (current) onPositioned(current);
       });
-    return thread;
+    return thread && { thread, presented: positioned };
   }
 
   // A route that starts on the page stays on the page while that thread has an inline
@@ -2956,23 +2968,25 @@ export function createMarginProjection({
     if (!panelIsOpen()) {
       // The trip starts before the surface takes focus, which scrolls it into view: the
       // trip records the place the user leaves, so it has to find them still there.
-      if (travel && claimed(id)) scrollToThread(id);
-      const local = focusSurface(id, { focus });
+      const local = surfaceFocusTarget(id, { focus });
       if (local) {
+        if (travel) scrollToThread(id, { focus });
+        else focusSurface(id, { focus });
         closePreview();
         return local;
       }
-      const thread = openInlineThread(id, {
-        onPositioned: (positionedThread) => {
-          positionedThread.focus({ preventScroll: true });
-          positionedThread.scrollIntoView({
-            behavior: scrollBehavior(),
-            block: "nearest",
-          });
-          if (travel) scrollToThread(id);
-        },
+      const opened = openInlineThread(id, {
+        onPositioned: travel
+          ? null
+          : (thread) => {
+              focusForNavigation(thread);
+              thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+            },
       });
-      if (thread) return thread;
+      if (opened) {
+        if (travel) scrollToThread(id, { focus, presented: opened.presented });
+        return opened.thread;
+      }
     }
     return showThread(id, { focus });
   }
@@ -3193,6 +3207,12 @@ export function createMarginProjection({
   // The page element a thread is about, resolved or not: where its anchor is placed, the
   // element its inventory entry is grouped under. A general or detached thread has none.
   const threadTarget = (id) => placedAt(id)?.element ?? null;
+  const threadFocusTarget = (id, options) =>
+    surfaceFocusTarget(id, options) ??
+    [...previewList.querySelectorAll(".lf-page-thread")].find(
+      (thread) => thread.dataset.thread === id,
+    ) ??
+    null;
   // The page target this owner's chrome shows (standing-target.js): a margin cluster
   // control's, the card's — its threads and its own controls — and a thread's in the
   // Threads panel. `threadHere` is the same relation read the other way.
@@ -3382,6 +3402,7 @@ export function createMarginProjection({
     foldMarginEntryOptions,
     threadHere,
     threadTarget,
+    threadFocusTarget,
     captureStanding,
     restoreStanding,
     mount,

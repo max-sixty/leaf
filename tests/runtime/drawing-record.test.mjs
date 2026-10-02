@@ -27,7 +27,6 @@ test("the page accepts the drawings the door accepts", () => {
     { box: [640.5, 96, 1] },
     { box: [640.5, 33554433] },
     { says: "" },
-    { says: "x".repeat(501) },
     { says: ["to reap"] },
     { words: "to reap" },
   ])

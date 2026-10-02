@@ -51,7 +51,8 @@ subpackage's initializer is only a marker, never a second API.
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;
 - `presence`: page, claim, and neighboring-leaf presence;
-- `samples`: disposable child pages built from captured templates;
+- `samples`, `sample_content`: disposable child pages built from captured templates,
+  and their initial histories admitted from parent threads or authored fixture commands;
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   authoring gates, and page init and layer transitions;

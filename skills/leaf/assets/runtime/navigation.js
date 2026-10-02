@@ -91,7 +91,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   // thread the user already stands on, moves no focus and gives the list nothing to
   // land: the press lands that thread itself. The page half travels either way, and
   // keeps the panel the walk is in: it moves the page only where moving it shows the
-  // passage better beside the panel (anchor-travel.js, `arrived`).
+  // passage better beside the panel (anchor-travel.js, `arrive`).
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });

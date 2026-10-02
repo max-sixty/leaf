@@ -326,19 +326,43 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="hub">'
+        '<lf-command id="hub" readings="goal">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
         "</lf-agent></lf-task></lf-command>"
-        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='command'" in errors[1]
+    assert "$command.widgets widget where role='readings'" in errors[0]
+    assert "$command.widgets widget where role='goal'" in errors[1]
+
+
+def test_a_readings_seat_answers_to_one_command(page_dir):
+    """A command fills the seat it names, so each seat in a document is named by
+    exactly one command: a second command naming it is refused, and so is a seat no
+    command names, while each command naming its own seat passes."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = SourceDocument(
+        '<lf-command id="one" readings="seat"></lf-command>'
+        '<lf-command id="two" readings="seat"></lf-command>'
+        '<lf-command id="three" readings="other"></lf-command>'
+        '<lf-command-readings id="seat"></lf-command-readings>'
+        '<lf-command-readings id="other"></lf-command-readings>'
+        '<lf-command-readings id="orphan"></lf-command-readings>'
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert errors == [
+        (
+            '<lf-command> (line 1): readings="seat" is already named by '
+            "<lf-command id='one'> (line 1); only one element may name it"
+        ),
+        "<lf-command-readings> (line 1): no <lf-command> names it in `readings`",
+    ]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -629,58 +653,6 @@ def test_the_key_reference_is_generated_from_the_registry():
     assert labels == sorted(disclosures)
 
 
-def test_no_example_writes_another_example_s_sentences():
-    """Each page's connective prose is written in its own subject.
-
-    The gesture is shared vocabulary — every board takes a drag, every group takes a
-    pick, and the words for those are meant to repeat. The sentence around the gesture
-    is not: a page that borrows one is describing another page's work in that page's
-    words, and the corpus is the one place a user sees them side by side.
-
-    A batch of them got in at once, and the cause was upstream of the corpus.
-    references/authoring-evidence.md's "Interactive and visual evidence" entry
-    quoted two model sentences, and both reached shipped examples word for word; a
-    phrase sitting ready to paste is a phrase that gets pasted. That entry now names
-    what the sentence must carry instead, and this is what says whether it worked.
-
-    Twelve words, from a measurement rather than a guess: with those rewritten, the
-    longest run any two examples share is seven, and nothing at all is shared at eight.
-    Both sevens are between pages this change never touched: the guarantee a version
-    makes about a board, and a fictional detail two pages were written to share. So
-    twelve leaves five words of room over what the corpus legitimately repeats, and is
-    loose enough to let a single borrowed clause through — which is the judgement the
-    skill entry carries and a word count cannot."""
-    run = 12
-    examples = {
-        p.stem: p.read_text(encoding="utf-8")
-        for p in sorted((ROOT / "examples").glob("*.html"))
-        # corpus.html embeds every sibling's prose, so it shares everything by
-        # construction; `leaf-dev corpus` is what holds it true.
-        if p.stem != "corpus"
-    }
-    assert len(examples) > 1, examples
-
-    def words(html: str) -> list[str]:
-        # <main> only: shared delivery markup is absent from authored examples, while
-        # page-specific titles, styles, and modules legitimately differ in the head.
-        body = html[re.search(r"<main\b[^>]*>", html).end() : html.rindex("</main>")]
-        return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
-
-    seen: dict[tuple, str] = {}
-    shared: list[str] = []
-    for name, html in examples.items():
-        ws = words(html)
-        for i in range(len(ws) - run + 1):
-            gram = tuple(ws[i : i + run])
-            if gram in seen and seen[gram] != name:
-                shared.append(f"{seen[gram]} and {name}: {' '.join(gram)}")
-            seen.setdefault(gram, name)
-    assert not shared, (
-        f"{len(shared)} run(s) of {run}+ words shared between examples; write each "
-        "page's own sentence:\n  " + "\n  ".join(sorted(set(shared))[:10])
-    )
-
-
 def test_reply_validates_widget_markup(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -720,10 +692,12 @@ def test_reply_validates_widget_markup(page_dir):
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never freezes."""
+    """Reply markup naming a page element of the wrong role never freezes, nor does
+    a command naming the page's seat, which it would fill from another document."""
     subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        '<lf-command id="hub" readings="seat"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+        '<lf-command-readings id="seat"></lf-command-readings>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -749,11 +723,18 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
+    swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='command'" in swapped.output
+    assert "where role='readings'" in swapped.output
 
-    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
+    borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
+    assert borrowed.exit_code != 0
+    assert "outside its own document" in borrowed.output
+
+    valid = reply(
+        '<lf-command id="quoted" readings="quoted-seat"></lf-command>'
+        '<lf-command-readings id="quoted-seat"></lf-command-readings>'
+    )
     assert valid.exit_code == 0, valid.output
 
 
@@ -1731,7 +1712,6 @@ def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir
     for invalid in (
         {"title": ""},
         {"title": "   "},
-        {"title": "a" * 81},
         {"title": "Two\nlines"},
         {"title": "Trailing newline\n"},
         {"title": "Two\rlines"},

@@ -176,9 +176,8 @@ def _own_markup(page_dir: Path, kind: str, markup: str, events: list) -> SourceD
     # with what was wrong. Here they are asked of what is arriving, at the one moment
     # anything can still be done about it.
     pinned_errors = pinned_thread_markup_errors(page_dir, frag)
-    errs = (
-        thread_markup_contract_errors(frag, registry)
-        + pinned_errors
+    extra_errors = (
+        pinned_errors
         + (
             [
                 (
@@ -190,9 +189,6 @@ def _own_markup(page_dir: Path, kind: str, markup: str, events: list) -> SourceD
             if pinned_errors
             else []
         )
-        + fragment_style_errors(frag)
-        + document_declaration_errors(frag)
-        + media_errors(frag, page_dir)
         + data_binding_errors(
             page_dir,
             registry,
@@ -201,14 +197,8 @@ def _own_markup(page_dir: Path, kind: str, markup: str, events: list) -> SourceD
             incoming=[(frag.lf_elements, f"incoming {kind} markup")],
         )
     )
-    if errs:
-        sys.exit(
-            f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
-        )
-    if not frag.lf_elements:
-        sys.exit("--markup carries no widget; put prose in --text")
-    if names := id_errors(frag):
-        sys.exit(f"{kind} widget markup: " + "; ".join(names))
+    if error := fragment_markup_error(page_dir, kind, frag, registry, extra_errors):
+        sys.exit(error)
     return frag
 
 
@@ -232,28 +222,89 @@ def check_markup(
     writer runs first (`run_markup`), since the run reads the page's log and a writer
     holds it from here to the append."""
     frag = _own_markup(page_dir, kind, markup, events)
-    registry = require_registry(page_dir)
-    thread = thread_structure(events)
-    revisions = list_revisions(page_dir)
     if page is None:
+        revisions = list_revisions(page_dir)
         page = (
             read_revision(page_dir, revisions[-1]).document
             if revisions
             else SourceDocument("")
         )
-    clash = sorted(frag.ids & (version_ids(page_dir) | page.ids | thread.ids))
-    if clash:
-        sys.exit(
-            f"{kind} widget ids already taken by the page or an earlier message: {clash}"
+    if error := placement_error(
+        kind, frag, events, require_registry(page_dir), page, version_ids(page_dir)
+    ):
+        sys.exit(error)
+    return frag
+
+
+def message_markup_error(
+    page_dir: Path,
+    kind: str,
+    frag: SourceDocument,
+    events: list,
+    registry: dict,
+    page: SourceDocument,
+    prior_ids: set[str],
+    extra_errors: list[str],
+) -> str | None:
+    """The shared message-fragment gate for a stored or newly constructed page.
+
+    Callers supply their lifetime's binding and pinned-vocabulary checks. The
+    fragment's structure, vocabulary, presentation, media, ids and references
+    have one gate regardless of whether its page has been allocated yet.
+    """
+    return fragment_markup_error(
+        page_dir, kind, frag, registry, extra_errors
+    ) or placement_error(kind, frag, events, registry, page, prior_ids)
+
+
+def fragment_markup_error(
+    page_dir: Path,
+    kind: str,
+    frag: SourceDocument,
+    registry: dict,
+    extra_errors: list[str],
+) -> str | None:
+    """What is wrong with the fragment on its own: structure, vocabulary,
+    presentation, media, and the form of its ids."""
+    errs = (
+        thread_markup_contract_errors(frag, registry)
+        + extra_errors
+        + fragment_style_errors(frag)
+        + document_declaration_errors(frag)
+        + media_errors(frag, page_dir)
+    )
+    if errs:
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in errs
         )
+    if not frag.lf_elements:
+        return "--markup carries no widget; put prose in --text"
+    if names := id_errors(frag):
+        return f"{kind} widget markup: " + "; ".join(names)
+    return None
+
+
+def placement_error(
+    kind: str,
+    frag: SourceDocument,
+    events: list,
+    registry: dict,
+    page: SourceDocument,
+    prior_ids: set[str],
+) -> str | None:
+    """What is wrong with the fragment among the page's and the thread's ids: an id
+    one of them already holds, or a reference none of them resolves."""
+    thread = thread_structure(events)
+    clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
+    if clash:
+        return f"{kind} widget ids already taken by the page or an earlier message: {clash}"
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
     ):
-        sys.exit(
-            f"{kind} markup doesn't validate:\n"
-            + "\n".join(f"  - {error}" for error in reference_errs)
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in reference_errs
         )
-    return frag
+    return None

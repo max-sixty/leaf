@@ -53,16 +53,15 @@ def event_record_error(contract: dict, event: dict):
     return schema_error(contract["record"], event)
 
 
-def browser_command_error(contract: dict, event: dict):
-    """The first complaint from what a browser client is allowed to post.
+def command_record_schema(contract: dict) -> dict:
+    """The stored record's shape before admission derives its meaning.
 
-    A command is not yet a record: the server owns the envelope, the author, and
-    every field admission derives. This reads the record contract with those
-    fields supplied or lifted, beside the kind's own browser assertions — which
-    are narrower than the record, because the fields a reply carries from the
-    CLI are not a tab's to send."""
+    A command may name its envelope where its writer owns it, but meaning always
+    comes from admission. Both browser ingress and sample construction check
+    this shape before any gate reads kind-specific fields.
+    """
     schema = contract["record"]
-    schema = {
+    return {
         **schema,
         "properties": {
             key: value
@@ -71,8 +70,18 @@ def browser_command_error(contract: dict, event: dict):
         },
         "required": [key for key in schema["required"] if key != "meaning"],
     }
+
+
+def browser_command_error(contract: dict, event: dict):
+    """The first complaint from what a browser client is allowed to post.
+
+    A command is not yet a record: the server owns the envelope, the author, and
+    every field admission derives. This reads the record contract with those
+    fields supplied or lifted, beside the kind's own browser assertions — which
+    are narrower than the record, because the fields a reply carries from the
+    CLI are not a tab's to send."""
     return schema_error(
-        {"allOf": [schema, contract["browser"]]},
+        {"allOf": [command_record_schema(contract), contract["browser"]]},
         {
             **event,
             **APPEND_STAMPED,

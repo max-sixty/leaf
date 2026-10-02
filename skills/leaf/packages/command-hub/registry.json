@@ -90,6 +90,9 @@
       "lf-command": {
         "role": "command"
       },
+      "lf-command-readings": {
+        "role": "readings"
+      },
       "lf-task": {
         "role": "goal",
         "state": "status",
@@ -243,7 +246,7 @@
   },
   "lf-command": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
-    "x-instructions": "Write one plan tree and place each worker once at the narrowest level matching its durable remit. Use on only for the worker's current focus inside that remit. Keep roster and Ask inventory as derived readings rather than authoring duplicate lists. Use lf-command-readings when the readings belong beside the tree instead of above it.",
+    "x-instructions": "Write one plan tree and place each worker once at the narrowest level matching its durable remit. Use on only for the worker's current focus inside that remit. Keep roster and Ask inventory as derived readings rather than authoring duplicate lists. Use lf-command-readings, named by readings, when the readings belong beside the tree instead of above it.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -256,6 +259,10 @@
       },
       "phase": {
         "type": "string"
+      },
+      "readings": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
     "required": [
@@ -263,38 +270,36 @@
     ],
     "additionalProperties": false,
     "x-content": "members",
+    "x-refers": {
+      "readings": {
+        "via": "$command.widgets",
+        "where": {
+          "role": "readings"
+        },
+        "owns": true
+      }
+    },
     "x-upgrade": true,
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\" talk>\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
-    "description": "A separate placement for a command’s progress, stopped work, and live worker readings.",
-    "x-instructions": "Author it empty and set for to the command it presents. Place it in the rail of a wide page when the tree belongs in the body; otherwise the command presents the same readings at its head.",
+    "description": "A separate placement for a command’s progress, stopped work, and live worker readings, at one fixed height that scrolls inside it.",
+    "x-instructions": "Author it empty, with an id, and name that id in the readings of the one command it presents. Place it in the rail of a wide page when the tree belongs in the body; otherwise the command presents the same readings at its head, in a band of the same height.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
     "required": [
-      "for"
+      "id"
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-refers": {
-      "for": {
-        "via": "$command.widgets",
-        "where": {
-          "role": "command"
-        }
-      }
-    },
+    "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings for=\"garden-command\"></lf-command-readings></aside>\n</div>"
+    "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\" readings=\"garden-readings\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings id=\"garden-readings\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",

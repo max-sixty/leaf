@@ -1,10 +1,10 @@
-"""What a preview reads off a checkout before it serves anything.
+"""Preview input readings and the user handoff's host connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
 package layer, the media directory, and the set of paths a watcher subscribes
-to. Each is a pure reading of a directory tree, so these state the tree and ask
-for the reading — no server is started, no watcher subscribes, and no browser
-opens.
+to. Input tests state a directory tree and ask for those pure readings. The user
+handoff crosses the real claim, server and delivery adapter boundaries, without
+opening a browser.
 
 That is why they are here and not beside the preview's browser tests. A nightly
 mark is file-level, with no per-test escape, so a Python-decided reading filed
@@ -12,9 +12,16 @@ in a nightly module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
+import shlex
+import subprocess
+import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from interact_support import ROOT
+import pytest
+from interact_support import ROOT, fetch, stamp, wait_for
+from leaf import codex_adapter, server, service
 from leaf_dev import preview
 
 
@@ -220,7 +227,6 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):
-
     source = tmp_path / "project" / "docs" / "page.html"
     source.parent.mkdir(parents=True)
     source.touch()
@@ -233,3 +239,121 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
         (ROOT / "examples" / "layer.json").read_text()
     )
     assert preview.media_source(source) == source.parent / "media"
+
+
+@pytest.mark.parametrize("delivery_available", [True, False])
+def test_a_user_preview_connects_codex_feedback_before_handing_over_its_url(
+    page_dir, tmp_path, under_codex, codex_env, delivery_available
+):
+    """HTTP feedback reaches the current task without a second `codex start`.
+
+    The detached adapter, claim and page server are real. Only the external Codex
+    CLI is replaced: its queue boundary acknowledges and records the submitted
+    task and delivery pointer instead of starting a model turn.
+    """
+    stamp(page_dir)
+    executable = tmp_path / "codex"
+    queued = tmp_path / "queued.json"
+    executable.write_text(
+        f"""#!{sys.executable}
+import json
+import os
+import sys
+from pathlib import Path
+
+if os.environ["PREVIEW_QUEUE_AVAILABLE"] == "False":
+    print("queue unsupported", file=sys.stderr)
+    sys.exit(1)
+if sys.argv[1:] != ["queue", "--help"]:
+    Path(os.environ["PREVIEW_QUEUE_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print("queued")
+"""
+    )
+    executable.chmod(0o755)
+    ready = tmp_path / "ready.json"
+    done = tmp_path / "done"
+    program = """
+import json
+import sys
+import time
+from pathlib import Path
+from leaf.service import PageTransaction
+from leaf_dev.preview import PreviewService
+
+page, ready, done = map(Path, sys.argv[1:])
+preview = PreviewService(page, True)
+try:
+    ready.write_text(json.dumps(preview.start()))
+    while not done.exists():
+        time.sleep(0.01)
+finally:
+    preview.stop()
+    if ready.exists():
+        with PageTransaction(page) as transaction:
+            transaction.release_claim()
+"""
+    task = under_codex(
+        shlex.join(
+            [sys.executable, "-c", program, str(page_dir), str(ready), str(done)]
+        ),
+        codex_env
+        | {
+            "CODEX_THREAD_ID": "preview-thread",
+            "PATH": f"{tmp_path}{os.pathsep}{codex_env['PATH']}",
+            "PREVIEW_QUEUE_RECORD": str(queued),
+            "PREVIEW_QUEUE_AVAILABLE": str(delivery_available),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if not delivery_available:
+        output, errors = task.communicate(timeout=60)
+        assert task.returncode != 0, f"{output}{errors}"
+        assert "queue unsupported" in errors
+        assert not ready.exists()
+        assert service.page_claim(page_dir) is None
+        assert server.running_server(page_dir) is None
+        assert not codex_adapter.adapter_is_live("preview-thread")
+        return
+    try:
+        wait_for(
+            ready.exists,
+            bool,
+            failure="the user preview never handed over its URL",
+            timeout=60,
+        )
+        url, _ = json.loads(ready.read_text())
+        assert service.page_claim(page_dir)["id"] == "preview-thread"
+        assert codex_adapter.adapter_is_live("preview-thread")
+        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
+        status, body = fetch(
+            endpoint,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Please revise this candidate",
+                    "attempt": "preview_feedback",
+                }
+            ).encode(),
+            token=None,
+        )
+        assert status == 200, body
+        wait_for(
+            queued.exists,
+            bool,
+            failure="the preview's feedback did not reach Codex",
+        )
+        arguments = json.loads(queued.read_text())
+        assert arguments[:4] == ["queue", "--thread", "preview-thread", "--message"]
+        assert 'operation="delivery read"' in arguments[-1]
+    finally:
+        done.touch()
+        output, errors = task.communicate(timeout=15)
+    assert task.returncode == 0, f"{output}{errors}"
+    wait_for(
+        lambda: codex_adapter.adapter_is_live("preview-thread"),
+        lambda live: not live,
+        failure="the task's delivery carrier outlived its preview",
+    )

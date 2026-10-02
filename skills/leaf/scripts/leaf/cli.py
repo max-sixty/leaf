@@ -447,7 +447,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     resumes from the last one a reader saw. This is read-only and does not
     acknowledge user events. `page state PAGE ID` reads one thread or widget.
     """
-    from leaf.transcript import cmd_events
+    from leaf.event_log import cmd_events
 
     cmd_events(resolve_dir(dir), after, follow=follow)
 

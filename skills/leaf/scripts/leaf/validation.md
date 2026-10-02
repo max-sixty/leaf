@@ -63,13 +63,19 @@ the early reading, not the report.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
-namespace is its `data-sample-threads` declaration, so a first version may name
-threads whose seed log has not been written yet. Static validation applies the same
-child-document checks using the selected history currently available. Sample
-allocation copies that same available history and no more, so a thread the log does
-not hold leaves the child without it rather than refusing the page. Corpus
-generation selects against the shipped log it is composing from, where a declared
-thread the log lacks is a mistake in the declaration, and refuses it.
+namespace comes from its initial history. `sample_content.initial_sample_events`
+constructs it once for both static validation and allocation. `data-sample-events`
+names an inline inert JSON script in the captured parent document: its ordinary event
+commands are admitted against the child, including file-side anchor capture and the
+shared message-markup gate. The resulting history defines the child's thread namespace
+before presentation and never writes the parent's log.
+
+Alternatively, `data-sample-threads` selects from the parent's available history.
+A first version may name threads whose seed log has not been written yet; a thread
+the log does not hold leaves the child without it rather than refusing the page.
+Corpus generation selects against the shipped log it is composing from, where a
+declared thread the log lacks is a mistake in the declaration, and refuses it.
+The two history declarations are mutually exclusive.
 
 ## Delivery policy
 

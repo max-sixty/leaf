@@ -337,7 +337,7 @@ export class HeldNews {
  *  `reading` where it is the first, where it equals the one drawn last, or where none
  *  of the region shows in the window, since a row may change anywhere in it; otherwise
  *  the reading drawn last. What it holds shows when the user opens it
- *  (`show`), or once none of the region shows in the window. */
+ *  (`release` or `show`), or once none of the region shows in the window. */
 export class HeldReading {
   #region;
   #changed;
@@ -372,9 +372,15 @@ export class HeldReading {
     return this.#shown;
   }
 
-  // Draws the current reading whatever it moves: the user asked, or nobody can see.
-  show = () => {
+  // The next reading draws whatever it moves: the user asked, or nobody can see.
+  // `release` leaves the drawing to the caller, which may release several readings
+  // for one paint; `show` draws now.
+  release() {
     this.#released = true;
+  }
+
+  show = () => {
+    this.release();
     this.#changed();
   };
 

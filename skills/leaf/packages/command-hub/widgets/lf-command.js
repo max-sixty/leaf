@@ -308,10 +308,11 @@ function showView(box) {
 }
 
 // A count opens its list: the lists show as they stand now, whatever they move, since
-// the user asked.
+// the user asked, in one paint.
 function openLists(plan) {
   opened.add(plan);
-  for (const held of Object.values(holds(plan))) held.show();
+  for (const held of Object.values(holds(plan))) held.release();
+  render(plan);
 }
 
 function openStopped(plan) {

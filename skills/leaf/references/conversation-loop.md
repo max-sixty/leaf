@@ -66,8 +66,8 @@ leaf status <page> waiting "<what you want back>"
 
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
-banner then invites the user to select text to comment. Every chat message
-from here on repeats the page's exact URL (the main skill, "Operate").
+banner then invites the user to select text to comment. Finish the turn by the
+handoff route in the main skill, "Operate".
 
 While the next move is yours the page is `working`. Name the local subject when
 the detail is about one open comment thread or page widget:

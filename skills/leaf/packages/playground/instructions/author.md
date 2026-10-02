@@ -26,6 +26,10 @@ browser-ready code and fixtures under `vendor/`; page images go through `leaf pa
 (`references/authoring-evidence.md`). Load those assets from the page's same origin,
 and keep imports from Leaf's runtime to `/runtime/widget-api.js`.
 
+Keep candidates realistic so the user can judge the interface as they would use it.
+Use product copy for their visible and accessible text. Describe them as prototypes
+only in the surrounding playground, and only if necessary.
+
 When exploring changes to an existing interface, include its current state as a labeled
 baseline. Derive each candidate from that baseline and change only the behavior or
 presentation under review; preserve its controls, words, tokens, and interaction state

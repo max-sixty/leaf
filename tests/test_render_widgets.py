@@ -743,9 +743,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name, and each tab counts the Asks in its panel the user still owes: an answer
-    clears its tab's count while the others keep theirs, and moves no row. A tab's name
-    is its label whatever the row shows, and a panel bounds what it holds."""
+    name. Answering an item's Ask moves no row. A tab's name is its label whatever
+    the row shows, and a panel bounds what it holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -785,8 +784,6 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     }"""
     wide = page.evaluate(boxes)
     assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
-    owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
-    expect(owed).to_have_text(["1", "1", "1"])
     bounds = page.evaluate("""() => ({
       board: document.querySelector('#board').getBoundingClientRect().right,
       panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
@@ -797,6 +794,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
         ".map((b) => b.getBoundingClientRect().height)"
@@ -810,7 +809,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(owed).to_have_text(["", "1", "1"])
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     assert page.evaluate(rows) == heights
 
     resized(page, 390, 844)

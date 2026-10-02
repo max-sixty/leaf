@@ -13,7 +13,7 @@
    press made from it means the page whole.
 
    Each feature takes what it needs from that place by its own rule: the Ask view the
-   innermost Ask holding it, `c` and `e` the addressable element, the walks its document
+   innermost Ask holding it, `c` and `e` its semantic target, the walks its document
    position. The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every Ask and thread
    there is; no reader measures from one that does not stand in an Ask.

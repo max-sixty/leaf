@@ -14,7 +14,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered
-from leaf.served_state import page as served_page
+from leaf.served_state import context as served_context
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -3740,7 +3740,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       });
     }""")
 
-    detail = "Checking the return visit, dispatching the diagram guidance review, and comparing every scheduling alternative before preparing the updated recommendation."
+    detail = "Checking the return visit, dispatching the diagram instructions review, and comparing every scheduling alternative before preparing the updated recommendation."
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
@@ -4338,7 +4338,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     def advanced_now():
         return advanced
 
-    for clock_owner in (served_page, events_model, service_model):
+    for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
     session_model.cmd_status(page_dir, "idle", "")
     told(page)
@@ -4760,22 +4760,14 @@ WORDS_RIGHT = """() => {
 }"""
 
 
-def _walk_gallery_thread(page, thread_id):
-    """Reach a gallery thread by identity as samples change page order."""
+def _open_gallery_thread(page, target, thread_id):
+    """Enter a gallery thread from its target's comment note."""
+    page.locator(f"#{target}").scroll_into_view_if_needed()
+    comment_note(page, f"#{target}").press("Enter")
     walked = page.locator(".lf-margin-preview .lf-page-thread")
-    seen = set()
-    while True:
-        previous = walked.get_attribute("data-thread") if walked.count() else None
-        page.keyboard.press("t")
-        expect(walked).to_be_focused()
-        if previous is not None:
-            expect(walked).not_to_have_attribute("data-thread", previous)
-        standing = walked.get_attribute("data-thread")
-        rendered(page)
-        if standing == thread_id:
-            return
-        assert standing not in seen, f"the thread walk returned to {standing}"
-        seen.add(standing)
+    expect(walked).to_have_attribute("data-thread", thread_id)
+    expect(walked).to_be_focused()
+    rendered(page)
 
 
 def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
@@ -4791,8 +4783,8 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
 
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
-    _walk_gallery_thread(page, crowded_thread)
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-crowded", crowded_thread)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(page.locator("#bg-crowded")).to_be_in_viewport()
@@ -4858,7 +4850,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     resized(page, 2672, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
     expect(page.locator("#bg-thread-text")).to_be_in_viewport()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
@@ -4987,7 +4979,7 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
@@ -5033,7 +5025,7 @@ def test_a_thread_in_a_short_rail_stands_on_the_side_with_room(browser, serve):
     resized(page, 1024, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
@@ -7574,6 +7566,54 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
+def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
+    """Once the sent turn is placed, a new draft keeps its first line where typed."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    preview.locator(".lf-say .lf-compose-submit").click()
+    rendered(page)
+    editor.click()
+    rendered(page)
+    before = preview.evaluate(DRAFTING_CARD)
+    editor.type("a long new draft " * 20)
+    rendered(page)
+    after = preview.evaluate(DRAFTING_CARD)
+    assert after["side"] == before["side"]
+    assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
+        before,
+        after,
+    )
+
+
+def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
+    browser, serve
+):
+    """News holds the reply row; later typing grows the active draft below its first line."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": LONG_THREAD_ROOT["id"],
+            "text": "An agent answer arriving while the user types. " * 6,
+        },
+    )
+    told(page)
+    rendered(page)
+    before = preview.evaluate(DRAFTING_CARD)
+    editor.type(" a long continuing draft " * 20)
+    rendered(page)
+    after = preview.evaluate(DRAFTING_CARD)
+    assert after["side"] == before["side"]
+    assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
+        before,
+        after,
+    )
+
+
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
     """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
@@ -9680,8 +9720,8 @@ CELL_TARGET_PAGE = leaf_page(
 <table id="phases">
 <thead><tr><th>Phase</th><th>Contents</th><th>Choice</th></tr></thead>
 <tbody>
-<tr id="phase-1"><td>1</td><td>Maintainer guidance rewritten.</td><td>Committed</td></tr>
-<tr id="phase-2"><td>2</td><td>Agent guidance rewritten.</td><td>Delivery depth</td></tr>
+<tr id="phase-1"><td>1</td><td>Maintainer instructions rewritten.</td><td>Committed</td></tr>
+<tr id="phase-2"><td>2</td><td>Agent instructions rewritten.</td><td>Delivery depth</td></tr>
 </tbody>
 </table>
 """,

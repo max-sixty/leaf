@@ -34,7 +34,7 @@ concept uses the same word.
 Core Leaf owns revision activation, scoped serving, executable and inert-input
 boundaries, target identity, event admission, comments, and export. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
-and guidance. A page instance owns its content, page-local modules, styles, assets, and
+and instructions. A page instance owns its content, page-local modules, styles, assets, and
 declarations, semantic target choices, drafts, and package selection. A user session
 owns focus, scroll, selection, and disposable exploration state; durable user choices
 enter the page instance through Leaf's event path.

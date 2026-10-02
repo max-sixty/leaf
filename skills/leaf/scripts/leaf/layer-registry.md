@@ -30,7 +30,7 @@ records three deliberately different identities under `$layer`:
   document.
 - `fingerprint` is the SHA-256 identity of the complete composed layer before that
   epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
-  guidance bytes have the same fingerprint across repeated vendoring. `producer`
+  instructions bytes have the same fingerprint across repeated vendoring. `producer`
   records the Git commit and dirty bit when the payload came from a checkout or from
   Claude Code's Git-versioned plugin cache, and how old that commit is: `committed`,
   its committer date, where Git can read it, or `installed`, when the plugin cache

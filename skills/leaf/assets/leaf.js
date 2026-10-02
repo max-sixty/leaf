@@ -49,7 +49,7 @@ import {
   targetPickerHintLayer,
   pageSearchSurface,
 } from "./runtime/composing/target-picker.js";
-import { createStandingElement } from "./runtime/composing/standing.js";
+import { createStandingTarget } from "./runtime/composing/standing.js";
 import {
   createReactionController,
   reactionTokens,
@@ -504,7 +504,7 @@ asks = createAskView({
   repaint,
 });
 
-const standingElement = createStandingElement({
+const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
 });
@@ -557,7 +557,7 @@ responseSurface = createResponseSurface({
   threadHere: () => app.margin.threadHere(),
   threadTarget: (thread) =>
     app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
-  standingElement,
+  standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
@@ -604,7 +604,7 @@ reactions = createReactionController({
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
   standingThread,
-  standingElement,
+  standingTarget,
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,

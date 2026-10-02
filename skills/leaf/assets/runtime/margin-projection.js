@@ -80,7 +80,7 @@
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { replyHasWords } from "./thread/replies.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { afterScript, cancelRender, nextRender } from "./rendering.js";
 import {
   KINDS,
   excerptWords,
@@ -187,7 +187,7 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed, focusSurface } from "./thread/surfaces.js";
+import { claimed, focusSurface, heldOut, showHeld } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -717,9 +717,9 @@ export function createMarginProjection({
   let previewPositionWaiters = [];
   let previewFocusPending = null;
   // The side the card holds (comment-placement.js); the offsets of its top and foot from
-  // the line it stands level with, and its transcript's height, when it last stood
-  // (`placeThreadPreview`); and whether a scroll has carried it out of the window with
-  // what it is about.
+  // the line it stands level with; its transcript height and reply-line hold at the last
+  // placement (`placeThreadPreview`); and whether a scroll has carried it out of the
+  // window with what it is about.
   const previewSide = commentPlacement();
   let previewHold = null;
   let previewAway = false;
@@ -932,9 +932,9 @@ export function createMarginProjection({
   // Where the card stands is comment-placement.js's rule, the one the comment box stands
   // by, so a sent comment's card opens where its box stood. Beyond it the card holds its
   // place as its thread changes: it keeps the top while the user reads or writes a new
-  // line, and its foot, with the reply row on it, while a turn joins the transcript as
+  // line, and its foot, with the reply row on it, after a turn joins the transcript as
   // the user drafts, whether one arrives or they sent it, so the box they type in stays
-  // put and the transcript rises by the turn. A card over its target grows up from its
+  // put through subsequent sizing passes. A card over its target grows up from its
   // foot. The boundary caps the card at the room from its held edge. Drafting grows the
   // editor into that room, then scrolls its words rather than carrying the card.
   function placeThreadPreview() {
@@ -1007,7 +1007,18 @@ export function createMarginProjection({
     }
     const transcript = measureTranscript();
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
-    const held = drafting ? (turned ? "foot" : "top") : side === "top" ? "foot" : "top";
+    // A turn changes the transcript on one pass, then the card's own size changes its
+    // measurement on the next. Keep the reply's line through those passes, then
+    // release it on the next edit so the editor grows below its first line.
+    const newDraft = drafting && !previewHold?.drafting;
+    const continuedDraft =
+      drafting && replyEditor?.value && replyEditor.value !== previewHold?.draftText;
+    const keepReplyLine = Boolean(
+      !newDraft &&
+      !continuedDraft &&
+      (previewHold?.keepReplyLine || (turned && (drafting || previewHold?.drafting))),
+    );
+    const held = keepReplyLine || (!drafting && side === "top") ? "foot" : "top";
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
@@ -1067,7 +1078,13 @@ export function createMarginProjection({
         const { scale, spot } = previewSide.landed(position);
         // The transcript this placement answered, so a turn that joined it while the
         // placement was worked out is one the next placement still sees join.
-        previewHold = { ...spot, transcript };
+        previewHold = {
+          ...spot,
+          transcript,
+          drafting,
+          keepReplyLine,
+          draftText: replyEditor?.value,
+        };
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         previewPlacement.stand(position);
         const card = preview.getBoundingClientRect();
@@ -1194,9 +1211,10 @@ export function createMarginProjection({
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
-      const drafting = replyHasWords(threadKey(thread));
-      if ((thread.resolved && !drafting) || !thread.anchor || claimed(thread.id))
-        continue;
+      // A settled thread keeps its marker while the user has words for it, or while a
+      // widget holds it out of its flow behind that marker (thread/held-news.js).
+      const kept = replyHasWords(threadKey(thread)) || heldOut(thread.id);
+      if ((thread.resolved && !kept) || !thread.anchor || claimed(thread.id)) continue;
       const id = thread.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
@@ -1598,22 +1616,29 @@ export function createMarginProjection({
     if (previewEntry && !preservePreview) closePreview();
     expandedOptionsKey = nextKey;
     expandedOptionsOwner = nextOwner;
-    settlingOptionsFocus = true;
-    try {
-      renderMargin.refresh();
-      if (returnFocus && previousKey) {
-        handBack(moreMarginEntries.get(previousKey));
-      } else if (focusOption && nextKey) {
-        const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
-        const fallback = clusterMarginEntries(hosts.get(nextKey));
-        const next =
-          (focusOption === "last" ? choices.at(-1) : choices[0]) ??
-          (focusOption === "last" ? fallback.at(-1) : fallback[0]);
-        next?.focus({ preventScroll: true });
+    const paint = () => {
+      settlingOptionsFocus = true;
+      try {
+        renderMargin.refresh();
+        if (returnFocus && previousKey) {
+          handBack(moreMarginEntries.get(previousKey));
+        } else if (focusOption && nextKey) {
+          const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
+          const fallback = clusterMarginEntries(hosts.get(nextKey));
+          const next =
+            (focusOption === "last" ? choices.at(-1) : choices[0]) ??
+            (focusOption === "last" ? fallback.at(-1) : fallback[0]);
+          next?.focus({ preventScroll: true });
+        }
+      } finally {
+        settlingOptionsFocus = false;
       }
-    } finally {
-      settlingOptionsFocus = false;
-    }
+    };
+    // Opening needs controls before the caller reads availability. Closing paints
+    // the end of the gesture, where a submitted action replaces its contribution.
+    // Paint and its focus return share the guard, so the return cannot reopen it.
+    if (open) paint();
+    else afterScript(paint);
     if (previousOwner === "responses")
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
@@ -2839,6 +2864,13 @@ export function createMarginProjection({
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
+    // A thread a widget holds out of its flow, so as to move nothing the user reads,
+    // has this marker for its notice: pressing it shows the thread where the widget
+    // draws it, and lands the user there (thread/held-news.js).
+    if (showHeld(choice.items.map((item) => sourceItem(item).thread.id))) {
+      closePreview();
+      return;
+    }
     togglePinned(entry, button);
   }
 

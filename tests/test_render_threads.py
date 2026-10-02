@@ -3060,7 +3060,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     assert reading > 2000
     entries = page.evaluate("history.length")
 
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
     scroll_settled(page)
     landed = page.evaluate("document.scrollingElement.scrollTop")
@@ -3070,7 +3070,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     first = page.evaluate(
         "document.activeElement.closest('[data-thread]').dataset.thread"
     )
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     page.wait_for_function(
         "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
         " !== first",
@@ -3078,7 +3078,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     )
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
-    assert walked > landed + 1000
+    assert walked < landed - 1000
     assert page.evaluate("history.length") == entries + 1
 
     page.go_back()

@@ -77,17 +77,17 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  check       Check the mutable page source.
-  claim       Take a page this session did not serve.
-  events      Print the event log as JSON lines.
-  export      Export a stamped version to one HTML file.
-  guidance    List or print composed guidance by audience.
-  init        Create or re-vendor a page directory.
-  media       Add images and print their page paths.
-  report      Report a state change onto a page widget, as a worker.
-  stamp       Stamp the current source as the next version.
-  state       Print where the page, a thread, or a widget stands.
-  transcript  Print the page's exchange as Markdown.
+  check         Check the mutable page source.
+  claim         Take a page this session did not serve.
+  events        Print the event log as JSON lines.
+  export        Export a stamped version to one HTML file.
+  init          Create or re-vendor a page directory.
+  instructions  Read instructions for selected components and audience.
+  media         Add images and print their page paths.
+  report        Report a state change onto a page widget, as a worker.
+  stamp         Stamp the current source as the next version.
+  state         Print where the page, a thread, or a widget stands.
+  transcript    Print the page's exchange as Markdown.
 
 ## server
 Usage: leaf server [OPTIONS] COMMAND [ARGS]...

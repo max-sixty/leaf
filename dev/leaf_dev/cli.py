@@ -16,7 +16,7 @@ COMMANDS = {
     "delivery-eval": "delivery_eval",
     "fetch-assets": "leaf_assets",
     "flake": "flake",
-    "guidance-eval": "guidance_eval",
+    "instructions-eval": "instructions_eval",
     "keydocs": "keydocs",
     "preview": "preview",
     "probe": "probe",

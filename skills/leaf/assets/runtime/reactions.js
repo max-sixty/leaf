@@ -216,7 +216,7 @@ export function createReactionController({
   showFabOptions,
   updateFab,
   standingThread,
-  standingElement,
+  standingTarget,
 }) {
   const surfaces = new WeakMap();
   const marginSurface = Symbol("margin reactions");
@@ -317,8 +317,8 @@ export function createReactionController({
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };
     if (hasPageSelectionTarget()) return { kind: "selection" };
-    const addressable = standingElement();
-    return addressable ? { kind: "addressable", addressable } : null;
+    const target = standingTarget();
+    return target ? { kind: "target", target } : null;
   }
   const hasReactionTarget = () => Boolean(reactionTarget());
 
@@ -429,12 +429,12 @@ export function createReactionController({
       else {
         const target = reactionTarget();
         if (target?.kind === "surface") reactSurface = target.surface;
-        else if (target?.kind === "anchor" || target?.kind === "addressable") {
-          if (target.kind === "addressable") {
-            // The addressable element's margin row may stand where the target itself is
+        else if (target?.kind === "anchor" || target?.kind === "target") {
+          if (target.kind === "target") {
+            // The target's margin row may stand where the target itself is
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
-            showFab({ section: target.addressable.id }, null, {
+            showFab(target.target.anchor, null, {
               origin: reactFrom,
               place: false,
             });

@@ -526,7 +526,7 @@ function coverIn(root, band, target, block, bands, stop) {
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
-      const holds = node !== target && node.contains(target);
+      const holds = node !== target && under(target, node);
       const control = node.matches(TAB_STOP);
       if (
         !boxless &&
@@ -548,7 +548,7 @@ function coverIn(root, band, target, block, bands, stop) {
           continue;
         }
         if (
-          !block.contains(node) &&
+          !under(node, block) &&
           !style.display.startsWith("inline") &&
           style.display !== "contents"
         )
@@ -561,7 +561,7 @@ function coverIn(root, band, target, block, bands, stop) {
         if (summary) visit({ childNodes: [summary] });
         continue;
       }
-      visit(node);
+      visit(node.shadowRoot ?? node);
     }
   };
   visit(root);
@@ -613,8 +613,8 @@ function standFolded(row, fold, on) {
 
 // Seats every pin (`seatRows`): reads what each may not stand on around its target and
 // the room it may take, then writes each seat into its entry's rect for packing, with the
-// controls packing keeps it off. A pin inside a shadow tree stays at its corner: the words
-// around it are the tree's, which this walk does not read.
+// controls packing keeps it off. The walk crosses the shadow hosts holding the target,
+// so their words and controls bound its seat just as the document's do.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -655,7 +655,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
-    const parts = target.getRootNode() === document ? partsOf(point ?? target) : [];
+    const parts = partsOf(point ?? target);
     // A pin reaching past a line of words reads the page a line further out (`pinSpot`).
     const line = lineOf(blockOf(target));
     const around = height + REACH + line + GAP;
@@ -956,7 +956,8 @@ export function layoutMarginRows() {
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
-    const extent = shownExtent(target);
+    const whole = shownExtent(target);
+    const extent = whole && clippedBand(target, whole, bands, scroller);
     const top = extent && point ? pointBand(extent, point).top : extent?.top;
     const level = point ? top : box.top;
     const place = rowPosture({

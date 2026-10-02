@@ -20,9 +20,9 @@ The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
 envelope a `leaf wait` printed. A delivery starts at step 5 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
-present the work already under discussion. Leaf's writing guidance supplies
-defaults only; any user-specific guidance on tone, structure, depth, or format
-takes precedence. When the user states a preference meant for every page, save it
+present the work already under discussion. Leaf's writing instructions supply
+defaults only; any user-specific instructions on tone, structure, depth, or format
+take precedence. When the user states a preference meant for every page, save it
 in your host's memory, where later sessions will read it; Leaf keeps none.
 
 $ARGUMENTS
@@ -38,14 +38,16 @@ live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
 directory explicitly; export or copy anything that must outlive the page directory.
 
 1. Run `leaf page init <page>`, and name a package when the page needs an
-   optional vocabulary or guidance, as in
+   optional vocabulary or instructions, as in
    `leaf page init --package diagram --package diff <page>`. "Package reach" in
    `references/packages.md` lists the optional packages and what each adds;
    `playground` fits whenever the user compares or tunes several values or
    behaviors. Re-running
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
-   of the page needs, listed under "Author a version" below. Write
+   of the page needs, listed under "Author a version" below. Follow "Read the
+   registry" there to discover widgets and load selected instructions before
+   authoring. Write
    `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
    active immutable revision; an invalid save leaves the last valid one live and
    reports its diagnostic in page state and the browser. You write `index.html` and
@@ -81,8 +83,8 @@ directory explicitly; export or copy anything that must outlive the page directo
    "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
-From the first hand-over on, every chat message repeats the page's exact URL,
-interim updates and questions included.
+From the first hand-over on, include the page's exact URL in each turn's final
+response. Intermediate progress updates do not repeat it.
 
 ## Page contract
 

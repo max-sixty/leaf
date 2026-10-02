@@ -1,0 +1,39 @@
+# Reconstructed from the 2026-10-01 repeated-link complaint. Against 78f9fc8cd,
+# the old instructions repeated the URL in 2/2 runs; the repair omitted it in 2/2.
+schema_version: '1.0'
+name: page-url-opening-progress
+description: "Handoff: an opening progress update after a page handoff does not repeat its URL."
+tags:
+- handoff
+execution:
+  prompt: |
+    You are a Codex desktop task. Earlier in this conversation you handed over a
+    comment-animation playground at http://127.0.0.1:42041/?t=abc#comment-growth.
+    It is open beside the chat. Your previous closing message was:
+    "I updated the playground with the current composer and reply field.
+    [Playground](http://127.0.0.1:42041/?t=abc#comment-growth)."
+
+    The user now says: "Actually fix Leaf: why can't I select the text in
+    'Plan room for the whole thread'? Is something in our code stopping selection?"
+    You will investigate and fix the shared control next. Write your opening
+    intermediate progress update, before the first investigation tool call.
+    The implementation and final response will follow later.
+
+    Use the leaf skill for the page workflow. Read whatever instructions you need.
+    Only Skill and Read run here; write the requested chat message itself in your reply.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: page-url
+  type: regex
+  pattern: 'http://127\.0\.0\.1:42041/'
+  match: not_contains
+- name: progress-message
+  type: llm
+  criteria: |
+    Pass only if the reply is an opening progress update saying the agent will
+    investigate or fix the reported selection problem. It must not claim the
+    fix is already complete, refuse the task, or replace the update with an
+    explanation of the instructions.

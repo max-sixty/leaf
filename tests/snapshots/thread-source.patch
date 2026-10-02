@@ -14,7 +14,7 @@ index d8554baa8..0141acf02 100644
        "file": "developer/feature-gallery-source.toml",
        "lines": "1:4"
 diff --git a/examples/corpus.html b/examples/corpus.html
-index f7ae3438d..fad43c1f6 100644
+index 64c77a96c..0e54a4243 100644
 --- a/examples/corpus.html
 +++ b/examples/corpus.html
 @@ -6443,6 +6443,13 @@ <h4>Remaining accounts</h4>
@@ -53,7 +53,7 @@ index 5ba94f6d4..68ad45ce1 100644
    "nightly: a pull request can land without it; `--run-nightly` runs it",
    "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
 diff --git a/skills/leaf/assets/leaf.js b/skills/leaf/assets/leaf.js
-index f3e1d0fff..bfe941183 100644
+index 28bcd0622..6d8c82dc7 100644
 --- a/skills/leaf/assets/leaf.js
 +++ b/skills/leaf/assets/leaf.js
 @@ -113,20 +113,23 @@ import {
@@ -83,7 +83,7 @@ index f3e1d0fff..bfe941183 100644
  }
  import { overflowMenu } from "./runtime/banner-toolbar.js";
  import {
-@@ -176,7 +179,7 @@ import {
+@@ -177,7 +180,7 @@ import {
    releaseFocus,
    tabStops,
  } from "./runtime/focus.js";
@@ -92,7 +92,7 @@ index f3e1d0fff..bfe941183 100644
  import { mediaViewer } from "./runtime/media.js";
  import { offer } from "./runtime/widget-elements.js";
  
-@@ -642,6 +645,7 @@ drawing = createDrawingController({
+@@ -644,6 +647,7 @@ drawing = createDrawingController({
  
  layout = createChromeLayout({
    panelIsOpen,
@@ -100,7 +100,7 @@ index f3e1d0fff..bfe941183 100644
    elements: {
      panel,
      closeBtn,
-@@ -797,6 +801,7 @@ if (!offlineInteractive) {
+@@ -799,6 +803,7 @@ if (!offlineInteractive) {
    layout.mountLayoutObservers();
    goToSequence.mountGoToSequence();
    mountShortcutBar({
@@ -109,7 +109,7 @@ index f3e1d0fff..bfe941183 100644
      setReact: reactions.setReact,
    });
 diff --git a/skills/leaf/assets/runtime/chrome-layout.js b/skills/leaf/assets/runtime/chrome-layout.js
-index c83cb9d1f..fa27a938a 100644
+index d78a6b88c..e9b10f560 100644
 --- a/skills/leaf/assets/runtime/chrome-layout.js
 +++ b/skills/leaf/assets/runtime/chrome-layout.js
 @@ -66,6 +66,7 @@ const THREAD_PANEL_PROP = "--lf-thread-panel-width";
@@ -181,7 +181,7 @@ index c83cb9d1f..fa27a938a 100644
      landEdge,
      commentsEdge,
 diff --git a/skills/leaf/assets/runtime/chrome.css b/skills/leaf/assets/runtime/chrome.css
-index 0057559e6..26a86ea37 100644
+index cdca15fd0..414aacdd1 100644
 --- a/skills/leaf/assets/runtime/chrome.css
 +++ b/skills/leaf/assets/runtime/chrome.css
 @@ -974,9 +974,9 @@ @scope (.lf-chrome) {
@@ -220,8 +220,8 @@ index 0057559e6..26a86ea37 100644
      min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
    .lf-thread-compact[open]:has(> .lf-thread-reply)::details-content { display: flex;
      flex: 1; flex-direction: column; }
-@@ -1470,7 +1472,8 @@ @scope (.lf-chrome) {
-     overscroll-behavior: contain; padding-inline: var(--sp-2);
+@@ -1514,7 +1516,8 @@ @scope (.lf-chrome) {
+     overscroll-behavior: contain;
      scroll-padding-block: var(--focus-ring-room); }
    /* The field stands at the card's inset; words stand one inset inside it. */
 -  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
@@ -327,10 +327,10 @@ index d1b242070..3b882a98b 100644
      setGoToSequence(false);
      setReact(false);
 diff --git a/skills/leaf/assets/runtime/margin-projection.js b/skills/leaf/assets/runtime/margin-projection.js
-index adb943f54..6e8191b9a 100644
+index 92a05691c..92f000b0a 100644
 --- a/skills/leaf/assets/runtime/margin-projection.js
 +++ b/skills/leaf/assets/runtime/margin-projection.js
-@@ -860,6 +860,7 @@ export function createMarginProjection({
+@@ -818,6 +818,7 @@ export function createMarginProjection({
      const listRoom =
        parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
        (preview.offsetHeight - previewList.clientHeight);
@@ -469,10 +469,10 @@ index bbc5308aa..2c7452dc3 100644
      this.#reply?.dispose();
      this.#reply = null;
 diff --git a/skills/leaf/assets/shadow.css b/skills/leaf/assets/shadow.css
-index b5b51c198..9ff520f3b 100644
+index 8acf86312..bc89e3f5a 100644
 --- a/skills/leaf/assets/shadow.css
 +++ b/skills/leaf/assets/shadow.css
-@@ -813,3 +813,9 @@ .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+@@ -818,3 +818,9 @@ .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
  .lf-suggest-label { color: var(--muted-2); }
  
  .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }

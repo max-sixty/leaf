@@ -11,7 +11,7 @@ import yaml
 from leaf_dev import ROOT
 from leaf_dev.instructions_eval import (
     prepare,
-    resolve_case_instruction_paths,
+    read_case,
     summarize,
 )
 
@@ -47,8 +47,8 @@ def test_case_paths_resolve_per_payload_without_changing_the_task_or_scoring(
         path.write_text(f"This payload's {directory} instructions.\n")
         instruction_files.append(path)
 
-    resolve_case_instruction_paths(case, tmp_path)
-    prepared = yaml.safe_load(case.read_text())
+    prepared = read_case(case, tmp_path)
+    assert yaml.safe_load(case.read_text()) == original
     assert f"packages/playground/{selected}/author.md" in prepared["vars"]["prompt"]
     read_grader = next(
         grader for grader in prepared["assert"] if grader["metric"].startswith("reads-")
@@ -94,7 +94,7 @@ def test_missing_instruction_reference_fails_preparation_without_rewriting_case(
     with pytest.raises(
         click.ClickException, match="package instruction file .* is absent"
     ):
-        resolve_case_instruction_paths(case, tmp_path)
+        read_case(case, tmp_path)
     assert case.read_text() == source
 
 

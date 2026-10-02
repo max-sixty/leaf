@@ -40,7 +40,7 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     return [c for c in cases if not globs or any(fnmatch.fnmatch(c, g) for g in globs)]
 
 
-def resolve_case_instruction_paths(case_file: Path, payload: Path) -> None:
+def read_case(case_file: Path, payload: Path) -> dict:
     """Use each historical payload's own package instruction addresses.
 
     The task and assertions remain identical apart from the directory rename.
@@ -61,7 +61,7 @@ def resolve_case_instruction_paths(case_file: Path, payload: Path) -> None:
             f"{payload} (also checked {historical})"
         )
 
-    case_file.write_text(PACKAGE_INSTRUCTION_PATH.sub(resolved, source))
+    return yaml.safe_load(PACKAGE_INSTRUCTION_PATH.sub(resolved, source))
 
 
 def provider(host: str, payload: Path, work: Path) -> dict:
@@ -135,19 +135,20 @@ def prepare(
     """Produce native Promptfoo config, giving every evaluated cell a fresh session."""
     tests, providers = [], []
     for arm, payload in arms.items():
-        case_dir = scratch / f"{arm}-cases"
-        case_dir.mkdir()
         for case in cases:
-            copied = case_dir / f"{case}.yaml"
-            shutil.copyfile(ROOT / "evals" / case / "case.yaml", copied)
-            resolve_case_instruction_paths(copied, payload)
-            source = yaml.safe_load(copied.read_text())
+            source = read_case(ROOT / "evals" / case / "case.yaml", payload)
+            images = pinned_copy(ROOT / "evals" / case)
+            for assertion in source["assert"]:
+                value = assertion.get("value")
+                if isinstance(value, str) and value.startswith("file://"):
+                    assertion["value"] = (
+                        f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
+                    )
             for host in hosts:
                 for repetition in range(runs):
                     label = f"{host}/{arm}/{case}/{repetition + 1}"
                     work = scratch / label.replace("/", "-")
                     work.mkdir()
-                    images = pinned_copy(ROOT / "evals" / case)
                     if images is not None and images.is_dir():
                         shutil.copytree(
                             images, work / "evals" / case, dirs_exist_ok=True
@@ -155,13 +156,6 @@ def prepare(
                     configured = provider(host, payload, work)
                     configured["label"] = label
                     providers.append(configured)
-                    assertions = source["assert"]
-                    for assertion in assertions:
-                        value = assertion.get("value")
-                        if isinstance(value, str) and value.startswith("file://"):
-                            assertion["value"] = (
-                                f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
-                            )
                     tests.append(
                         {
                             **source,

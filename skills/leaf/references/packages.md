@@ -299,6 +299,15 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
+For a vertical navigation that must retain sideways reading, use
+`scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
+Range, and `holder` is the element whose reading regions contain it. Element targets
+support `start` or `center` for `block`; a Range is always centered. It places the
+target in the innermost reading band and reveals it in enclosing regions, across
+shadow roots, without changing horizontal offsets.
+Use it for an explicit arrival; entering visible controls and ordinary repainting
+preserve their current reading position.
+
 Registry-declared inline Markdown formats authored text, not strings a module assigns
 with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
 and paint the current value with `inlineMarkdownFragment()`; repaint that value when

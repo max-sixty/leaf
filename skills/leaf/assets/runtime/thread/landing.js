@@ -239,6 +239,8 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
 // Thread focus is the shared arrival, so the landing hangs off it. Reply entry is
 // different: `landIn` reveals only the writing area and leaves a visible box where
 // the reader put it. The list does not turn that focus handoff into thread navigation.
+// This distinction also holds for a pointer and for an editor inside a message:
+// writing controls own their caret reveal, rather than landing the containing thread.
 // Explicit movement still belongs to `stepThread` at a walk's boundary (no focus
 // change), `showThread` for a deliberate arrival, and `placeThreadEdge` for an edge
 // placement. Those landings clear the list's band with the least movement.
@@ -263,10 +265,11 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
 // the card to bring it back. Asking the completed gesture instead of the focus event
 // costs a variable rather than buying one, and the walk's own end-of-clamp press is
 // the same shape one scope out.
-const standing = () => focused()?.closest?.(".lf-thread");
+const standing = () => closestAcross(focused(), ".lf-thread");
 let keepingPlace = false;
 const land = (thread, behavior, threadsBox, block) => {
   if (!thread || !threadsBox.contains(thread)) return;
+  if (takesLetters(focused())) return;
   // A fold still holds the room it is giving back, so a landing measured now aims past
   // where the thread will stand, and the fold's place hold then writes over a smooth one:
   // resolving a long thread left the next one's title above the list. Land once the fold
@@ -281,7 +284,7 @@ const land = (thread, behavior, threadsBox, block) => {
       .then(whenDocumentPresented)
       .catch(() => {})
       .then(() => {
-        if (mayLand() && thread.contains(focused()))
+        if (mayLand() && standing() === thread)
           land(thread, behavior, threadsBox, block);
       });
     return;
@@ -307,7 +310,7 @@ export function wireThreadLanding(threadsBox) {
     if (!shouldLand) return;
     const thread = standing() ?? pressedThread;
     if (thread && !reachedForWords(thread)) {
-      if (!thread.contains(focused())) focusThread(thread, { preventScroll: true });
+      if (standing() !== thread) focusThread(thread, { preventScroll: true });
       // The press's click may reflow the list and takes its hold from this geometry.
       land(thread, "instant", threadsBox);
     }
@@ -326,8 +329,7 @@ export function wireThreadLanding(threadsBox) {
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.
-    if (thread && threadReplyInput(thread) !== focused())
-      land(thread, undefined, threadsBox, arrivalBlock(thread));
+    if (thread) land(thread, undefined, threadsBox, arrivalBlock(thread));
   });
 }
 

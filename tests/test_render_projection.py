@@ -3548,6 +3548,121 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     expect(page.locator("#standing-control")).to_be_visible()
 
 
+def test_ask_repaints_keep_the_drawers_reading_until_an_explicit_arrival(
+    browser, serve
+):
+    """The drawer's standing mark may repaint without returning to its focused Ask."""
+    questions = "".join(
+        f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
+        f'<lf-options id="options-{index}" choose>'
+        f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
+        f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
+        "</lf-options></lf-ask>"
+        for index in range(30)
+    )
+    page = open_page(browser, serve(leaf_page("Reading the Ask inventory", questions)))
+    resized(page, 1200, 900)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    page.locator('.lf-asks-row[data-lf-at="ask-0"]').click()
+    expect(page.locator("#ask-0")).to_be_focused()
+    list_selector = ".lf-asks-panel .lf-drawer-list"
+    drawer = page.locator(list_selector)
+    drawer.evaluate(
+        """list => list.addEventListener('scroll', () => {
+          if (list.scrollTop > 100) window.readLaterAsks = true;
+        })"""
+    )
+    box = drawer.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 700)
+    page.wait_for_function("() => window.readLaterAsks")
+    scroll_settled(page, list_selector)
+    reading = drawer.evaluate("list => list.scrollTop")
+    assert reading > 100, "painting the standing row must not undo scrolling the list"
+
+    resized(page, 1180, 900)
+    scroll_settled(page, list_selector)
+    assert drawer.evaluate("list => list.scrollTop") == reading
+    expect(page.locator("#ask-0")).to_be_focused()
+
+    page.keyboard.press("a")
+    expect(page.locator("#ask-1")).to_be_focused()
+    scroll_settled(page, list_selector)
+    assert drawer.evaluate("list => list.scrollTop") < reading
+    row = page.locator('.lf-asks-row[data-lf-at="ask-1"]')
+    assert row.locator(".lf-asks-says").evaluate(
+        "words => words.getBoundingClientRect().top >= "
+        "words.closest('.lf-drawer-list').getBoundingClientRect().top"
+    ), "explicit Ask navigation still reveals its matching drawer row"
+
+
+@pytest.mark.parametrize("newer_reading", [False, True])
+def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
+    browser, serve, newer_reading
+):
+    """An automatic scroll-container change preserves reading rather than stale focus."""
+    paragraphs = "".join(
+        f'<p id="line-{index}">Reading paragraph {index}. '
+        + "Words holding the current reading. " * 10
+        + "</p>"
+        for index in range(30)
+    )
+    source = leaf_page(
+        "Reading beyond the focused control",
+        '<lf-pane id="reading" label="Reading"><div id="reading-body">'
+        '<button id="control">Earlier focused control</button>'
+        f"{paragraphs}</div></lf-pane>",
+        head="""<style>
+#reading-body { height: 400px; overflow: auto; }
+@media (width < 720px) { #reading-body { height: auto; overflow: visible; } }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    body = page.locator("#reading-body")
+    control = page.locator("#control")
+    control.focus()
+    body.evaluate("body => body.scrollTop = 900")
+    scroll_settled(page, "#reading-body")
+    assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
+    landmark_id = body.evaluate(
+        """body => [...body.querySelectorAll('p')].find(paragraph =>
+          paragraph.getBoundingClientRect().top >= body.getBoundingClientRect().top).id"""
+    )
+    if newer_reading:
+        # Interleave at the announced handover, before its deferred restoration. The
+        # platform input supersedes that restoration just as a trackpad gesture does.
+        page.evaluate("""async () => {
+          const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
+            if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
+              return;
+            stop();
+            dispatchEvent(new WheelEvent('wheel', {deltaY: 500}));
+            scrollTo({top: 1900, behavior: 'instant'});
+            window.laterReading = scrollY;
+          });
+        }""")
+
+    resized(page, 520, 900)
+    pane_posture(page, page.locator("#reading"), "flow")
+    scroll_settled(page)
+
+    expect(control).to_be_focused()
+    if newer_reading:
+        assert page.evaluate("() => window.laterReading") > 1000
+        assert page.evaluate("() => scrollY === window.laterReading"), (
+            "a queued posture restore must yield to the user's later reading"
+        )
+        return
+    landmark = page.locator(f"#{landmark_id}")
+    assert landmark.evaluate(
+        "paragraph => paragraph.getBoundingClientRect().top < innerHeight"
+    ), "changing posture must keep the passage being read on screen"
+    assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
+
+
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
     """A raw offset belongs to the scrollport that supplied it.
 

@@ -63,6 +63,7 @@ from render_harness import (
     margin_entry,
     open_page,
     panel_settled,
+    primed,
     refuse,
     resized,
     round_trip,
@@ -167,6 +168,89 @@ def choose_comment_target(page, selector):
     )
     page.keyboard.type(code)
     expect(page.locator(".lf-fab-input")).to_be_focused()
+
+
+def test_clicking_a_visible_reply_preserves_the_thread_reading(browser, serve):
+    """Pointer entry owns the caret, rather than revealing the whole containing card."""
+    page = open_page(browser, serve(LONG_PAGE, comments=30))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    thread = page.locator(".lf-thread[open]").first
+    field = thread.locator("leaf-text")
+    place = page.evaluate(
+        """() => {
+          const list = document.querySelector('.lf-threads');
+          list.scrollTop = 70;
+          return list.scrollTop;
+        }"""
+    )
+    assert place == 70
+    field.click()
+    expect(field).to_be_focused()
+    assert page.locator(".lf-threads").evaluate("el => el.scrollTop") == place
+
+
+def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
+    browser, serve
+):
+    """A message's public widget keeps its native input across the thread's pointer-up."""
+    url = serve(LONG_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the patch.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "revision": 1,
+            "text": "Filter the files in this patch.",
+            "markup": """<lf-diff id="reply-patch" data-height="201"><pre>
+diff --git a/reading.py b/reading.py
+--- a/reading.py
++++ b/reading.py
+@@ -1,2 +1,2 @@
+ def reading():
+-    return "before"
++    return "after"
+</pre></lf-diff>""",
+        },
+    )
+    for index in range(8):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"Another thread {index}.",
+            },
+        )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    field = page.locator(".lf-thread[open] lf-diff .lf-diff-search")
+    expect(field).to_be_visible()
+    page.locator(".lf-threads").evaluate("list => list.scrollTop = 70")
+    scroll_settled(page, ".lf-threads")
+    assert field.evaluate(
+        "field => field.getBoundingClientRect().top > "
+        "field.getRootNode().host.closest('.lf-threads').getBoundingClientRect().top"
+    ), "the shadow input must already be visible before the click"
+
+    field.click()
+
+    expect(field).to_be_focused()
+    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == 70
 
 
 @pytest.mark.watch_shifts
@@ -530,6 +614,55 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
         "the printed page lost the draft's words to a box paper hasn't got"
     )
     page.emulate_media(media="screen")
+
+
+@pytest.mark.parametrize("in_pane", [False, True], ids=["document", "pane"])
+def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
+    browser, serve, in_pane
+):
+    """Editing a visible word keeps it there even when the draft exceeds the window."""
+    text = "\n".join(f"Line {i}: The release note remains editable." for i in range(60))
+    draft = f'<lf-draft id="long-draft"><pre>{text}</pre></lf-draft>'
+    body = (
+        "<header><h1>Release notes</h1></header>"
+        f'<lf-pane id="reading" label="Notes">{draft}</lf-pane>'
+        if in_pane
+        else f"<h1>Release notes</h1>{draft}<p>Following words.</p>"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Long draft", body, layout="workspace" if in_pane else "column")
+        ),
+    )
+    resized(page, 800, 900)
+    page.locator("#long-draft").evaluate(
+        """el => {
+          const box = el.closest('lf-pane') ? el : document.scrollingElement;
+          box.scrollTop = 600;
+        }"""
+    )
+    scroll_settled(page)
+    point = page.locator("#long-draft .lf-draft-body").evaluate(
+        """el => {
+          const node = el.firstChild, word = 'Line 30:';
+          const at = node.data.indexOf(word), range = document.createRange();
+          range.setStart(node, at + 3); range.setEnd(node, at + 4);
+          const b = range.getBoundingClientRect();
+          return [b.x + b.width / 2, b.y + b.height / 2];
+        }"""
+    )
+    assert 60 < point[1] < 850, point
+    reading = """() => ({
+      page: document.scrollingElement.scrollTop,
+      draft: document.querySelector('#long-draft').scrollTop,
+      top: document.querySelector('#long-draft').getBoundingClientRect().top
+    })"""
+    before = page.evaluate(reading)
+    page.mouse.click(*point)
+    expect(page.locator("#long-draft textarea")).to_be_focused()
+    assert page.evaluate(reading) == before
+    assert page.locator("#long-draft textarea").evaluate("el => el.selectionStart") > 0
 
 
 def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, serve):
@@ -2640,6 +2773,50 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
     assert pending_text(page), "the box came back on nothing"
+
+
+@pytest.mark.parametrize("leave", [False, True])
+def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
+    browser, serve, leave
+):
+    """Finishing a paste updates the draft without repeating the user's entry gesture."""
+    held = []
+    controlled = primed(
+        browser,
+        lambda page: page.route("**/api/media", lambda route: held.append(route)),
+    )
+    page = open_page(controlled, serve(LONG_PAGE))
+    compose(page, "#p3")
+    box = page.locator(".lf-fab-input")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    holding(page, held, 1, "the pasted image")
+    expect(box).to_have_attribute("aria-busy", "true")
+    expect(box).to_be_focused()
+    if leave:
+        page.keyboard.press("Tab")
+        expect(box).not_to_be_focused()
+        page.mouse.move(100, 500)
+        page.mouse.wheel(0, 1000)
+        page.wait_for_function("scrollY > 800")
+        scroll_settled(page)
+    before = page.evaluate("scrollY")
+    page.evaluate("window.uploadFocus = document.activeElement")
+    held.pop().continue_()
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-composer-media img")).to_have_count(1)
+    assert page.evaluate("scrollY") == before
+    assert page.evaluate("document.activeElement === window.uploadFocus")
 
 
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(

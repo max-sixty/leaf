@@ -374,6 +374,20 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-thread-reply leaf-text").click()
     page.keyboard.type("My reply")
+    # This contract starts while reading the latest turn. Entry into a visible reply
+    # preserves whatever older reading preceded it; choosing the end is explicit.
+    if answers > 1:
+        reply_box = card.locator(".lf-thread-reply").bounding_box()
+        latest = card.locator(".lf-msg").last.bounding_box()
+        assert reply_box is not None and latest is not None
+        before = page.locator(".lf-threads").evaluate("el => el.scrollTop")
+        page.mouse.move(reply_box["x"] + 20, reply_box["y"] - 20)
+        page.mouse.wheel(0, latest["y"] + latest["height"] - reply_box["y"])
+        page.wait_for_function(
+            "before => document.querySelector('.lf-threads').scrollTop > before",
+            arg=before,
+        )
+        scroll_settled(page, ".lf-threads")
     if back_to_top:
         # Back up to the card above, which puts the open card's end below the fold.
         page.mouse.wheel(0, -200)

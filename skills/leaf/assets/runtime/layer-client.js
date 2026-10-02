@@ -75,8 +75,8 @@ async function sourceMovedOn() {
 }
 
 let layerReloading = false;
-// A replaced server incarnation is not a question about generations: its log starts
-// again, so the old DOM has to go whatever the source says.
+// A replaced private incarnation is not a question about generations: its record
+// is gone, so the old DOM has to go whatever the document source says.
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
@@ -153,9 +153,9 @@ export function admitResponse(response) {
 }
 
 let sessionMode = release ? "unknown" : "active";
-// A durable page names its server in the document. A released website's static
-// document names no private incarnation: only an active response can establish it.
-let sessionServer = release ? null : (runtimeScript?.dataset.lfServer ?? null);
+// Only an active private-session response establishes an ephemeral incarnation.
+// An ordinary server can restart while its durable page and log remain current.
+let sessionServer = null;
 const sessionChannel =
   release && typeof window.BroadcastChannel !== "undefined"
     ? new window.BroadcastChannel("leaf-session")
@@ -184,7 +184,7 @@ function observeSession(response) {
   if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
   const server = response.headers.get("Leaf-Server");
-  if (mode === "active" || (!release && server)) activateSession(true, server);
+  if (mode === "active") activateSession(true, server);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
 }
 

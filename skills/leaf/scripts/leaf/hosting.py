@@ -79,9 +79,11 @@ class LeafHTTPServer:
     uvicorn a duplicate: the two halves then close their own, and a caller that
     releases the socket cannot pull it out from under a loop still winding down.
 
-    `server_id` is this incarnation, which every answer names and a tab watches: a
-    replaced server has a log that starts again, so the old DOM has to go. Uvicorn
-    owns shutdown and its signal handling; every page response completes, so no
+    `server_id` names the serving process on every answer. Startup recovery uses it
+    to detect a replacement after failure. An ordinary page's durable record survives
+    that replacement; only an active private website session loses its record and
+    needs an already-presented document to reload. Uvicorn owns shutdown and its
+    signal handling; every page response completes, so no
     held-open response needs a second stop flag or an application signal wrapper.
     """
 

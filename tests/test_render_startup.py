@@ -2593,43 +2593,51 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
 
 
-@pytest.mark.parametrize("replacement", ["envelope", "server"])
-def test_unchanged_freshness_from_a_replaced_server_reloads_the_document(
-    browser, serve, replacement
-):
-    """A body token cannot admit the envelope of a replacement server."""
-    page = open_page(browser, serve(LONG_PAGE))
+def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
+    """The process may change while this page's document and log still stand."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Durable draft",
+                '<h1>Durable draft</h1><lf-draft id="draft"><pre>Original</pre></lf-draft>',
+            )
+        ),
+    )
+    page.set_default_timeout(5000)
+    page.locator("#draft .lf-draft-body").dblclick()
+    editor = page.locator("#draft textarea")
+    write(editor, "An unfinished durable draft")
+    editor.press("Home")
+    editor.press("Shift+ArrowRight")
+    editor.press("Shift+ArrowRight")
+    before = editor.evaluate(
+        "el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]"
+    )
     page.evaluate("window.__originalDocument = true")
     reading = page.locator("body").get_attribute("data-lf-reading")
-    answered = []
+    looks = []
 
-    def respond(route):
-        if answered:
-            route.continue_()
-            return
+    def read_news(route):
         answer = route.fetch()
-        answered.append(answer)
-        if replacement == "server":
-            assert answer.text() == reading, "replacement changed the body token"
-            route.fulfill(response=answer)
-        else:
-            route.fulfill(
-                response=answer,
-                headers={**answer.headers, "leaf-server": "replacement-server"},
-                body=reading,
-            )
+        looks.append((answer.headers, answer.text()))
+        route.fulfill(response=answer)
 
-    page.route("**/api/news", respond)
-    with page.expect_navigation(wait_until="load", timeout=5000):
-        if replacement == "server":
-            serve.httpd.server_id = "replacement-server"
-    wait_until_ready(page)
-    assert answered
-    assert page.evaluate("window.__originalDocument === undefined")
-    if replacement == "server":
-        expect(page.locator("script[data-lf-server]")).to_have_attribute(
-            "data-lf-server", "replacement-server"
-        )
+    page.route("**/api/news", read_news)
+    serve.httpd.server_id = "replacement-server"
+    with page.expect_response("**/api/news", timeout=5000):
+        pass
+    page.unroute("**/api/news", read_news)
+    assert looks[-1][0]["leaf-server"] == "replacement-server"
+    assert looks[-1][1] == reading
+    page.wait_for_timeout(500)
+    assert page.evaluate("window.__originalDocument === true")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate("el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]")
+        == before
+    )
+    expect(editor).to_have_value("An unfinished durable draft")
 
 
 def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):

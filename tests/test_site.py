@@ -693,22 +693,35 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
 
 
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
-    """A lower sequence from a replacement cannot be applied over vanished state."""
+    """Private record loss must reload even when the finite freshness token repeats."""
     _, url = served_example("triage-board")
     page = open_page(browser, url)
-    with page.expect_navigation(wait_until="load", timeout=10_000):
-        page.evaluate(
-            """async () => {
-                  const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
-                  client.admitResponse(new Response(null, {headers: {
-                    "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                  }}));
-                  setTimeout(() => client.admitResponse(new Response(null, {headers: {
-                    "Leaf-Session": "active", "Leaf-Server": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-                  }})), 0);
-                }"""
+    page.evaluate("window.__originalDocument = true")
+    reading = page.locator("body").get_attribute("data-lf-reading")
+    replaced = []
+
+    def replacement(route):
+        answer = route.fetch()
+        if replaced:
+            route.fulfill(response=answer)
+            return
+        replaced.append(answer.text())
+        route.fulfill(
+            response=answer,
+            headers={
+                **answer.headers,
+                "leaf-session": "active",
+                "leaf-server": "replacement-private-server",
+            },
         )
+
+    page.route("**/api/news", replacement)
+    with page.expect_navigation(wait_until="load", timeout=10_000):
+        pass
+    page.unroute("**/api/news", replacement)
+    assert replaced == [reading]
     wait_until_ready(page)
+    assert page.evaluate("window.__originalDocument === true") is False
 
 
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):

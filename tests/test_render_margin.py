@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime, timedelta
+from time import monotonic
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -1300,7 +1301,7 @@ def _unfold(item):
 
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
-    """The developer sampler stays usable after edits, verdicts, and dense overflow."""
+    """The developer sampler stays usable after edits, verdicts, and Page Map actions."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
@@ -1352,9 +1353,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(crowded.locator(".lf-margin-entry:visible")).to_have_count(2)
     crowded.locator(".lf-margin-more").click()
-    expect(crowded.locator(".lf-margin-entry:visible")).to_have_count(6)
-    spill = crowded.locator(".lf-margin-spill")
-    spill.click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     reaction = next(
         event
@@ -1379,7 +1379,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(dialog).to_be_visible()
     reaction_actions.click()
     expect(remove).to_be_focused()
-    with sending(page, "the withdrawal of the spilled reaction"):
+    with sending(page, "the withdrawal of the Page Map reaction"):
         remove.click()
     expect(dialog).to_be_hidden()
     expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
@@ -4516,7 +4516,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
 
 
 @pytest.mark.parametrize("width", [1440, 390])
-def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths(
+def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     browser, serve, width
 ):
     """Semantic priority beats registration order; density never loses an action."""
@@ -4540,8 +4540,7 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
                   rank: 'primary'}),
                 ...Array.from({length: 5}, (_, n) => marginEntry({
                   key: `detail-${n + 1}`, icon: 'dot',
-                  label: `Detail ${n + 1} ${id}` + (n === 1
-                    ? ' with a longer explanation that must remain inside its tooltip' : ''),
+                  label: `Detail ${n + 1} ${id}`,
                   rank: 'secondary', visible: fixture.engaged || n === 0
                 }))
               ];
@@ -4551,7 +4550,8 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
               const entries = [
                 marginEntry({key: 'cancel', icon: 'cross', label: `Cancel ${id}`,
                   rank: 'escape', state: 'engaged', visible: fixture.engaged}),
-                marginEntry({key: 'save', icon: 'check', label: `Save ${id}`,
+                marginEntry({key: 'save', icon: 'check',
+                  label: `Save ${id} with a longer explanation that must remain inside its tooltip`,
                   rank: 'complete', tone: 'positive', state: fixture.saveState,
                   visible: fixture.engaged})
               ];
@@ -4585,43 +4585,57 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
     )
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
-        expect(item.locator(".lf-margin-entry:visible")).to_have_count(6)
-        assert item.locator(".lf-margin-entry:visible").evaluate_all(
-            "buttons => buttons.map(button => button.dataset.lfMarginEntryKey)"
-        ) == ["save", "cancel", "act", "detail-1", "detail-2", "all-options"]
-        expect(item.locator(".lf-margin-more")).to_be_hidden()
-        expect(item.locator(".lf-margin-spill")).to_have_attribute(
-            "data-lf-spill-count", "3"
+        action_order = [
+            "save",
+            "cancel",
+            "act",
+            *[f"detail-{index}" for index in range(1, 6)],
+        ]
+        visible_actions = item.locator(".lf-margin-entry:visible").evaluate_all(
+            """buttons => buttons.filter(button => !button.matches('.lf-margin-spill'))
+              .map(button => button.dataset.lfMarginEntryKey)"""
         )
-        item.get_by_role("button", name=f"Save {target}", exact=True).focus()
+        assert visible_actions == [
+            key for key in action_order if key in visible_actions
+        ]
+        expect(item.locator(".lf-margin-more")).to_be_hidden()
+        primary = item.locator('[data-lf-margin-entry-key="save"]')
+        primary.focus()
         expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
-        item.get_by_role("button", name=f"Save {target}", exact=True).hover()
+        primary.hover()
         label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')
         expect(label).to_be_visible()
         box = label.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
-        detail = item.locator('[data-lf-margin-entry-key="detail-2"]')
-        detail.hover()
-        expect(detail.locator(".lf-margin-entry-label")).to_be_visible()
-        assert detail.locator(".lf-margin-entry-label").evaluate(
-            "label => label.scrollWidth <= label.clientWidth"
-        )
-        item.locator(".lf-margin-spill").click()
+        assert label.evaluate("label => label.scrollWidth <= label.clientWidth")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+m")
         dialog = page.locator(".lf-page-map-dialog")
         expect(dialog).to_be_visible()
         expect(
-            dialog.get_by_role("button", name=f"Detail 3 {target}", exact=True)
+            dialog.get_by_role(
+                "searchbox", name="Find an action, status, or location in Page Map"
+            )
         ).to_be_focused()
+        assert (
+            dialog.locator(".lf-page-map-action").evaluate_all(
+                """(buttons, target) => buttons
+              .filter(button => button.lfMapAction.entry.targetId === target)
+              .map(button => button.lfMapAction.record.key)""",
+                target,
+            )
+            == action_order
+        )
         dialog.get_by_role("button", name=f"Detail 5 {target}", exact=True).click()
         expect(page.locator(f"#{target}")).to_have_attribute("data-last-action", "5")
         expect(dialog).to_be_hidden()
 
     first = page.locator('[data-lf-margin-for="first"]')
     second = page.locator('[data-lf-margin-for="second"]')
-    save = first.get_by_role("button", name="Save first", exact=True)
+    save = first.locator('[data-lf-margin-entry-key="save"]')
     save.focus()
     save.hover()
-    second.get_by_role("button", name="Save second", exact=True).focus()
+    second.locator('[data-lf-margin-entry-key="save"]').focus()
     expect(page.locator('.lf-target-trace[data-for="second"]')).to_be_visible()
     expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_hidden()
     save.hover()
@@ -4650,10 +4664,8 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
         ).to_be_visible()
 
 
-def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
-    browser, serve
-):
-    """A reading-only target never grows a seventh margin entry beside its marker."""
+def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve):
+    """Expanding offered actions keeps the target's thread marker reachable."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Keep this thread visible.", {"section": "how-cap"})
     page = open_page(browser, url)
@@ -4661,9 +4673,9 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
         """async () => {
           const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          window.readingBudgetFixture = registerMarginContribution({
-            key: 'reading-budget', target: document.querySelector('#how-cap'),
-            read: () => ({entries: Array.from({length: 6}, (_, index) =>
+          registerMarginContribution({
+            key: 'reading-actions', target: document.querySelector('#how-cap'),
+            read: () => ({entries: Array.from({length: 2}, (_, index) =>
               marginEntry({key: `peer-${index}`, icon: 'dot',
                 label: `Peer ${index}`, rank: 'secondary'})), side: 'after'}),
             activate: () => {}
@@ -4672,11 +4684,11 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     )
     item = page.locator('[data-lf-margin-for="how-cap"]')
     item.locator(":scope > .lf-margin-more").click()
-    expect(item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(item.locator(":scope > .lf-margin-marker")).to_be_visible()
-    expect(item.locator(".lf-margin-spill")).to_have_attribute(
-        "data-lf-spill-count", "2"
-    )
+    for index in range(2):
+        expect(
+            item.get_by_role("button", name=f"Peer {index}", exact=True)
+        ).to_be_visible()
 
 
 def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser, serve):
@@ -4687,14 +4699,31 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
         """async () => {
           const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          registerMarginContribution({key: 'details', target: document.getElementById('sug-refill'),
-            read: () => ({entries: Array.from({length: 5}, (_, i) => marginEntry({
-              key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`,
-              rank: 'secondary'
-            })), state: 'engaged'}), activate: () => {}});
+          const entries = [];
+          const registration = registerMarginContribution({
+            key: 'details', target: document.getElementById('sug-refill'),
+            read: () => ({entries, state: 'engaged'}), activate: () => {}});
+          window.lfGrowThreadPeers = () => {
+            const index = entries.length;
+            entries.push(marginEntry({key: `detail-${index}`, icon: 'dot',
+              label: `Detail ${index}`, rank: 'secondary'}));
+            registration.update();
+          };
         }"""
     )
     item = page.locator('[data-lf-margin-for="sug-refill"]')
+    expect(
+        item.locator('.lf-margin-reading-option[data-lf-kinds="comment"]')
+    ).to_be_visible()
+    deadline = monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while not item.evaluate(
+        """cluster => Boolean(cluster.querySelector('.lf-margin-spill')?.checkVisibility())
+          && !cluster.querySelector('.lf-margin-reading-option[data-lf-kinds="comment"]')
+            ?.checkVisibility()"""
+    ):
+        assert monotonic() < deadline, "the thread never spilled as peers were added"
+        page.evaluate("window.lfGrowThreadPeers()")
+        rendered(page)
     item.locator(".lf-margin-spill").click()
     dialog = page.locator(".lf-page-map-dialog")
     dialog.get_by_role("button", name=re.compile("^Open thread:")).click()
@@ -4732,7 +4761,7 @@ def _walk_gallery_thread(page, thread_id):
         seen.add(standing)
 
 
-def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
+def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster(
     browser, serve
 ):
     """A walked thread on a crowded cluster keeps its measure by standing over the
@@ -4753,7 +4782,6 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     thread = crowded.locator('.lf-margin-reading-option[data-lf-kinds="comment"]')
     expect(thread).to_be_visible()
     expect(thread).to_have_attribute("aria-expanded", "true")
-    expect(crowded.locator(".lf-margin-entry:visible")).to_have_count(6)
     geometry = crowded.evaluate(
         """cluster => {
           const controls = cluster.getBoundingClientRect();

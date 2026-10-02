@@ -33,6 +33,11 @@ import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
+import { createAnnotationInventory } from "./annotation-inventory.js";
+import { createInlineContributions } from "./inline-contributions.js";
+import { presentingContributions, watchContributions } from "./contributions.js";
+import { watchProjection } from "./projection-watch.js";
+import { clocked } from "./presence.js";
 import { createThreadActions } from "./thread/actions.js";
 import { registerMirrorConsumer } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
@@ -317,28 +322,61 @@ export function mountApplication(dependencies) {
     composition: dependencies.compositionSurface,
   };
 
+  const annotations = createAnnotationInventory({
+    openAsks,
+    comparisonBase: dependencies.margin.comparisonBase,
+    comparisonChanges: dependencies.margin.comparisonChanges,
+    inlineComparison: dependencies.margin.inlineComparison,
+    toggleInlineComparison: dependencies.margin.toggleInlineComparison,
+    placedAt: dependencies.anchorPaint.placedAt,
+    showThread: dependencies.showThread,
+    goToAsk: dependencies.margin.goToAsk,
+    scrollToElement: dependencies.anchorTravel.scrollToElement,
+  });
+  const inlineContributions = createInlineContributions(annotations);
+  // Print hides contributed controls and cannot supply their visibility reading.
+  // Refuse the annotation pass whole until the document returns to screen media.
+  const onPaper = matchMedia("print");
+  function refreshAnnotationInventory() {
+    if (onPaper.matches) return annotations.read();
+    presentingContributions();
+    inlineContributions.present();
+    const entries = annotations.collect();
+    dependencies.margin.renderPageMapDialog(entries);
+    return entries;
+  }
+  const renderAnnotations = clocked(document.body, () => {
+    if (!onPaper.matches) margin.paint(refreshAnnotationInventory());
+  });
+  const mountAnnotations = () => {
+    watchProjection(document.body, renderAnnotations);
+    document.addEventListener("lf-comparison", renderAnnotations);
+    onPaper.addEventListener("change", () => {
+      if (!onPaper.matches) renderAnnotations.refresh();
+    });
+    watchContributions(({ immediate }) => {
+      renderAnnotations();
+      if (immediate) margin.flushLayout();
+    });
+  };
   const margin = dependencies.createMarginProjection({
+    inventory: annotations,
+    refreshInventory: refreshAnnotationInventory,
+    renderAnnotations,
+    showThread: dependencies.showThread,
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
     accompanyThread: dependencies.accompanyThread,
     designModeActive: dependencies.margin.designModeActive,
     pointerModeActive: dependencies.margin.pointerModeActive,
-    comparisonBase: dependencies.margin.comparisonBase,
-    comparisonChanges: dependencies.margin.comparisonChanges,
-    inlineComparison: dependencies.margin.inlineComparison,
-    toggleInlineComparison: dependencies.margin.toggleInlineComparison,
     leavePageMap: dependencies.margin.leavePageMap,
     openPageMap: dependencies.margin.openPageMap,
     pageMapDialogContains: dependencies.margin.pageMapDialogContains,
-    renderPageMapDialog: dependencies.margin.renderPageMapDialog,
-    openAsks,
     scrollThreadIntoView: dependencies.margin.scrollThreadIntoView,
-    goToAsk: dependencies.margin.goToAsk,
     renderMarginThread: (host, thread, controls) =>
       renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPaint.placedAt,
-    showThread: dependencies.showThread,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
   });
@@ -353,7 +391,7 @@ export function mountApplication(dependencies) {
     pageGeometry: dependencies.pageGeometry,
     readDraft: dependencies.readThreadDraft,
     activeActionAnchor: dependencies.activeActionAnchor,
-    renderMargin: margin.renderMargin,
+    renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the panel.
@@ -481,6 +519,10 @@ export function mountApplication(dependencies) {
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
+    annotations,
+    refreshAnnotationInventory,
+    renderAnnotations,
+    mountAnnotations,
     margin,
     read,
     mountThread: threadPresenter.mount,

@@ -67,6 +67,17 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
+- **Measure the fresh-reader review.** "Pre-handover review" has a subagent with only
+  the user's request and the check's screens work the page as the user would, since
+  the author resolves every name from notes the user never saw. On the triage page
+  that reader caught the scrolled-off context, a heading answering the author's own
+  research question, and header counts that didn't add up; a reader also given the
+  research reports caught those but missed the shorthand the reports explain.
+  **Unconfirmed:** one page, one run each. Measure across pages whether authors run
+  it, what it costs (about 110k tokens and two minutes there), and what it catches
+  beyond the author's own reading. `evals/record-read-without-the-notes` checks only
+  that an author says it will; doing it needs `notes/usability-eval/harness.py` or
+  session replays.
 
 ### Prose
 
@@ -103,6 +114,17 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
+- **Find a better shape for news in a short Threads list.** In a list too short to
+  scroll, any news moves something on screen, so the open card fills the list with
+  its reply box at the foot (#1480). A reply lands in the room above the box, and a
+  thread returning above the open card makes the list scrollable, so the place hold
+  scrolls the newcomer out of view rather than pushing down the card being read. It
+  is the best tradeoff found, not a perfect one: a short list's open card is as tall
+  as the panel, later cards wait below the fold, and a thread that returns above lands
+  scrolled past, so the user sees it only in the count. The rejected alternatives
+  were holding replies behind an "N new replies" chip, which hides the answer the user
+  is waiting for, and letting a list that can't scroll push its contents down, which
+  needs the shift watch to stop checking such lists.
 - **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
   a comment's target in a single wheel step draws the box about 60px off for a frame
   before it lands, on `main` too and for selected words as well as items; a script's
@@ -114,10 +136,21 @@ and its chrome coordinate.
   margin thread card's reply, with its target in a pane that scrolls on its own, moves
   the whole card (`shift_watch.js`: "typing in leaf-text moved
   aside#lf-margin-preview"), on `main` too.
-- **Decide whether a workspace's panes scroll on their own.** Its regions could instead
-  stick to the root scroller, which keeps native keyboard scrolling and restoration on
-  workspace pages. Compare both scrolling forms before choosing; bottom-bar removal
-  and the phone banner are separate product decisions ([plan](notes/chrome-and-covers.md)).
+- **Give the phone banner one row.** Decided, not built
+  ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
+  short with an ellipsis, with a passing notice taking that slot for a few seconds;
+  then Threads as an icon with its count; then More. Approve moves into More, which
+  wears a dot while approval is open.
+- **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
+  1200×900 `page check --render` advises that its detail pane runs 6890px past its
+  region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves
+  through rather than scrolls shows one alert's decision at a time; the shipped
+  workspace examples are then held to the advice in `test_page_fixture_renders`, with
+  `rust-sort`'s source pane the one reader allowed to scroll
+  ([plan](notes/chrome-and-covers.md)).
+- **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
+  and its status into the banner; the bar is how a desktop user learns the keys
+  without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
 - **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
   beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
   `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
@@ -141,9 +174,7 @@ and its chrome coordinate.
   Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
-  needs it; a workspace page's own pane grid stays plain CSS. Option E of the
-  [chrome plan](notes/chrome-and-covers.md) could remove the scroller-depth constraint;
-  verify it against a concrete nested workspace before choosing.
+  needs it; a workspace page's own pane grid stays plain CSS.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
@@ -168,8 +199,9 @@ and its chrome coordinate.
   - One page showing every still in a grid, a row per window width with the content
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
-  - For thread placement alone, an SVG atlas of `thread-card-geometry.js` over a grid
-    of inputs, which `npm run test:runtime` can draw without a browser.
+  - For comment placement alone, an SVG atlas of the side `comment-placement.js`
+    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
   building. Adding a few dozen hand-written entries to `STATES` grows a list that
@@ -230,8 +262,37 @@ and its chrome coordinate.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 
+### Queues
+
+A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+workspace"). The first real one, a 21-item triage page, showed these. Its list's
+height and where a switch lands wait on the workspace decision under Layout.
+
+- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
+  open Ask, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
+  the walks (`standing-target.js`), while `c` on a row still names the row.
+- **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
+  warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
+  row whose Asks are answered could show the picked option's title where the count
+  stood.
+- **Let a queue group its items.** The author sorted the items into merge, close,
+  design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
+  undifferentiated rows. A side list could take group headings between its items,
+  skipped by the arrow walk.
+- **Put the open item first on a phone.** At 390px the stacked list comes before any
+  item, so 20 rows fill two screens before the first one.
+
 ### The agent's text interface
 
+- **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
+  a stop, the agent writes one more message, and where the host shows only the last
+  message (Claude Code's focus mode) that message replaces the answer: a user who typed
+  `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
+  removed that trigger, since the hook now does the watching. **Unconfirmed:** check
+  whether any remaining block, such as input the turn still owes an answer to, reaches
+  a turn whose answer is already written.
 - **Reproduce the Codex delivery-start race.** Another client may start a turn
   between Leaf's idle check and its start request. **Unconfirmed:** test the installed
   App Server's behavior before changing delivery policy; the
@@ -336,6 +397,17 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Consider moving the before/after reading out of the core.** How
+  `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
+  experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
+  `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
+  only what every page needs. Try it on non-Leaf captures first (another site, a
+  terminal, a plot); where the capture is a browser's, recording each element's box
+  beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
+  Known gaps: a pane that scrolled within itself reads as scattered changes and moves
+  rather than one region, a border that changed length draws a thin outline, and a
+  changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which
+  a worker would take off it.
 - **Consider dragging thread cards and comment boxes.** Once both share placement,
   try temporary, passage-relative movement from a handle. Keep it only if scrolling,
   typing, and resizing stay predictable and the implementation stays simple.
@@ -343,7 +415,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   invalid control with a bounded explorer and cold user. The
   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
   change; review that proposal with its owner before changing the policy.
-
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

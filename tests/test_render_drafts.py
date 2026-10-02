@@ -72,6 +72,7 @@ from render_harness import (
     told,
     until_draft_settled,
     wait_for_revision,
+    watch_message_arrival,
     write,
 )
 
@@ -124,6 +125,7 @@ def choose_comment_target(page, selector):
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("box", ["general", "reply", "composer"])
 def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
     """The shared field and both drawing-aware variants admit the smallest message.
@@ -1047,6 +1049,7 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     before = page.locator(".lf-threads > .lf-thread").count()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
+    watch_message_arrival(page.locator("body"), ".lf-threads .lf-msg")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the general send")
 
@@ -1054,6 +1057,8 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     expect(pending).to_have_count(1)
     expect(pending.locator(".lf-msg")).to_contain_text(words)
     expect(pending.locator(".lf-msg")).to_have_attribute("aria-busy", "true")
+    assert page.evaluate("window.__messageArrival") == 0.5
+    expect(pending.locator(".lf-msg")).to_have_css("opacity", "0.5")
     pending_status = pending.locator(".lf-thread-root-meta .lf-msg-sending")
     expect(pending_status).to_have_text("Sending")
     assert pending_status.evaluate(
@@ -1081,6 +1086,7 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     kept = page.locator('.lf-thread[data-probe="kept"]')
     expect(kept).to_have_count(1)
     expect(kept.locator(".lf-msg")).not_to_have_attribute("aria-busy", "true")
+    expect(kept.locator(".lf-msg")).to_have_css("opacity", "1")
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -1167,26 +1173,44 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     consume_browser_errors(page, "400")
 
 
-def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, serve):
-    """A reply joins the thread it answers without waiting for the round trip."""
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+@pytest.mark.parametrize("surface", ["panel", "margin"])
+def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(
+    held_events, serve, reduced_motion, surface
+):
+    """A reply starts dim on either surface, then admission confirms those same words."""
     browser, held = held_events
-    page = open_page(browser, serve(LONG_PAGE, comments=2))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
-    thread = page.locator(f'.lf-thread[data-id="{thread_id}"]')
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p0", "Paragraph 0.")]))
+    page.emulate_media(reduced_motion=reduced_motion)
+    if surface == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        thread = page.locator(".lf-threads > .lf-thread")
+        thread.locator(".lf-thread-summary").click()
+        messages = thread.locator(".lf-msg")
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        thread = page.locator(".lf-margin-preview .lf-page-thread")
+        messages = thread.locator(".lf-page-thread-msg")
     words = "The reply the user can already see."
-    thread.locator(".lf-thread-summary").click()
     write(thread.locator("leaf-text"), words)
-    before = thread.locator(".lf-msg").count()
+    before = messages.count()
 
-    thread.get_by_role("button", name="Send", exact=True).click()
+    watch_message_arrival(
+        page.locator("body"),
+        ".lf-threads .lf-msg"
+        if surface == "panel"
+        else ".lf-margin-preview .lf-page-thread-msg",
+    )
+    page.keyboard.press("Enter")
     holding(page, held, 1, "the reply send")
 
-    expect(thread.locator(".lf-msg")).to_have_count(before + 1)
-    expect(thread.locator(".lf-msg").last).to_contain_text(words)
-    expect(thread.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
-    pending_status = thread.locator(".lf-msg").last.locator(".lf-msg-sending")
+    expect(messages).to_have_count(before + 1)
+    expect(messages.last).to_contain_text(words)
+    expect(messages.last).to_have_attribute("aria-busy", "true")
+    assert page.evaluate("window.__messageArrival") == 0.5
+    expect(messages.last).to_have_css("opacity", "0.5")
+    pending_status = messages.last.locator(".lf-msg-sending")
     expect(pending_status).to_have_text("Sending")
     assert pending_status.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
@@ -1197,8 +1221,9 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(thread.locator(".lf-msg")).to_have_count(before + 1)
-    expect(thread.locator(".lf-msg").last).not_to_have_attribute("aria-busy", "true")
+    expect(messages).to_have_count(before + 1)
+    expect(messages.last).not_to_have_attribute("aria-busy", "true")
+    expect(messages.last).to_have_css("opacity", "1")
     replies = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -3571,16 +3596,20 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     )
     assert threads_now == threads_was, "the panel took a key aimed at the document"
 
-    # Into the panel, standing on its list rather than in a box — `g T`'s landing,
-    # which travels nothing, so the baseline below is the one the control left. The
-    # address toggles the panel it names, so from the standing one the first completion
-    # closes it and the second is the arrival.
+    # Into the panel, standing on its open thread's title rather than in a box — `g T`'s
+    # landing, which travels nothing, so the baseline below is the one the control left.
+    # The address toggles the panel it names, so from the standing one the first
+    # completion closes it and the second is the arrival.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(
+        page.locator(
+            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
+        )
+    ).to_be_focused()
 
     page_was, threads_was = offsets()
     page.keyboard.press("d")

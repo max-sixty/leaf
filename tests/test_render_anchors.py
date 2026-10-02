@@ -88,6 +88,7 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
+    watch_message_arrival,
     write,
 )
 
@@ -1589,6 +1590,7 @@ def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve
     assert text == "new = 2"
 
 
+@pytest.mark.watch_shifts
 def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
@@ -3915,6 +3917,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
     """The picker is a press and a menu rather than a select, which buys the notes
@@ -5505,11 +5508,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    # go-to-threads has one destination, the whole panel, whichever thread the user
-    # stood on to ask for it.
-    expect(page.locator(".lf-threads")).to_be_focused()
-    # The panel releases to the page. The seat on the page is not put back, the user
-    # having left it to come here.
+    # go-to-threads has one destination, the thread the panel's list shows open.
+    expect(panel_thread).to_have_attribute("open", "")
+    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
+    # The thread's Escape is the panel's, which releases to the page. The seat on the
+    # page is not put back, the user having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -5760,8 +5763,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
     expect(thread.locator("leaf-text")).to_be_visible()
     write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
-    with sending(page, "the inline reply"):
-        thread.get_by_role("button", name="Send", exact=True).click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    watch_message_arrival(thread, ".lf-page-thread-msg")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the inline reply")
+    pending = thread.locator('.lf-page-thread-msg[aria-busy="true"]')
+    expect(pending).to_contain_text("Confirmed from the inline thread.")
+    assert page.evaluate("window.__messageArrival") == 0.5
+    expect(pending).to_have_css("opacity", "0.5")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["text"]) == (
         "reply",
@@ -5769,6 +5782,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "Confirmed from the inline thread.",
     )
     expect(thread).to_contain_text("Confirmed from the inline thread.")
+    accepted = thread.locator(f'.lf-page-thread-msg[data-event="{sent["id"]}"]')
+    expect(accepted).not_to_have_attribute("aria-busy", "true")
+    expect(accepted).to_have_css("opacity", "1")
 
 
 def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):

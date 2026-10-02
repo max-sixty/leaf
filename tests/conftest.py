@@ -252,7 +252,7 @@ def pytest_collection_modifyitems(config, items):
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the nightly tests whose own lines the change touches
-    (`--nightly-changed-since`): those run before it lands, and CI's `nightly` job runs
+    (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
     the rest on main after."""
     selected = (
         config.getoption("keyword")

@@ -9825,7 +9825,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
             }
         )
         assert not capsys.readouterr().out
-        assert codex_model.step_delivery_turn("codex-thread") is None
+        assert codex_state_model.step_delivery_turn("codex-thread") is None
         # A late tool hook cannot reopen the turn or duplicate the pointer.
         hooks_model.cmd_hook(
             {

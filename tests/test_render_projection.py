@@ -9237,6 +9237,9 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     page.locator("#inner > lf-command-readings > .lf-command-head").click(
         position={"x": 5, "y": 5}
     )
+    page.locator("#inner > lf-command-readings").get_by_role(
+        "button", name="1 workers"
+    ).click()
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
 

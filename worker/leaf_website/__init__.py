@@ -334,37 +334,22 @@ def write_failure_receipt(
     return accepted
 
 
-def agent_event_pending(page_dir: Path, event_id: str) -> bool:
-    """Whether one accepted user event still belongs to the agent's next turn."""
+def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
+    """Admit a hosted dispatch against the source and one page snapshot.
+
+    Membership says a move still needs an answer. Its value names an existing
+    provider delivery, or None where the host may start one. The host re-reads
+    after a start that did not leave a follower, because an older reply slice can
+    have taken another input first.
+    """
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir)
         if activation.error:
             raise ValueError(activation.error)
-        events = page.events
-        if any(event.get("attempt") == agent_attempt(event_id) for event in events):
-            return False
-        return any(
-            obligation.get("input") == event_id
-            for obligation in full_state(page_dir, events)["activity"]["obligations"]
-        )
-
-
-def agent_event_thread(page_dir: Path, event_id: str) -> str | None:
-    """Return the Codex task that has already accepted one pending event."""
-    with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
-        if activation.error:
-            raise ValueError(activation.error)
-        workflow = next(
-            (
-                item
-                for item in full_state(page_dir, page.events)["workflows"]
-                if item.get("input") == event_id
-            ),
-            None,
-        )
-        session = workflow.get("delivery_session") if workflow else None
-        return session if isinstance(session, str) and session else None
+        # Obligations already are canonical workflows, including their delivery
+        # session. Joining a second workflow list would repeat the owner’s reading.
+        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        return {item["input"]: item["delivery_session"] for item in obligations}
 
 
 def next_unaccepted_agent_event(
@@ -378,7 +363,7 @@ def next_unaccepted_agent_event(
     the source first and refuse a page whose `index.html` no longer opens, which put a
     start-door condition in front of a reading that does not need one: obligations and
     workflows come out of the log either way. The refusing belongs at the door, and
-    the door already holds it — `attach` reaches `agent_event_pending`, which raises on
+    the door already holds it — `attach` reaches `pending_agent_inputs`, which raises on
     such a page — so a start there throws to a caller that receipts the move. Held here
     instead, the refusal came before any move was named, which is the one shape that
     answers none of them: a turn whose own work left the page unopenable faults while
@@ -386,18 +371,12 @@ def next_unaccepted_agent_event(
     who to tell.
     """
     with PageTransaction(page_dir) as page:
-        state = full_state(page_dir, page.events)
-        activity = state["activity"]
-        sessions = {
-            workflow.get("input"): workflow.get("delivery_session")
-            for workflow in state["workflows"]
-        }
+        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
         return next(
             (
-                obligation["input"]
-                for obligation in activity["obligations"]
-                if obligation.get("input") not in excluding
-                and not sessions.get(obligation.get("input"))
+                item["input"]
+                for item in obligations
+                if item["input"] not in excluding and item["delivery_session"] is None
             ),
             None,
         )
@@ -828,11 +807,12 @@ class WebsiteCodexHost:
         `startup_failed` receipt — nobody else can write one, because the user's
         request for it was answered `started` on the turn that was already running,
         which ended the Worker's dispatch — and the scan runs again for the next
-        move. Each receipted move joins `excluding`, since one that does not settle
-        would otherwise be handed back forever.
+        move. A candidate that settled before attachment also leaves no handoff,
+        so it joins `excluding` with failed starts and the scan continues.
 
-        The first start that succeeds ends the loop. Its own follower ends here too,
-        so the rest of the page's moves are that turn's to carry.
+        An accepted delivery or live follower is the handoff that ends this loop:
+        that owner will continue the page when its turn ends. Merely naming a
+        candidate or finding an old page claim hands nothing on.
         """
         while not self.stop_event.is_set():
             with self.lock:
@@ -842,8 +822,8 @@ class WebsiteCodexHost:
             if continuation is None:
                 return
             try:
-                self.attach(page_dir, continuation)
-                return
+                if self.attach(page_dir, continuation) is not None:
+                    return
             except Exception:  # noqa: BLE001 - receipted, never raised
                 # `attach` has already recorded the fault; what this adds is which of
                 # the two owners answered for it. Every class, because what the user
@@ -1167,44 +1147,53 @@ class WebsiteCodexHost:
             return False
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
-        """Create or resume the page's task and deliver its pending user input."""
+        """Deliver a pending move, returning the owner that takes the page on.
+
+        An accepted delivery or a live follower owns the continuation, including
+        an uncertain start whose pickup is not admitted yet. A source recheck that
+        finds the move settled returns None when no such owner took it; an old
+        page claim names only a candidate provider task, never a handoff.
+        """
         started = time.monotonic()
         log_agent("container_start_received", eventId=event_id)
         try:
             with self.lock:
-                if not agent_event_pending(page_dir, event_id):
-                    thread_id = None
-                else:
-                    thread_id = agent_event_thread(page_dir, event_id)
-                    if thread_id is None:
-                        server_started = time.monotonic()
-                        process = self._ensure_server()
-                        log_agent(
-                            "app_server_available",
-                            eventId=event_id,
-                            durationMs=round(
-                                (time.monotonic() - server_started) * 1000
-                            ),
-                        )
-                        claim = page_claim(page_dir)
-                        thread_id = (
-                            claim["id"]
-                            if claim and claim["harness"] == EmbeddedHarness.name
-                            else None
-                        )
+                inputs = pending_agent_inputs(page_dir)
+                thread_id = inputs.get(event_id)
+                if event_id in inputs and thread_id is None:
+                    server_started = time.monotonic()
+                    process = self._ensure_server()
+                    log_agent(
+                        "app_server_available",
+                        eventId=event_id,
+                        durationMs=round((time.monotonic() - server_started) * 1000),
+                    )
+                    claim = page_claim(page_dir)
+                    thread_id = (
+                        claim["id"]
+                        if claim and claim["harness"] == EmbeddedHarness.name
+                        else None
+                    )
+                    # Startup can wait while another writer answers or withdraws the
+                    # named input. Re-read after that boundary before taking a turn.
+                    if thread_id not in self.following_threads:
+                        inputs = pending_agent_inputs(page_dir)
+                    while (
+                        thread_id not in self.following_threads
+                        and event_id in inputs
+                        and inputs[event_id] is None
+                    ):
+                        if thread_id is None or not self._resume_and_start(
+                            page_dir, thread_id, process, event_id
+                        ):
+                            thread_id = self._start_thread(page_dir, process, event_id)
                         if thread_id not in self.following_threads:
-                            while (
-                                agent_event_pending(page_dir, event_id)
-                                and agent_event_thread(page_dir, event_id) is None
-                            ):
-                                if thread_id is None or not self._resume_and_start(
-                                    page_dir, thread_id, process, event_id
-                                ):
-                                    thread_id = self._start_thread(
-                                        page_dir, process, event_id
-                                    )
-                                if thread_id in self.following_threads:
-                                    break
+                            inputs = pending_agent_inputs(page_dir)
+                attached = (
+                    thread_id
+                    if thread_id in self.following_threads
+                    else inputs.get(event_id)
+                )
         # Every class, because this only records and re-raises: the caller still meets
         # the exception it would have met, and a start that fails in a class nobody
         # listed is exactly the one worth having a record of. The three it used to name
@@ -1224,7 +1213,7 @@ class WebsiteCodexHost:
             eventId=event_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        return thread_id
+        return attached
 
     def failure_receipt(
         self, page_dir: Path, event_id: str, failure: str

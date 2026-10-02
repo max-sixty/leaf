@@ -4,7 +4,8 @@
  * other block and focus moves into it the way it moves into any iframe. A `window`
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
- * final Escape brings focus back to this element. Ordinary children remain static
+ * final Escape brings focus back to this element. Each presented child announces
+ * lf-sample-ready with its Document, on first mount and Reset. Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
@@ -137,6 +138,12 @@ customElements.define(
         this.#reset.disabled = false;
         this.#status.textContent = "";
         if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
+        this.dispatchEvent(
+          new CustomEvent("lf-sample-ready", {
+            bubbles: true,
+            detail: { document: doc },
+          }),
+        );
         return doc;
       });
       this.#ready = ready;

@@ -148,6 +148,76 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     assert "Traceback" not in output
 
 
+@pytest.mark.parametrize("first_signal", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("next_signal", [signal.SIGINT, signal.SIGTERM])
+def test_a_second_stop_signal_leaves_preview_cleanup_running(
+    tmp_path, preview_slot, spawn, first_signal, next_signal
+):
+    """A forwarded or repeated stop cannot abandon the server's cleanup.
+
+    Hold the real worker at service cleanup, then deliver another signal before
+    releasing it. The ordinary launcher test covers uv's forwarding; this gate
+    establishes the ordering without depending on when uv forwards a signal.
+    """
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        """import sys
+from leaf_dev import preview
+
+stop = preview.PreviewService.stop
+
+def gated_stop(self):
+    print("Cleanup started", flush=True)
+    assert sys.stdin.readline() == "release\\n"
+    stop(self)
+    print("Cleanup finished", flush=True)
+
+preview.PreviewService.stop = gated_stop
+preview.preview.main(args=sys.argv[1:])
+""",
+        encoding="utf-8",
+    )
+    slot, page = preview_slot
+    log = tmp_path / "preview.log"
+    process, url = start_preview(
+        spawn,
+        [
+            sys.executable,
+            str(worker),
+            "--source",
+            str(ROOT / "examples" / "heat-loss.html"),
+            "--slot",
+            slot,
+            "--user",
+            "--worker",
+        ],
+        log,
+        stdin=subprocess.PIPE,
+    )
+    events = (page / "events.jsonl").read_bytes()
+    process.send_signal(first_signal)
+    try:
+        wait_for(
+            log.read_text,
+            lambda output: "Cleanup started" in output,
+            failure="the stop signal never reached service cleanup",
+            timeout=10,
+        )
+        process.send_signal(next_signal)
+    finally:
+        process.stdin.write("release\n")
+        process.stdin.flush()
+    process.wait(timeout=30)
+
+    output = log.read_text()
+    assert "Cleanup finished" in output, output
+    assert process.returncode in (130, 128 + first_signal), output
+    assert server_model.running_server(page) is None
+    assert not _reachable(url)
+    assert (page / "events.jsonl").read_bytes() == events
+    assert "Traceback" not in output
+
+
 def test_terminating_a_preview_stops_its_claimed_service(tmp_path, preview_slot, spawn):
     """A runner's SIGTERM ends a preview through the same cleanup Ctrl-C runs.
 
@@ -1846,7 +1916,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
+    expect(thread.locator(".lf-msg-body")).to_be_visible()
     assert (
         thread.locator(
             "button:visible, leaf-text:visible, .lf-msg-sending:visible"

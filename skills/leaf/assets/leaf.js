@@ -322,12 +322,13 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
+  focusForNavigation: (target) => app.margin.focusForNavigation(target),
+  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  scrollToThread: anchorTravel.scrollToThread,
   revealThread: narrowing.revealThread,
   cardTarget: (thread) => app.margin.cardTarget(thread),
 });
@@ -498,7 +499,7 @@ asks = createAskView({
   presentedControl: app.margin.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
-  scrollToElement: anchorTravel.scrollToElement,
+  arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
   announce,
   repaint,
@@ -562,7 +563,6 @@ responseSurface = createResponseSurface({
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
-  scrollRevealedElement: anchorTravel.scrollRevealedElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,

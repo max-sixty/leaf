@@ -281,6 +281,7 @@ def check(dir: str, render: bool) -> None:
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+    A host with no browser gets a note in place of each browser check.
     """
     from leaf.validation.command import cmd_check
 
@@ -446,7 +447,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     resumes from the last one a reader saw. This is read-only and does not
     acknowledge user events. `page state PAGE ID` reads one thread or widget.
     """
-    from leaf.transcript import cmd_events
+    from leaf.event_log import cmd_events
 
     cmd_events(resolve_dir(dir), after, follow=follow)
 

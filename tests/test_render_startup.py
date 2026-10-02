@@ -3295,9 +3295,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
-    held_workflow = held_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    held_workflow = held_thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+    )
     other_workflow = other_thread.locator(
-        ":scope > .lf-thread-root-meta .lf-msg-sending"
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
     )
     expect(workflows).to_have_count(2)
     expect(held_workflow).to_have_text("Sent")
@@ -3531,7 +3533,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
 
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
@@ -3601,7 +3603,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page = open_page(browser, url)
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     expect(workflow).to_have_text("Waiting for pickup")
     expect(workflow).to_have_attribute("title", "Waiting for pickup")
@@ -3630,7 +3632,9 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     page = open_page(browser, url)
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
-    workflow = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    workflow = thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+    )
     thread.locator(".lf-thread-summary").click()
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
@@ -3702,7 +3706,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
-        f'.lf-thread[data-id="{held}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{held}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')

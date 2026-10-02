@@ -1342,15 +1342,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
                display: inline-block; padding: 2px 5px; }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
-/* A tab's counts: the passages the version diff marks, and, in the tone the drawer's
- * count wears, the Asks that still wait on the user. A count with nothing to count
- * takes no room. */
-:is(.lf-tabdiff, .lf-tabowed) { font-size: var(--t-6); margin-left: 6px;
+/* A tab counts the passages the version diff marks. An empty count takes no room. */
+.lf-tabdiff { font-size: var(--t-6); margin-left: 6px;
               padding: var(--chip-pad); line-height: var(--chip-lh);
               border-radius: var(--chip-r); }
-:is(.lf-tabdiff, .lf-tabowed):empty { display: none; }
+.lf-tabdiff:empty { display: none; }
 .lf-tabdiff { font-weight: 400; background: var(--add-tint); color: var(--ok-ink); }
-.lf-tabowed { font-weight: 600; background: var(--warn-tint); color: var(--warn-ink); }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block and has none;
@@ -1408,18 +1405,13 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
       align-self: stretch;
     }
-    /* A row is its name, then its counts, with the summary on a line under them. The
-     * row keeps the Asks count's slot when none wait, so an answer moves nothing. */
+    /* A row is its name, then its diff count, with the summary on a line under them. */
     lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: baseline;
       justify-items: start;
       text-align: start;
-    }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tabowed:empty {
-      display: inline-block;
-      visibility: hidden;
     }
     lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
       grid-column: 1 / -1;

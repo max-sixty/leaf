@@ -218,6 +218,7 @@ class State:
 
 
 STATES = (
+    State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),

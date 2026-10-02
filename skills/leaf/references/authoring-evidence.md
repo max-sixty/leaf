@@ -63,13 +63,12 @@ Use `lf-chart` rather than Mermaid's XY or pie charts for quantities: its body i
 Observable Plot code, the options `Plot.plot` takes, so any chart Plot draws is
 available in Plot's own API. `lf-chart` needs no package. A handful of numbers the
 sentence beside them can carry is prose; a chart is for when the shape of the
-numbers is the point. Use `<pre><code class="language-…">` for selectable literal
-source and `lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
+numbers is the point.
+
+For source snippets and code walkthroughs, follow `page-authoring.md`, "Theme and
+vocabulary". An `lf-code` block's `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.
-The registry's `$languages.names` lists
-accepted language names. Keep logs and transcripts plain when they are not source
-code.
 
 A user can comment on a drawing as a whole and quote the words in it, but a part
 of it takes a comment of its own only when the author named that part. In an

@@ -30,7 +30,8 @@ import {
   pageQueryAll,
   renderRetired,
 } from "../passages.js";
-import { PAGE_PAINT_ATTRIBUTE, isPagePaint, renderQuiet } from "../presentation.js";
+import { isPagePaint, renderQuiet } from "../presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 

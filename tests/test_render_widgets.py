@@ -5,7 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
-from interact_support import append_command
+from interact_support import append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -5501,7 +5501,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     workbench.locator("wa-number-input").press_sequentially("40")
     workbench.get_by_role("button", name="Add style").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": actions[0]["id"]},
     )
@@ -8736,7 +8736,7 @@ def test_the_asks_drawer_names_an_ask_a_message_carries(browser, serve):
     ask now, so the layer above it is nobody's apparatus and the words underneath are
     the widget's own."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -8746,7 +8746,7 @@ def test_the_asks_drawer_names_an_ask_a_message_carries(browser, serve):
             "text": "Either would do. Which are you leaning towards?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -8794,7 +8794,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     its own line."""
     url = serve(MESSAGE_ROOM_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -8804,7 +8804,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "text": "Anything else worth adding?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -8864,7 +8864,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     decision and passes whatever the decision would have been."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -8874,7 +8874,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
             "text": "Which store?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -8945,7 +8945,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
     inside its widget, so the box is between the words and their frame either way."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -8956,7 +8956,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
             "anchor": {"section": "cd-q"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -9002,7 +9002,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     """
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
-    message = events_model.append_event(
+    message = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -9041,7 +9041,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         [message["id"]],
     )
 
-    revision = events_model.append_event(
+    revision = append_carried_log_record(
         d,
         {
             "kind": "edit",
@@ -9109,7 +9109,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     the reconcile has just written."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -9119,7 +9119,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "text": "Which store?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -9137,7 +9137,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
         },
     )
     # The shape design mode writes: an element anchor naming a widget no version holds.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -10036,7 +10036,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
             "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
         )
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -10432,7 +10432,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     """
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -10442,7 +10442,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "text": "How did the quarter go?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -10474,13 +10474,13 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     assert len(drawn["marks"]["bar"]) == 2, drawn
 
 
-def _bound_diff(browser, serve):
+def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     """The review the four diff tests below read, with its feed in place before the page
     loads. Bound rather than written inline because that is the form a review arrives in,
     and the only one whose rows are commentable data — `projectData` keys each by file,
     side and source line, which is the coordinate a remark on a line is recorded at."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -10658,7 +10658,13 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
 
     The unwrapped reading is the population as well as the anchor: a clean wrapped result
     means nothing unless the same reading, on the same rows, can see a cut line."""
-    page = _bound_diff(browser, serve)
+    page = _bound_diff(
+        browser,
+        serve,
+        MULTI_HUNK_PATCH + "\ndiff --git a/old.py b/new.py\nsimilarity index 100%\n"
+        "rename from old.py\nrename to new.py\n",
+    )
+    expect(page.locator("lf-diff .lf-diff-rename")).to_be_visible()
     switch = page.locator("lf-diff .lf-diff-wrap")
 
     cut = page.evaluate(DIFF_CLIPPING)
@@ -10691,7 +10697,7 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     # take back, and it drew every file's header 24px inside the file before it. The row
     # starts at its wrapper's top in both media, which is where it would with no press.
     placed = page.evaluate(DIFF_ROW_PLACEMENT)
-    assert placed["files"] == 2 and (placed["lift"], placed["drop"]) == (
+    assert placed["files"] == 3 and (placed["lift"], placed["drop"]) == (
         0,
         0,
     ), f"a file's row does not start where its wrapper does: {placed}"
@@ -10703,7 +10709,7 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     assert printed["cut"] == 0, (
         f"the switch is off and paper cannot press it, so this text is gone: {printed}"
     )
-    assert (on_paper["lift"], on_paper["drop"]) == (
+    assert on_paper["files"] == 3 and (on_paper["lift"], on_paper["drop"]) == (
         0,
         0,
     ), f"on paper a file's row is drawn above its own wrapper: {on_paper}"
@@ -10915,6 +10921,73 @@ _RING_WITHIN = """(el, frame) => {
                        right: ring.right <= edge.right,
                        bottom: ring.bottom <= edge.bottom } };
 }"""
+
+
+@pytest.mark.parametrize(
+    "engine", ["browser", "webkit_browser"], ids=["chromium", "webkit"]
+)
+@pytest.mark.parametrize("wide_host", [False, True], ids=["code", "outer-reader"])
+def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
+    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
+    source = leaf_page(
+        "Nested patch reader",
+        '<h1>Review</h1><div id="reader" data-bound="start">'
+        '<lf-diff id="patch"><pre>'
+        "diff --git a/reading.py b/reading.py\n"
+        "--- a/reading.py\n+++ b/reading.py\n@@ -1 +1 @@\n"
+        '-return "The previous release remains available for inspection."\n'
+        '+return "The current release remains available for inspection."\n'
+        "</pre></lf-diff></div>",
+        head="<style>#reader { width: 500px; }"
+        f"#patch {{ width: {1000 if wide_host else 300}px; }}</style>",
+    )
+    driver = request.getfixturevalue(engine)
+    url = serve(source)
+    page = open_page(driver, url)
+    resized(page, 1000, 900)
+    code = page.locator("#patch code[data-code]")
+    reader = page.locator("#reader") if wide_host else code
+    assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
+    if wide_host:
+        assert code.evaluate("el => el.scrollWidth === el.clientWidth")
+    box = code.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + 120, box["y"] + 25)
+    page.mouse.wheel(200, 0)
+    page.wait_for_function(
+        "wide => { const host = document.querySelector('#patch'); "
+        "const box = wide ? document.querySelector('#reader') : "
+        "host.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }",
+        arg=wide_host,
+    )
+    assert reader.evaluate("el => el.scrollLeft") > 0
+
+
+@pytest.mark.parametrize("left", [0, 150])
+def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
+    browser, serve, left
+):
+    """A hunk step moves vertically without travelling sideways through its host."""
+    source = leaf_page(
+        "Sideways patch",
+        '<h1>Review</h1><div id="sideways">'
+        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
+        "</div>",
+        head="<style>#sideways { width: 500px; overflow: auto; }"
+        "#patch { width: 1000px; }</style>",
+    )
+    url = serve(source)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.keyboard.press("Tab")
+    page.locator("#patch summary").first.focus()
+    page.locator("#sideways").evaluate("(el, left) => { el.scrollLeft = left; }", left)
+    before = page.locator("#sideways").evaluate("el => el.scrollLeft")
+    assert before == left
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
+    scroll_settled(page)
+    assert page.locator("#sideways").evaluate("el => el.scrollLeft") == before
 
 
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
@@ -11317,7 +11390,7 @@ print(bracket(3))
     assert marked() == [3, 4]
     expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

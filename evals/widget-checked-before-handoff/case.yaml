@@ -2,13 +2,13 @@
 # package's author runs before any page uses a widget. This case checks that an agent
 # finishing a package widget reaches for the report and reads its findings as advice.
 # Measured when added: 0 of 3 on the instructions before the report existed, 3 of 3 after.
-schema_version: '1.0'
-name: widget-checked-before-handoff
-description: "A finished package widget is checked with package check --render, whose findings are advice."
-tags:
-- packages
-- widgets
-execution:
+description: widget-checked-before-handoff
+metadata:
+  purpose: A finished package widget is checked with package check --render, whose findings are advice.
+  tags:
+  - packages
+  - widgets
+vars:
   prompt: |
     I'm building a Leaf package at packages/timeline with one upgraded widget,
     lf-timeline, whose module draws a row of dated markers once it upgrades. The
@@ -18,21 +18,23 @@ execution:
     ship yet.
 
     Answer in a short reply with the exact commands.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-packages
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/packages\.md
-- name: runs-the-report
-  type: regex
-  pattern: 'package check\s+\S*timeline\S*\s+--render|package check\s+--render\s+\S*timeline'
-- name: findings-are-advice
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: regex
+  metric: runs-the-report
+  value: package check\s+\S*timeline\S*\s+--render|package check\s+--render\s+\S*timeline
+- type: llm-rubric
+  metric: findings-are-advice
+  value: |
     Pass only if the reply says the command's findings are advice for the widget's
     author that do not block the widget or a page using it (the command does not fail
     on them), and names at least one thing a finding can report about the widget, such

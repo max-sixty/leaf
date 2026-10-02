@@ -8,7 +8,7 @@ from html import escape
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import append_carried_log_record, record_claim
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -821,7 +821,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
     for event in THREAD_ASKS:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
 
     # Focus inside the first panel Ask paints that group's predictable digits, once a
@@ -2722,7 +2722,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     the expected card is read off the point rather than named here."""
     url = serve(AIM_SEAM_PAGE)
     for ident in ("seam-upper", "seam-lower"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -2766,7 +2766,7 @@ def mark_the_first_sentence(browser, serve):
     The sentence's own tail is left unmarked, which is where the shift-click below starts
     so that only its extension reaches the painted words."""
     url = serve(EDGE_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2919,7 +2919,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     the click. The reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2929,7 +2929,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
             "anchor": {"section": "fig"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -3013,7 +3013,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     reading a visible thread rather than a miss."""
     url = serve(AIM_SEAM_PAGE)
     for ident in ("seam-upper", "seam-lower"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3336,7 +3336,7 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
     it was written, so nothing already in a log detaches when the capture reaches
     further."""
     url = serve(EDGE_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -3370,7 +3370,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
     ambiguous and detaches rather than using document order."""
     url = serve(EDGE_PAGE)
     # A suffix that fits the second copy and nothing else, stored with no prefix beside it.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4662,7 +4662,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
 """
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4684,7 +4684,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
 
     page.route("**/api/state", lambda route: reads.append(route))
     with page.expect_request("**/api/state"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -5501,7 +5501,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
 +return "new"
 """,
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5559,7 +5559,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 +return "new"
 """,
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5599,7 +5599,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(inline_status).to_have_attribute("data-identity-probe", "inline")
     expect(panel_status).to_have_attribute("data-identity-probe", "panel")
 
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -5749,7 +5749,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
-    question = events_model.append_event(
+    question = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -5773,7 +5773,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    followup = events_model.append_event(
+    followup = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -5942,7 +5942,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 +return "new"
 """,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -6050,7 +6050,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
         "review-patch",
         TWO_FILE_MANIFEST,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -6327,7 +6327,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
             ]
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -6456,7 +6456,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     row = page.locator("#row")
     marked = re.compile(r"\blf-mark-el\b")
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -6478,7 +6478,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
 
     # Resolved, so the next repaint has nothing to say here: the count has to go, and
     # it can only go if the sweep that clears it reaches the tree that holds the row.
-    events_model.append_event(
+    append_carried_log_record(
         d, {"kind": "resolve", "author": "user", "parent": "c-staged"}
     )
     told(page)
@@ -6586,7 +6586,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
         serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)),
         color_scheme=scheme,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

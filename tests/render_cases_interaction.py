@@ -3,8 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
-from interact_support import add_test_widget, append_command
-from leaf import event_log as events_model
+from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
@@ -60,7 +59,7 @@ def panel_comment(d, text, anchor=None, author="user"):
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
-    return events_model.append_event(d, event)["id"]
+    return append_carried_log_record(d, event)["id"]
 
 
 # What the list is holding, from the one query that answers both halves of the

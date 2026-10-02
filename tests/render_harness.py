@@ -44,8 +44,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_carried_log_record
 from leaf import cli as cli_model
-from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
@@ -533,11 +533,11 @@ def serve(tmp_path, monkeypatch, initialized_page):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         for event in events:
-            events_model.append_event(d, event)
+            append_carried_log_record(d, event)
         if fixture is None:
             activated = revisioning_model.activate_source(d)
             assert activated.error is None and activated.revision == 1, activated.error
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "note",
@@ -548,7 +548,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         for i in range(comments):
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -558,7 +558,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 },
             )
         for section, quote in anchored:
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -883,7 +883,7 @@ def plant_quiet_word(page, selector, holding):
 # So ask the page whether it has caught up with what the server holds: its readiness
 # reading answers that against an `/api/state` answer, and names no transport.
 # Counting answered requests said the same thing only while a fixed interval made them
-# the same thing: the page now asks when its news stream says the page has moved, so a
+# the same thing: the page now asks when its freshness reading says the page has moved, so a
 # count of asks started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page):
@@ -905,8 +905,8 @@ def told(page):
 def nudge(page_dir):
     """Give the page a reason to ask, changing nothing it shows.
 
-    The page asks for state when its news stream says the page has moved, and the
-    stream reads file stamps. A test that wants the page's next ask — to park it, or to
+    The page asks for state when its freshness reading says the page has moved, and the
+    reading names file stamps. A test that wants the page's next ask — to park it, or to
     watch it refused — used to wait for the poll's timer; now it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
@@ -970,8 +970,8 @@ def refuse(route):
 # went out, so a refusal registered on a live page leaves whatever is outstanding free
 # to arrive later, against storage the test has moved in the meantime. Registered
 # through `primed`, the route is on the page before it navigates and no read is ever
-# unrouted. The stream the page hears news on is not a state read and is not refused;
-# what it prompts is, every two seconds, for as long as the route stands.
+# unrouted. Freshness is not a state read and is not refused; failed state reads retry
+# on the two-second clock for as long as the route stands.
 #
 # The first is let through because `open_page` waits for the page's readiness facts,
 # including `lf-applied`, which rides on it — and that same wait is what leaves nothing

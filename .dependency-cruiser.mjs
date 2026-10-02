@@ -147,14 +147,26 @@ export default {
       to: { path: isModule("keyboard/page.js") },
     },
     {
-      name: "contributions-independent-of-annotation-layout",
+      name: "annotation-services-independent-of-overlay",
       comment:
-        "Shared contribution records, activation and controls do not choose annotation geometry.",
+        "Shared inventory, activation, controls and Page Map do not load overlay geometry.",
       severity: "error",
-      from: { path: isOneOf(["contributions.js", "contribution-controls.js"]) },
+      from: {
+        path: isOneOf([
+          "contributions.js",
+          "contribution-controls.js",
+          "annotation-inventory.js",
+          "inline-contributions.js",
+          "page-map-dialog.js",
+        ]),
+      },
       to: {
         reachable: true,
-        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
+        path: isOneOf([
+          "margin-layout.js",
+          "margin-projection.js",
+          "margin-cluster-view.js",
+        ]),
       },
     },
     {
@@ -201,7 +213,8 @@ export default {
   ],
   options: {
     moduleSystems: ["es6"],
-    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/"] },
+    // /checks probes are supplied by the Python server, outside the runtime graph.
+    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/"] },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },

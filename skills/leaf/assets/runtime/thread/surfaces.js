@@ -1,7 +1,11 @@
-/* Exact widget-local placement for canonical Thread conversations.
+/* Canonical Thread placement into exact widget seats and one page presentation.
 
    A placement claims one Thread's page position, so reconciliation joins the core
-   Thread presentation before the margin chooses its fallback. Ordinary mirrors live
+   Thread presentation. Both callbacks nominate exact candidates; widget seats
+   that survive final validation claim first, then the selected page presentation.
+   Source coverage and outlet containment are separate: an authored page rail can
+   show a target elsewhere in the document.
+   Ordinary mirrors live
    in mirrors.js and cannot hold that presentation open.
 
    A thread the widget would draw in a seat it has not opened yet, while that would move
@@ -9,16 +13,16 @@
    held-news.js): `target` answers null for it, so the margin draws it, and `showHeld`
    is how the margin's marker shows it. */
 import { reportPageError } from "../layer-client.js";
-import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
+import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { pageText } from "../passages.js";
+import { closestAcross } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
-import { threadFocusStop } from "./focus.js";
+import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
-import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
+import { declareSide } from "../standing-target.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 
@@ -35,10 +39,23 @@ function update(registration) {
   });
 }
 
-export function consumeThreads(owner, render, { invalidate, composition, reveal }) {
+export function consumeThreads(owner, render, options) {
+  return register(owner, render, options, "widget");
+}
+
+// The selected page presentation joins the same outlet and generation lifetime.
+// This owner nominates fallback candidates. Only the final cohort move knows which
+// widget nominations survived, and gives those seats priority over page nominations.
+export function consumePageThreads(owner, render, options) {
+  if ([...registrations.values()].some((item) => item.kind === "page"))
+    throw new Error("The document already has a page Thread presentation");
+  return register(owner, render, options, "page");
+}
+
+function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
     throw new TypeError("consumeThreads needs an Element owner");
-  requireSurface(owner);
+  if (kind === "widget") requireSurface(owner);
   if (typeof render !== "function")
     throw new TypeError("consumeThreads needs a render callback");
   if (typeof invalidate !== "function")
@@ -58,16 +75,31 @@ export function consumeThreads(owner, render, { invalidate, composition, reveal 
   const registration = {
     render,
     owner,
+    kind,
     invalidate,
     composition,
     outlets: new Set(),
+    placements: null,
     // The datums where the widget drew a thread last, and the threads it holds out of
     // the seats it has not opened.
     drawn: new Set(),
-    held: new HeldArrivals(() => update(registration)),
+    held: kind === "widget" ? new HeldArrivals(() => update(registration)) : null,
     reconcileQueued: false,
     cancelRender: () => {},
   };
+  // The outlet lifetime also owns its source standing. A page rail's card stands
+  // at the source it shows, while its unrelated controls keep their authored place.
+  // The standing reader gives an innermost reply Ask priority over this relation.
+  registration.stopSide = declareSide((node) => {
+    const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
+    if (!outlet) return null;
+    const thread = closestAcross(node, ".lf-page-thread");
+    if (thread && under(thread, outlet))
+      return registration.placements?.placedAt(thread.dataset.thread)?.place ?? null;
+    return outlet === composition.outlet()
+      ? (registration.placements?.pendingAt()?.place ?? null)
+      : null;
+  });
   registrations.set(owner, registration);
   update(registration);
   let active = true;
@@ -78,17 +110,19 @@ export function consumeThreads(owner, render, { invalidate, composition, reveal 
       const thread = readThreads().threads.find((item) => item.key === key);
       return thread ? reveal(thread.id) : false;
     },
-    open(datum, { origin = null } = {}) {
+    open(node, { origin = null } = {}) {
       if (!active) return false;
-      requireSurface(owner);
-      const target = datumAimTarget(datum);
+      if (kind === "widget") requireSurface(owner);
+      const target = kind === "widget" ? datumAimTarget(node) : aimTargetAt(node);
       if (
         !target ||
-        target.anchor.section !== owner.id ||
-        !under(target.element, owner)
+        (kind === "widget" &&
+          (target.anchor.section !== owner.id || !under(target.element, owner)))
       )
         throw new TypeError(
-          `consumeThreads(${owner.localName}) can open only its own projected datum`,
+          kind === "widget"
+            ? `consumeThreads(${owner.localName}) can open only its own projected datum`
+            : "The page Thread presentation needs an addressable source target",
         );
       composition.open(target, { origin });
       return true;
@@ -126,7 +160,8 @@ function reportFailure({ owner }, error) {
 
 function clearRegistration(registration) {
   registration.cancelRender();
-  registration.held.dispose();
+  registration.stopSide();
+  registration.held?.dispose();
   registration.drawn = new Set();
   if (registration.outlets.has(registration.composition.outlet()))
     registration.composition.restore();
@@ -134,7 +169,33 @@ function clearRegistration(registration) {
   registration.outlets.clear();
 }
 
-export function renderSurfaces(collection, placedAt, commands) {
+// A nomination remains a capability only while its output is connected inside its
+// presentation owner. Preparation and final cohort admission share this one reading.
+function validateOutlets({ owner }, byOutlet) {
+  for (const outlet of byOutlet.keys()) {
+    if (!outlet.isConnected) byOutlet.delete(outlet);
+    else if (!under(outlet, owner))
+      throw new Error(
+        `consumeThreads(${owner.localName}) returned an outlet outside its presentation owner`,
+      );
+  }
+}
+
+// Initial callback admission and the final move read the same current directory.
+// A widget owns its exact datum; the page can present any complete attachment place.
+function exactTarget({ owner, kind }, anchor, placement) {
+  return (
+    placement?.status === "exact" &&
+    (kind === "page"
+      ? placement.place instanceof Element
+      : anchor?.datum &&
+        anchor.section === owner.id &&
+        placement.datumElement instanceof Element &&
+        under(placement.datumElement, owner))
+  );
+}
+
+export function renderSurfaces(collection, placements, commands) {
   const generation = ++renderGeneration;
   const current = () => generation === renderGeneration;
   for (const registration of registrations.values()) registration.cancelRender();
@@ -143,14 +204,23 @@ export function renderSurfaces(collection, placedAt, commands) {
     ++renderGeneration;
     for (const registration of registrations.values()) registration.cancelRender();
   };
-  const completion = render();
-  return { completion, cancel };
+  const activeComposition = commands.composition.active();
+  let prepared = null;
+  const completion = prepare().then((plans) => {
+    prepared = plans;
+  });
+  return { completion, cancel, commit };
 
-  async function render() {
-    const nextClaimed = new Set();
-    const activeComposition = commands.composition.active();
-    let compositionSeated = false;
-    for (const registration of [...registrations.values()]) {
+  // Callbacks nominate current contained outlets. They do not publish membership or
+  // move the canonical editor before the required Thread cohort is ready to commit.
+  async function prepare() {
+    const plans = [];
+    // Registration order cannot confer source ownership: the selected page owner
+    // runs after the widgets establish their held-arrival admission in this pass.
+    const ordered = [...registrations.values()].sort(
+      (a, b) => (a.kind === "page") - (b.kind === "page"),
+    );
+    for (const registration of ordered) {
       const { render, owner } = registration;
       if (registrations.get(owner) !== registration) continue;
       if (!owner.isConnected) {
@@ -158,6 +228,7 @@ export function renderSurfaces(collection, placedAt, commands) {
         clearRegistration(registration);
         continue;
       }
+      registration.placements = placements;
       const byOutlet = new Map();
       const abort = new AbortController();
       let cancel;
@@ -169,23 +240,21 @@ export function renderSurfaces(collection, placedAt, commands) {
         cancel();
       };
       let compositionOutlet = null;
-      let compositionPrepared = false;
       try {
         const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
-        const exact = (anchor, placement) =>
-          anchor?.datum &&
-          anchor.section === owner.id &&
-          placement?.status === "exact" &&
-          placement.datumElement instanceof Element &&
-          under(placement.datumElement, owner);
         const targets = new Map();
         for (const thread of collection.threads) {
-          if (thread.anchor?.section !== owner.id) continue;
-          const placement = placedAt(thread.id);
-          if (exact(thread.anchor, placement))
+          if (
+            registration.kind === "page"
+              ? heldOut(thread.id)
+              : thread.anchor?.section !== owner.id
+          )
+            continue;
+          const placement = placements.placedAt(thread.id);
+          if (exactTarget(registration, thread.anchor, placement))
             targets.set(thread.key, { anchor: thread.anchor, placement });
         }
-        const held = registration.held.hold(
+        const held = registration.held?.hold(
           [...targets].map(([key, { anchor, placement }]) => ({
             thread: byKey.get(key),
             datum: anchor.datum,
@@ -193,13 +262,15 @@ export function renderSurfaces(collection, placedAt, commands) {
           })),
           { drawn: registration.drawn, all: collection.threads },
         );
-        const target = (key) => (held.has(key) ? null : (targets.get(key) ?? null));
+        const target = (key) => (held?.has(key) ? null : (targets.get(key) ?? null));
         const anchor = activeComposition?.anchor;
         const placement =
-          anchor?.datum && anchor.section === owner.id
-            ? resolveAnchor(anchor, pageText())
+          anchor &&
+          (registration.kind === "page" ||
+            (anchor.datum && anchor.section === owner.id))
+            ? placements.pendingAt()
             : null;
-        const compositionTarget = exact(anchor, placement)
+        const compositionTarget = exactTarget(registration, anchor, placement)
           ? { anchor, placement }
           : null;
         let placing = true;
@@ -227,14 +298,16 @@ export function renderSurfaces(collection, placedAt, commands) {
             place(key, outlet) {
               if (!target(key))
                 throw new Error(
-                  "A Thread outlet requires an exact target owned by its widget",
+                  "A Thread outlet requires an exact target admitted to this presentation",
                 );
               placeThread(key, outlet);
             },
             placeComposition(outlet) {
               acceptOutlet(outlet);
               if (!compositionTarget)
-                throw new Error("The composer has no exact target in this widget");
+                throw new Error(
+                  "The composer has no exact target in this presentation",
+                );
               compositionOutlet = outlet;
               if (!byOutlet.has(outlet)) byOutlet.set(outlet, []);
             },
@@ -243,72 +316,136 @@ export function renderSurfaces(collection, placedAt, commands) {
         } finally {
           placing = false;
         }
-        if (!current()) return claimedIds;
+        if (!current()) return null;
         if (registrations.get(owner) !== registration || !owner.isConnected) {
           clearRegistration(registration);
           continue;
         }
-        for (const outlet of byOutlet.keys()) {
-          if (!outlet.isConnected) {
-            byOutlet.delete(outlet);
-          } else if (!under(outlet, owner))
-            throw new Error(
-              `consumeThreads(${owner.localName}) returned an outlet outside its widget`,
-            );
-        }
-        const text = byOutlet.size ? pageText() : null;
-        for (const [outlet, threads] of byOutlet) {
-          byOutlet.set(
-            outlet,
-            threads.filter((thread) =>
-              exact(thread.anchor, resolveAnchor(thread.anchor, text)),
-            ),
-          );
-        }
+        validateOutlets(registration, byOutlet);
         if (
           compositionOutlet &&
           (!byOutlet.has(compositionOutlet) ||
-            !exact(anchor, resolveAnchor(anchor, text)) ||
             !sameAnchor(commands.composition.active()?.anchor, anchor))
         )
           compositionOutlet = null;
-        const currentCompositionOutlet = commands.composition.outlet();
-        if (compositionOutlet)
-          compositionPrepared = commands.composition.seat(compositionOutlet);
-        else if (registration.outlets.has(currentCompositionOutlet))
-          commands.composition.restore();
-        if (compositionPrepared) compositionSeated = true;
       } catch (error) {
-        if (!current()) return claimedIds;
+        if (!current()) return null;
         if (abort.signal.aborted) continue;
-        if (
-          registration.outlets.has(commands.composition.outlet()) ||
-          compositionOutlet === commands.composition.outlet()
-        )
-          commands.composition.restore();
-        clearOutlets(registration.outlets);
-        registration.outlets.clear();
+        if (registration.kind === "page") throw error;
+        // A failed widget can yield to the selected page phase. Clearing its prior
+        // seats belongs to the same eventual commit as that fallback.
+        plans.push({ registration, byOutlet: new Map(), compositionOutlet: null });
         reportFailure(registration, error);
         continue;
       }
-      clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
-      registration.outlets = new Set(byOutlet.keys());
-      registration.drawn = new Set(
-        [...byOutlet.values()].flat().map((thread) => thread.anchor.datum),
-      );
-      for (const [outlet, threads] of byOutlet) {
-        outlet.toggleAttribute("data-lf-thread-surface", true);
-        const response =
-          compositionPrepared && outlet === compositionOutlet
-            ? commands.composition.node()
-            : null;
-        renderThreadSurface(outlet, threads, commands, response);
-        for (const thread of threads) nextClaimed.add(thread.id);
+      plans.push({ registration, byOutlet, compositionOutlet });
+    }
+    return current() ? plans : null;
+  }
+
+  function commit() {
+    if (!current() || !prepared) return;
+    const plans = prepared.filter(
+      ({ registration }) =>
+        registrations.get(registration.owner) === registration &&
+        registration.owner.isConnected,
+    );
+    // Required preparation can yield after callback admission. The coordinator has
+    // refreshed the target directory; read it and the outlets at the actual move.
+    // Page candidates cover every exact target. Only surviving widget nominations
+    // reserve a Thread or composer here; a failed page cannot certify the cohort.
+    const widgetClaims = new Set();
+    let widgetComposition = false;
+    for (const plan of plans) {
+      try {
+        validateOutlets(plan.registration, plan.byOutlet);
+        for (const [outlet, threads] of plan.byOutlet)
+          plan.byOutlet.set(
+            outlet,
+            threads.filter(
+              (thread) =>
+                exactTarget(
+                  plan.registration,
+                  thread.anchor,
+                  placements.placedAt(thread.id),
+                ) &&
+                (plan.registration.kind === "widget" ||
+                  (!widgetClaims.has(thread.id) && !heldOut(thread.id))),
+            ),
+          );
+        if (
+          (plan.registration.kind === "page" && widgetComposition) ||
+          !plan.byOutlet.has(plan.compositionOutlet) ||
+          !exactTarget(
+            plan.registration,
+            activeComposition?.anchor,
+            placements.pendingAt(),
+          )
+        )
+          plan.compositionOutlet = null;
+      } catch (error) {
+        if (plan.registration.kind === "page") throw error;
+        reportFailure(plan.registration, error);
+        plan.byOutlet.clear();
+        plan.compositionOutlet = null;
+      }
+      if (plan.registration.kind === "widget") {
+        for (const threads of plan.byOutlet.values())
+          for (const thread of threads) widgetClaims.add(thread.id);
+        widgetComposition ||= Boolean(plan.compositionOutlet);
       }
     }
-    if (!compositionSeated) commands.composition.restore();
-    claimedIds = nextClaimed;
-    return claimedIds;
+    const previousComposition = commands.composition.outlet();
+    let movedComposition = false;
+    try {
+      // Preparation may have awaited a package while the user chose another target.
+      // Only the still-current composition can move to the nominated outlet.
+      if (
+        sameAnchor(activeComposition?.anchor, commands.composition.active()?.anchor)
+      ) {
+        const selected = plans.find(({ compositionOutlet }) => compositionOutlet);
+        movedComposition = true;
+        if (selected) commands.composition.seat(selected.compositionOutlet);
+        else commands.composition.restore();
+      }
+      const nextClaimed = new Set();
+      for (const { registration, byOutlet } of plans) {
+        for (const outlet of registration.outlets)
+          if (!byOutlet.has(outlet)) clearThreadSurface(outlet);
+        for (const [outlet, threads] of byOutlet) {
+          const response =
+            outlet === commands.composition.outlet()
+              ? commands.composition.node()
+              : null;
+          renderThreadSurface(outlet, threads, commands, response);
+          for (const thread of threads) nextClaimed.add(thread.id);
+        }
+      }
+      // Commit mechanical ownership after all fallible seat preparation. If a required
+      // sibling failed, this function was never called and ThreadSeat retention still
+      // agrees with the old outlet membership and native surface flags.
+      for (const { registration, byOutlet } of plans) {
+        for (const outlet of registration.outlets)
+          if (!byOutlet.has(outlet)) delete outlet.dataset.lfThreadSurface;
+        for (const outlet of byOutlet.keys())
+          outlet.toggleAttribute("data-lf-thread-surface", true);
+        registration.outlets = new Set(byOutlet.keys());
+        registration.drawn = new Set(
+          [...byOutlet.values()].flat().map((thread) => thread.anchor.datum),
+        );
+      }
+      claimedIds = nextClaimed;
+      prepared = null;
+    } catch (error) {
+      // ThreadSeat retention restores the conversations. Composition owns its own
+      // native editor, so return it through the same seat/restore producer first.
+      if (movedComposition) {
+        if (previousComposition?.isConnected)
+          commands.composition.seat(previousComposition);
+        else commands.composition.restore();
+      }
+      throw error;
+    }
   }
 }
 
@@ -317,7 +454,7 @@ export const claimed = (id) => claimedIds.has(id);
 // Whether a widget holds the thread `id` out of its flow, so that its margin marker is
 // the notice it waits behind.
 export const heldOut = (id) =>
-  [...registrations.values()].some(({ held }) => held.holds(id));
+  [...registrations.values()].some(({ held }) => held?.holds(id));
 
 // Shows the threads `ids` names that a widget holds out of its flow, and lands on the
 // first where its widget then draws it, since the marker the user pressed goes with
@@ -325,7 +462,7 @@ export const heldOut = (id) =>
 // widget held any.
 export function showHeld(ids) {
   for (const registration of registrations.values()) {
-    const [id] = registration.held.show(ids);
+    const [id] = registration.held?.show(ids) ?? [];
     if (id) {
       void presentHeld(registration, id, retainUserIntent());
       return true;
@@ -350,14 +487,7 @@ export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
       )
       .find(Boolean);
     if (!thread) continue;
-    const summary = thread.querySelector(":scope > summary");
-    const target =
-      (focus === "thread" ? thread : null) ??
-      (summary && !thread.hasAttribute("open") ? summary : null) ??
-      thread.querySelector(SAY_BOX) ??
-      summary ??
-      thread;
-    return target === thread ? threadFocusStop(thread) : target;
+    return threadFocusDestination(thread, { focus });
   }
   return null;
 }

@@ -10,6 +10,7 @@ from itertools import pairwise
 import pytest
 from interact_support import (
     SHIPPED_PACKAGES,
+    append_carried_log_record,
     append_command,
 )
 from leaf import data as data_model
@@ -1088,7 +1089,7 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         row = f"#{target} p >> nth=25"
     else:
         url, target = serve(TALL_DIFF_PAGE), "whole"
-        first = events_model.append_event(
+        first = append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -1437,7 +1438,7 @@ def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serv
     """Settling a pointed comment and taking that back returns it where it stood, next to
     its line, whatever else is open on the target."""
     url = serve(TALL_DIFF_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1455,13 +1456,13 @@ def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serv
     assert len(pointed) == 2, pointed
     root = events_model.read_events(serve.page_dir)[-1]
     assert root["kind"] == "comment", root
-    settle = events_model.append_event(
+    settle = append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
     told(page)
     rendered(page)
     assert len(page.evaluate(ROWS_ON, ["whole"])) == 1
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "undo", "author": "user", "undoes": settle["id"]}
     )
     told(page)
@@ -1583,9 +1584,17 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     )
     over = bar.get_attribute("data-lf-placement") == "top-start"
 
-    # Moved toward the side it stands on, the paragraph leaves more room on the other.
+    # Keep the whole attachment visible. Moving it off screen changes the editor to
+    # its window posture rather than choosing another side of an invisible target.
     target.evaluate(
-        "(node, up) => { node.style.transform = `translateY(${up ? -300 : 300}px)`; }",
+        """async (node, up) => {
+          const {commentBoundary, COMMENT_GAP} =
+            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+          const boundary = commentBoundary(), box = node.getBoundingClientRect();
+          const top = up ? boundary.top + COMMENT_GAP
+            : boundary.bottom - box.height - COMMENT_GAP;
+          node.style.transform = `translateY(${top - box.top}px)`;
+        }""",
         over,
     )
     resized(page, 700, 601)
@@ -2325,7 +2334,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     # to that thread document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
     url = serve(leaf_page("inline margin entry action", '<h1 id="h">Review</h1>'))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2335,7 +2344,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
             "text": "Show me the proposed wording.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2452,7 +2461,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
 +return "new"
 """,
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2512,7 +2521,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
         ("reacted", {"token": "keep"}),
         ("commented", {"text": "Why?"}),
     ):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -2842,7 +2851,7 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
         layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2885,7 +2894,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
         layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=STAGED_VISUAL_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2940,7 +2949,7 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
         layer_registry=prefixed_visual_layer("out", "inn", "htm"),
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2986,7 +2995,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
         layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -3045,7 +3054,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
         layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -3092,7 +3101,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
         layer_registry=SHADOW_VISUAL_LAYER,
         layer_widgets=SHADOW_VISUAL_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -3145,7 +3154,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     }
     quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

@@ -22,6 +22,7 @@ from leaf_dev import ROOT
 from leaf_dev.browser import DESKTOP, chrome, load, settle, tab
 from leaf_dev.example_data import named_source
 from leaf_dev.harness import base_ref, build_arm, serving_source
+from leaf_dev.startup import observe_startup, startup_reading
 from leaf_dev.stills import DRIVERS
 
 OUT = ROOT / ".tmp" / "probe"
@@ -121,8 +122,9 @@ def probe(source, steps, expression, shot, size, scheme, touch, base) -> None:
     with press:Tab or a drive: input that does. --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 
-    Prints one JSON line per arm: what --js returned, or the error that stopped the
-    arm; the page's console errors and uncaught exceptions; and with --shot the
+    Prints one JSON line per arm: startup phases, resources and diagnostic initial
+    layout shifts; what --js returned, or the error that stopped the arm;
+    the page's console errors and uncaught exceptions; and with --shot the
     screenshot's path under .tmp/probe/.
     """
     if shot:
@@ -143,8 +145,10 @@ def probe(source, steps, expression, shot, size, scheme, touch, base) -> None:
                         tab(browser, size, scheme, touch) as page,
                     ):
                         reading["errors"] = console_errors(page)
+                        observe_startup(page)
                         doing = "load"
                         load(page, address)
+                        reading["startup"] = startup_reading(page)
                         for verb, arg in steps:
                             doing = f"{verb}:{arg}"
                             STEPS[verb](page, arg)

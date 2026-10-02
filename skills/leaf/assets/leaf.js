@@ -922,9 +922,9 @@ async function presentPage() {
   if (!offlineInteractive && !passiveSample)
     nextFrame(() =>
       setTimeout(() => {
-        void import("./runtime/user-view.js").then(({ observeUserView }) =>
-          observeUserView(),
-        );
+        void import("./runtime/user-view.js")
+          .then(({ observeUserView }) => observeUserView())
+          .catch(() => {});
       }, 0),
     );
   void whenArrived().then(landFragment);

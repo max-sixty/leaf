@@ -5640,6 +5640,27 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
+def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):
+    """Optional view context cannot turn a failed module request into page debt."""
+    page = browser.new_page()
+    page.route("**/runtime/user-view.js", refuse)
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/runtime/user-view.js"),
+    ):
+        page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    wait_until_ready(page)
+    with sending(page, "the suggestion decision"):
+        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert not page.lf_errors
+
+
 def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
     """The effective document scheme can override the user's OS preference."""
     source = leaf_page(

@@ -7592,7 +7592,9 @@ def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
     )
 
 
-def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(browser, serve):
+def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
+    browser, serve
+):
     """News holds the reply row; later typing grows the active draft below its first line."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     events_model.append_event(

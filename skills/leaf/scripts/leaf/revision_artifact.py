@@ -16,7 +16,8 @@ including after a process crash.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
 revision, in each memory that holds its page, owning its manifest, captured
-vocabulary, parsed document, and passage readings. `read_artifact` materializes the
+vocabulary, parsed document, and passage readings. The one exception is a
+neighbour's title, which `revision_title` reads from the manifest alone. `read_artifact` materializes the
 complete bundle under a bound of its own; delivery parses the document it rewrites for
 serving, which is other text. Each is kept in the memory of the page it was read from,
 for as long as that page's owner holds it (`page_memory`).
@@ -626,6 +627,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
+            "title": document.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,
@@ -701,6 +703,14 @@ def write_artifact(
         marker, file_stamp(marker), RevisionReading(marker, reading)
     )
     return marker
+
+
+def revision_title(page_dir: Path, revision: int) -> str:
+    """What a revision's `<title>` says, from its manifest alone, for a reader that
+    holds no reading of the page (`presence.other_leaves`). A manifest captured
+    before it recorded the title reads as untitled."""
+    manifest = revision_path(page_dir, revision).with_suffix("") / "manifest.json"
+    return json.loads(manifest.read_bytes()).get("title", "")
 
 
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:

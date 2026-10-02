@@ -8,8 +8,6 @@ that owner holds it:
 
 - a one-page server holds its page's memory for its life (`http.page_endpoint`);
 - a sample holds its own until it is released (`samples.Sample`);
-- a server reading a neighbour holds the neighbour's while it sees it serving
-  (`presence.other_leaves`);
 - an owner of a changing set of pages, a command (`__main__`) or a site
   (`leaf_website`), holds the memories of the pages it read most recently
   (`PageMemories`).

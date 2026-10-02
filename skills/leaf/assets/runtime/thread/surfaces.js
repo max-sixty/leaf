@@ -1,9 +1,10 @@
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
    A placement claims one Thread's page position, so reconciliation joins the core
-   Thread presentation. Widget seats claim first; the selected page presentation
-   receives current unclaimed targets. Source coverage and outlet containment are
-   separate: an authored page rail can show a target elsewhere in the document.
+   Thread presentation. Both callbacks nominate exact candidates; widget seats
+   that survive final validation claim first, then the selected page presentation.
+   Source coverage and outlet containment are separate: an authored page rail can
+   show a target elsewhere in the document.
    Ordinary mirrors live
    in mirrors.js and cannot hold that presentation open.
 
@@ -43,7 +44,8 @@ export function consumeThreads(owner, render, options) {
 }
 
 // The selected page presentation joins the same outlet and generation lifetime.
-// Widget-local seats claim first; this owner receives only their unclaimed targets.
+// This owner nominates fallback candidates. Only the final cohort move knows which
+// widget nominations survived, and gives those seats priority over page nominations.
 export function consumePageThreads(owner, render, options) {
   if ([...registrations.values()].some((item) => item.kind === "page"))
     throw new Error("The document already has a page Thread presentation");
@@ -213,10 +215,8 @@ export function renderSurfaces(collection, placements, commands) {
   // move the canonical editor before the required Thread cohort is ready to commit.
   async function prepare() {
     const plans = [];
-    const nextClaimed = new Set();
-    let compositionReserved = false;
     // Registration order cannot confer source ownership: the selected page owner
-    // runs after every exact widget claim in this pass.
+    // runs after the widgets establish their held-arrival admission in this pass.
     const ordered = [...registrations.values()].sort(
       (a, b) => (a.kind === "page") - (b.kind === "page"),
     );
@@ -246,7 +246,7 @@ export function renderSurfaces(collection, placements, commands) {
         for (const thread of collection.threads) {
           if (
             registration.kind === "page"
-              ? nextClaimed.has(thread.id) || heldOut(thread.id)
+              ? heldOut(thread.id)
               : thread.anchor?.section !== owner.id
           )
             continue;
@@ -266,9 +266,8 @@ export function renderSurfaces(collection, placements, commands) {
         const anchor = activeComposition?.anchor;
         const placement =
           anchor &&
-          (registration.kind === "page"
-            ? !compositionReserved
-            : anchor.datum && anchor.section === owner.id)
+          (registration.kind === "page" ||
+            (anchor.datum && anchor.section === owner.id))
             ? placements.pendingAt()
             : null;
         const compositionTarget = exactTarget(registration, anchor, placement)
@@ -329,7 +328,6 @@ export function renderSurfaces(collection, placements, commands) {
             !sameAnchor(commands.composition.active()?.anchor, anchor))
         )
           compositionOutlet = null;
-        if (compositionOutlet) compositionReserved = true;
       } catch (error) {
         if (!current()) return null;
         if (abort.signal.aborted) continue;
@@ -341,8 +339,6 @@ export function renderSurfaces(collection, placements, commands) {
         continue;
       }
       plans.push({ registration, byOutlet, compositionOutlet });
-      for (const threads of byOutlet.values())
-        for (const thread of threads) nextClaimed.add(thread.id);
     }
     return current() ? plans : null;
   }
@@ -356,22 +352,29 @@ export function renderSurfaces(collection, placements, commands) {
     );
     // Required preparation can yield after callback admission. The coordinator has
     // refreshed the target directory; read it and the outlets at the actual move.
-    // A failed widget yields to core indexes; a failed page cannot certify the cohort.
+    // Page candidates cover every exact target. Only surviving widget nominations
+    // reserve a Thread or composer here; a failed page cannot certify the cohort.
+    const widgetClaims = new Set();
+    let widgetComposition = false;
     for (const plan of plans) {
       try {
         validateOutlets(plan.registration, plan.byOutlet);
         for (const [outlet, threads] of plan.byOutlet)
           plan.byOutlet.set(
             outlet,
-            threads.filter((thread) =>
-              exactTarget(
-                plan.registration,
-                thread.anchor,
-                placements.placedAt(thread.id),
-              ),
+            threads.filter(
+              (thread) =>
+                exactTarget(
+                  plan.registration,
+                  thread.anchor,
+                  placements.placedAt(thread.id),
+                ) &&
+                (plan.registration.kind === "widget" ||
+                  (!widgetClaims.has(thread.id) && !heldOut(thread.id))),
             ),
           );
         if (
+          (plan.registration.kind === "page" && widgetComposition) ||
           !plan.byOutlet.has(plan.compositionOutlet) ||
           !exactTarget(
             plan.registration,
@@ -385,6 +388,11 @@ export function renderSurfaces(collection, placements, commands) {
         reportFailure(plan.registration, error);
         plan.byOutlet.clear();
         plan.compositionOutlet = null;
+      }
+      if (plan.registration.kind === "widget") {
+        for (const threads of plan.byOutlet.values())
+          for (const thread of threads) widgetClaims.add(thread.id);
+        widgetComposition ||= Boolean(plan.compositionOutlet);
       }
     }
     const previousComposition = commands.composition.outlet();

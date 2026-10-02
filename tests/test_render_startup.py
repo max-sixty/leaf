@@ -5683,6 +5683,37 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     expect(thread).to_have_count(0)
 
 
+def _hold_required_thread_panel(page):
+    """Hold actual required panel preparation without changing the semantic epoch."""
+    page.evaluate("""async()=>{
+      const [{createThreadPanelElements},{createThreadListController},
+        {createThreadNarrowing},{threadList},app]=await Promise.all([
+        __lfRuntimeImport('/runtime/thread/panel-elements.js'),
+        __lfRuntimeImport('/runtime/thread/thread-list.js'),
+        __lfRuntimeImport('/runtime/thread/narrowing.js'),
+        __lfRuntimeImport('/runtime/thread/state.js'),
+        __lfRuntimeImport('/runtime/application.js')]);
+      const elements=createThreadPanelElements();
+      elements.panel.style.cssText='position:fixed;left:8px;top:160px;width:400px;height:400px';
+      document.body.append(elements.panel);elements.panel.show();
+      const controller=createThreadListController(elements);
+      const original=controller.renderThreads.bind(controller);
+      controller.renderThreads=async(...args)=>{
+        const candidate=await original(...args);
+        if(window.holdPanel){window.holdPanel=false;await new Promise(resolve=>window.releasePanel=resolve);}
+        return candidate;
+      };
+      let handle;
+      const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
+        readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
+      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
+        narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
+        refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
+      controller.mountThreadList(()=>true);
+      await app.refreshThread();
+    }""")
+
+
 def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     browser, serve
 ):
@@ -5742,7 +5773,7 @@ customElements.define('lf-test-seat', class extends HTMLElement {
             leaf_page(
                 "Widget first page review",
                 """
-      <h1>Review</h1><button id="fail-widget">Break widget</button><lf-test-seat id="seat" style="display:block;height:250px;overflow:auto"></lf-test-seat>
+      <h1>Review</h1><button id="fail-widget">Break widget</button><button id="retire-outlet">Retire outlet</button><lf-test-seat id="seat" style="display:block;height:250px;overflow:auto"></lf-test-seat>
       <p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height:500px; overflow:auto"></aside>
     """,
@@ -5758,6 +5789,9 @@ customElements.define('lf-test-seat', class extends HTMLElement {
       document.querySelector("#fail-widget").addEventListener("click", () => {
         document.querySelector("#seat").fail = true; void refreshProof();
       });
+      document.querySelector('#retire-outlet').onclick=()=>{
+        document.querySelector('#seat [data-lf-datum]').outlet.remove();
+      };
       const rail = document.querySelector('#review');
       const outlets = new Map();
       window.pageSurface = app.consumePageThreads(rail, (collection, surface) => {
@@ -5788,6 +5822,21 @@ customElements.define('lf-test-seat', class extends HTMLElement {
     }""")
         == "subject"
     )
+    # A widget outlet can disappear while a required sibling prepares. The page's
+    # existing fallback nomination receives its Thread on this same cohort commit.
+    _hold_required_thread_panel(page)
+    page.evaluate("()=>{window.holdPanel=true;void refreshProof();}")
+    page.wait_for_function('typeof releasePanel === "function"')
+    page.locator("#retire-outlet").click()
+    page.evaluate("()=>releasePanel()")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    page.evaluate("""async()=>{
+      const row=document.querySelector('#seat [data-lf-datum]');row.append(row.outlet);
+      await refreshProof();
+    }""")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
     page.locator("#fail-widget").click()
     assert page.evaluate("async () => { await refreshProof(); return true; }")
     expect(page.locator("#seat .lf-page-thread")).to_have_count(0)
@@ -5879,6 +5928,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
       const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
       window.pageSurface=app.consumePageThreads(rail,async(collection,surface)=>{
         if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
+        if(surface.composition)surface.placeComposition(outlet);
         for(const thread of collection.threads)if(surface.target(thread.key))
           surface.place(thread.key,window.invalid?document.querySelector('#foreign'):outlet);
       });
@@ -5994,6 +6044,33 @@ customElements.define('lf-test-seat',class extends HTMLElement{
         == "a"
     )
 
+    # The widget can lose its contained outlet during the page callback itself.
+    # Its already prepared fallback keeps the same native editor and typing place.
+    page.evaluate(
+        "()=>{delete window.releasePage;window.holdNext=true;void refresh();}"
+    )
+    page.wait_for_function('typeof window.releasePage === "function"')
+    page.evaluate("""()=>{
+      document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
+      releasePage();
+    }""")
+    news = page.locator("#rail").get_by_role("button", name="1 new thread", exact=True)
+    expect(news).to_be_visible()
+    page.wait_for_function(
+        "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
+    )
+    consume_browser_errors(page, "outside its presentation owner")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+        )
+        == current
+    )
+    page.evaluate("()=>document.querySelector('#seat').surface.unregister()")
+    news.click()
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
+
 
 def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, serve):
     """A source nomination expires before placement if required preparation retires it."""
@@ -6012,39 +6089,17 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
         ),
     )
     page.evaluate("""async()=>{
-      const [{createThreadPanelElements},{createThreadListController},
-        {createThreadNarrowing},{threadList},app]=await Promise.all([
-        __lfRuntimeImport('/runtime/thread/panel-elements.js'),
-        __lfRuntimeImport('/runtime/thread/thread-list.js'),
-        __lfRuntimeImport('/runtime/thread/narrowing.js'),
-        __lfRuntimeImport('/runtime/thread/state.js'),
-        __lfRuntimeImport('/runtime/application.js')]);
+      const app=await __lfRuntimeImport('/runtime/application.js');
       const rail=document.querySelector('#rail');const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
       window.surface=app.consumePageThreads(rail,(collection,surface)=>{
         window.offered=collection.threads.filter(t=>surface.target(t.key)).map(t=>t.id);
         for(const t of collection.threads)if(surface.target(t.key))surface.place(t.key,outlet);
       });
-      const elements=createThreadPanelElements();
-      elements.panel.style.cssText='position:fixed;left:8px;top:160px;width:400px;height:400px';
-      document.body.append(elements.panel);elements.panel.show();
-      const controller=createThreadListController(elements);
-      const original=controller.renderThreads.bind(controller);
-      controller.renderThreads=async(...args)=>{
-        const candidate=await original(...args);
-        if(window.holdPanel){window.holdPanel=false;await new Promise(resolve=>window.releasePanel=resolve);}
-        return candidate;
-      };
-      let handle;
-      const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
-        readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
-      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
-        narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
-        refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
-      controller.mountThreadList(()=>true);
       document.querySelector('#retire').onclick=()=>{document.querySelector('#subject').id='retired';};
       await app.refreshThread();
       window.refresh=app.refreshThread;
     }""")
+    _hold_required_thread_panel(page)
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
     page.evaluate("()=>{window.holdPanel=true;void refresh();}")
     page.wait_for_function('typeof releasePanel === "function"')

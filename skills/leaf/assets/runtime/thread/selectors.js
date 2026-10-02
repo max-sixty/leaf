@@ -1,5 +1,5 @@
 /* Stable DOM relations shared by thread views and focus recovery. */
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 // A drawn thread: a card in the Threads list, or a thread on the page, in the margin or
 // on a seat.
 export const THREAD = ".lf-thread, .lf-page-thread";

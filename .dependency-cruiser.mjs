@@ -28,6 +28,7 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // caller would acquire that owner's initialization graph. image-difference.js reaches
 // nothing because `leaf-dev stills` loads it into a blank page on its own.
 const exactClosures = {
+  "control-selectors.js": [],
   "image-difference.js": [],
   "margin-entry-model.js": [],
   "margin-model.js": ["margin-entry-model.js"],
@@ -47,6 +48,7 @@ const exactClosures = {
     "context.js",
     "semantic-state.js",
     "focus.js",
+    "control-selectors.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
     "keyboard/register.js",

@@ -5,8 +5,7 @@
    list walk and briefly takes the accent face when a repeated press cannot move from its
    destination. The bar gives compact hints rather than reproducing the command reference.
    It walks outward from the user's innermost scope and drops bindings shadowed there. The
-   ordinary shortlist gives a promotable Escape the first track, then the first live
-   action; without Escape it gives the first two live rows their tracks. At
+   ordinary shortlist is the first live row, then a promotable Escape or the next row. At
    rest on the page that is `c` for the page itself and `s` to select a more particular
    target, beside the More control. Once a target is selected, its Comment and React
    actions replace selection on the short line. Search and reading-page movement remain
@@ -23,11 +22,11 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
-   More owns the leading column, independent of hints and bottom-aligned when the bar
-   expands. Compact hints start in two equal tracks derived from the available band,
-   so a changed label or row does not move its neighbour. The leading hint may use
-   both tracks when the second leaves. Each hint is retained only while the same
-   command occupies the same position; this display has no state to carry with a row.
+   More owns the leading column, independent of naturally grouped passive hints.
+   Expanded hints use a full-width row above the More and Escape footer; the control
+   stays at the foot while changing hints reflow inside their stationary region.
+   Hint nodes hold no state and are repainted by position across command changes;
+   a changed command does not replace the box that carried its previous hint.
 
    The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
    narrow window keeps the leading hint and a sequence too long for the window keeps its
@@ -54,7 +53,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -150,31 +149,29 @@ const shortcutBarTemplate = (model) =>
       <kbd class="lf-key-badge">${model.more.binding}</kbd
       ><span>${model.more.line}</span>
     </button>
-    <div class="lf-shortcut-hints">
-      ${repeat(
-        model.items,
-        (item, index) => `${index}:${item.commandIds}`,
+    <div class="lf-shortcut-hints" data-lf-passive>
+      ${model.items.map(
         (item) => html`
           <span
             class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
             aria-hidden="true"
             data-lf-command-ids=${item.commandIds}
-            data-lf-slot=${item.slot ?? nothing}
             >${keySequenceTemplate(item.sequence)}${
               item.said ? html`<span>${item.said}</span>` : nothing
             }</span
           >
         `,
-      )}${
-        model.tail
-          ? html`<span class="lf-shortcut" aria-hidden="true"
-              >${keySequenceTemplate(model.tail.sequence)}<span
-                >${model.tail.said}</span
-              ></span
-            >`
-          : nothing
-      }
-    </div>`;
+      )}
+    </div>
+    ${
+      model.tail
+        ? html`<span class="lf-shortcut lf-shortcut-tail" aria-hidden="true"
+            >${keySequenceTemplate(model.tail.sequence)}<span
+              >${model.tail.said}</span
+            ></span
+          >`
+        : nothing
+    }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
 const renderBottomStatus = () => {
@@ -288,10 +285,10 @@ const arrange = (rows) => {
   const wayOut = candidates.find(
     (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false,
   );
-  const ranked = wayOut
-    ? [wayOut, ...candidates.filter((row) => row !== wayOut)]
-    : candidates;
-  const short = new Set(ranked.slice(0, 2));
+  const first = candidates[0];
+  const second =
+    wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
+  const short = new Set([first, second].filter(Boolean));
   const tail = withoutReference.includes(COLLAPSE_SHORTCUT_BAR)
     ? COLLAPSE_SHORTCUT_BAR
     : null;
@@ -342,8 +339,8 @@ export function renderShortcutBar(goToStatus) {
   const rows = lineRows(scopes);
   if (!shortcutHelpAvailable()) shortcutBarIsExpanded = false;
   const expanded = shortcutBarIsExpanded && !commandReferenceOpen();
-  // More is its own permanent control. The expanded bar puts its Escape last in the
-  // hint region, while More stays at the bottom of its independent column.
+  // More is its own permanent control. The expanded bar gives it and Escape the
+  // bottom row, while the other hints use the full width above them.
   const { candidates, reference, short, tail, wayOut } = arrange(rows);
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
@@ -365,7 +362,7 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
-  // Keep the compact hints in their ranked tracks. The
+  // Keep the contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.
   const projected =
@@ -389,14 +386,12 @@ export function renderShortcutBar(goToStatus) {
   // another destination, so it keeps its ordinary one-step face.
   const sequenceScope = complete?.scope;
   const sequence = word(sequenceScope?.sequence) ?? [];
-  const compact = !expanded && !complete;
-  const presentations = projectedRows.map((row, index) => {
+  const presentations = projectedRows.map((row) => {
     const inSequence = sequence.length && !row.sequenceControl;
     const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
-      slot: compact && index < shown.size ? String(index) : null,
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: word(row.line),
@@ -435,7 +430,6 @@ export function renderShortcutBar(goToStatus) {
     expanded,
   });
   keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
-  keeps(shortcutBarEl, "data-lf-compact", compact);
   render(shortcutBarTemplate(model), shortcutBarEl);
   const hintLine = shortcutBarEl.querySelector(".lf-shortcut-hints");
   const rowSpans = hintLine.querySelectorAll(":scope > .lf-shortcut");
@@ -444,7 +438,7 @@ export function renderShortcutBar(goToStatus) {
     span: rowSpans[index],
   }));
   // The status stands at the bar's far end, level with the one row, so a standing status
-  // limits the hint region without moving its compact tracks. A transient notice
+  // limits the hint region without moving More. A transient notice
   // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
   // the line for the seconds it shows. The expanded bar's upper row is not level with the
   // status, so it reserves nothing.
@@ -452,26 +446,6 @@ export function renderShortcutBar(goToStatus) {
   const gap = parseFloat(barStyle.columnGap);
   const [status] = expanded ? [] : standingStatusBoxes();
   const reserved = status ? status.width + gap : 0;
-  if (compact) {
-    const line = hintLine.getBoundingClientRect();
-    const end = Math.min(line.right, status ? status.left - gap : line.right);
-    const first = drawn.find(({ presentation }) => presentation.slot === "0");
-    const firstEnd = line.left + (first?.span.getBoundingClientRect().width ?? 0);
-    // Hidden hints keep their intrinsic width out of flow. Read their planned track
-    // start from the grid, so a trimmed hint can return without first showing it.
-    for (const { presentation, span } of drawn) {
-      const start =
-        line.left + (presentation.slot === "1" ? (line.width + gap) / 2 : 0);
-      const endOfHint = start + span.getBoundingClientRect().width;
-      const overlapsFirst = presentation.slot === "1" && firstEnd > start - gap;
-      keepsHidden(
-        span,
-        presentation.hidden ||
-          (!presentation.wayOut && (endOfHint > end || overlapsFirst)),
-      );
-    }
-    return;
-  }
   // Which rows fit is worked out from widths the line already has, not by showing a row
   // to see whether it wraps: a row the line leaves keeps its width out of flow
   // (chrome.css), so every row is measured where it stands and each `hidden` and the
@@ -513,13 +487,14 @@ export function renderShortcutBar(goToStatus) {
     }
     return rows;
   };
-  // A row ceiling rather than permission to clip: one row, or two in the expanded bar.
+  // Hints keep one row. Expansion gives them the full width above the footer.
+  // Trimming is a row ceiling rather than permission to clip.
   // The line yields its lowest-ranked current commands until its rows fit; hidden rows remain
   // available to inspection and the reference. The way out is the one row the trim may
   // not spend. A line covering the page at a narrow width is exactly where the user needs
   // it: the way out sits last in the register's order, so a trim that only counted from
   // the end would drop it first of all.
-  const ceiling = expanded ? 2 : 1;
+  const ceiling = 1;
   const removable = drawn
     .filter(({ presentation }) => !presentation.hidden && !presentation.wayOut)
     .map(({ span }) => span)

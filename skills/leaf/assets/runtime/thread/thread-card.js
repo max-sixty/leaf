@@ -6,7 +6,8 @@
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
 import { nextRender } from "../rendering.js";
-import { TEXT_FIELD, holdFocus } from "../focus.js";
+import { holdFocus } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";

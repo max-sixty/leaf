@@ -3682,9 +3682,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     # a lost connection and re-posts every poll for the life of the tab.
     #
     # Each row names the refusal it must earn rather than asking for any refusal at all.
-    # The depth the parser gives up at is the interpreter's to choose, so a platform
-    # that got through this nesting would fall to the next gate, be refused as not an
-    # object, and pass a row that had proved nothing about the stack it was written for.
+    # Request threads can have more C stack than the main thread: Python 3.14 on macOS
+    # parses 100,000 levels here but refuses 200,000. One million keeps valid JSON well
+    # past that stack while its 2 MB body stays below the door's 10 MiB size gate.
+    # Keeping the syntax valid makes this specifically prove the RecursionError path.
+    nesting_depth = 1_000_000
     unreadable = [
         (
             "a body that is not UTF-8",
@@ -3695,7 +3697,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
         (
             "a body nested past the parser's stack",
-            b"[" * 100000 + b"]" * 100000,
+            b"[" * nesting_depth + b"]" * nesting_depth,
             "invalid JSON",
         ),
     ]

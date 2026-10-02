@@ -30,7 +30,7 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "./focus.js";
+import { TAB_STOP } from "./control-selectors.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
 import { shadowHost, under, upFrom } from "./shadow.js";

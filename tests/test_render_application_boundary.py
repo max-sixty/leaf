@@ -4,6 +4,7 @@ import json
 import re
 from itertools import pairwise
 
+import pytest
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -924,7 +925,10 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     )
 
 
-def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
+@pytest.mark.parametrize("expanded", [False, True])
+def test_admission_holds_approval_until_the_answer_is_in_the_log(
+    browser, serve, expanded
+):
     """An answer the log has not taken in cannot open the irreversible approval.
 
     The pick is the user's at once — that is their own gesture drawn on their own
@@ -948,16 +952,15 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
         "title", "Answer every Ask before approving this work"
     )
 
-    # Admission can change the undo hint's wording. The physical line, including
-    # both hint starts, stays put even where a different command replaces one.
-    starts = """() => [...document.querySelectorAll(
-      ".lf-shortcut-more, .lf-shortcut:not([hidden])"
-    )].flatMap(node => {
-      const box = node.getBoundingClientRect();
-      return [box.x, box.y];
-    })"""
-    before = page.evaluate(starts)
-    assert len(before) == 6
+    if expanded:
+        page.keyboard.press("?")
+        expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+            "data-lf-expanded", "true"
+        )
+    # Admission changes passive hints; the real More control stays under the pointer.
+    more = page.locator(".lf-shortcut-more")
+    before = more.bounding_box()
+    assert before is not None
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -969,7 +972,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     )
 
     rendered(page)
-    assert page.evaluate(starts) == before
+    assert more.bounding_box() == before
 
 
 PAGE_DECLARATION = {

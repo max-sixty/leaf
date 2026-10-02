@@ -10,6 +10,7 @@ from render_cases_interaction import ASK_PAGE
 from render_harness import (
     consume_browser_errors,
     judge_watches,
+    leaf_page,
     open_page,
     panel_settled,
     resized,
@@ -69,10 +70,10 @@ def test_a_shift_without_input_fails(browser, distance):
     )
 
 
-METADATA = """<!doctype html><body style="margin:0; font:12px monospace">
+PASSIVE_LABELS = """<!doctype html><body class="lf-chrome" style="margin:0; font:12px monospace">
 <div id="row" style="display:flex; align-items:baseline; width:360px; line-height:24px">
   <div id="header" style="display:contents">
-    <b>You</b><span class="lf-msg-meta" style="display:flex; gap:8px; margin-left:8px">
+    <b>You</b><span data-lf-passive style="display:flex; gap:8px; margin-left:8px">
       <time id="age">just now</time><span id="receipt">Sent</span>
     </span>
   </div>
@@ -86,23 +87,55 @@ METADATA = """<!doctype html><body style="margin:0; font:12px monospace">
     "fault, protected",
     [
         ("", None),
+        ("informational_group", None),
+        ("contained_aria_control", "span#receipt"),
+        ("tabbable_group", "span#receipt"),
+        ("outside_runtime", "span#receipt"),
+        ("undeclared", "span#receipt"),
         ("adjacent_control", "button#action"),
         ("contained_control", "button#action"),
         ("growing_header", "p#reading"),
         ("escaping_label", "span#receipt"),
     ],
 )
-def test_metadata_motion_is_confined_to_a_passive_header(browser, fault, protected):
+@pytest.mark.parametrize("owner_kind", ["chrome", "inline"])
+def test_passive_motion_is_confined_to_a_runtime_owned_region(
+    browser, fault, protected, owner_kind
+):
     """A real label shift passes; a moved control, reading line or escaped label fails."""
     page = browser.new_page()
-    page.goto("data:text/html," + quote(METADATA))
+    source = PASSIVE_LABELS
+    if owner_kind == "inline":
+        source = source.replace('class="lf-chrome"', "").replace(
+            'id="row"', 'id="row" data-lf-runtime'
+        )
+    page.goto("data:text/html," + quote(source))
+    if fault in {"informational_group", "contained_aria_control", "tabbable_group"}:
+        page.locator("#receipt").evaluate(
+            """(node, fault) => {
+              node.setAttribute('role', fault === 'contained_aria_control' ? 'button' : 'group');
+              if (fault === 'tabbable_group') node.tabIndex = 0;
+            }""",
+            fault,
+        )
+    if fault == "outside_runtime":
+        if owner_kind == "chrome":
+            page.evaluate("document.body.className = ''")
+        else:
+            page.locator("[data-lf-runtime]").evaluate(
+                "node => node.removeAttribute('data-lf-runtime')"
+            )
+    if fault == "undeclared":
+        page.locator("[data-lf-passive]").evaluate(
+            "node => node.removeAttribute('data-lf-passive')"
+        )
     if fault in {"adjacent_control", "contained_control"}:
         page.evaluate(
             """fault => {
               const button = document.createElement('button');
               button.id = 'action';
               button.textContent = 'Act';
-              document.querySelector(fault === 'contained_control' ? '.lf-msg-meta' : '#row')
+              document.querySelector(fault === 'contained_control' ? '[data-lf-passive]' : '#row')
                 .append(button);
             }""",
             fault,
@@ -113,7 +146,7 @@ def test_metadata_motion_is_confined_to_a_passive_header(browser, fault, protect
     page.evaluate(
         """fault => {
           document.getElementById('age').textContent = '1m ago';
-          const metadata = document.querySelector('.lf-msg-meta');
+          const metadata = document.getElementById('age').parentElement;
           if (fault === 'growing_header') metadata.style.paddingBlockStart = '20px';
           if (fault === 'escaping_label') metadata.style.paddingInlineStart = '420px';
         }""",
@@ -130,13 +163,27 @@ def test_metadata_motion_is_confined_to_a_passive_header(browser, fault, protect
 
 @pytest.mark.parametrize(
     "motion",
-    ["", "control", "resize", "hidden", "clipped", "scroll", "sticky", "visible_child"],
+    [
+        "",
+        "control",
+        "resize",
+        "hidden",
+        "clipped",
+        "scroll",
+        "sticky",
+        "visible_child",
+        "withdrawn",
+        "withdrawn_with_control",
+        "moved_then_withdrawn",
+        "moved_then_hidden",
+        "moved_then_removed",
+    ],
 )
 def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
     """Five receipt sources pass only when an omitted control also holds still."""
     rows = "".join(
         f'<div style="display:flex;width:360px;height:30px;align-items:baseline">'
-        '<b>You</b><span class="lf-msg-meta" style="display:flex;gap:8px;margin-left:8px">'
+        '<b>You</b><span class="lf-msg-meta" data-lf-passive style="display:flex;gap:8px;margin-left:8px">'
         f'<time>just now</time><span id="receipt{n}" style="width:150px">Sent</span>'
         "</span></div>"
         for n in range(6)
@@ -148,12 +195,19 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         + ("margin-top:40px;" if motion == "clipped" else "")
         + ("position:sticky;top:0;" if motion == "sticky" else "")
         + ("visibility:visible;" if motion == "visible_child" else "")
+        + (
+            "position:absolute;left:400px;top:220px;"
+            if motion.startswith("moved_then_")
+            else ""
+        )
         + '">Act</button>'
     )
     if motion == "clipped":
         button = '<div style="height:10px;overflow:hidden">' + button + "</div>"
     if motion == "visible_child":
         button = '<div style="visibility:hidden">' + button + "</div>"
+    if motion == "withdrawn_with_control":
+        button += '<button id="survivor" style="position:absolute;left:400px;top:220px;font-size:8px;padding:0;width:40px;height:12px">Stay</button>'
     if motion in {"scroll", "sticky"}:
         rows = (
             '<div id="scroller" style="height:200px;overflow:auto">'
@@ -166,7 +220,7 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
     page.goto(
         "data:text/html,"
         + quote(
-            '<!doctype html><body style="margin:0;font:12px monospace">'
+            '<!doctype html><body class="lf-chrome" style="margin:0;font:12px monospace">'
             + rows
             + button
             + "</body>"
@@ -179,8 +233,16 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         """motion => {
           window.sources = [];
           new PerformanceObserver(list => {
-            for (const entry of list.getEntries())
+            for (const entry of list.getEntries()) {
               window.sources.push(entry.sources.map(source => source.node?.id));
+              if (motion.startsWith('moved_then_')) {
+                const button = document.getElementById('action');
+                window.paintedControl = button.getBoundingClientRect().toJSON();
+                if (motion === 'moved_then_withdrawn') button.style.display = 'none';
+                if (motion === 'moved_then_hidden') button.style.visibility = 'hidden';
+                if (motion === 'moved_then_removed') button.remove();
+              }
+            }
           }).observe({type: 'layout-shift'});
           for (const age of document.querySelectorAll('time')) age.textContent = '1m ago';
           const button = document.getElementById('action');
@@ -191,6 +253,10 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
           }
           if (motion === 'scroll') document.getElementById('scroller').scrollTop = 6;
           if (motion === 'sticky') document.getElementById('scroller').scrollTop = 36;
+          if (motion.startsWith('withdrawn')) button.style.display = 'none';
+          if (motion === 'withdrawn_with_control')
+            document.getElementById('survivor').style.left = '406px';
+          if (motion.startsWith('moved_then_')) button.style.left = '406px';
         }""",
         motion,
     )
@@ -198,7 +264,26 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
     sources = page.evaluate("window.sources")
     assert len(sources) == 1 and len(sources[0]) == 5, sources
     assert all(source.startswith("receipt") for source in sources[0]), sources
-    if motion in {"control", "resize", "visible_child"}:
+    if motion.startswith("withdrawn"):
+        assert page.locator("#action").bounding_box() is None
+    if motion.startswith("moved_then_"):
+        assert page.evaluate("window.paintedControl.x") == 406
+        assert page.evaluate("window.paintedControl.width") == 40
+    if motion == "moved_then_withdrawn":
+        assert page.locator("#action").bounding_box() is None
+    if motion == "moved_then_hidden":
+        expect(page.locator("#action")).to_be_hidden()
+    if motion == "moved_then_removed":
+        expect(page.locator("#action")).to_have_count(0)
+    if motion in {
+        "control",
+        "resize",
+        "visible_child",
+        "withdrawn_with_control",
+        "moved_then_withdrawn",
+        "moved_then_hidden",
+        "moved_then_removed",
+    }:
         consume_browser_errors(page, "moved without input")
 
 
@@ -384,15 +469,25 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
     judge_watches()
 
 
-@pytest.mark.parametrize("surface", ["card", "panel"])
+@pytest.mark.parametrize("surface", ["card", "panel", "inline"])
 def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     browser, serve, surface
 ):
     """Age and receipt may rearrange; the thread and its controls stay put."""
+    source = (
+        leaf_page(
+            "Inline task thread",
+            '<h1 id="title">Before the frost</h1><lf-command id="jobs" label="Jobs">'
+            '<lf-task id="bracket" status="active" talk>'
+            "<strong>Which jobs can share a visit?</strong></lf-task></lf-command>",
+        )
+        if surface == "inline"
+        else ASK_PAGE
+    )
     page = open_page(
         browser,
         serve(
-            ASK_PAGE,
+            source,
             events=[
                 {
                     "kind": "comment",
@@ -408,6 +503,9 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     if surface == "card":
         page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
         surface_root = page.locator(".lf-margin-preview")
+        header = surface_root.locator(".lf-page-thread-head").first
+    elif surface == "inline":
+        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
         header = surface_root.locator(".lf-page-thread-head").first
     else:
         page.locator(".lf-threads-toggle").click()

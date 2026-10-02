@@ -70,12 +70,15 @@ inspection layer.
 
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. Without a gesture, a box
-may grow or shrink into free room, but reading content and controls stay put. Passive
-message metadata may rearrange inside a stationary header when it moves no neighbour
-and stays inside the header. Its age and receipt need no reserved-width slots;
-controls and ordinary reading text never take this exception. News grows where the
-reader isn't looking: above the screen, where scroll anchoring takes the growth into
-what they scrolled past, or below it. So a thread's reply box stands at the foot of the
+may grow or shrink into free room, but reading content and controls stay put.
+Runtime-owned informational text may repack inside a stationary runtime region
+when it moves no neighbour and both painted positions stay inside that region.
+Its owner declares the text group with `data-lf-passive`: message age and receipt
+labels, and contextual keyboard hints, follow this contract. A group containing
+a control or ordinary page reading content cannot declare it. Keep the actual
+controls stationary rather than reserving columns for changing informational text.
+News grows where the reader isn't looking: above the screen, where scroll anchoring
+takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they

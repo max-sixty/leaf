@@ -9821,7 +9821,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     overlap is tested before opening the reference so a searchable popup cannot make the
     symptom disappear merely by covering both surfaces."""
     page = open_page(browser, serve(NOTED_PAGE, comments=2))
-    page.set_viewport_size({"width": 1440, "height": 800})
+    page.set_viewport_size({"width": 1200, "height": 800})
     page.locator(".lf-threads-toggle").click()
 
     line = page.locator(".lf-shortcut-bar")
@@ -9856,8 +9856,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(0)).not_to_contain_text("send")
     page.locator(".lf-general leaf-text").focus()
     expect(visible_hints).to_have_count(2)
-    expect(visible_hints.nth(0)).to_contain_text("back to list")
-    expect(visible_hints.nth(1)).to_contain_text("send")
+    expect(visible_hints.nth(0)).to_contain_text("send")
+    expect(visible_hints.nth(1)).to_contain_text("back to list")
 
     # The line shows only what works from where the user is. This text box owns `?`, so
     # More stands down with its key rather than standing bare; it returns, key and all,
@@ -9884,7 +9884,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     assert visible_hints.count() > 2
     wide_hint_count = visible_hints.count()
     expect(line).to_contain_text("less")
-    for width in (1440, 420):
+    for width in (1200, 420):
         page.set_viewport_size({"width": width, "height": 800})
         rendered(page)
         assert more_node.evaluate("button => button === window.__lfShortcutMore")
@@ -9914,7 +9914,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert geometry["scrollWidth"] <= geometry["clientWidth"], geometry
         assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
         assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
-    page.set_viewport_size({"width": 1440, "height": 800})
+    page.set_viewport_size({"width": 1200, "height": 800})
     rendered(page)
     expect(visible_hints).to_have_count(wide_hint_count)
     assert more_node.evaluate("button => button === window.__lfShortcutMore")
@@ -9978,8 +9978,8 @@ def test_expanded_shortcuts_fit_their_region_with_larger_text(browser, serve):
         counts.append(hints.count())
         reading = line.evaluate(
             """bar => {
-              const region = bar.querySelector('.lf-shortcut-hints').getBoundingClientRect();
-              const visible = [...bar.querySelectorAll('.lf-shortcut:not([hidden])')];
+              const region = bar.getBoundingClientRect();
+              const visible = [...bar.querySelectorAll('.lf-shortcut:not([hidden]), .lf-shortcut-more')];
               return {region: {left: region.left, right: region.right},
                 hints: visible.map(node => {
                   const box = node.getBoundingClientRect();

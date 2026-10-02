@@ -16,8 +16,9 @@ showed only two-level corner raster noise; this threshold excludes that noise
 while detecting the measured seventeen-level ink change. There is
 no whole-image allowance for mismatched pixels. Capture the
 thread's region and its independently compared viewport geometry, so a translated
-crop cannot hide bad placement. Global notices are checked by visible words at
-refusal, outside the thread appearance oracle. First insertion runs with normal
+crop cannot hide bad placement. Refusal feedback is checked by visible words and
+captured where it stands inside the thread region. The real notice must expire
+before manual retry, so later checkpoints do not depend on capture speed. First insertion runs with normal
 motion and its own observer; stable screenshots use the dependency's animation
 settling, after that proof. They do not claim to capture the insertion instant.
 
@@ -25,7 +26,8 @@ settling, after that proof. They do not claim to capture the insertion instant.
     uv run pytest -n0 tests/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots accept
 
-Each failure names its stage, expected/actual/diff paths and observations.json;
+Appearance failures name their stage and expected/actual/diff paths; geometry
+failures show both rectangles. Every case retains its images and observations.json;
 CI retains the same folders. Review those images and summarize the changed
 checkpoints before accepting. Acceptance changes the ordinary text source pin/patch;
 prepare and re-run the test, then commit them with the intentional UI change. Missing source,
@@ -171,8 +173,8 @@ class SnapshotRun:
 
     def capture(self, stage: str, page: Page, reading: dict) -> None:
         """Compare held appearance after the independently observed insertion instant."""
-        # Capture the thread's own region. Global notices have an intentional
-        # four-second lifetime and are asserted by words at refusal instead.
+        # Capture the thread's own region, including feedback where it stands in it.
+        # The journey holds visible refusal, then awaits real expiry before retry.
         region = reading["region"]
         viewport = page.viewport_size
         left, top = max(0, region["x"] - 16), max(0, region["y"] - 16)
@@ -189,6 +191,11 @@ class SnapshotRun:
             )
         actual = self.output / f"{stage}.actual.png"
         actual.write_bytes(png)
+        if stage == "refused":
+            notice = page.locator(".lf-notice")
+            assert notice.is_visible() and notice.inner_text().startswith(
+                "Couldn't send"
+            ), "refusal feedback expired or changed during the capture"
         baseline = self.store / self.profile / f"{self.case.name}-{stage}.png"
         geometry = baseline.with_suffix(".json")
         if self.updating:

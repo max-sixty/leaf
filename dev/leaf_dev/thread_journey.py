@@ -194,6 +194,8 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             )
         if stage in {"pending", "retry-pending"}:
             reading["first_appearance"] = page.evaluate("window.__messageArrival")
+        if stage == "refused":
+            expect(page.locator(".lf-notice")).to_be_visible()
         observations[stage] = reading
         checkpoint(stage, page, reading)
 
@@ -247,6 +249,9 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         expect(field).to_have_js_property("value", WORDS)
         expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
         observe("refused")
+        # Refusal feedback is visible in that checkpoint. Its actual expiry is the
+        # next boundary, so later images cannot depend on how quickly capture ran.
+        expect(page.locator(".lf-notice")).to_be_hidden(timeout=6_000)
         send()
         observe("retry-pending")
         if surface == "general":

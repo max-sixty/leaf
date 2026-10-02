@@ -176,7 +176,7 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { announce, liveEl, notice } from "./runtime/notifications.js";
+import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 
@@ -642,6 +642,7 @@ drawing = createDrawingController({
 
 layout = createChromeLayout({
   panelIsOpen,
+  noticeIsVisible: noticeVisible,
   elements: {
     panel,
     closeBtn,
@@ -797,6 +798,7 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
+    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });

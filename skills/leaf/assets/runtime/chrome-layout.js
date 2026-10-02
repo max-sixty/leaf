@@ -66,6 +66,7 @@ const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 export function createChromeLayout({
   panelIsOpen,
+  noticeIsVisible,
   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
   scheduleThreadPreviewPosition,
   bottomChromeBoxes,
@@ -89,7 +90,6 @@ export function createChromeLayout({
     scheduleResidency();
     scheduleThreadPreviewPosition();
     const panelLive = panelIsOpen() && !panelCovers();
-    const foot = panelFoot.getBoundingClientRect();
     // Over a live page, the thread panel owns the right of the window all the way to its
     // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
@@ -114,10 +114,9 @@ export function createChromeLayout({
     // The status stands in the bottom bar (chrome.css) and rises above a covering panel's
     // foot, which stands over the bar's right end: unlike the inert shortcut guide,
     // notices are live feedback from the foreground action. The stylesheet places it by
-    // the panel's modal state and this foot height. Everything the page ends above is the
-    // bottom bar's stated height, so nothing here writes a reservation for the document or
-    // the drawers.
-    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${foot.height}px`);
+    // the panel's modal state and the foreground clearance below it. Transient notices
+    // also clear live reply controls; that clearance never reserves page or list room.
+    syncBottomStatus();
     // A region gives up the part of a bottom surface that stands over it: the band from
     // that surface's top down to the region's own foot, plus air above it. Read off the
     // rendered box, since what crosses the panel's list is a status whose place follows
@@ -138,6 +137,29 @@ export function createChromeLayout({
     if (listClear) threadsBox.style.setProperty("--lf-threads-foot", listClear);
     else threadsBox.style.removeProperty("--lf-threads-foot");
     syncFloats();
+  }
+  // The status renderer calls this synchronously after its words arrive or expire.
+  // A notice clears the visible reply rather than changing the reply's geometry;
+  // persistent walk status keeps its existing footer seat and list reservation.
+  function syncBottomStatus() {
+    let occupied = panelFoot.getBoundingClientRect().height;
+    if (panelCovers() && noticeIsVisible()) {
+      const list = threadsBox.getBoundingClientRect();
+      const status = bottomStatusEl.getBoundingClientRect();
+      for (const reply of threadsBox.querySelectorAll(
+        ":scope > .lf-thread[open] > .lf-thread-reply",
+      )) {
+        const box = reply.getBoundingClientRect();
+        if (
+          reply.checkVisibility() &&
+          overlapsAcross(box, status) &&
+          box.bottom > list.top &&
+          box.top < list.bottom
+        )
+          occupied = Math.max(occupied, innerHeight - Math.max(box.top, list.top));
+      }
+    }
+    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${occupied}px`);
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable
   // reading boundary changes shape — a resize moves every rect. Re-place it against the
@@ -230,6 +252,7 @@ export function createChromeLayout({
 
   return {
     syncLayout,
+    syncBottomStatus,
     mountLayoutObservers,
     landEdge,
     commentsEdge,

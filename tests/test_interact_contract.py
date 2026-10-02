@@ -8,6 +8,7 @@ import shutil
 import textwrap
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
+    STATED_TIMEOUT,
     TRIAL_CACHE,
     TRIAL_LOG,
     Json,
@@ -1269,33 +1271,24 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
 
     @contextlib.contextmanager
     def observed_page_locked(locked):
-        if locked == page_dir and threading.current_thread().name == "re-vendor":
+        if locked == page_dir:
             init_waiting.set()
         with real_page_locked(locked) as held:
             yield held
 
     monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    errors = []
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with render_gate_model.preview_server(
+            page_dir,
+            structure_model.SourceDocument((page_dir / "index.html").read_text()),
+            1,
+        ):
+            initing = executor.submit(vendoring_model.cmd_init, page_dir)
+            assert init_waiting.wait(STATED_TIMEOUT)
+            assert not initing.done()
+            assert registry_storage.layer_generation(page_dir) == before
 
-    def revendoring():
-        try:
-            vendoring_model.cmd_init(page_dir)
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    with render_gate_model.preview_server(
-        page_dir,
-        structure_model.SourceDocument((page_dir / "index.html").read_text()),
-        1,
-    ):
-        initing = threading.Thread(target=revendoring, name="re-vendor")
-        initing.start()
-        assert init_waiting.wait(5)
-        assert registry_storage.layer_generation(page_dir) == before
-
-    initing.join(timeout=5)
-    assert not initing.is_alive()
-    assert errors == []
+        initing.result(timeout=STATED_TIMEOUT)
     assert registry_storage.layer_generation(page_dir) != before
 
 

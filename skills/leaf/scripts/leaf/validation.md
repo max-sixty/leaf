@@ -80,13 +80,14 @@ The two history declarations are mutually exclusive.
 ## Delivery policy
 
 A page carries no content policy of its own: its code is its author's, and may load,
-fetch, and compile what it likes. Every ordinary served HTML response adds one header,
-`frame-ancestors 'none'` (`structure.FRAME_ANCESTORS_CSP`), so no other site can frame
-a live page and take a click meant for one of its decisions. Historical version routes
-receive the same header. The published site's Worker adds the same header
-to the HTML it serves from its own assets, reading it from the site manifest. A standalone
-file has no response header and cannot make this framing guarantee. A sample child
-permits its same-origin parent with `frame-ancestors 'self'`. Every response carries
+fetch, and compile what it likes. Every served HTML response adds one header,
+`frame-ancestors 'self'` (`structure.FRAME_ANCESTORS_CSP`). Same-origin parents may
+embed a live page: they already share its DOM and request authority. A different
+origin cannot disguise its decisions under another interface, even when same-site
+cookies authorize the framed request. Historical versions and sample children
+receive the same header. The published site's Worker reads it from the site
+manifest for HTML served from its own assets. A standalone file has no response
+header and cannot make this framing guarantee. Every response carries
 `X-Content-Type-Options: nosniff`; typed data is available only through its JSON
 API, and media routes serve only admitted image types, so neither input surface
 can become a script module.

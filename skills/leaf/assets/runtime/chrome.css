@@ -988,7 +988,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--lf-thread-surface); }
   .lf-thread-compact[open]:has(> .lf-thread-reply) > .lf-thread-content {
     display: flex; flex-direction: column; }
-  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  .lf-thread-summary { display: grid; flex: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto;
     align-items: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px var(--lf-thread-inset); background: var(--lf-thread-surface); color: var(--ink);
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
@@ -1001,9 +1002,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The placeholder remains visibly secondary until the agent gives it a title. */
   .lf-thread-topic[data-lf-pending-title] { justify-self: start; font-weight: 500;
     color: var(--muted); }
-  .lf-thread-meta { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center;
-    gap: 8px; min-width: 0; }
-  .lf-thread-meta.lf-empty { display: none; }
+  /* Status shares the title row. Its width may change the title's ellipsis,
+     but never the header height or the conversation below it. */
+  .lf-thread-meta { grid-column: 2; grid-row: 1; display: flex; align-items: center;
+    gap: 8px; min-width: 0; max-width: 150px; overflow: hidden;
+    font: 400 11px/14px var(--sans); }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread { color: var(--accent); font-size: 10px;
     font-weight: 700; white-space: nowrap; }
@@ -1012,7 +1015,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
   /* Open, the card shows what these digest: a message's stage, the draft, the unread. */
   details[open] > .lf-thread-summary .lf-thread-meta > [data-lf-folded] { display: none; }
-  .lf-thread-trailing { grid-column: 2; grid-row: 1; display: flex; align-items: center;
+  .lf-thread-trailing { grid-column: 3; grid-row: 1; display: flex; align-items: center;
     justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap; }
   .lf-thread-recency { font-size: 10px; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */

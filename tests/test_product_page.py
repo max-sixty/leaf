@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from interact_support import append_carried_log_record
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -230,7 +231,7 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     # The page indents the envelope for reading, so it opens on a line of its own.
     shown, _ = json.JSONDecoder().raw_decode(transcript, transcript.index("\n{\n") + 1)
     assert shown["format"] == delivery_model.DELIVERY_FORMAT
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
     with service_model.PageTransaction(page_dir) as page:
@@ -396,12 +397,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
         n for n, record in enumerate(shown) if "answer" in record.get("meaning", {})
     )
     undo = next(n for n, record in enumerate(shown) if record["kind"] == "undo")
-    # `id` opens the line after the group `meaning` closes.
+    # `attention` opens the line after the group `meaning` closes.
     expected = [
         starts[0],  # what the browser sent, from the record's first line
-        line_of(0, "id") - 1,  # the stamped meaning, under its last line
+        line_of(0, "attention") - 1,  # stamped meaning, under its last line
         line_of(0, "id"),  # the minted id and seq
-        line_of(answered, "id") - 1,  # the answer, which closes that record's meaning
+        line_of(answered, "attention") - 1,  # the answer closes that record's meaning
         last_line(undo),  # an undo, under its last line
     ]
     notes = re.search(

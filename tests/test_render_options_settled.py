@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from leaf import event_log as events_model
+from interact_support import append_carried_log_record
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -239,7 +239,7 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
 def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
     """A settled answer still follows the authored question, on-page and in a reply."""
     url = serve(ASK_SHAPES_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

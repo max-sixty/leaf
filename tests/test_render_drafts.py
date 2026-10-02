@@ -57,6 +57,7 @@ from render_harness import (
     expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
+    hold_pending_thread_presentation,
     hold_selection,
     holding,
     leaf_page,
@@ -1738,6 +1739,35 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     expect(later).to_be_focused()
     expect(later).to_have_js_property("value", "The later reply keeps the user here.")
     assert later.evaluate("ta => ta.selectionStart") == 9
+
+
+def test_newer_filter_wins_over_send_waiting_for_presentation(browser, serve):
+    """A delayed Send cannot widen a newer filter or navigate its reader away."""
+    page = open_page(browser, serve(NOTED_PAGE, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.fill("Comment 0")
+    select_words(page, "#p1")
+    page.locator(".lf-fab-input").click()
+    write(
+        page.locator(".lf-composer leaf-text"), "Earlier Send waiting for presentation."
+    )
+    hold_pending_thread_presentation(page)
+    page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_function("() => window.commentPresentationHeld === true")
+    search.fill("Keep this newer search")
+    expect(search).to_be_focused()
+    page.evaluate("releaseCommentPresentation()")
+    round_trip(page)
+    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    expect(search).to_have_value("Keep this newer search")
+    expect(search).to_be_focused()
+
+    assert any(
+        event.get("text") == "Earlier Send waiting for presentation."
+        for event in events_model.read_events(serve.page_dir)
+    )
 
 
 @pytest.mark.parametrize("later_selection", [False, True])

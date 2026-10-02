@@ -15,9 +15,11 @@ def state_home_path() -> Path:
     return Path(root) / "leaf"
 
 
-# A session's files that end with it: the mark its hooks leave, and its page
-# servers' log of the thread titles they asked for.
+# A session's files that end with it: hook capability and turn observations,
+# and its page servers' log of the thread titles they asked for.
 HOOKS_SUFFIX = "hooks"
+STEP_HOOK_SUFFIX = "step-hook"
+HOOK_TURN_SUFFIX = "hook-turn"
 TITLES_SUFFIX = "titles.log"
 
 
@@ -75,5 +77,5 @@ def end_session(session_id: str) -> None:
                     write_json(path, {**current, "released": now_iso()})
         except (OSError, ValueError, TypeError):
             continue
-    for suffix in (HOOKS_SUFFIX, TITLES_SUFFIX):
+    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, HOOK_TURN_SUFFIX, TITLES_SUFFIX):
         session_file(session_id, suffix).unlink(missing_ok=True)

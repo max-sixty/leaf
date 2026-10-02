@@ -14,8 +14,9 @@
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
  * `describeDifference` between the rail labels. Every pair says when it is identical,
  * only slightly changed, or changed throughout, so a reader of one side of the divider,
- * or of a screenshot of the page, still learns it. With `outlines`, the pair also
- * outlines each region that changed over both frames, and the rail counts them. `difference` is that reading, in the images' own pixels,
+ * or of a screenshot of the page, still learns it. With `outlines`, each frame also
+ * outlines its own regions, what changed and what moved, where they sit in that frame,
+ * and the rail counts them. `difference` is that reading, in the images' own pixels,
  * or null for a pair the widget refused; a parent that hides the rail states it from
  * there.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
@@ -307,7 +308,9 @@ customElements.define(
         marks.dataset.lfGen = "1";
         marks.ariaHidden = "true";
         for (const region of regions) {
+          if (region.side !== frame.dataset.lfState) continue;
           const mark = document.createElement("span");
+          mark.dataset.lfShotMark = region.kind;
           mark.style.setProperty("--lf-shot-x", share(region.x, width));
           mark.style.setProperty("--lf-shot-y", share(region.y, height));
           mark.style.setProperty("--lf-shot-w", share(region.width, width));

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop / UserPromptSubmit / SessionEnd hook — keeps the loop honest.
+"""Host hooks for turn lifetime, delivery, and the conversation loop.
 
 The loop is the harness's business rather than the model's memory: a page whose
 watcher never came back is invisible from the browser, and looks exactly like a
@@ -8,6 +8,9 @@ whose carrier is not running, and over a delivered move it has not answered.
 UserPromptSubmit opens the turn and surfaces waiting input; SessionEnd releases the
 session's claims, behind which a session-lifetime server retires once no live
 successor has taken the page.
+
+Codex also runs this entry for asynchronous PostToolUse delivery and Interrupt,
+which closes the interrupted turn so an unread hook pointer can take the idle queue.
 
 In Claude Code a second Stop registration runs this script with `--watch`, which
 Claude Code keeps in the background (`asyncRewake`) as the session's watch between

@@ -4,15 +4,24 @@
    Count and narrowing paint share the rows' checkpoint and update boundary.
    The list owns the one expanded visible thread and writes every shown card's
    disclosure from that choice, while cards retain their message and editor nodes; a
-   card the browser opens itself, as find-in-page does, becomes the choice. The cards
+   card whose title takes focus, by Tab, press or script, and a card the browser opens
+   itself, as find-in-page does, become the choice. The cards
    carry no native `name`: its exclusivity closes a card the moment it is named beside
    an open one, which the list's own choice then opens again. This mechanical state
    never publishes a new application epoch. Narrowing keeps the
-   selected card when visible and otherwise selects the first visible card. */
+   selected card when visible and otherwise selects the first visible card.
+
+   Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
+   Escape from the panel's general box, a fold that took the focused card — so
+   every key answers for the thread the screen shows selected. The list keeps focus
+   itself only while it shows no card, and its ring never outlines one, and no title
+   holds focus closed: focus, selection and the open card never part. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
+import { focusThread } from "./focus.js";
+import { passOn } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -52,12 +61,11 @@ class ThreadListView extends RetainedFace {
     for (const row of visible) row.node.toggleAttribute("open", row === chosen);
   }
 
-  #chooseFromSummary(card, event) {
-    event.preventDefault();
+  // An open title is still the user's focus stop for the thread. A second press leaves
+  // it selected; choosing another title moves disclosure.
+  #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
-    if (!row) return;
-    // An open title is still the user's focus stop for the thread. A
-    // second press leaves it selected; choosing another title moves disclosure.
+    if (!row || row.key === this.#expandedKey) return;
     this.#expandedKey = row.key;
     this.#showExpanded();
   }
@@ -87,6 +95,21 @@ class ThreadListView extends RetainedFace {
 
   constructor() {
     super(EMPTY_MODEL);
+    this.addEventListener("focus", () => {
+      this.#showExpanded();
+      const open = this.#visibleRows().find((row) => row.key === this.#expandedKey);
+      if (!open) return;
+      focusThread(open.node, { preventScroll: true });
+      passOn(this, focused());
+    });
+    // A title pressed by a pointer takes focus on the way down and opens on its click,
+    // where the press's landing and the list's place hold already stand (landing.js,
+    // thread-list.js); every other focus opens it as it arrives.
+    this.addEventListener("focusin", (event) => {
+      const title = event.target;
+      if (title.matches?.(".lf-thread-summary") && !title.matches(":active"))
+        this.#choose(title.parentElement);
+    });
   }
   configure(commands, initialModel) {
     if (this.#commands) return;
@@ -165,8 +188,10 @@ class ThreadListView extends RetainedFace {
           opened();
         });
         view.node.addEventListener("click", (event) => {
-          if (event.target.closest(".lf-thread-summary")?.parentElement === view.node)
-            this.#chooseFromSummary(view.node, event);
+          if (event.target.closest(".lf-thread-summary")?.parentElement !== view.node)
+            return;
+          event.preventDefault();
+          this.#choose(view.node);
         });
       }
       let descriptor = row.descriptor;

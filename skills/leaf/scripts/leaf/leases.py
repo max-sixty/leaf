@@ -24,7 +24,7 @@ from leaf.event_log import (
 )
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
-from leaf.state_paths import HOOKS_SUFFIX, TITLES_SUFFIX, session_file
+from leaf.state_paths import HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX, session_file
 
 try:
     import fcntl
@@ -220,6 +220,19 @@ def hooks_ran(session_id: str) -> bool:
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""
     return hooks_path(session_id).exists()
+
+
+def mark_step_hook(session_id: str) -> None:
+    """Prove this session runs Leaf's Codex hook for delivery between tool steps.
+
+    A prompt or Stop hook proves no such capability. The mark lasts for the
+    session whose hook definitions were trusted, and SessionEnd removes it.
+    """
+    session_state_path(session_id, STEP_HOOK_SUFFIX).touch()
+
+
+def step_hook_ran(session_id: str) -> bool:
+    return session_file(session_id, STEP_HOOK_SUFFIX).exists()
 
 
 def adapter_is_live(session_id: str) -> bool:

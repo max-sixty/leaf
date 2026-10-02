@@ -6,7 +6,7 @@ from itertools import pairwise
 
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1359,6 +1359,10 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     # A removed owner retires both regions. Reconnecting the same instance reattaches
     # its still-pending preparation at the same semantic epoch, so an already resolved
     # readiness call cannot be reused as proof for the replacement renderer.
+    # Leave the widget by a real gesture before probing its lifetime: removing a
+    # focused control would also change shortcut context without user input.
+    page.locator("#live-title").click()
+    rendered(page)
     page.evaluate(
         """() => {
           window.pageLocal = document.querySelector('#page-local');

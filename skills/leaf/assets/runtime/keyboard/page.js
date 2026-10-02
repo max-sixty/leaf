@@ -101,29 +101,27 @@ pageCommand({
   does: "Caret browsing (the browser's): select text by keyboard, then c",
 });
 
-// Standing is a destination on the page or a thread in the panel, including its
-// title and controls. Releasing it lands at its floor: the document or the whole
-// panel. Disclosure is independent; neither expanding nor collapsing a thread adds
-// another selection level.
+// Standing is a destination on the page. Releasing it lands at its floor, the document.
+// A thread in the panel has no floor of its own: the list holding focus hands it to the
+// thread it shows open (thread-list-view.js), so the panel's own rungs — its narrowing,
+// then closing it — are the way out of a panel thread.
 //
-// Inner controls, reply boxes, and native layers answer first. A panel thread then
-// releases before the panel's narrowing; page-side state waits while focus is in
-// the panel. On the page, a selection or mode unwinds before the destination does.
-// Chrome controls outside a thread belong to the surface's own Escape ladder.
+// Inner controls, reply boxes, and native layers answer first. Page-side state waits
+// while focus is in the panel. On the page, a selection or mode unwinds before the
+// destination does. Chrome controls belong to the surface's own Escape ladder.
 const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({ pageState, narrowing, threadsBox }) {
+export function declareStanding({ pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
-    const thread = heldThread();
-    if (thread?.matches(".lf-thread")) return threadsBox;
     if (inChrome(documentFocused())) return null;
+    const thread = heldThread();
     if (pageSelection() || pageState()) return null;
     return thread || heldAsk() || !inUi(focused()) ? document.body : null;
   };
@@ -137,15 +135,9 @@ export function declareStanding({ pageState, narrowing, threadsBox }) {
         id: "navigation.release",
         keys: ["Escape"],
         does: "Let go of what you are standing on",
-        line: () => (standingFloor() === threadsBox ? "back to panel" : "let go"),
-        lineWhen: () =>
-          !narrowing.threadSearchActive() || standingFloor() !== threadsBox,
+        line: "let go",
         when: () => Boolean(standingFloor()),
-        run: () => {
-          const floor = standingFloor();
-          if (floor === document.body) release();
-          else floor.focus({ preventScroll: true });
-        },
+        run: release,
       },
     ],
   });

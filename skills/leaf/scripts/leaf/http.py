@@ -3,7 +3,7 @@
 The transport is starlette over uvicorn (`hosting.py` owns the server). This file
 owns what a page means at that boundary: where a page and its revisions answer
 (`revision_delivery` addresses what they name), the key, the layer gate, the `Leaf-*`
-headers, and the news stream a tab listens on.
+headers, and the finite freshness reading a visible tab asks for.
 """
 
 import html
@@ -22,7 +22,7 @@ from urllib.parse import parse_qs
 import anyio
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import Response, StreamingResponse
+from starlette.responses import Response
 
 from . import presence as presence_model
 from .data import (
@@ -36,11 +36,11 @@ from .data import (
 from .event_endpoint import accept_event, event_fault, event_rejection
 from .event_log import read_events
 from .files import (
-    LOOK_S,
     latest_revision,
     list_revisions,
     missing_revision,
     published_versions,
+    read_json,
     revision_num,
     revision_path,
     stamped_version,
@@ -86,15 +86,6 @@ from .service import PageTransaction
 from .session_cleanup import write_json
 from .structure import FRAME_ANCESTORS_CSP
 
-# How long an open news stream, which re-reads the page every `LOOK_S`, may go without
-# a word before saying it is still there.
-ALIVE_S = 5.0
-# How often the stream re-reads what no stamp shows. Three facts in a state come from
-# somewhere other than the page's files: whether a wait lease is held is a lock, whether
-# the claimant lives is a pid, and the neighbours are other pages' directories and
-# servers. Each is cheap to read once and dear to read twenty times a second, and two
-# seconds is the staleness the poll gave every fact, so it is the staleness these keep.
-PRESENCE_S = presence_model.PRESENCE_CACHE_S
 # How deeply a POSTed body may nest its arrays and objects. What reads a body after the
 # parse recurses: schema validation runs into the interpreter's recursion limit a few
 # hundred levels down, and a log line is parsed again by every later reader, on
@@ -291,7 +282,13 @@ class PageEndpoint:
         answer.headers.update(self._delivery_headers())
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
-        if self.page_dir is not None and getattr(self, "parent", None) is None:
+        # Successful attention checks are housekeeping, not interaction history;
+        # recording every look would make an untouched page append four times a second.
+        if (
+            self.page_dir is not None
+            and getattr(self, "parent", None) is None
+            and (self.path != "/api/news" or answer.status_code != 200)
+        ):
             try:
                 append_interactions(
                     self.page_dir,
@@ -351,7 +348,7 @@ class PageEndpoint:
         The reading is taken after the activation this response performs and
         before any file the state is built from is read, and that order is the whole
         of its correctness. Taken after the reads, it could name a write this response
-        does not carry, and a tab comparing it with what the stream says would never
+        does not carry, and a tab comparing it with the freshness answer would never
         ask for that write — the one way a reading like this loses an update rather
         than merely repeating one. Taken before the activation, it would miss the
         write this response itself made, and the tab would be told to ask again for
@@ -418,74 +415,30 @@ class PageEndpoint:
             reading, registry, source=source, revision=revision, key=key
         )
 
-    def _news(self) -> StreamingResponse:
-        """The page's reading, named on an open stream each time it changes.
+    def _news(self) -> Response:
+        """A finite reading of the files and presence a visible page is watching.
 
-        What a tab listens on instead of asking on a timer. The stream carries no
-        state: it says the page has a new reading, and the tab then asks
-        `/api/state` the way it always did — so everything that reads, stubs, or
-        counts a state request, in the page or in a test standing outside it, keeps
-        its meaning, and a caller that never learns this door reads the page as
-        before. A look is `LOOK_S` of stat calls per open tab. The reading is said
-        again every `ALIVE_S` whether or not it moved: that keeps a quiet page
-        distinguishable from a dead stream, and it puts right a tab whose reading came
-        to differ from what this stream last said — an answer that crossed another,
-        a presence that moved between a word here and the read it prompted.
+        The browser compares this cheap token with the state it has applied, then
+        asks for state only when they differ. Each request releases its HTTP slot,
+        so live child pages cannot hold the origin's connections away from modules,
+        gestures or revisions. Presence caches its process and lease observations;
+        page files are read anew, including external data and authored dependencies.
 
-        The stream is also the one proof a browser has the page visible, and before
-        it the poll was: a page nobody ever viewed and one the user studied and left
-        looked identical from the agent's side. A hidden tab releases its stream and
-        a visible tab whose page has no news never asks again, so presence is written
-        from here, throttled — it needs a recency, not a request log — and never from
-        a preview, whose browser is the render gate's rather than the user's.
-
-        Ends on the server stopping; a tab that closes cancels the response, which the
-        transport reports without this loop watching the socket for it. `ALIVE_S` is
-        the whole of the keepalive, so the stream carries no comment frames beside it.
+        This explicit attention door renews the user lease, throttled to a recency.
+        Ordinary state reads and captured previews do not prove a user is looking.
         """
-        return StreamingResponse(
-            self._readings(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-store"},
-        )
-
-    async def _readings(self):
-        """Every reading this stream owes its listener, as each becomes true."""
-        said = files_said = presence = None
-        looked = spoke = 0.0
-        try:
-            while not self.server.stopping:
-                now = time.monotonic()
-                if self.page_snapshot is not None:
-                    reading = self.page_snapshot.reading
-                    files = served_reading.reading_files(reading)
-                else:
-                    files = served_reading.page_reading(self.page_dir)
-                    # Presence is re-read on its own clock, and again whenever the files
-                    # move. The state answer and this token must describe the same view.
-                    if files != files_said or now - looked >= PRESENCE_S:
-                        presence = presence_model.presence_reading(self.page_dir)
-                        looked = now
-                    reading = served_reading.join_reading(files, presence)
-                # Before the word goes out, so a listener that has heard the first
-                # one is a browser the page already counts as holding it open.
-                if (
-                    self.page_snapshot is None
-                    and time.time() - self.server.viewed_at > 30
-                ):
-                    self.server.viewed_at = time.time()
-                    write_json(
-                        self.page_dir / VIEWED_FILE, {"t": self.server.viewed_at}
-                    )
-                if reading != said or now - spoke >= ALIVE_S:
-                    yield f"data: {reading}\n\n"
-                    said, files_said, spoke = reading, files, now
-                await anyio.sleep(LOOK_S)
-        except (FileNotFoundError, NotADirectoryError):
-            # The page directory going away under an open tab ends the stream, as a
-            # peer going away does. The response has already begun, so there is no
-            # status left to say it with.
-            return
+        if self.page_snapshot is not None:
+            reading = self.page_snapshot.reading
+        else:
+            reading = served_reading.join_reading(
+                served_reading.page_reading(self.page_dir),
+                presence_model.presence_reading(self.page_dir),
+            )
+            viewed = (read_json(self.page_dir / VIEWED_FILE) or {"t": 0})["t"]
+            now = time.time()
+            if now - viewed > 30:
+                write_json(self.page_dir / VIEWED_FILE, {"t": now})
+        return self._content(200, "text/plain; charset=utf-8", reading.encode())
 
     @property
     def key_cookie(self) -> str:
@@ -1176,8 +1129,8 @@ def page_app(endpoint, server):
 
     Every request becomes its own `PageEndpoint` and nothing else: no state crosses
     between two of them. The routes are ordinary blocking code — page transactions,
-    log reads, atomic writes — so they run on the serving loop's worker threads, and
-    an open news stream is the one response that stays on the loop itself.
+    log reads, atomic writes — so they run on the serving loop's worker threads.
+    Each answer completes rather than keeping a per-document HTTP connection open.
     """
 
     server.samples = Samples()

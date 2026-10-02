@@ -53,10 +53,10 @@ index 5ba94f6d4..68ad45ce1 100644
    "nightly: a pull request can land without it; `--run-nightly` runs it",
    "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
 diff --git a/skills/leaf/assets/leaf.js b/skills/leaf/assets/leaf.js
-index 28bcd0622..6d8c82dc7 100644
+index 28bcd0622..a456cf07f 100644
 --- a/skills/leaf/assets/leaf.js
 +++ b/skills/leaf/assets/leaf.js
-@@ -113,20 +113,23 @@ import {
+@@ -113,20 +113,25 @@ import {
    toggleBtn,
  } from "./runtime/banner.js";
  
@@ -75,15 +75,17 @@ index 28bcd0622..6d8c82dc7 100644
  // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
 -// handled since.
 +// handled since, and which native layers currently expose reading and controls.
++import { floatingSelections } from "./runtime/floating.js";
  const validationEntry = document.querySelector("script[data-lf-entry]");
  if (validationEntry) {
    validationEntry.lfReadiness = pageReadiness;
    validationEntry.lfRenderingSettled = renderingSettled;
 +  validationEntry.lfNativeLayers = nativeLayers;
++  validationEntry.lfFloatingSelections = floatingSelections;
  }
  import { overflowMenu } from "./runtime/banner-toolbar.js";
  import {
-@@ -177,7 +180,7 @@ import {
+@@ -177,7 +182,7 @@ import {
    releaseFocus,
    tabStops,
  } from "./runtime/focus.js";
@@ -92,7 +94,7 @@ index 28bcd0622..6d8c82dc7 100644
  import { mediaViewer } from "./runtime/media.js";
  import { offer } from "./runtime/widget-elements.js";
  
-@@ -644,6 +647,7 @@ drawing = createDrawingController({
+@@ -644,6 +649,7 @@ drawing = createDrawingController({
  
  layout = createChromeLayout({
    panelIsOpen,
@@ -100,7 +102,7 @@ index 28bcd0622..6d8c82dc7 100644
    elements: {
      panel,
      closeBtn,
-@@ -799,6 +803,7 @@ if (!offlineInteractive) {
+@@ -799,6 +805,7 @@ if (!offlineInteractive) {
    layout.mountLayoutObservers();
    goToSequence.mountGoToSequence();
    mountShortcutBar({
@@ -230,6 +232,259 @@ index cdca15fd0..414aacdd1 100644
    .lf-margin-thread .lf-page-thread::after { content: none; }
    @media (forced-colors: active) {
      .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
+diff --git a/skills/leaf/assets/runtime/floating.js b/skills/leaf/assets/runtime/floating.js
+index d14944137..ce560b16b 100644
+--- a/skills/leaf/assets/runtime/floating.js
++++ b/skills/leaf/assets/runtime/floating.js
+@@ -38,7 +38,7 @@
+    after a fetch. */
+ 
+ import { afterPresentation } from "./presentation.js";
+-import { keeps, layoutPx as px } from "./keeps.js";
++import { keeps, layoutPx as px, atLayoutPrecision } from "./keeps.js";
+ import { anchorElement, anchorName } from "./anchor-names.js";
+ import { shownWindow } from "./geometry.js";
+ 
+@@ -97,6 +97,12 @@ const held = {
+ 
+ const INSETS = ["left", "right", "top", "bottom"];
+ 
++// The mechanical owner's last written placement, never a rectangle read back from
++// its rendered box. Consumers can distinguish a native plane change from a local
++// child/holder displacement without granting that displacement to the owner.
++const stood = new Map();
++export const floatingSelections = () => [...stood.values()];
++
+ // Whether a box spanning `top` to `bottom` stands against an edge of the window the page
+ // shows (geometry.js, `shownWindow`), `gap` inside it, rather than against a reading
+ // region's edge the page carries.
+@@ -108,6 +114,7 @@ export function heldByWindow(top, bottom, gap) {
+ export function floatingPlacement({ floating, update }) {
+   let epoch = 0;
+   let watched = null;
++  let tenure = Object.freeze({});
+   let stopWatching = null;
+   // Writes the held edges' insets and clears the free ones.
+   const inset = (insets) => {
+@@ -141,6 +148,7 @@ export function floatingPlacement({ floating, update }) {
+       });
+     };
+   let stand = placedAt;
++  let placementProof = null;
+   return {
+     // `reference` is what `computePosition` receives; `element` is the node it stands
+     // for, whose scroll containers and moves `autoUpdate` follows.
+@@ -148,6 +156,7 @@ export function floatingPlacement({ floating, update }) {
+       if (element === watched) return;
+       stopWatching?.();
+       watched = element;
++      tenure = Object.freeze({});
+       stopWatching = autoUpdate(reference, floating, update);
+     },
+     begin: () => ++epoch,
+@@ -173,9 +182,51 @@ export function floatingPlacement({ floating, update }) {
+         at?.x !== undefined && planeOf(answer) === "page" ? "page" : "window";
+       keeps(floating, "data-lf-plane", plane);
+       stand = plane === "page" ? anchoredAt(anchor, at) : placedAt;
++      // anchorAt proves the solver's containing block is the window. Other
++      // containing blocks have no declared prediction in this selection.
++      placementProof =
++        at?.x !== undefined ? { subject: watched, anchor, plane, at } : null;
+       return answer;
+     },
+-    stand: (answer) => stand(answer),
++    stand(answer) {
++      stand(answer);
++      if (!placementProof) {
++        stood.delete(floating);
++        tenure = Object.freeze({});
++        return;
++      }
++      const { edges, width, height, block } = answer.middlewareData.held;
++      const { subject, anchor, plane, at } = placementProof;
++      const point = {};
++      for (const [axis, start, coordinate, length, extent] of [
++        ["left", "left", "x", width, block.width],
++        ["top", "top", "y", height, block.height],
++      ]) {
++        const fromStart = edges[coordinate] === start;
++        const spot = answer[coordinate];
++        point[axis] =
++          plane === "page"
++            ? fromStart
++              ? atLayoutPrecision(spot - at[coordinate])
++              : -atLayoutPrecision(at[coordinate] - spot - length)
++            : fromStart
++              ? atLayoutPrecision(spot)
++              : extent - atLayoutPrecision(extent - spot - length);
++      }
++      stood.set(
++        floating,
++        Object.freeze({
++          floating,
++          subject,
++          anchor,
++          plane,
++          tenure,
++          edges: Object.freeze({ left: edges.x, top: edges.y }),
++          point: Object.freeze(point),
++          size: Object.freeze({ width, height }),
++        }),
++      );
++    },
+     // Discards any placement in flight, leaving the box where it stands.
+     supersede() {
+       epoch += 1;
+@@ -185,6 +236,9 @@ export function floatingPlacement({ floating, update }) {
+       stopWatching?.();
+       stopWatching = null;
+       watched = null;
++      tenure = Object.freeze({});
++      placementProof = null;
++      stood.delete(floating);
+       delete floating.dataset.lfPlane;
+       for (const property of ["position-anchor", ...INSETS])
+         floating.style.removeProperty(property);
+diff --git a/skills/leaf/assets/runtime/geometry.js b/skills/leaf/assets/runtime/geometry.js
+index b6cd42df5..b3cb0aef4 100644
+--- a/skills/leaf/assets/runtime/geometry.js
++++ b/skills/leaf/assets/runtime/geometry.js
+@@ -2,7 +2,7 @@
+  * window the page shows, and the one conversion from viewport boxes to
+  * document-positioned chrome. */
+ import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
+-import { overlaps, overlapsAcross, union } from "./rect.js";
++import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
+ 
+ /* Shared readings of the boxes the page actually shows.
+ 
+@@ -10,8 +10,8 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
+    `display: contents` descendants paint. `shownParts` returns the visible elements on
+    which an outline can be drawn, and `shownExtent` the box they cover together.
+    `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their tops) and the viewport,
+-   stopping ancestor clipping at a fixed-position box, then takes away what a declared
+-   occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
++   following native positioned containing blocks past intermediate overflow clips,
++   then takes away what a declared occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
+    chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
+    of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
+    the one reading of whether the user can see something.
+@@ -158,21 +158,18 @@ export function shownBand(el) {
+       bottom: doc.documentElement.clientHeight,
+     };
+   const s = doc.defaultView.getComputedStyle(el);
+-  if (
+-    s.overflowX === "visible" &&
+-    s.overflowY === "visible" &&
+-    !/paint|strict|content/.test(s.contain) &&
+-    s.contentVisibility === "visible"
+-  )
+-    return null;
++  const axes = clippingAxes(s);
++  if (!axes.x && !axes.y) return null;
+   const b = el.getBoundingClientRect();
+-  const left = b.left + el.clientLeft,
+-    top = b.top + el.clientTop;
++  const scaleX = el.offsetWidth ? b.width / el.offsetWidth : 1;
++  const scaleY = el.offsetHeight ? b.height / el.offsetHeight : 1;
++  const left = b.left + el.clientLeft * scaleX,
++    top = b.top + el.clientTop * scaleY;
+   return {
+     left,
+     top,
+-    right: left + el.clientWidth,
+-    bottom: top + el.clientHeight,
++    right: left + el.clientWidth * scaleX,
++    bottom: top + el.clientHeight * scaleY,
+   };
+ }
+ 
+@@ -354,13 +351,11 @@ export const shownExtent = (el) =>
+ // The root scrollport's viewport band is one of these too: what is scrolled off screen
+ // has no rect, and a legend draws boxes for what is on it and nothing for the rest.
+ //
+-// The walk stops at a box the viewport holds rather than the document: nothing above a
+-// `position: fixed` element clips it, so the ancestors past that one are answering about a
+-// flow the element left. Every box in the chrome is behind one — the thread panel is
+-// fixed, so a reply box measured through the page flow's ancestors came back wholly clipped
+-// away whenever the page had scrolled. The one caller before this asked
+-// only about the page's own items, none of which is ever inside a fixed box, which is why
+-// the walk could be written as "every ancestor" and read as complete.
++// Positioned descendants escape intermediate overflow clips up to their native
++// containing block. The viewport holds a fixed box with no offsetParent; a transformed,
++// filtered or layout-contained ancestor instead holds it and still clips its contents.
++// Absolute boxes follow the same containing-block boundary. A DOM ancestor's overflow
++// does not clip a box whose containing block lies outside that ancestor.
+ //
+ // Which leaves the viewport itself, applied to everything: for a box in the page it is
+ // the root's band, and for one in a fixed layer it is the whole of what clips it.
+@@ -449,6 +444,8 @@ function clipped(box, item, clips, held, inWindow = true) {
+   // (`headerInset`): the item at its own scroller, and the scroller below at each one
+   // further out.
+   let inner = item;
++  let escaped = false,
++    containing = null;
+   for (let a = item; a; a = upFrom(a)) {
+     let c = clips.get(a);
+     if (c === undefined) {
+@@ -456,18 +453,27 @@ function clipped(box, item, clips, held, inWindow = true) {
+         a,
+         (c = {
+           band: shownBand(a),
++          axes:
++            a === a.ownerDocument.scrollingElement
++              ? { x: true, y: true }
++              : clippingAxes(getComputedStyle(a)),
+           // Read here rather than out of shownBand, whose answer is a band and is the
+           // render gate's too: what clips a box and what a box is positioned against are
+           // two facts, and one of them is this walk's alone.
+-          fixed: getComputedStyle(a).position === "fixed",
++          positioned:
++            a.offsetParent !== undefined &&
++            ["fixed", "absolute"].includes(getComputedStyle(a).position),
++          block: a.offsetParent,
+           scrolls: holdsHeaders(a),
+         }),
+       );
+     }
+-    if ((held || a !== item) && c.band) {
++    if (escaped && a === containing) escaped = false;
++    if (!escaped && (held || a !== item) && c.band) {
+       const covered = c.band.top + headerInset(inner, a);
+-      if (covered >= c.band.bottom) return null;
+-      let band = covered > c.band.top ? { ...c.band, top: covered } : c.band;
++      if (c.axes.y && covered >= c.band.bottom) return null;
++      let band =
++        c.axes.y && covered > c.band.top ? { ...c.band, top: covered } : c.band;
+       // In the page's plane the root's band is the window, which cuts nothing there;
+       // only a header stuck over its top does.
+       if (!inWindow && a === a.ownerDocument?.scrollingElement)
+@@ -477,13 +483,20 @@ function clipped(box, item, clips, held, inWindow = true) {
+           right: Infinity,
+           bottom: Infinity,
+         };
+-      left = Math.max(left, band.left);
+-      top = Math.max(top, band.top);
+-      right = Math.min(right, band.right);
+-      bottom = Math.min(bottom, band.bottom);
++      if (c.axes.x) {
++        left = Math.max(left, band.left);
++        right = Math.min(right, band.right);
++      }
++      if (c.axes.y) {
++        top = Math.max(top, band.top);
++        bottom = Math.min(bottom, band.bottom);
++      }
+       if (c.scrolls) inner = a;
+     }
+-    if (c.fixed) break;
++    if (!escaped && c.positioned) {
++      escaped = true;
++      containing = c.block;
++    }
+   }
+   return right > left && bottom > top
+     ? occluded({ left, top, right, bottom }, item, clips)
 diff --git a/skills/leaf/assets/runtime/keyboard/layer-stack.js b/skills/leaf/assets/runtime/keyboard/layer-stack.js
 index bdce366dc..d071674d6 100644
 --- a/skills/leaf/assets/runtime/keyboard/layer-stack.js
@@ -338,6 +593,25 @@ index 92a05691c..92f000b0a 100644
      for (const input of previewList.querySelectorAll(REPLY_BOX)) {
        const row = input.closest(".lf-thread-reply");
        const thread = row.closest(".lf-page-thread");
+diff --git a/skills/leaf/assets/runtime/rect.js b/skills/leaf/assets/runtime/rect.js
+index eef9f49e6..b82faf77b 100644
+--- a/skills/leaf/assets/runtime/rect.js
++++ b/skills/leaf/assets/runtime/rect.js
+@@ -21,3 +21,14 @@ export function union(boxes) {
+ 
+ // A value held between two bounds, the lower winning where they cross.
+ export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
++
++// Which padding-box edges clip descendants. Overflow is per axis; paint containment
++// and content visibility clip both even when overflow computes visible.
++export const clippingAxes = (style) => {
++  const both =
++    /paint|strict|content/.test(style.contain) || style.contentVisibility !== "visible";
++  return {
++    x: both || style.overflowX !== "visible",
++    y: both || style.overflowY !== "visible",
++  };
++};
 diff --git a/skills/leaf/assets/runtime/thread/reply-continuity.js b/skills/leaf/assets/runtime/thread/reply-continuity.js
 new file mode 100644
 index 000000000..f03260ebd
@@ -409,7 +683,7 @@ index 000000000..f03260ebd
 +  }
 +}
 diff --git a/skills/leaf/assets/runtime/thread/thread-card.js b/skills/leaf/assets/runtime/thread/thread-card.js
-index bbc5308aa..2c7452dc3 100644
+index bbc5308aa..d27a67512 100644
 --- a/skills/leaf/assets/runtime/thread/thread-card.js
 +++ b/skills/leaf/assets/runtime/thread/thread-card.js
 @@ -34,6 +34,7 @@ import { ago, shortAgo } from "../presence.js";
@@ -420,7 +694,14 @@ index bbc5308aa..2c7452dc3 100644
  
  function quoteReading(thread, anchors) {
    const placement = anchors.placedAt(thread.id);
-@@ -240,12 +241,15 @@ export class ThreadView {
+@@ -233,19 +234,21 @@ export class ThreadView {
+   #settlements = new Map();
+   #metadataActions = document.createElement("span");
+   #expandedSummaries = new Set();
+-  #growing = false;
+   #navigation = null;
+   #marginControls = null;
+   #viewId = ++nextViewId;
    // What a thread in the page's flow holds back says so in its control row (held-news.js).
    #news = newsNotice();
    #lastMessage = null;
@@ -436,7 +717,15 @@ index bbc5308aa..2c7452dc3 100644
      // A panel card's disclosure is the thread list's to write, from its one choice.
      if (surface !== "panel") {
        this.node.tabIndex = -1;
-@@ -294,6 +298,7 @@ export class ThreadView {
+@@ -261,7 +264,6 @@ export class ThreadView {
+         if (this.node.open) this.#model?.news?.open();
+       });
+     this.node.addEventListener("animationend", () => {
+-      this.#growing = false;
+       this.node.classList.toggle("grow", false);
+     });
+     this.node.addEventListener("lf-reveal", (event) => {
+@@ -294,6 +296,7 @@ export class ThreadView {
    }
  
    present(model) {
@@ -444,6 +733,21 @@ index bbc5308aa..2c7452dc3 100644
      const prior = this.#model;
      const restoreFocus = holdFocus(this.node);
      const standing = focused();
+@@ -329,10 +332,12 @@ export class ThreadView {
+     const hiding = !model.visible && !model.folding && !this.node.hidden;
+     if (hiding) this.retire();
+     keepsHidden(this.node, !model.visible && !model.folding);
+-    this.#growing ||= !prior && model.grow;
+     this.node.classList.toggle("lf-going", model.folding);
+     this.node.classList.toggle("lf-thread", panel && !model.folding);
+-    this.node.classList.toggle("grow", this.#growing && !model.folding);
++    // Entry motion belongs to the retained node. Navigation can cancel it; a
++    // later descriptor repaint must not resurrect that canceled native cue.
++    if (model.folding) this.node.classList.remove("grow");
++    else if (!prior && model.grow) this.node.classList.add("grow");
+     this.node.toggleAttribute("inert", model.folding);
+     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
+     keeps(this.node, "data-resolved", model.resolved);
 @@ -474,6 +479,7 @@ export class ThreadView {
              : nothing
          }

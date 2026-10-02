@@ -55,7 +55,7 @@ export function createThreadPresentation({
   pageGeometry,
   readDraft,
   activeActionAnchor,
-  renderMargin,
+  renderAnnotations,
   renderSurfaces,
   openThread,
   read,
@@ -189,9 +189,9 @@ export function createThreadPresentation({
       if (!result) return;
       const [, candidates] = result;
       if (!current()) return;
-      renderMargin();
       for (const candidate of candidates) candidate?.commit();
       commitThreadSeats(batch);
+      renderAnnotations();
       pageGeometry.pageShifted();
       finishListRecovery(candidates);
       read.present();

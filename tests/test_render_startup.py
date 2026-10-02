@@ -10,8 +10,10 @@ from urllib.parse import urljoin, urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    append_carried_log_record,
     append_command,
     record_claim,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -23,9 +25,11 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import session_cleanup as cleanup_model
+from leaf import user_views as user_views_model
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.reading import page_reading, source_readings
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1625,7 +1629,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     """Receiving state is not readiness while its message renderer is still loading."""
     url = serve(SHORT_SUGGESTION)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2474,7 +2478,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     assert page.evaluate("() => !customElements.get('lf-options')")
 
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2549,7 +2553,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         older.append(route)
 
     page.route("**/api/state*", hold_older_state)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2587,7 +2591,7 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     page.wait_for_timeout(3000)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
@@ -2667,7 +2671,7 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
     # counts as user attention. Checking immediately on visibility below must replace it.
     page.wait_for_timeout(100)
     cleanup_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
     )
@@ -2955,7 +2959,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/state" in request.url
     ):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
@@ -2997,7 +3001,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         serve.page_dir, token=TOKEN, port=port
     ).start()
     serve.servers.append(server)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
     )
@@ -3061,7 +3065,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         )
 
     def wake(text):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
@@ -3268,7 +3272,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3280,7 +3284,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     with live_watcher(d, page):
         declare("working", "revising the plan")
-        events_model.append_event(
+        append_carried_log_record(
             d, {"kind": "comment", "author": "user", "text": "A later update."}
         )
         told(page)
@@ -3419,7 +3423,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     # Once an update has waited past the pickup grace with nothing to carry it, the
     # remedy is the user's, and the reading says since when nobody has been there.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3662,7 +3666,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # New words do not detach the claim from the comment that started the work.
-    followup = events_model.append_event(
+    followup = append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3693,7 +3697,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # The answer is what ends it.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3726,7 +3730,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # A thread the user has closed asks nothing: its card, closed from another tab,
     # stays where it stands and says it is resolved.
-    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
@@ -3735,7 +3739,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
     # claiming work under a banner that says the opposite.
-    events_model.append_event(
+    append_carried_log_record(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
@@ -3756,7 +3760,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     declared overall state, then falls back to generic work when that declaration waits."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -3829,7 +3833,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     old = (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
         timespec="seconds"
     )
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3858,7 +3862,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     Re-inserting the node would lose its identity and could replay presentation."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4558,7 +4562,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     if failure != "disconnect":
         expect(broken.locator(".lf-page-thread")).to_have_count(0)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4630,7 +4634,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             widget.failure = null;
             for (const row of widget.children) row.append(row.outlet);
         }""")
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -4956,7 +4960,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
 
     # The reading that moves the source also brings a message, so applying it has
     # document work to finish; the reading behind it lands while that work is unfinished.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5005,7 +5009,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     older = page.evaluate("async () => await (await fetch('/api/state')).json()")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5062,8 +5066,13 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    """A completed crossed state read must not recalibrate the displayed clock.
+
+    Keep freshness unchanged: an origin that advertises new state but returns an
+    old reading forever asks for repair on every tick rather than aging paints.
+    """
     url = serve(LONG_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5081,11 +5090,12 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
-    with page.expect_response("**/api/state*"):
-        cleanup_model.write_json(
-            serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": cleanup_model.now_iso()},
-        )
+    page.evaluate(
+        """async () => {
+          const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+          await readAndApply();
+        }"""
+    )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
 
@@ -5635,3 +5645,147 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):
+    """Optional view context cannot turn a failed module request into page debt."""
+    page = browser.new_page()
+    page.route("**/runtime/user-view.js", refuse)
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/runtime/user-view.js"),
+    ):
+        page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    wait_until_ready(page)
+    with sending(page, "the suggestion decision"):
+        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert not page.lf_errors
+
+
+def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
+    """The effective document scheme can override the user's OS preference."""
+    source = leaf_page(
+        "Forced scheme",
+        '<h1 id="heading">A dark document</h1>',
+        head="<style>:root { color-scheme: only dark; }</style>",
+    )
+    context = browser.new_context(color_scheme="light")
+    open_page(browser, serve(source), context=context)
+    observed = wait_for(
+        lambda: user_views_model.read_user_views(serve.page_dir, 1)["sessions"],
+        lambda records: bool(records) and records[0]["checks"] is not None,
+        failure="the forced document scheme never reached the agent view",
+    )[0]
+    assert observed["color_scheme"] == "dark"
+    assert observed["checks"]["color_scheme"] == "dark"
+
+
+def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):
+    """Agent context names each actual document and its checks, even when a tab
+    keeps an earlier revision. Observations never become decisions or freshness
+    changes, and hidden reports release their own view without hiding another."""
+    source = leaf_page(
+        "View observation",
+        '<h1 id="view-heading">Service capacity</h1>'
+        '<svg id="capacity-drawing" class="drawing" viewBox="0 0 1200 80">'
+        '<text x="20" y="40" font-size="12">Ten thousand requests</text></svg>',
+    )
+    url = serve(source)
+    directory = serve.page_dir
+    first = open_page(browser, url)
+
+    def views():
+        return user_views_model.read_user_views(
+            directory, files_model.latest_revision(directory)
+        )["sessions"]
+
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 1 and records[0]["checks"] is not None,
+        failure="the live document never reported its view and checks",
+    )
+    identity = seen[0]["session"]
+    assert seen[0]["visible"] and seen[0]["freshness"] == "fresh"
+    assert seen[0]["checks"]["matches_view"]
+    assert seen[0]["checks"]["reading"]["checks"]["shrunk_labels"]["drawings"]
+    file_reading = page_reading(directory)
+    source_reading = source_readings(directory)
+    asked = _traffic(first).asked
+
+    first.set_viewport_size({"width": 600, "height": 720})
+    first.emulate_media(color_scheme="dark", reduced_motion="reduce")
+    changed = wait_for(
+        views,
+        lambda records: (
+            records[0]["viewport"]["width"] == 600
+            and records[0]["color_scheme"] == "dark"
+            and records[0]["checks"]["matches_view"]
+        ),
+        failure="resizing and changing scheme did not reach the agent view",
+    )[0]
+    assert changed["session"] == identity
+    assert changed["reduced_motion"]
+    assert changed["checks"]["viewport"] == {"width": 600, "height": 720}
+    assert page_reading(directory) == file_reading
+    assert source_readings(directory) == source_reading
+    assert _traffic(first).asked == asked
+
+    second = open_page(browser, live_url(url))
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 2 and all(r["checks"] for r in records),
+        failure="the second document replaced the first view",
+    )
+    assert len({r["session"] for r in seen}) == 2
+    assert {r["viewport"]["width"] for r in seen} == {
+        600,
+        second.viewport_size["width"],
+    }
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(directory)])
+    assert state.exit_code == 0, state.output
+    assert len(json.loads(state.output)["user_views"]["sessions"]) == 2
+    assert "user_views" not in second.evaluate(
+        "async () => await (await fetch(new URL('api/state', document.querySelector('link[rel=canonical]').href))).json()"
+    )
+
+    # Headless Chrome cannot naturally hide one tab, so deliver the platform
+    # lifecycle input used by the existing news visibility regression above.
+    first.evaluate(
+        """() => {
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, value: 'hidden',
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }"""
+    )
+    hidden = wait_for(
+        views,
+        lambda records: any(
+            r["session"] == identity and not r["visible"] for r in records
+        ),
+        failure="hiding one document did not release its view",
+    )
+    assert sum(r["visible"] for r in hidden) == 1
+
+    (directory / "index.html").write_text(
+        source.replace("Service capacity", "Updated capacity")
+    )
+    told(second)
+    seen = wait_for(
+        views,
+        lambda records: any(
+            r["revision"] == 2 and r["checks"] and r["checks"]["matches_view"]
+            for r in records
+        ),
+        failure="the new revision never reached its visible document's reading",
+    )
+    old = next(r for r in seen if r["session"] == identity)
+    current = next(r for r in seen if r["session"] != identity)
+    assert old["revision"] == 1 and not old["matches_active_revision"]
+    assert current["revision"] == 2 and current["matches_active_revision"]

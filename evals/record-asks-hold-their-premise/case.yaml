@@ -1,12 +1,13 @@
 # From a findings page that put each section's claim, figure and demo above a bare
 # question (#1322). Base at 64186bcb9 put them all above the Ask (0 of 3); the change
 # put the figure inside it and the demo after it (3 of 3).
-schema_version: '1.0'
-name: record-asks-hold-their-premise
-description: "Asks: on a record page, an Ask about a finding holds the finding's claim and its distinguishing figure inside the lf-ask, and a tall live demo follows it."
-tags:
-- asks
-execution:
+description: record-asks-hold-their-premise
+metadata:
+  purpose: 'Asks: on a record page, an Ask about a finding holds the finding''s claim and its distinguishing
+    figure inside the lf-ask, and a tall live demo follows it.'
+  tags:
+  - asks
+vars:
   prompt: |
     You are writing a Leaf page that records six focus gaps you found in a chat
     widget, one section per gap, each putting a question to the user. Write the
@@ -29,22 +30,27 @@ execution:
 
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-authoring-asks
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/authoring-asks\.md
-- name: has-asks
-  type: regex
-  pattern: <lf-ask\b
-  flags: i
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-authoring-asks
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/authoring-asks\.md
+- type: javascript
+  metric: has-asks
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-ask\b
+    flags: i
+    negate: false
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML fragment as a user who presses `a`, which puts the `lf-ask`'s
     heading at the top of the screen with everything above it out of view. Pass only
     if all of these hold:

@@ -3,12 +3,13 @@
 # and each choice unfinished until the group's Done. At b47cb5e2f, both base and
 # candidate passed 3/3 even with the earlier checkbox-plan reply in context. This
 # case guards the requested preference; it has not measured an improvement.
-schema_version: '1.0'
-name: proposals-get-individual-decisions
-description: "Asks: independent proposals each have explicit acceptance and rejection, and either answer completes that proposal."
-tags:
-- asks
-execution:
+description: proposals-get-individual-decisions
+metadata:
+  purpose: 'Asks: independent proposals each have explicit acceptance and rejection, and either answer
+    completes that proposal.'
+  tags:
+  - asks
+vars:
   prompt: |
     I asked you to search our tests deeply for assertions that preserve bad or
     suboptimal behavior. Better no test than a test that teaches agents to keep
@@ -32,18 +33,20 @@ execution:
 
     Write the Leaf review page. The page directory is not reachable from here,
     so reply with the complete `<main>` element's HTML rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-authoring-asks
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/authoring-asks\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-authoring-asks
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/authoring-asks\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Pass only if each of the three independent removal proposals has its own
     lf-ask and an operable choice that explicitly accepts or rejects that proposal
     (Remove / Keep, Accept / Reject, or equivalent). Each proposal begins

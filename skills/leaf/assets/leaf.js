@@ -23,7 +23,7 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
-import { renderingSettled } from "./runtime/rendering.js";
+import { nextFrame, renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
@@ -221,7 +221,7 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
-    app.margin.renderMargin();
+    app.renderAnnotations();
     paintKeys();
     repaint();
     anchorPaint.refreshHover();
@@ -490,11 +490,10 @@ declareStanding({
 });
 
 pageMapDialog = createPageMapDialog({
-  activeInMargin: app.margin.pageMapActive,
-  activateItem: app.margin.activateMapItem,
-  faceFor: app.margin.faceForMap,
-  mapControlPlaces: app.margin.mapControlPlaces,
-  targetFor: app.margin.targetFor,
+  inventory: app.annotations,
+  activeInAnnotations: app.margin.pageMapActive,
+  releaseAnnotations: app.margin.releaseForMap,
+  annotationFocus: app.margin.mapFocusTarget,
 });
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
@@ -670,6 +669,7 @@ threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
   threadHere: app.margin.threadHere,
+  placedAt: anchorPaint.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
@@ -792,6 +792,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  app.mountAnnotations();
   app.margin.mount();
   app.mountThread();
   app.mountRead();
@@ -916,6 +917,16 @@ async function presentPage() {
     throw error;
   }
   markPagePresented();
+  // Optional author context begins after the presented frame. It neither imports
+  // checks nor takes geometry on the path that gives the reader the page.
+  if (!offlineInteractive && !passiveSample)
+    nextFrame(() =>
+      setTimeout(() => {
+        void import("./runtime/user-view.js")
+          .then(({ observeUserView }) => observeUserView())
+          .catch(() => {});
+      }, 0),
+    );
   void whenArrived().then(landFragment);
   anchorControls.publishVisualActions();
   if (offlineInteractive) {

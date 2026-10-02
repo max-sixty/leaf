@@ -3,12 +3,13 @@
 # #6's figure to the panel in their head. Their comment on it: "why no diagrams here?"
 # Written one section at a time, base 4c29f3003 and the glance test in SKILL.md's
 # page contract both drew it (6 of 6 each); the failure came in a whole page.
-schema_version: '1.0'
-name: view-draws-a-case-it-shares
-description: "Drawing: a section whose point has a shape draws it, even when an earlier section drew a similar case elsewhere on the page."
-tags:
-- drawing
-execution:
+description: view-draws-a-case-it-shares
+metadata:
+  purpose: 'Drawing: a section whose point has a shape draws it, even when an earlier section drew a similar
+    case elsewhere on the page.'
+  tags:
+  - drawing
+vars:
   prompt: |
     You are writing a Leaf page that records the layout shifts left in Leaf, one
     section per item, each ending in a question for the user. Sections #6 and #10
@@ -31,18 +32,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Pass only if the section contains its own drawing (an inline `<svg>`, an
     `<img>`, or an `lf-diagram`) of the thread panel's short card at the top of
     the list, showing where the reply lands and what moves, or doesn't, under

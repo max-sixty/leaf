@@ -6,6 +6,7 @@ import re
 import pytest
 from browser_sources import browser_function
 from interact_support import (
+    append_carried_log_record,
     append_command,
     record_claim,
 )
@@ -2857,7 +2858,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2896,7 +2897,7 @@ def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_con
     )
     url = serve(REPLAYED_PAGE)
     for ident in ("approach", "col-doing"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3003,7 +3004,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     for what, drive, arrived in [
         (
             "a tenth comment arrives",
-            lambda: events_model.append_event(
+            lambda: append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -4706,7 +4707,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     expect(diagram).to_have_attribute("tabindex", "0")
     expect_comment_notes(page, "#flow", 0)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4743,7 +4744,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4757,7 +4758,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",

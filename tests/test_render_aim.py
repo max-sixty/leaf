@@ -1584,9 +1584,17 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     )
     over = bar.get_attribute("data-lf-placement") == "top-start"
 
-    # Moved toward the side it stands on, the paragraph leaves more room on the other.
+    # Keep the whole attachment visible. Moving it off screen changes the editor to
+    # its window posture rather than choosing another side of an invisible target.
     target.evaluate(
-        "(node, up) => { node.style.transform = `translateY(${up ? -300 : 300}px)`; }",
+        """async (node, up) => {
+          const {commentBoundary, COMMENT_GAP} =
+            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+          const boundary = commentBoundary(), box = node.getBoundingClientRect();
+          const top = up ? boundary.top + COMMENT_GAP
+            : boundary.bottom - box.height - COMMENT_GAP;
+          node.style.transform = `translateY(${top - box.top}px)`;
+        }""",
         over,
     )
     resized(page, 700, 601)

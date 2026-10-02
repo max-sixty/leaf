@@ -120,6 +120,7 @@ from render_harness import (
     root_overflow,
     round_trip,
     scroll_settled,
+    select,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -1532,22 +1533,23 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
             "source comment draft",
             '<h1 id="title">Review</h1>'
             '<lf-text-document id="source" source="document"></lf-text-document>',
+            layout="wide",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
     original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
+    resized(page, 900, 900)
     if quote_anchor:
-        page.locator("#source code").evaluate(
+        words = page.locator("#source code").evaluate(
             """code => {
               const range = document.createRange();
               range.selectNodeContents(code);
-              const selection = getSelection();
-              selection.removeAllRanges();
-              selection.addRange(range);
-              document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+              return range.getBoundingClientRect().toJSON();
             }"""
         )
+        y = words["top"] + words["height"] / 2
+        select(page, (words["left"] + 1, y), (words["right"] - 1, y))
     else:
         page.locator("#source [data-lf-datum]").click(modifiers=["Alt"])
     quote = page.locator("#lf-composer-quote")
@@ -1578,6 +1580,14 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
     expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
+    # Earlier data no longer supplies a passage fragment. The surviving datum
+    # supplies the same element attachment to the editor and a freshly opened card.
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
+    rendered(page)
+    before = bar.bounding_box()
+    datum = page.locator("#source [data-lf-datum]").bounding_box()
+    assert before["x"] > datum["x"] + 100
 
     with sending(page, "the draft about the replaced source"):
         draft.press("ControlOrMeta+Enter")
@@ -1602,6 +1612,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         )
         == "0px"
     )
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(

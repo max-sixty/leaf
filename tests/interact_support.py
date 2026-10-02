@@ -802,18 +802,28 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    A re-vendor decides twice: once in a dry run, with the page still served and
-    its log read as it stands, and again under the page transaction before it
-    writes. The dry run may pass the held writer; the decision that writes may not,
-    so the init waits for the append and refuses what it wrote."""
+    Re-vendoring waits for the admitted writer, then refuses the incoming
+    vocabulary when it cannot replay that event. Release the writer before
+    joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
+    init_waiting = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
+    original_page_locked = vendoring_model.page_locked
+
+    @contextmanager
+    def observed_page_locked(locked):
+        if locked == page_dir:
+            init_waiting.set()
+        with original_page_locked(locked) as held:
+            yield held
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
-            assert resume.wait(timeout=10), "re-vendor never observed the writer"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "re-vendor never observed the writer"
+            )
         return original_append_record(page, event)
 
     def init_result():
@@ -826,16 +836,28 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
+    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        writing = executor.submit(write)
-        assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
-        vendoring = executor.submit(init_result)
-        # A re-vendor that writes without the page transaction finishes here, with
-        # the writer still held.
-        passed_writer, _ = wait([vendoring], timeout=2)
-        resume.set()
-        written = writing.result(timeout=10)
-        refusal = vendoring.result(timeout=10)
+        try:
+            writing = executor.submit(write)
+            wait_for(
+                entering.is_set,
+                bool,
+                failure=f"{kind} never passed old-layer validation",
+            )
+            vendoring = executor.submit(init_result)
+            wait_for(
+                init_waiting.is_set,
+                bool,
+                failure="Re-vendoring did not attempt the page lock",
+            )
+            # A re-vendor that writes without serialization finishes here, with
+            # the writer still held.
+            passed_writer, _ = wait([vendoring], timeout=2)
+        finally:
+            resume.set()
+        written = writing.result(timeout=STATED_TIMEOUT)
+        refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
     assert refusal is not None

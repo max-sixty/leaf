@@ -407,6 +407,75 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     assert "from the 11px it was set at" in advice, advice
 
 
+def test_user_view_checks_read_current_geometry_without_changing_the_page(
+    browser, serve
+):
+    """A passive reading exposes layout and measured checks at the actual width.
+
+    The same drawing's labels shrink further on a narrower window; large labels are
+    clean at desktop and cross the stated threshold on mobile. Reading leaves the
+    DOM, focus, selection, and scroll position intact.
+    """
+    source = DRAWN_LABELS_PAGE.replace(
+        "<h1>Rollout</h1>",
+        '<h1>Rollout</h1><div id="arrangement" style="display:flex; gap:16px">'
+        "<p>Canary</p><p>Global</p></div>",
+    )
+    page = open_page(browser, serve(source, packages=()))
+
+    def read():
+        return page.evaluate(
+            """async () => {
+              const {readViewChecks} = await import('/checks/view.js');
+              const before = {
+                html: document.documentElement.outerHTML,
+                focus: document.activeElement,
+                selection: getSelection().toString(),
+                scroll: [document.scrollingElement.scrollLeft,
+                         document.scrollingElement.scrollTop],
+              };
+              const observer = new MutationObserver(() => {});
+              observer.observe(document, {subtree:true, childList:true,
+                                          attributes:true, characterData:true});
+              const reading = readViewChecks([]);
+              const mutations = observer.takeRecords().length;
+              observer.disconnect();
+              return {reading, unchanged:
+                mutations === 0 &&
+                before.html === document.documentElement.outerHTML &&
+                before.focus === document.activeElement &&
+                before.selection === getSelection().toString() &&
+                before.scroll[0] === document.scrollingElement.scrollLeft &&
+                before.scroll[1] === document.scrollingElement.scrollTop};
+            }"""
+        )
+
+    desktop = read()
+    page.set_viewport_size({"width": 600, "height": 900})
+    rendered(page)
+    narrow = read()
+
+    assert desktop["unchanged"] and narrow["unchanged"]
+    for result in (desktop, narrow):
+        reading = result["reading"]
+        (arrangement,) = reading["layout"]["arrangement"]
+        assert arrangement["at"] == "<div id=arrangement>"
+        assert arrangement["rows"] == "2"
+        assert page.locator(arrangement["path"]).get_attribute("id") == "arrangement"
+        assert reading["checks"]["horizontal_overflow_px"] == 0
+        assert reading["checks"]["overflowing_regions"] == []
+        assert reading["checks"]["shrunk_labels"]["threshold_px"] == 10
+    (drawing,) = desktop["reading"]["checks"]["shrunk_labels"]["drawings"]
+    assert drawing["at"] == "<svg> in <figure id=squeezed>"
+    assert drawing["labels"] == 3
+    small = narrow["reading"]["checks"]["shrunk_labels"]["drawings"]
+    assert {drawing["at"] for drawing in small} == {
+        "<svg> in <figure id=squeezed>",
+        "<svg> in <figure id=large>",
+    }
+    assert small[0]["drawn"] < drawing["drawn"]
+
+
 # A widget whose module draws a 120px box, where its authored markup holds nothing.
 RESERVING_LAYER = {
     "lf-test-drawn": {
@@ -816,7 +885,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
 
     def break_probe(page):
         page.route(
-            "**/_leaf/render-checks/index.js",
+            "**/checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -838,7 +907,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
 
     def make_readiness_async(page):
         page.route(
-            "**/_leaf/render-checks/index.js",
+            "**/checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -908,7 +977,7 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
                 body="await new Promise(() => {});",
             )
 
-        page.route("**/_leaf/render-checks/index.js", never_finishes)
+        page.route("**/checks/index.js", never_finishes)
 
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
@@ -926,11 +995,11 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
 
     def hold_probe(page):
         page.route(
-            "**/_leaf/render-checks/index.js",
+            "**/checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
-                body=facade.replace('from "./', 'from "/_leaf/render-checks/')
+                body=facade.replace('from "./', 'from "/checks/')
                 + "\nconst held = [];\n"
                 + "export const invalidPaints = () =>"
                 + " new Promise((settle) => held.push(settle));\n",
@@ -1427,7 +1496,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
         if number < 4:  # every page in the first complete attempt
             resize_notice_after_last_probe(page)
         else:  # every confirming page
-            page.route("**/_leaf/render-checks/index.js", lambda route: route.abort())
+            page.route("**/checks/index.js", lambda route: route.abort())
         pages.append(page)
 
     failures = render_gate_model.render_version(

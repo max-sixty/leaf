@@ -186,7 +186,7 @@ import {
 } from "./comment-placement.js";
 import { shownExtent, shownParts, shownRect, skipped } from "./geometry.js";
 import { clamp, union } from "./rect.js";
-import { passageBox } from "./resolved-target.js";
+import { passageGeometry } from "./resolved-target.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 
@@ -547,11 +547,7 @@ export function createMarginProjection({
   // that cannot land yet — its owner not connected, no room — is answered by a later
   // placement, or by the close that abandons it.
   const placedThreadPreview = () => {
-    if (!previewPositionResult) {
-      const pending = {};
-      pending.promise = new Promise((resolve) => (pending.resolve = resolve));
-      previewPositionResult = pending;
-    }
+    previewPositionResult ??= Promise.withResolvers();
     cancelRender(previewPositionFrame);
     previewPositionFrame = 0;
     placeThreadPreview();
@@ -739,12 +735,13 @@ export function createMarginProjection({
     const clear = point ? extent : (shown ?? whole);
     const thread = threadCardThread();
     const words =
-      !point && thread?.anchor?.quote ? passageBox(placedAt(thread.id)) : null;
+      !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
     return {
       element: point ?? target,
       clear,
       extent,
-      row: (words ?? clear).top,
+      row: (words?.attachment ?? clear).top,
+      column: words?.attachment?.left ?? null,
       margin: marginSpot(target, point),
     };
   }
@@ -803,13 +800,13 @@ export function createMarginProjection({
       row: place.row,
       extent: place.extent,
       boundary,
-      minimum: { width: cardMinimum() },
+      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
-    if (hold) previewHold = { ...hold, transcript: measureTranscript() };
-    if (fresh) previewHold = null;
     const transcript = measureTranscript();
+    if (hold) previewHold = { ...hold, transcript };
+    if (fresh) previewHold = null;
     const turned = previewHold && Math.abs(transcript - previewHold.transcript) > 0.5;
     // A turn changes the transcript on one pass, then the card's own size changes its
     // measurement on the next. Borrow the reply's line for that turn, keyed by the
@@ -839,9 +836,10 @@ export function createMarginProjection({
         const { reference, placement, middleware, heldIn } = previewSide.options(ui, {
           clear: place.clear,
           row: place.row,
+          column: place.column,
           margin: place.margin,
           boundary,
-          minimum: { width: cardMinimum() },
+          minimumWidth: cardMinimum(),
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             const room = Math.min(cardMeasure(), width);

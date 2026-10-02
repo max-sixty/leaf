@@ -17,13 +17,45 @@ waits for is marked with that Done. Your host
 contract may add its own current step to the banner. Chat stays in the host and never
 reaches the page.
 
-Two readings in `leaf page state <page>` describe the user's side between their
+Readings in `leaf page state <page>` describe the user's side between their
 moves. `viewed` says whether they are there: the last time a browser tab had the page
 visible, in epoch seconds, renewed about every half minute while it stays visible, and
 `null` when nobody has opened the page. Each thread's `unread` says which of your
 messages they have not read yet
 ([threads](threads.md#what-the-user-has-read)). A status
 has no such reading, so one they have not reacted to may not have been seen.
+
+## The user's view
+
+`user_views` in `leaf page state <page>` supplies context from the actual browser
+rather than a headless preview. Each document reports its layout viewport, visual
+viewport (pinch zoom and the software keyboard included), the window area left by
+Leaf's chrome, color scheme, pointer type, reduced-motion preference, scroll position,
+and visible reading-region ids. A visible region is a measured place on screen,
+not evidence that the user read it.
+
+Sessions remain separate: two visible tabs may show different widths or revisions.
+`visible` records the last visibility report; `freshness` becomes `stale` after
+45 seconds without a report. `matches_active_revision` says whether this document
+shows the current authored revision. Recent hidden and stale readings remain
+available for a day. An empty list means there is no observation, not that the page
+has no reader.
+
+Each session's `checks` has its own revision, log position, viewport, visual viewport,
+window area, scheme, and `checked_at`. Its `freshness` and `matches_view` distinguish
+current checks from a recent context carrying an older sample. Checks measure the
+rendered arrangement, including content below the screen: sideways overflow,
+scrolling workspace regions, and drawing labels below the attached size threshold.
+Arrangement rows and margin residents are context alongside those findings. These
+are observations and heuristics, not a required layout or a complete render gate;
+the author decides whether a finding warrants a revision. They do not establish
+that the user saw a finding.
+
+Observation starts after presentation, renews about every ten seconds while visible,
+and follows viewport and preference changes. It creates no user move, agent turn,
+or automatic edit. A public website page starts observing once the user's interaction
+has activated its private page. The readings are also available through the
+page's authenticated `GET /api/user-view`; captured render previews record none.
 
 ## When to write
 

@@ -13,6 +13,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     record_claim,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -24,9 +25,11 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import session_cleanup as cleanup_model
+from leaf import user_views as user_views_model
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.reading import page_reading, source_readings
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -5642,3 +5645,147 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):
+    """Optional view context cannot turn a failed module request into page debt."""
+    page = browser.new_page()
+    page.route("**/runtime/user-view.js", refuse)
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/runtime/user-view.js"),
+    ):
+        page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    wait_until_ready(page)
+    with sending(page, "the suggestion decision"):
+        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert not page.lf_errors
+
+
+def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
+    """The effective document scheme can override the user's OS preference."""
+    source = leaf_page(
+        "Forced scheme",
+        '<h1 id="heading">A dark document</h1>',
+        head="<style>:root { color-scheme: only dark; }</style>",
+    )
+    context = browser.new_context(color_scheme="light")
+    open_page(browser, serve(source), context=context)
+    observed = wait_for(
+        lambda: user_views_model.read_user_views(serve.page_dir, 1)["sessions"],
+        lambda records: bool(records) and records[0]["checks"] is not None,
+        failure="the forced document scheme never reached the agent view",
+    )[0]
+    assert observed["color_scheme"] == "dark"
+    assert observed["checks"]["color_scheme"] == "dark"
+
+
+def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):
+    """Agent context names each actual document and its checks, even when a tab
+    keeps an earlier revision. Observations never become decisions or freshness
+    changes, and hidden reports release their own view without hiding another."""
+    source = leaf_page(
+        "View observation",
+        '<h1 id="view-heading">Service capacity</h1>'
+        '<svg id="capacity-drawing" class="drawing" viewBox="0 0 1200 80">'
+        '<text x="20" y="40" font-size="12">Ten thousand requests</text></svg>',
+    )
+    url = serve(source)
+    directory = serve.page_dir
+    first = open_page(browser, url)
+
+    def views():
+        return user_views_model.read_user_views(
+            directory, files_model.latest_revision(directory)
+        )["sessions"]
+
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 1 and records[0]["checks"] is not None,
+        failure="the live document never reported its view and checks",
+    )
+    identity = seen[0]["session"]
+    assert seen[0]["visible"] and seen[0]["freshness"] == "fresh"
+    assert seen[0]["checks"]["matches_view"]
+    assert seen[0]["checks"]["reading"]["checks"]["shrunk_labels"]["drawings"]
+    file_reading = page_reading(directory)
+    source_reading = source_readings(directory)
+    asked = _traffic(first).asked
+
+    first.set_viewport_size({"width": 600, "height": 720})
+    first.emulate_media(color_scheme="dark", reduced_motion="reduce")
+    changed = wait_for(
+        views,
+        lambda records: (
+            records[0]["viewport"]["width"] == 600
+            and records[0]["color_scheme"] == "dark"
+            and records[0]["checks"]["matches_view"]
+        ),
+        failure="resizing and changing scheme did not reach the agent view",
+    )[0]
+    assert changed["session"] == identity
+    assert changed["reduced_motion"]
+    assert changed["checks"]["viewport"] == {"width": 600, "height": 720}
+    assert page_reading(directory) == file_reading
+    assert source_readings(directory) == source_reading
+    assert _traffic(first).asked == asked
+
+    second = open_page(browser, live_url(url))
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 2 and all(r["checks"] for r in records),
+        failure="the second document replaced the first view",
+    )
+    assert len({r["session"] for r in seen}) == 2
+    assert {r["viewport"]["width"] for r in seen} == {
+        600,
+        second.viewport_size["width"],
+    }
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(directory)])
+    assert state.exit_code == 0, state.output
+    assert len(json.loads(state.output)["user_views"]["sessions"]) == 2
+    assert "user_views" not in second.evaluate(
+        "async () => await (await fetch(new URL('api/state', document.querySelector('link[rel=canonical]').href))).json()"
+    )
+
+    # Headless Chrome cannot naturally hide one tab, so deliver the platform
+    # lifecycle input used by the existing news visibility regression above.
+    first.evaluate(
+        """() => {
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, value: 'hidden',
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }"""
+    )
+    hidden = wait_for(
+        views,
+        lambda records: any(
+            r["session"] == identity and not r["visible"] for r in records
+        ),
+        failure="hiding one document did not release its view",
+    )
+    assert sum(r["visible"] for r in hidden) == 1
+
+    (directory / "index.html").write_text(
+        source.replace("Service capacity", "Updated capacity")
+    )
+    told(second)
+    seen = wait_for(
+        views,
+        lambda records: any(
+            r["revision"] == 2 and r["checks"] and r["checks"]["matches_view"]
+            for r in records
+        ),
+        failure="the new revision never reached its visible document's reading",
+    )
+    old = next(r for r in seen if r["session"] == identity)
+    current = next(r for r in seen if r["session"] != identity)
+    assert old["revision"] == 1 and not old["matches_active_revision"]
+    assert current["revision"] == 2 and current["matches_active_revision"]

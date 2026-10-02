@@ -383,6 +383,18 @@ export function silentWords(declarations) {
   return found;
 }
 
+// The drawing idiom sets labels at 10–12px in viewBox units; its 9px step glyph is
+// one bold numeral. Both the live reading and the gate use this heuristic, and a
+// reading carries the threshold so its consumer can distinguish it from a failure.
+const SHRUNK_LABEL_THRESHOLD_PX = 10;
+
+export function shrunkLabelReading() {
+  return {
+    threshold_px: SHRUNK_LABEL_THRESHOLD_PX,
+    drawings: shrunkLabels(SHRUNK_LABEL_THRESHOLD_PX),
+  };
+}
+
 // Labels a drawing shrank past reading. An inline <svg> states its size in its own units
 // and the theme fits it to its box (`svg.drawing` takes the figure's width), so what the
 // author wrote as an 11px label is drawn at 11px times whatever the box made of the

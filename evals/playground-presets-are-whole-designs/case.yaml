@@ -8,6 +8,8 @@
 # refused call; it now matches the path inside the skill, so it counts only a read
 # that succeeded. Named from inside the skill, as the prompt now does, the file was
 # read in 6 of 6 runs of the change, which passed 4.
+# Also guards realistic candidate copy for the comment-growth guidance repair:
+# comparison labels belong around the diff, while the diff retains product text.
 schema_version: '1.0'
 name: playground-presets-are-whole-designs
 description: "Playground: controls span every part the user may vary, and each preset is one composed design that sets every control, not a tuple of per-part picks."
@@ -45,6 +47,14 @@ graders:
   type: regex
   pattern: <lf-playground-preset\b
   flags: i
+- name: realistic-product-copy
+  type: llm
+  criteria: |
+    Pass if the simulated diff uses plausible product content and copy,
+    without text describing its demo/mock/sketch status or the design
+    exercise. Comparison labels, tuning controls, and explanations outside the
+    simulated diff are fine. Example code and ordinary code comments are fine.
+    Fail if authoring commentary replaces or augments the simulated product UI.
 - name: judgment
   type: llm
   criteria: |

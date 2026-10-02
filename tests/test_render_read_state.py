@@ -1013,7 +1013,10 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
 
-def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve):
+@pytest.mark.parametrize("opening", ["Enter", "Space", "pointer", "programmatic"])
+def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
+    browser, serve, opening
+):
     """A resolved diff thread stands folded to its summary. An agent's reply that
     reopened it unfolded it under the reader, and every diff line after it moved down by
     the whole thread. It stays folded, its summary says what is waiting, and the
@@ -1051,9 +1054,37 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve
     expect(thread).not_to_have_attribute("open", "")
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
 
+    # A native open-attribute checkpoint runs before paint. The first opened body
+    # must already contain the released news, rather than the older resolved layout.
+    thread.evaluate("""node => {
+      window.openedThread = null;
+      new MutationObserver(() => {
+        if (!node.open || window.openedThread) return;
+        window.openedThread = {
+          messages: [...node.querySelectorAll('.lf-msg')].map(message => message.dataset.event),
+          reply: Boolean(node.querySelector(':scope > .lf-thread-reply leaf-text')),
+        };
+      }).observe(node, {attributeFilter:['open']});
+    }""")
     page.keyboard.press("Tab")
     expect(summary).to_be_focused()
-    page.keyboard.press("Enter")
+    if opening == "pointer":
+        summary.click()
+    elif opening == "programmatic":
+        thread.evaluate("""node => {
+          const open = document.createElement('button');
+          open.textContent = 'Open disclosure';
+          open.style.cssText = 'position:fixed;left:0;top:80px;z-index:9999';
+          open.onclick = () => {node.open = true};
+          document.body.append(open);
+        }""")
+        page.get_by_role("button", name="Open disclosure", exact=True).click()
+    else:
+        page.keyboard.press(opening)
+    assert page.evaluate("openedThread") == {
+        "messages": [root, reply["id"]],
+        "reply": True,
+    }
     expect(thread).to_have_attribute("open", "")
     expect(summary).to_be_hidden()
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()

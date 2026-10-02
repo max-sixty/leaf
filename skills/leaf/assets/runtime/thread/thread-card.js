@@ -258,11 +258,13 @@ export class ThreadView {
       this.node.dataset.lfOffer = "";
     }
     this.#metadataActions.className = "lf-thread-meta-actions";
-    // A folded outlet's summary is its control row: opening it shows what it holds.
+    // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
+    // after paint. Release held news here so the first opened body is current,
+    // whether a summary or a programmatic native open revealed it.
     if (surface === "outlet")
-      this.node.addEventListener("toggle", () => {
+      new MutationObserver(() => {
         if (this.node.open) this.#model?.news?.open();
-      });
+      }).observe(this.node, { attributeFilter: ["open"] });
     this.node.addEventListener("animationend", () => {
       this.node.classList.toggle("grow", false);
     });

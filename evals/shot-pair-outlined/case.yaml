@@ -3,15 +3,13 @@
 # could write `outlines` (0 of 3) and every candidate run did (3 of 3); the judgment
 # passed in both arms. So it measures that the instructions names the attribute, which a
 # page now needs for its outlines.
-schema_version: '1.0'
-name: shot-pair-outlined
-description: "Source files and media: a pair whose change is local asks for `outlines`, so the page marks where it is."
-tags:
-- evidence
-context:
-  add_dirs:
-  - captures
-execution:
+description: shot-pair-outlined
+metadata:
+  purpose: 'Source files and media: a pair whose change is local asks for `outlines`, so the page marks
+    where it is.'
+  tags:
+  - evidence
+vars:
   prompt: |
     You are writing a Leaf page for the user about a restyle of the orders dashboard's
     header, on branch dashboard-header. Your notes:
@@ -30,22 +28,27 @@ execution:
     Write the HTML for the page's section on the header, with its before/after pair.
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-authoring-evidence
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/authoring-evidence\.md
-- name: pair-outlined
-  type: regex
-  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
-  flags: i
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-authoring-evidence
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/authoring-evidence\.md
+- type: javascript
+  metric: pair-outlined
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
+    flags: i
+    negate: false
+- type: llm-rubric
+  metric: judgment
+  value: |
     Between the captures only the header changed: a white bar with a small title
     became a dark bar with a larger title and a green "Healthy" chip. Read the reply.
     Pass if the HTML shows the pair as one lf-shot and its prose or alt describes that

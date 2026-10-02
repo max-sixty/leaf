@@ -158,7 +158,7 @@ For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
 for agents that use Leaf or extend its package interface.
 
-### Where instructions lives
+### Where instructions live
 
 The sections above **Repository map** are the maintainer's direction; change them
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
@@ -296,7 +296,7 @@ Before finishing a feature:
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
-  other references point at that section by name. Shipped instructions sets goals
+  other references point at that section by name. Shipped instructions set goals
   for the user's experience and names the surface they read on; it leaves
   format and phrasing to the agent. Score the change with `evals/` before and
   after (`/developing-leaf`, "Score an instruction change").

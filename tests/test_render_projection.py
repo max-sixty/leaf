@@ -25,6 +25,7 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -347,7 +348,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description stays unchanged.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -389,7 +390,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description waits for Markdown.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },

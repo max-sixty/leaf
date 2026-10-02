@@ -17,7 +17,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.served_state import page as served_page
+from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
@@ -1764,7 +1764,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
     sent_at = datetime.fromisoformat(logged_action["ts"])
     advanced = (sent_at + timedelta(minutes=3)).isoformat()
-    for clock_owner in (served_page, events_model, service_model):
+    for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", lambda: advanced)
     session_model.cmd_status(page_dir, "idle", "")
     told(page)

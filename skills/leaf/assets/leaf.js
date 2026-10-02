@@ -349,8 +349,6 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  landedAt: (...args) => asks.landedAt(...args),
-  setLanded: (...args) => asks.setLanded(...args),
   forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
@@ -496,7 +494,6 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
@@ -569,6 +566,7 @@ responseSurface = createResponseSurface({
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
+  carryComposerToReply: selectionComposer.carryComposerToReply,
   resetResponseOptions: selectionComposer.resetResponseOptions,
   responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
   setResponseOptions: selectionComposer.setResponseOptions,

@@ -21,10 +21,11 @@ from pathlib import Path
 import click
 
 from .data_contracts import DataError, payload_error, working_data_bindings
-from .files import json_bytes, replace_files
+from .files import replace_files
 from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
+from .session_cleanup import json_bytes
 
 
 class StaleDataError(DataError):

@@ -60,12 +60,10 @@ from .codex import (
     append_batch,
     archive_record,
     check_app_server_endpoint,
-    delivery_lock_path,
     delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
     finish_codex_batch,
-    hook_turn,
     offer_delivery,
     retire_gone_task_records,
     retry_delay,
@@ -75,8 +73,9 @@ from .codex import (
     stream_reply_target,
     write_record,
 )
+from .codex_state import delivery_lock_path, hook_turn
 from .detached import Handshake, start_detached
-from .event_log import flocked, read_cursor
+from .event_log import read_cursor
 from .host import CodexHarness, session_harness
 from .leases import (
     adapter_is_live,
@@ -86,12 +85,12 @@ from .leases import (
     take_lease,
 )
 from .machine import state_home
-from .schema import EVENTS_FILE
 from .service import (
     owned_pages,
     starting_claim,
 )
 from .session import Watch, read_watch_pass
+from .session_cleanup import EVENTS_FILE, flocked
 from .thread import (
     delivery_reply_reserved,
 )

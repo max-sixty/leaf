@@ -10,6 +10,17 @@
   const startup = {};
   let activationCount = 0;
   let visibleReplyObservers = null;
+  // Resource Timing's document buffer is bounded. Observe every completed response
+  // instead, and drain records already queued when a startup milestone is captured.
+  const resourceEntries = [];
+  const resourceObserver = new window.PerformanceObserver((list) => {
+    resourceEntries.push(...list.getEntries());
+  });
+  resourceObserver.observe({ type: "resource", buffered: true });
+  function observedResources() {
+    resourceEntries.push(...resourceObserver.takeRecords());
+    return resourceEntries;
+  }
 
   function serverScript() {
     const script = document.querySelector("script[data-lf-server]");
@@ -18,7 +29,7 @@
   }
 
   function resourceSnapshot() {
-    const resources = performance.getEntriesByType("resource");
+    const resources = observedResources();
     const code = resources.filter((entry) => {
       const url = new URL(entry.name);
       return (
@@ -145,7 +156,7 @@
       };
     },
     resourceNames() {
-      return performance.getEntriesByType("resource").map((entry) => entry.name);
+      return observedResources().map((entry) => entry.name);
     },
     async scopedMedia() {
       const script = serverScript();

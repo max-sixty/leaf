@@ -16,7 +16,7 @@ subpackage's initializer is only a marker, never a second API.
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page instructions;
-- `event_log`: append-only JSONL storage, locking, and attempt identity;
+- `event_log`: append-only JSONL storage and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through;
 - `page_view`: the page as that door reads it;
 - `event_endpoint`: the browser's HTTP transport onto the door;
@@ -38,12 +38,15 @@ subpackage's initializer is only a marker, never a second API.
 - `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
+- `codex_state`: Codex hook turn observation and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the host's model for when a user opens a
   thread, before the agent's reply could name it;
-- `state_paths`, `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
-  the state-home path and cold session cleanup, process readings,
+- `session_cleanup`: standalone stdlib cold session cleanup, shared state paths,
+  page identity, cross-process locks, and durable byte and JSON replacement;
+- `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
+  process readings,
   process-backed leases taken through `take_lease` and `release_lease`, page
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;

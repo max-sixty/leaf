@@ -16,7 +16,52 @@ from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
 from leaf_dev.thread_snapshots import CASES, SnapshotRun
+from PIL import Image
+from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 from render_harness import consume_browser_errors, open_page
+
+
+def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
+    image_snapshot, pytestconfig, tmp_path, monkeypatch
+):
+    """Verbose failures remain local evidence, with explicit missing/update semantics."""
+
+    def viewer(*args, **kwargs):
+        pytest.fail("snapshot comparison launched an external image viewer")
+
+    monkeypatch.setattr(Image.Image, "show", viewer)
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", False)
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_fail_if_missing", True)
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_save_diff", True)
+    monkeypatch.setattr(pytestconfig.option, "verbose", 2)
+    expected = tmp_path / "expected.png"
+    white = Image.new("RGB", (4, 4), "white")
+    black = Image.new("RGB", (4, 4), "black")
+    with pytest.raises(ImageNotFoundError, match="not found"):
+        image_snapshot(white, expected)
+    assert not expected.exists()
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", True)
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_fail_if_missing", False)
+    image_snapshot(white, expected)
+    accepted = expected.read_bytes()
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", False)
+    image_snapshot(white, expected)
+    with pytest.raises(ImageMismatchError) as error:
+        image_snapshot(black, expected, threshold=0.01)
+    message = str(error.value)
+    for evidence in (
+        expected.with_suffix(".new.png"),
+        expected.with_suffix(".diff.png"),
+    ):
+        assert evidence.exists()
+        assert str(evidence) in message
+    assert "display diff" not in message
+    assert "thread-snapshots" in message
+    assert expected.read_bytes() == accepted
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", True)
+    image_snapshot(black, expected)
+    with Image.open(expected) as saved:
+        assert saved.getpixel((0, 0)) == (0, 0, 0)
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)

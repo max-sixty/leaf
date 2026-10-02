@@ -65,6 +65,9 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
 )
+from leaf_dev.thread_snapshot_plugin import (
+    image_snapshot,  # noqa: F401 — fixture for both render arms
+)
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect

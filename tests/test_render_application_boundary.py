@@ -416,9 +416,16 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#direction")).to_have_count(1)
+    message_top = page.locator("#direction").evaluate(
+        "node => node.getBoundingClientRect().top"
+    )
     with sending(page, "choose North in the authored reply"):
         page.locator("#north .lf-pick").click()
     round_trip(page)
+    assert (
+        page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
+        == message_top
+    )
     assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
       .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
@@ -941,6 +948,17 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
         "title", "Answer every Ask before approving this work"
     )
 
+    # Admission can change the undo hint's wording. The physical line, including
+    # both hint starts, stays put even where a different command replaces one.
+    starts = """() => [...document.querySelectorAll(
+      ".lf-shortcut-more, .lf-shortcut:not([hidden])"
+    )].flatMap(node => {
+      const box = node.getBoundingClientRect();
+      return [box.x, box.y];
+    })"""
+    before = page.evaluate(starts)
+    assert len(before) == 6
+
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -949,6 +967,9 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+
+    rendered(page)
+    assert page.evaluate(starts) == before
 
 
 PAGE_DECLARATION = {

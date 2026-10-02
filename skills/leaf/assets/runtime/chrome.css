@@ -989,7 +989,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The summary is the thread's title and focus stop in both disclosure states. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: var(--card); border-radius: 0; }
-  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  .lf-thread-summary { display: grid; flex: none; grid-template-columns: minmax(0, 1fr) auto;
     align-items: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
@@ -1014,9 +1014,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-thread-topic[data-lf-pending-title] { color: var(--muted); background: none;
       animation: none; }
   }
+  /* The summary owns two lines in every state. News may change its status,
+     unread count or draft without moving the conversation below it. */
   .lf-thread-meta { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center;
-    gap: 8px; min-width: 0; }
-  .lf-thread-meta.lf-empty { display: none; }
+    gap: 8px; min-width: 0; min-height: 1lh; font: 400 11px/14px var(--sans); }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread { color: var(--turn-ink); font-size: 10px;
     font-weight: 700; white-space: nowrap; }
@@ -1660,8 +1661,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      overlay and leaves the bar's reservation where it was. Hints are the eye's copy of
      facts spoken elsewhere and stay aria-hidden; More is a real control. Useful
      transient state — a semantic walk's live ordinal, or a brief command or arrival
-     notice in its place — stands at the bar's other end, and a standing one pads the
-     line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
+     notice in its place — stands at the bar's other end. A standing one trims the
+     short hints without moving their tracks; a sequence pads its end
+     (--lf-status-room) so its rows stop short of it. syncLayout keeps the bar
      out of the thread panel, which stands over the page's right edge. A covering
      thread panel makes it inert background; a covering drawer stands under it, as a
      drawer always does. The line wraps, and the runtime works out from the hints' widths
@@ -1674,14 +1676,30 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
     box-sizing: border-box; min-height: var(--lf-bottom-bar-h);
-    padding: 9px calc(18px + var(--lf-safe-right) + var(--lf-status-room, 0px))
+    padding: 9px calc(18px + var(--lf-safe-right))
       calc((var(--lf-bottom-bar-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
       calc(18px + var(--lf-safe-left));
-    display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
-    align-content: flex-end;
+    display: grid; grid-template-columns: fit-content(50%) minmax(0, 1fr);
+    column-gap: 12px; align-items: end;
     color: var(--muted); font-size: var(--t-6);
     background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }
+  /* More keeps its natural leading column, including when unavailable. The short
+     hints use stable equal tracks; the first may extend through the second
+     when trim leaves it empty. Expanded hints wrap in their independent region,
+     growing upward while More stays on the bottom row. Its caption may wrap
+     within half the band, leaving room for Escape at narrow widths and larger type. */
+  .lf-shortcut-hints { position: relative; min-width: 0; overflow: clip;
+    display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+    padding-inline-end: var(--lf-status-room, 0px); }
+  .lf-shortcut-bar[data-lf-compact="true"] > .lf-shortcut-hints {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-inline-end: 0; }
+  .lf-shortcut-hints > .lf-shortcut { width: max-content; }
+  .lf-shortcut-bar[data-lf-compact="true"] .lf-shortcut[data-lf-slot="0"] {
+    grid-column: 1 / -1; grid-row: 1; }
+  .lf-shortcut-bar[data-lf-compact="true"] .lf-shortcut[data-lf-slot="1"] {
+    grid-column: 2; grid-row: 1; }
   /* A drawer stands under the band in both postures, its list ending above the band's
      height. Where the Leaves drawer, or the Asks drawer on a narrow window, covers the page,
      the band stays over it and its scrim, the guide to the keys the drawer answers, rather
@@ -1765,8 +1783,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--accent); color: var(--card); }
   .lf-shortcut-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
     pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
-    border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
-  .lf-shortcut-more[hidden] { display: none; }
+    border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer;
+    white-space: normal; text-align: start; }
+  .lf-shortcut-more[hidden] { visibility: hidden; pointer-events: none; }
   .lf-shortcut-more:hover { color: var(--ink-2); }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands

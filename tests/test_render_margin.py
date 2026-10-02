@@ -2165,6 +2165,93 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
     expect(host.get_by_role("button", name="New margin action")).to_be_visible()
 
 
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("target_kind", ["box", "shadow", "contents"])
+def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
+    browser, serve, target_kind
+):
+    """A row leaves with its anchored box; a move within one task keeps it."""
+    paragraph = '<p style="margin:0">The final target.</p>'
+    target = (
+        f'<div id="target" style="display:contents">{paragraph}</div>'
+        if target_kind == "contents"
+        else paragraph.replace("<p ", '<p id="target" ')
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Target lifetime",
+                "<h1>Target lifetime</h1>"
+                '<div id="holder" style="height:120px">'
+                f"{target}</div>",
+            )
+        ),
+    )
+    page.evaluate(
+        """async kind => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const holder = document.querySelector('#holder');
+          window.lifetimeTarget = document.querySelector('#target');
+          if (kind === 'shadow') holder.attachShadow({mode: 'open'}).append(lifetimeTarget);
+          window.lifetimeAnchor = kind === 'contents'
+            ? lifetimeTarget.firstElementChild : lifetimeTarget;
+          window.lifetimeParent = lifetimeAnchor.parentNode;
+          window.lifetimeContribution = registerMarginContribution({
+            key: 'target-lifetime', target: lifetimeTarget,
+            read: () => ({entries: [marginEntry({
+              key: 'action', icon: 'dot', label: 'Target action'
+            })]}), activate: () => {}
+          });
+        }""",
+        target_kind,
+    )
+    margins_laid_out(page)
+    action = page.get_by_role("button", name="Target action")
+    expect(action).to_be_visible()
+    stayed_visible = page.evaluate(
+        """async () => {
+          window.lifetimeRow = lifetimeContribution.control('action', 'margin')
+            .closest('.lf-margin-cluster');
+          lifetimeAnchor.remove();
+          lifetimeParent.append(lifetimeAnchor);
+          await Promise.resolve();
+          return lifetimeRow.checkVisibility();
+        }"""
+    )
+    assert stayed_visible
+    margins_laid_out(page)
+    expect(action).to_be_visible()
+    still_visible = page.evaluate(
+        """async () => {
+          lifetimeAnchor.remove();
+          await Promise.resolve();
+          return lifetimeRow.checkVisibility();
+        }"""
+    )
+    assert not still_visible
+    rendered(page)
+    expect(action).to_be_hidden()
+    page.evaluate("""() => {
+      if (lifetimeTarget.style.display === 'contents')
+        lifetimeAnchor = lifetimeAnchor.cloneNode(true);
+      lifetimeParent.append(lifetimeAnchor);
+    }""")
+    margins_laid_out(page)
+    expect(action).to_be_visible()
+    ancestor_visible = page.evaluate(
+        """async () => {
+          document.querySelector('#holder').remove();
+          await Promise.resolve();
+          return lifetimeRow.checkVisibility();
+        }"""
+    )
+    assert not ancestor_visible
+    rendered(page)
+    expect(action).to_be_hidden()
+
+
 def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
     browser, serve
 ):

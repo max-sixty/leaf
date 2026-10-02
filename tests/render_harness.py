@@ -42,7 +42,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
-from known_faults import known, watches_shifts
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -1076,6 +1075,17 @@ _BROWSER_PROBLEM_LISTS = None
 _TEST = None
 
 
+def watches_shifts(test):
+    """Ordinary tests watch shifts; surveyed nightly journeys opt in explicitly.
+
+    This selection does not lift the watcher's first-presentation exemption.
+    """
+    return (
+        test.get_closest_marker("nightly") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
+
+
 @contextmanager
 def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
@@ -1083,10 +1093,8 @@ def clean_browser(test=None):
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
     by `WatchedBrowser`, render helpers, and tests that navigate a page
-    themselves. The fixture hands over its `test` node, for which `known_faults` says
-    whether to watch for layout shifts (`shift_watch.js`) and which shift or lost words
-    (`words_watch.js`) are its known ones: defects waiting on their fix, which
-    `watched` drops as it hears them.
+    themselves. The fixture hands over its `test` node to select shift coverage
+    (`watches_shifts`); every problem a watch reports reaches this collector.
     """
     global _BROWSER_PROBLEM_LISTS, _TEST
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1144,11 +1152,9 @@ def watched(page):
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
 
-    # A test's known shift is dropped where it is heard, so it never reaches what the
-    # test consumes.
     def console_message(message):
         problem = render_gate_model.console_problem(message)
-        if problem and not (_TEST and known(_TEST, problem)):
+        if problem:
             errors.append(problem)
 
     page.on("console", console_message)

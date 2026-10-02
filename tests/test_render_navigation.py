@@ -5911,13 +5911,13 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert room["band"] > 0 and room["reserved"] == room["band"], room
         geometry = line.evaluate(
             """node => {
-              const visible = [...node.children]
+              const visible = [...node.querySelectorAll(".lf-shortcut, .lf-shortcut-more")]
                 .filter(el => el.checkVisibility({visibilityProperty: true}));
               const tops = [];
               const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
               for (const el of visible)
-                if (tops.every(top => Math.abs(top - el.offsetTop) > tolerance))
-                  tops.push(el.offsetTop);
+                if (tops.every(top => Math.abs(top - el.getBoundingClientRect().top) > tolerance))
+                  tops.push(el.getBoundingClientRect().top);
               const box = node.getBoundingClientRect();
               return {
                 rows: tops.length,
@@ -9137,13 +9137,13 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     resized(page, 420, 800)
     compact = line.evaluate(
         """node => {
-          const visible = [...node.children]
+          const visible = [...node.querySelectorAll(".lf-shortcut, .lf-shortcut-more")]
             .filter(el => el.checkVisibility({visibilityProperty: true}));
           const tops = [];
           const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
           for (const el of visible)
-            if (tops.every(top => Math.abs(top - el.offsetTop) > tolerance))
-              tops.push(el.offsetTop);
+            if (tops.every(top => Math.abs(top - el.getBoundingClientRect().top) > tolerance))
+              tops.push(el.getBoundingClientRect().top);
           return {
             rows: tops.length,
             clientWidth: node.clientWidth,
@@ -9821,7 +9821,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     overlap is tested before opening the reference so a searchable popup cannot make the
     symptom disappear merely by covering both surfaces."""
     page = open_page(browser, serve(NOTED_PAGE, comments=2))
-    page.set_viewport_size({"width": 1200, "height": 800})
+    page.set_viewport_size({"width": 1440, "height": 800})
     page.locator(".lf-threads-toggle").click()
 
     line = page.locator(".lf-shortcut-bar")
@@ -9856,8 +9856,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(0)).not_to_contain_text("send")
     page.locator(".lf-general leaf-text").focus()
     expect(visible_hints).to_have_count(2)
-    expect(visible_hints.nth(0)).to_contain_text("send")
-    expect(visible_hints.nth(1)).to_contain_text("back to list")
+    expect(visible_hints.nth(0)).to_contain_text("back to list")
+    expect(visible_hints.nth(1)).to_contain_text("send")
 
     # The line shows only what works from where the user is. This text box owns `?`, so
     # More stands down with its key rather than standing bare; it returns, key and all,
@@ -9884,20 +9884,20 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     assert visible_hints.count() > 2
     wide_hint_count = visible_hints.count()
     expect(line).to_contain_text("less")
-    for width in (1200, 420):
+    for width in (1440, 420):
         page.set_viewport_size({"width": width, "height": 800})
         rendered(page)
         assert more_node.evaluate("button => button === window.__lfShortcutMore")
         geometry = line.evaluate(
             """node => {
-              const visible = [...node.children]
+              const visible = [...node.querySelectorAll(".lf-shortcut, .lf-shortcut-more")]
                 .filter(el => el.checkVisibility({visibilityProperty: true}));
               const boxes = visible.map(el => el.getBoundingClientRect());
               const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
               const rows = [];
               for (const el of visible)
-                if (rows.every(top => Math.abs(top - el.offsetTop) > tolerance))
-                  rows.push(el.offsetTop);
+                if (rows.every(top => Math.abs(top - el.getBoundingClientRect().top) > tolerance))
+                  rows.push(el.getBoundingClientRect().top);
               return {
                 rows: rows.length,
                 clientWidth: node.clientWidth,
@@ -9914,7 +9914,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert geometry["scrollWidth"] <= geometry["clientWidth"], geometry
         assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
         assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
-    page.set_viewport_size({"width": 1200, "height": 800})
+    page.set_viewport_size({"width": 1440, "height": 800})
     rendered(page)
     expect(visible_hints).to_have_count(wide_hint_count)
     assert more_node.evaluate("button => button === window.__lfShortcutMore")
@@ -9953,6 +9953,46 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         "aria-expanded", "false"
     )
     expect(visible_hints).to_have_count(2)
+
+
+@pytest.mark.watch_shifts
+def test_expanded_shortcuts_fit_their_region_with_larger_text(browser, serve):
+    source = leaf_page(
+        "Larger shortcut text",
+        '<h1 id="title">Keep every shortcut readable</h1><p id="words">Words.</p>',
+        head="<style>:root { --t-6: 18px; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    page.keyboard.press("?")
+    line = page.locator(".lf-shortcut-bar")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
+    counts = []
+    for width in (1200, 390, 320, 1200):
+        resized(page, width, 800)
+        rendered(page)
+        expect(
+            page.get_by_role("button", name="? command reference", exact=True)
+        ).to_be_visible()
+        hints = line.locator(".lf-shortcut:not([hidden])")
+        expect(hints.filter(has_text="less")).to_have_count(1)
+        counts.append(hints.count())
+        reading = line.evaluate(
+            """bar => {
+              const region = bar.querySelector('.lf-shortcut-hints').getBoundingClientRect();
+              const visible = [...bar.querySelectorAll('.lf-shortcut:not([hidden])')];
+              return {region: {left: region.left, right: region.right},
+                hints: visible.map(node => {
+                  const box = node.getBoundingClientRect();
+                  return {text: node.textContent, left: box.left, right: box.right};
+                })};
+            }"""
+        )
+        assert reading["hints"], reading
+        for hint in reading["hints"]:
+            assert hint["left"] >= reading["region"]["left"] - 0.5, reading
+            assert hint["right"] <= reading["region"]["right"] + 0.5, reading
+    assert counts[0] > counts[1] >= 1, counts
+    assert counts[-1] == counts[0], counts
 
 
 def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):
@@ -10130,8 +10170,8 @@ UNDER_THE_LINE = """(id) => {
   const more = document.querySelector('.lf-shortcut-more').getBoundingClientRect();
   const el = document.getElementById(id);
   const box = el.getBoundingClientRect();
-  const left = Math.max(line.left, box.left);
-  const right = Math.min(more.left, box.right);
+  const left = Math.max(more.right, box.left);
+  const right = Math.min(line.right, box.right);
   const x = (left + right) / 2;
   const y = line.top + line.height / 2;
   const at = document.elementFromPoint(x, y);

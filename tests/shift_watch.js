@@ -1,7 +1,7 @@
 // Watches every page for layout shifts the "Stability" rule forbids
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it after write_watch.js
 // on every ordinary test's page and on nightly tests marked watch_shifts
-// (known_faults.py, `watches_shifts`).
+// (render_harness.py, `watches_shifts`).
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,
@@ -17,8 +17,7 @@
 // - Reading content and controls do not move without input. News, a page loading, and
 //   whatever a timer or a server's answer changes may repaint a box or grow it into
 //   free room. Forbidden motion is reported for every source Chrome names, once per
-//   element, named by write_watch.js's `lfPlace`. The tests whose pages still do are
-//   `known_faults.py`.
+//   element, named by write_watch.js's `lfPlace`.
 //   Message metadata may rearrange within its stationary header. Its renderer owns
 //   `.lf-msg-meta`, which holds passive age and receipt labels. This exception requires
 //   a stable header, unchanged neighbours and both painted positions inside the header;
@@ -350,8 +349,7 @@
       .map((source) => name(source.node));
     return others.length ? `; the same frame moved ${others.join(", ")}` : "";
   };
-  // One known defect is every page's, so it is known here by when it happens rather than
-  // in `known_faults.py` by test: widgets upgrade after the authored document has painted,
+  // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
   // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the

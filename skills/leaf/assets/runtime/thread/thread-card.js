@@ -133,7 +133,6 @@ function navigationSummary(navigation, model) {
   const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
-  const hasMeta = draft || status || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme sweeps a highlight through them while the naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
@@ -147,7 +146,7 @@ function navigationSummary(navigation, model) {
     <span class="lf-thread-topic" data-lf-pending-title=${pendingTitle ? "" : nothing}
       >${pendingTitle ? "Generating title" : title}</span
     >
-    <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
+    <span class="lf-thread-meta">
       ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status

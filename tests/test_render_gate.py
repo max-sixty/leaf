@@ -2679,8 +2679,8 @@ def test_page_fixture_renders(browser, serve, source):
     a shipped theme or example frames declares its frame, and a row at a frame's edge
     holds it, so no box shows more inset than it draws.
 
-    And nothing the runtime adds joins the flow among the elements the page wrote;
-    anchored controls occupy their own box without moving the page's content."""
+    And nothing the runtime adds stands among the elements the page wrote, where it
+    would change which child the page's own rules find first, last, or next."""
     url = serve(source)
     failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(failures)

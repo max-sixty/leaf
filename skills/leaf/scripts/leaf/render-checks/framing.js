@@ -232,9 +232,7 @@ export function splitEdges() {
 // page's again. The developer gallery's section asks for the runtime's replay controls
 // (`data-interaction-gallery`), so its row is furniture the page requested. An inline box's children are
 // its run of words, where the question is not which block comes first or next, so a code
-// block's highlighting or the mark ending a link's words is not this. An anchored
-// overlay is out of flow too: its sibling is where its keyboard stop belongs, but
-// its box is positioned from an anchor instead of participating in the page's layout.
+// block's highlighting or the mark ending a link's words is not this.
 export function apparatusAmongAuthored() {
   const generated = ".lf-ui, [data-lf-gen]";
   const declared = (el) =>
@@ -254,12 +252,6 @@ export function apparatusAmongAuthored() {
     const parent = el.parentElement;
     if (parent.closest(generated) || inChrome(parent) || modules(parent)) continue;
     if (getComputedStyle(parent).display === "inline") continue;
-    const style = getComputedStyle(el);
-    if (
-      ["absolute", "fixed"].includes(style.position) &&
-      style.positionAnchor &&
-      style.positionAnchor !== "auto"
-    ) continue;
     found.add(`${at(el)} stands among the children of ${at(parent)}`);
   }
   return [...found];

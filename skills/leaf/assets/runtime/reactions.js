@@ -275,7 +275,7 @@ export function createReactionController({
     if (standing) {
       await commands.withdrawReaction(standing);
       hideComposer();
-      showFab(null, null, { returnFocus: "none" });
+      showFab(null, { returnFocus: "none" });
       setReact(false);
       restoreTargetFocus();
       return;
@@ -289,7 +289,7 @@ export function createReactionController({
     if (designModeActive()) event.about = "design";
     const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
-    showFab(null, null, { returnFocus: "none" });
+    showFab(null, { returnFocus: "none" });
     setReact(false);
     restoreTargetFocus();
     getSelection()?.removeAllRanges();
@@ -434,7 +434,7 @@ export function createReactionController({
             // The target's margin row may stand where the target itself is
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
-            showFab(target.target.anchor, null, {
+            showFab(target.target.anchor, {
               origin: reactFrom,
               place: false,
             });

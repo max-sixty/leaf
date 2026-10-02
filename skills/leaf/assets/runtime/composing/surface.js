@@ -96,7 +96,8 @@ import {
   skipped,
 } from "../geometry.js";
 import {
-  passageBox,
+  passageGeometry,
+  rangeGeometry,
   targetElement,
   targetParts,
   targetPlace,
@@ -375,7 +376,7 @@ export function createResponseSurface({
     const reference = {
       contextElement: fabPointIn(target) ?? target,
       getBoundingClientRect: () =>
-        anchorBox(fabAnchor) ?? target.getBoundingClientRect(),
+        anchorGeometry(fabAnchor)?.box ?? target.getBoundingClientRect(),
     };
     fabPosition.watch(target, reference, autoUpdate);
   }
@@ -405,12 +406,12 @@ export function createResponseSurface({
   // reflow instead of remembering where the pointer happened to land; what a pointing
   // gesture keeps is the row it landed on, an element whose box is read afresh here, and
   // the bar stands level with it (pointed-place.js).
-  function anchorBox(anchor) {
+  function anchorGeometry(anchor) {
     if (anchor?.quote) {
       const selection = pageSelection();
       const current = selection ? selectionAnchor(selection) : null;
       if (current && sameAnchor(anchor, current))
-        return pageRange(selection).getBoundingClientRect();
+        return rangeGeometry(pageRange(selection));
       // Entering the compact field deliberately collapses the browser selection after
       // its durable passage has been captured. Resolve that passage again so layout can
       // keep the field beside it; an ordinary selection collapse still returns null and
@@ -423,7 +424,7 @@ export function createResponseSurface({
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
     if (!anchor || !standsIn(anchor, found)) return null;
-    const words = anchor.quote ? passageBox(found) : null;
+    const words = anchor.quote ? passageGeometry(found) : null;
     if (words) return words;
     // In the page's plane, as the quoted words above are: the page's own boxes cut it (a
     // pane or a board scrolled past it), and the window does not, so an item the user
@@ -435,19 +436,24 @@ export function createResponseSurface({
         .map((part) => pagePlaneRect(shownBox(part), part, clips))
         .filter(Boolean),
     );
-    // A pointed row is small enough to stand by whole, so it supplies the attachment.
+    // A pointed row is small enough to stand by whole. An element has no passage
+    // fragment, so it supplies only the box the shared placement policy reads.
     const point = box && fabPointIn(targetElement(found));
-    return point
+    const elementBox = point
       ? pointBand(union(targetParts(found).map((part) => shownBox(part))), point)
       : box;
+    return elementBox ? { box: elementBox, attachment: null } : null;
   }
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   // The passage remains the exact anchor, but its resolved place is not spare space: a
   // short selection cannot lend the words around it to the response field. Keep the bar
   // beside that whole place, or above/below it when the rail is too narrow.
-  function placeFab(target = anchorBox(fabAnchor)) {
+  function placeFab() {
     if (!fabAnchor) return false;
+    const geometry = anchorGeometry(fabAnchor);
+    const target = geometry?.box;
+    const attachment = geometry?.attachment;
     const owner = fabTargetAt();
     // An open editor stays in front of its writer. Its subject still owns the draft
     // when a resize, disclosure or scroll removes the subject's visible box; only its
@@ -546,8 +552,8 @@ export function createResponseSurface({
         watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
         const { reference, placement, middleware, heldIn } = fabPlacement.options(ui, {
           clear: keepClear,
-          row: target?.top,
-          column: fabAnchor.quote ? target?.left : null,
+          row: (attachment ?? target)?.top,
+          column: attachment?.left ?? null,
           margin: !unanchored && owner && marginSpot(owner, fabPointIn(owner)),
           boundary,
           minimumWidth: cardMinimum(),
@@ -610,7 +616,7 @@ export function createResponseSurface({
       })
       .catch((error) => {
         if (!stillCurrent()) return;
-        showFab(null, null, { returnFocus: "page" });
+        showFab(null, { returnFocus: "page" });
         throw error;
       });
     return true;
@@ -628,7 +634,6 @@ export function createResponseSurface({
       : null;
   function showFab(
     anchor,
-    target = null,
     { returnFocus = "target", origin = null, place = true, point = undefined } = {},
   ) {
     const previous = fabAnchor;
@@ -702,7 +707,7 @@ export function createResponseSurface({
       // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
       // is for opening: the bar already standing on this anchor, placed again, is
       // withheld rather than put away (standFab).
-      if (place && fabFloating && !placeFab(target ?? anchorBox(fabAnchor))) {
+      if (place && fabFloating && !placeFab()) {
         if (sameAnchor(previous, fabAnchor) && anchorStands(fabAnchor)) withholdFab();
         else {
           fabAnchor = null;
@@ -760,7 +765,7 @@ export function createResponseSurface({
   // placement that finds room stands it again.
   function standFab() {
     if (!anchorStands(fabAnchor)) {
-      showFab(null, null, { returnFocus: "page" });
+      showFab(null, { returnFocus: "page" });
       return false;
     }
     if (placeFab()) return true;
@@ -836,7 +841,7 @@ export function createResponseSurface({
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
     openComment(anchor, "", { carry: true, point });
-    if (origin) showFab(anchor, null, { origin });
+    if (origin) showFab(anchor, { origin });
     setTimeout(() => {
       targetActivation = false;
       // A browser command or touch handle can replace the visual target while its
@@ -1141,7 +1146,7 @@ export function createResponseSurface({
       !reactionContextContains(target)
     ) {
       if (composerOpen) hideComposer();
-      showFab(null, null, { returnFocus: "page" });
+      showFab(null, { returnFocus: "page" });
       // The armed react press goes with the bar it was armed on.
       setReact(false);
     }

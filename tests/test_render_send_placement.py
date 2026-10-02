@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pytest
 from interact_support import wait_for, yaml_document
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
@@ -484,6 +484,92 @@ def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     rendered(page)
     after = attached(".lf-margin-preview")
     assert after["left"] == pytest.approx(before["left"], abs=1)
+
+
+def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_and_send(
+    browser, serve
+):
+    """A later, less indented line cannot move the passage's inline attachment.
+    Native selection and the captured draft/card use the same first fragment, while
+    their clearance continues to belong to the whole code block."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Multiline attachment",
+                '<h1>Review the handler</h1><pre id="source"><code class="language-javascript">'
+                'const answer = {\n  decision: "Keep",\n  does: "keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p>",
+                layout="wide",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    phrase = """words => {
+      const code = document.querySelector('#source code');
+      const start = code.textContent.indexOf(words);
+      const end = start + words.length;
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      let offset = 0;
+      for (let node; (node = walker.nextNode());) {
+        const next = offset + node.length;
+        if (offset <= start && start < next) range.setStart(node, start - offset);
+        if (offset < end && end <= next) range.setEnd(node, end - offset);
+        offset = next;
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return {
+        first: fragments[0].toJSON(), last: fragments.at(-1).toJSON(),
+        box: range.getBoundingClientRect().toJSON(),
+      };
+    }"""
+    passage = page.evaluate(phrase, 'Keep",\n  does: "keep the active card')
+    first, last = passage["first"], passage["last"]
+    select(
+        page,
+        (first["left"] + 1, first["top"] + first["height"] / 2),
+        (last["right"] - 1, last["top"] + last["height"] / 2),
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    words = page.evaluate("() => getSelection().toString()")
+
+    def attached(selector):
+        rendered(page)
+        passage = page.evaluate(phrase, words)
+        # The fixture must distinguish the first words from the whole range's left edge.
+        assert passage["first"]["left"] - passage["box"]["left"] > 50
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["first"]["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => getSelection().isCollapsed")
+    attached(".lf-fab-bar")
+    resized(page, 1200, 900)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    attached(".lf-fab-bar")
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    before = attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    attached(".lf-margin-preview")
 
 
 def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(

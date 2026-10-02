@@ -60,7 +60,6 @@ from render_cases_interaction import (
     RING,
     ROSTER_PAGE,
     SEATED_ASK_ENTRY,
-    SEATED_ASK_MODULE,
     SEATED_QUESTION_PAGE,
     STANDING_ACTIONS,
     STANDING_PAGE,
@@ -74,6 +73,7 @@ from render_cases_interaction import (
     drifting_widget,
     executable_revision,
     live_url,
+    seated_ask_module,
     stale_report,
 )
 from render_cases_layout import (
@@ -3207,11 +3207,7 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
     entry["x-example"] = (
         '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
     )
-    module = SEATED_ASK_MODULE.replace(
-        'const seat = threadBox(this, "Say something about this");',
-        'const seat = this.hasAttribute("talk") '
-        '? threadBox(this, "Say something about this") : null;',
-    )
+    module = seated_ask_module(seat_attribute="talk")
     first = leaf_page(
         "Conditional thread seat",
         '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',

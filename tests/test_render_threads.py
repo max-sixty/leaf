@@ -50,8 +50,10 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
+    admit_before_presenting_comment,
     any_owner_entry,
     example_media,
+    hold_pending_thread_presentation,
     holding,
     leaf_page,
     open_page,
@@ -7448,6 +7450,27 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "composer-widget":
+        url = serve(
+            leaf_page(
+                "diff",
+                '<h1 id="title">Review</h1><lf-diff id="patch" '
+                'source="review-patch"><pre></pre></lf-diff>',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page = open_page(browser, url)
+        line = page.locator(
+            'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+        )
+        line.hover()
+        page.get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        box = page.locator(".lf-fab-input")
+        send = page.locator(".lf-composer .lf-compose-submit")
+        after = page.locator("lf-diff .lf-page-thread")
+        reply = after.locator(".lf-thread-reply leaf-text")
     else:
         url = serve(PANEL_PAGE)
         root = panel_comment(
@@ -7460,7 +7483,10 @@ def pressed_send_surface(browser, serve, surface):
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-thread-reply leaf-text")
-        elif surface == "composer":
+        elif surface in {"composer", "composer-panel"}:
+            if surface == "composer-panel":
+                page.locator(".lf-threads-toggle").click()
+                panel_settled(page)
             page.locator("#how-cap").click(click_count=3)
             page.locator(".lf-fab-input").click()
             holder = page.locator(".lf-composer")
@@ -7482,12 +7508,19 @@ def pressed_send_surface(browser, serve, surface):
         after = {
             "card": page.locator("#how-store"),
             "composer": page.locator("#how-cap"),
+            "composer-panel": page.locator(
+                ".lf-thread", has_text="Sent from the box."
+            ).locator(":scope > .lf-thread-summary"),
             "panel": holder.locator(".lf-thread-summary"),
             "general": box,
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
             if surface in {"card", "composer"}
+            else page.locator(".lf-thread", has_text="Sent from the box.").locator(
+                ":scope > .lf-thread-reply leaf-text"
+            )
+            if surface == "composer-panel"
             else box
         )
     write(box, "Sent from the box.")
@@ -7499,11 +7532,20 @@ def pressed_send_surface(browser, serve, surface):
     ("surface", "how"),
     [
         (surface, how)
-        for surface in ["card", "panel", "general", "pause", "handoff", "composer"]
+        for surface in [
+            "card",
+            "panel",
+            "general",
+            "pause",
+            "handoff",
+            "composer",
+            "composer-widget",
+            "composer-panel",
+        ]
         for how in ["pointer", "keyboard"]
         # The anchored composer's Tab walks its field and response options
         # (`response.tab`), so its Send takes no keyboard press; Enter is that route.
-        if (surface, how) != ("composer", "keyboard")
+        if not (surface.startswith("composer") and how == "keyboard")
     ],
 )
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
@@ -7514,6 +7556,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     thread, or on the element the margin card is about with the card still up, and `c`
     writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
+    if surface.startswith("composer"):
+        hold_pending_thread_presentation(page)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -7530,6 +7574,26 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # The press never takes the focus, so the box never hears it leave.
             expect(box).to_be_focused()
             page.mouse.up()
+    if surface.startswith("composer"):
+        sent = admit_before_presenting_comment(
+            page, serve.page_dir, "Sent from the box."
+        )
+        thread = page.locator(
+            f'.lf-thread[data-id="{sent["id"]}"]'
+            if surface == "composer-panel"
+            else f'.lf-page-thread[data-thread="{sent["id"]}"]'
+        )
+        expect(thread).to_be_visible()
+        if surface == "composer-widget":
+            # Exact message navigation belongs to Threads, not the local reply box.
+            assert page.evaluate(
+                """async id => {
+                  const {surfaceFocusTarget} = await window.__lfRuntimeImport(
+                    '/runtime/thread/surfaces.js');
+                  return surfaceFocusTarget(id, {focus: 'message'}) === null;
+                }""",
+                sent["id"],
+            )
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()

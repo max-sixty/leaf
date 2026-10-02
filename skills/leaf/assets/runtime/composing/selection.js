@@ -137,6 +137,7 @@ export function createSelectionComposer({
   reactionTokens,
   designModeActive,
   marginOpenInlineThread,
+  threadFocusTarget,
   threadTransitionOrigin,
   anchorStands,
   anchorTargetAt,
@@ -158,15 +159,6 @@ export function createSelectionComposer({
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, options) => {
-    const local = focusSurface(id, { focus: "thread" });
-    return (
-      local?.closest(".lf-page-thread") ??
-      marginOpenInlineThread(id, options)?.thread ??
-      null
-    );
-  };
-
   // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
   // that says so. Decided at the open, where the anchor is, and carried with the draft: a
@@ -693,20 +685,32 @@ export function createSelectionComposer({
         await refreshThread();
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
-        const shouldReveal =
+        const mayReveal = () =>
           composerEpoch === epoch &&
           loadDraft(ctx) === null &&
           currentIntent() &&
           !pageSelection();
+        const shouldReveal = mayReveal();
         // Land where any send leaves the user (`landSent`): on the thread, or on the
         // element the margin card's thread is about, never in its reply box. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
-        const inlineThread =
+        const localThread =
           shouldReveal && !panelIsOpen()
-            ? openInlineThread(sent.id, { transition, onPositioned: landSent })
+            ? focusSurface(sent.id, { focus: "thread" })?.closest(".lf-page-thread")
             : null;
-        if (!inlineThread && (shouldReveal || panelIsOpen()))
+        const inlineThread =
+          shouldReveal && !panelIsOpen() && !localThread
+            ? marginOpenInlineThread(sent.id, { transition })
+            : null;
+        if (inlineThread) {
+          if ((await inlineThread.presented) && mayReveal()) {
+            // A repaint may replace the card while its placement settles. Its id,
+            // rather than the node returned before the wait, names the landing.
+            const destination = threadFocusTarget(sent.id, { focus: "thread" });
+            if (destination) currentIntent.handoff(() => landSent(destination));
+          }
+        } else if (!localThread && (shouldReveal || panelIsOpen()))
           await showThread(sent.id, { focus: shouldReveal ? "thread" : false });
       },
     });

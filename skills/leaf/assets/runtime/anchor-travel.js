@@ -44,7 +44,6 @@ import { scrollersOf } from "./reading-regions.js";
 import { pushEntry, replaceEntry } from "./history.js";
 import { moveScrollerBy, pageScroller, reachable } from "./scrolling.js";
 import { renderedParent } from "./shadow.js";
-import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
 import { standingPoint } from "./pointed-place.js";
@@ -246,8 +245,7 @@ export function createAnchorTravel({
       if (missing) announce(missing);
       return false;
     }
-    const disclosure = closestAcross(destination, "details");
-    disclosure?.querySelector(":scope > summary")?.focus({ preventScroll: true });
+    focusDestination(destination);
     if (moving) scrollRevealedElement(destination);
     if (success) announce(success);
     return true;

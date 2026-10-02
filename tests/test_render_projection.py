@@ -583,10 +583,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(context).to_be_focused()
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -598,10 +595,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:40 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(added).to_be_focused()
     # Each line already stood in the window once the diff revealed it, so neither
     # trip departed: no history entry, and the address kept no fragment.
     assert page.evaluate("history.length") == entries

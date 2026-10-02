@@ -183,7 +183,7 @@ index d78a6b88c..e9b10f560 100644
      landEdge,
      commentsEdge,
 diff --git a/skills/leaf/assets/runtime/chrome.css b/skills/leaf/assets/runtime/chrome.css
-index cdca15fd0..414aacdd1 100644
+index cdca15fd0..0a23cbae6 100644
 --- a/skills/leaf/assets/runtime/chrome.css
 +++ b/skills/leaf/assets/runtime/chrome.css
 @@ -974,9 +974,9 @@ @scope (.lf-chrome) {
@@ -209,7 +209,7 @@ index cdca15fd0..414aacdd1 100644
       its containing block, so it never pins over the title. Its own padding is the room
       the field's ring needs, and its surface is the card's (`reply-landing.js` reads a
       pinned row as shown, `thread-list.js` follows a reply to its top). The card fills
-@@ -1064,9 +1064,11 @@ @scope (.lf-chrome) {
+@@ -1064,9 +1064,13 @@ @scope (.lf-chrome) {
       in, so it lands whole. A column does not collapse margins, so the boxes that set
       one below keep only the space above them. */
    .lf-thread-compact > .lf-thread-reply { margin: auto 0 0; padding: 12px var(--lf-thread-inset);
@@ -217,12 +217,14 @@ index cdca15fd0..414aacdd1 100644
 +    position: sticky; bottom: var(--focus-ring-room); }
    .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
      flex-direction: column; box-sizing: border-box;
-+    /* The border and flow room together match the sticky row's stable inset. */
-+    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border));
++    /* Native scrollHeight and clientHeight round separately to whole CSS pixels.
++       Their difference can over-scroll by less than one. End flow one pixel nearer
++       the border so the row remains on its sticky floor through that boundary. */
++    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px);
      min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
    .lf-thread-compact[open]:has(> .lf-thread-reply)::details-content { display: flex;
      flex: 1; flex-direction: column; }
-@@ -1514,7 +1516,8 @@ @scope (.lf-chrome) {
+@@ -1514,7 +1518,8 @@ @scope (.lf-chrome) {
      overscroll-behavior: contain;
      scroll-padding-block: var(--focus-ring-room); }
    /* The field stands at the card's inset; words stand one inset inside it. */
@@ -232,6 +234,66 @@ index cdca15fd0..414aacdd1 100644
    .lf-margin-thread .lf-page-thread::after { content: none; }
    @media (forced-colors: active) {
      .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
+diff --git a/skills/leaf/assets/runtime/composing/surface.js b/skills/leaf/assets/runtime/composing/surface.js
+index dde48947e..8c737ead9 100644
+--- a/skills/leaf/assets/runtime/composing/surface.js
++++ b/skills/leaf/assets/runtime/composing/surface.js
+@@ -828,7 +828,7 @@ export function createResponseSurface({
+     { anchor, element = null, point = null },
+     { origin = null } = {},
+   ) {
+-    clearTimeout(selectionUpdate);
++    cancelRender(selectionUpdate);
+     selectionUpdate = null;
+     bringForward(element);
+     targetActivation = true;
+@@ -849,7 +849,7 @@ export function createResponseSurface({
+   // the collapse re-read it as no selection dismisses the field the user just entered.
+   function focusFabComment() {
+     if (!fabAnchor) return;
+-    clearTimeout(selectionUpdate);
++    cancelRender(selectionUpdate);
+     selectionUpdate = null;
+     const handoff = beginFabFocus();
+     if (!composerOpen) {
+@@ -897,7 +897,7 @@ export function createResponseSurface({
+     const anchor = touchSelectionAnchor;
+     if (!anchor) return;
+     dismissBannerControls();
+-    clearTimeout(selectionUpdate);
++    cancelRender(selectionUpdate);
+     selectionUpdate = null;
+     getSelection()?.removeAllRanges();
+     offerTouchSelection(null);
+@@ -949,6 +949,8 @@ export function createResponseSurface({
+   // button, because a right button's release precedes its context menu, and growing the
+   // selection there rewrites what Copy was aimed at.
+   //
++  // Selection opening is counted work in the next rendering pass: the native
++  // release finishes first, while the page cannot claim to be settled ahead of its field.
+   // A queued step belongs to the gesture that queued it, and the next press may begin
+   // before it runs. Then the selection it would act on is not the one it was queued
+   // for: it is the drag under way, and `snapSelection` rewrites that drag mid-gesture.
+@@ -970,8 +972,8 @@ export function createResponseSurface({
+   let pressesBegun = 0;
+   const deferSelectionUpdate = (update) => {
+     const queuedBehind = pressesBegun;
+-    clearTimeout(selectionUpdate);
+-    selectionUpdate = setTimeout(() => {
++    cancelRender(selectionUpdate);
++    selectionUpdate = nextRender(() => {
+       selectionUpdate = null;
+       if (pressesBegun !== queuedBehind) return;
+       update();
+@@ -1037,7 +1039,7 @@ export function createResponseSurface({
+   // imports this module back.
+   function wireFabInput() {
+     fabInput.addEventListener("focus", () => {
+-      clearTimeout(selectionUpdate);
++      cancelRender(selectionUpdate);
+       selectionUpdate = null;
+       fabInputTakingFocus = true;
+     });
 diff --git a/skills/leaf/assets/runtime/floating.js b/skills/leaf/assets/runtime/floating.js
 index d14944137..ce560b16b 100644
 --- a/skills/leaf/assets/runtime/floating.js

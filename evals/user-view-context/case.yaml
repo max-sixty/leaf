@@ -1,12 +1,12 @@
 # Added for the 2026-10-02 actual-view context capability. This case asks about
 # the shipped reading, without supplying its fields or a preferred layout.
-schema_version: '1.0'
-name: user-view-context
-description: "Handoff: explains the available actual browser context while leaving composition to its author."
-tags:
-- handoff
-- view-context
-execution:
+description: user-view-context
+metadata:
+  purpose: 'Handoff: explains the available actual browser context while leaving composition to its author.'
+  tags:
+  - handoff
+  - view-context
+vars:
   prompt: |
     You authored a Leaf report, already handed over and open in the user's browser.
     The user asks: "Rather than trying at every width, could we observe what width
@@ -17,18 +17,20 @@ execution:
 
     Use the leaf skill and read the instructions that own this workflow.
     Only Skill and Read run here; write the requested answer in your reply.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-conversation-loop
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/conversation-loop.md
-- name: actual-view-context
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-conversation-loop
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/conversation-loop\.md
+- type: llm-rubric
+  metric: actual-view-context
+  value: |
     The answer identifies user_views in leaf page state as the reading of actual
     browser documents, with viewport sizes. It preserves distinct visible tabs or
     windows, and explains checking freshness and revision identity before treating

@@ -12,8 +12,8 @@ from leaf_dev import ROOT
 from leaf_dev.instructions_eval import (
     prepare,
     read_case,
-    summarize,
 )
+from leaf_dev.promptfoo import summarize
 
 
 @pytest.mark.parametrize(
@@ -158,14 +158,27 @@ def test_summary_distinguishes_host_arm_and_execution_errors():
     result = {
         "results": {
             "results": [
-                {"provider": {"label": "cc/base/example/1"}, "success": True},
                 {
-                    "provider": {"label": "cc/base/example/2"},
+                    "testCase": {
+                        "metadata": {"host": "cc", "arm": "base", "case": "example"}
+                    },
+                    "success": True,
+                },
+                {
+                    "testCase": {
+                        "metadata": {"host": "cc", "arm": "base", "case": "example"}
+                    },
                     "success": False,
                     "failureReason": 1,
                 },
                 {
-                    "provider": {"label": "codex/candidate/example/1"},
+                    "testCase": {
+                        "metadata": {
+                            "host": "codex",
+                            "arm": "candidate",
+                            "case": "example",
+                        }
+                    },
                     "success": False,
                     "failureReason": 2,
                 },

@@ -31,7 +31,7 @@ export function createThreadPanelController({
     const listed = panel.contains(node)
       ? closestAcross(node, ".lf-thread[data-id]")
       : null;
-    return listed ? (placedAt(listed.dataset.id)?.element ?? null) : null;
+    return listed ? (placedAt(listed.dataset.id)?.place ?? null) : null;
   });
   const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,

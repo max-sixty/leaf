@@ -126,7 +126,7 @@ export function createAnnotationInventory({
   const targets = new Map();
   const itemSources = new WeakMap();
   const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
-  // The row a pointed entry stands by (groupFor), as anchor paint last placed it, while
+  // The row a pointed entry stands by (groupFor), as anchor-placement last placed it, while
   // it still stands inside its target. Where the entry stands (`entryPlace`) is that
   // row, else the target: every reading of where an entry is on the page, as against
   // what it is about, asks this.
@@ -242,7 +242,7 @@ export function createAnnotationInventory({
       const kept = replyHasWords(threadKey(thread)) || heldOut(thread.id);
       if ((thread.resolved && !kept) || !thread.anchor || claimed(thread.id)) continue;
       const id = thread.id;
-      const target = placedAt(id)?.element;
+      const target = placedAt(id)?.place;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
       const onUser = attention?.kind === "needs_user";
@@ -425,7 +425,7 @@ export function createAnnotationInventory({
           continue;
         const target =
           update.target.kind === "thread"
-            ? placedAt(update.target.id)?.element
+            ? placedAt(update.target.id)?.place
             : elementById(update.target.id);
         const age = ago(update.ts);
         const account = [update.agent, update.text || humanized(update.action)]

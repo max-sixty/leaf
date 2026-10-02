@@ -1,40 +1,21 @@
-"""Compare how a Claude Code agent handles a Leaf comment, base vs HEAD.
+"""Live Claude Code feedback trajectories, graded through Promptfoo.
 
-    uv run leaf-dev delivery-eval [BASE_REF]
-
-Each of ROUNDS rounds launches one headless Claude Code session per arm and case at
-once, with the plugin at BASE_REF (the merge base with `main` by default) or at HEAD,
-so commit what you want measured. Each session is asked to serve a copy of
-`examples/triage-board.html` and handle its comments; the command posts comments over
-the page's API at the moments a case names:
-
-- `idle`: after a turn ends with the page handed over, twice, so the second arrives
-  only if the session went on watching;
-- `mid-turn`: as soon as the setup turn has the page's URL, so the comment reaches a
-  turn still in progress.
-
-For each comment it reports, in seconds from the post, when the delivery reached the
-agent (`woken`), the page log's `pickup`, the agent's work claim, its first reply, its
-last reply in that turn (`done`) and the turn's end; what carried the comment in
-(`route`: a wake or a hook); and what the agent ran between the
-delivery and its claim, which should be nothing.
-
-There are no statistics: two rounds, one page, fixed comments, the default model, and
-timings that include model latency. Read the table, not the means. Each session costs
-about a dollar. Streams, page logs and `results.json` land in `.tmp/delivery-eval/`.
+Idle posts two successive comments; mid-turn posts during the setup turn. Each
+trajectory uses an isolated home, page and state directory, and retains streams
+and the admitted event log. Every expected comment must be picked up, receive an
+accepted thread claim and a reply in its handling turn, and complete that turn.
+Latency and work before the claim remain diagnostics: a Bash call can contain
+several operations, so its trace alone cannot prove their internal order.
 """
 
 import json
 import re
 import shutil
-import tempfile
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
 from pathlib import Path
 
-import click
 from leaf.event_log import read_events
 
 from leaf_dev import ROOT
@@ -42,8 +23,10 @@ from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
-    build_pair,
+    accepted_thread_claims,
+    blocks,
     commands,
+    completed,
     hook_delivered,
     now,
     read_trace,
@@ -53,8 +36,6 @@ from leaf_dev.harness import (
 )
 from leaf_dev.review_scenario import REQUEST, prepare
 
-OUT = ROOT / ".tmp" / "delivery-eval"
-ROUNDS = 2
 TURN_LIMIT = 600
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
@@ -92,11 +73,6 @@ def post_comment(url: str, n: int) -> None:
     )
 
 
-def claims(ran: str) -> bool:
-    """Whether one command writes a work claim."""
-    return bool(re.search(r"\bstatus\b[^|;&]*\bworking\b|delivery claim", ran))
-
-
 def stop_blocked(record: dict) -> bool:
     """Whether one stream record is the Stop hook holding a turn open: any output
     it gives does, whether through a block or Claude Code's non-error context."""
@@ -109,7 +85,6 @@ def stop_blocked(record: dict) -> bool:
 
 def run_session(arm: Path, case: str, run: Path) -> None:
     """One Claude Code session: serve, wait, receive the case's comments, handle them."""
-    shutil.rmtree(run, ignore_errors=True)
     run.mkdir(parents=True)
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
@@ -117,6 +92,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     prepare(arm, state, page)
     leaf = partial(run_leaf, arm, state)
     url, waits, due, posted, received = None, set(), list(CASES[case]), 0, 0
+    closing = False
     try:
         with (
             LiveChild(
@@ -163,8 +139,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                 if due[:1] == ["idle"] and url:
                     # A turn is over and the session idles on its page.
                     post()
-                elif not due and received >= posted:
+                elif not due and received >= posted and not closing:
                     # Every comment is picked up; a trailing wake may follow.
+                    closing = True
                     threading.Timer(20, child.close).start()
         (run / "events.jsonl").write_text(
             leaf("page", "events", str(page), check=True).stdout
@@ -180,6 +157,8 @@ def score(run: Path) -> list[dict]:
     stream = read_trace(run / "stream.jsonl")
     waits = {wait for r in stream for wait in waits_started(r)}
     timed_out = (run / "timed-out").exists()
+    turns = [record for record in stream if record["type"] == "result"]
+    session_completed = bool(turns) and all(completed([turn]) for turn in turns)
     readings = []
     for marker in (r for r in stream if r["type"] == "eval_comment"):
         comment = next(e for e in events if e.get("attempt") == attempt(marker["n"]))
@@ -202,16 +181,24 @@ def score(run: Path) -> list[dict]:
         # From the post to the turn's end: what carried the comment in, what the
         # agent ran before claiming its work, and the claim.
         delivery, route, before_claim, claimed, ended = None, None, [], None, None
+        turn_completed = False
+        accepted = accepted_thread_claims(stream, comment["id"])
         for record in stream[stream.index(marker) + 1 :]:
             if record["type"] == "result" and delivery:
                 ended = moment(record)
+                turn_completed = completed([record])
                 break
-            ran = commands(record)
             if delivery and not claimed:
-                if any(claims(c) for c in ran):
-                    claimed = moment(record)
-                else:
-                    before_claim += ran
+                for block in blocks([record]):
+                    if (
+                        block.get("type") == "tool_result"
+                        and block["tool_use_id"] in accepted
+                    ):
+                        claimed = moment(record)
+                    elif (
+                        block.get("type") == "tool_use" and block["id"] not in accepted
+                    ):
+                        before_claim += [block["input"].get("command") or block["name"]]
             if (
                 record.get("subtype") == "task_notification"
                 and record["tool_use_id"] in waits
@@ -234,6 +221,8 @@ def score(run: Path) -> list[dict]:
             {
                 "comment": marker["n"],
                 "timed_out": timed_out,
+                "turn_completed": turn_completed,
+                "session_completed": session_completed,
                 "route": route,
                 "woken_s": since(delivery and moment(delivery), start),
                 # The page log stamps whole seconds.
@@ -247,6 +236,11 @@ def score(run: Path) -> list[dict]:
                 ),
                 "turn_s": since(ended, start),
                 "before_claim": [short(c) for c in before_claim],
+                "claim_commands": [
+                    b["input"]["command"]
+                    for b in blocks(stream)
+                    if b.get("type") == "tool_use" and b["id"] in accepted
+                ],
             }
         )
     return readings or [{"comment": None, "timed_out": timed_out}]
@@ -261,59 +255,48 @@ def short(ran: str) -> str:
     return re.sub(r"(?<![\w$])/[^\s;&|]*/", "", ran)
 
 
-def report(results: dict) -> None:
-    """Print one block per comment."""
-    for name, readings in results.items():
-        for r in readings:
-            flag = "TIMED OUT " if r["timed_out"] else ""
-            if r["comment"] is None:
-                click.echo(f"{name:18}    {flag or 'posted nothing'}")
-                continue
-            timings = "  ".join(
-                f"{step} " + ("-" if r[f"{step}_s"] is None else f"{r[f'{step}_s']}s")
-                for step in ("woken", "pickup", "claim", "reply", "done", "turn")
-            )
-            click.echo(
-                f"{name:18} #{r['comment']} {flag}via {r['route'] or 'no delivery'}  "
-                + timings
-            )
-            click.echo(
-                f"{'':22}before claim "
-                f"{[c[:40] for c in r['before_claim']] or 'nothing'}"
-            )
+def expected_checks(case: str) -> list[str]:
+    return [
+        "completed",
+        *[
+            f"{check}-{n}"
+            for n in range(1, len(CASES[case]) + 1)
+            for check in ("picked-up", "claimed", "replied", "turn-ended")
+        ],
+    ]
 
 
-@click.command()
-@click.argument("base_ref", required=False)
-def delivery_eval(base_ref: str | None) -> None:
-    """Compare how an agent answers comments.
-
-    Compares how a Claude Code agent handles comments on a Leaf page it serves,
-    BASE_REF's plugin against HEAD's; BASE_REF defaults to the merge base with
-    main. Each round runs a live `claude -p` session per arm and case, about
-    a dollar each, and prints per comment how it reached the agent and how long each
-    step took; every stream and page log lands in .tmp/delivery-eval/.
-    """
-    with tempfile.TemporaryDirectory() as built:
-        arms, commits = build_pair(base_ref, Path(built))
-        OUT.mkdir(parents=True, exist_ok=True)
-        runs = []
-        for i in range(1, ROUNDS + 1):
-            batch = [(arm, case, i) for case in CASES for arm in arms]
-            with ThreadPoolExecutor(len(batch)) as pool:
-                for future in [
-                    pool.submit(run_session, arms[arm], case, OUT / f"{arm}-{case}-{i}")
-                    for arm, case, i in batch
-                ]:
-                    future.result()
-            runs += batch
-    results = {
-        f"{arm}-{case}-{i}": score(OUT / f"{arm}-{case}-{i}")
-        for arm, case, i in sorted(runs)
-    }
-    (OUT / "results.json").write_text(
-        json.dumps({"arms": commits, "runs": results}, indent=1)
+def grade(case: str, readings: list[dict]) -> dict[str, bool]:
+    """Missing or partial comments fail the same fixed checks as complete runs."""
+    by_comment = {r["comment"]: r for r in readings if r["comment"] is not None}
+    expected = set(range(1, len(CASES[case]) + 1))
+    checks = {name: False for name in expected_checks(case)}
+    checks["completed"] = (
+        set(by_comment) == expected
+        and len(readings) == len(expected)
+        and all(
+            not r["timed_out"] and r["turn_completed"] and r["session_completed"]
+            for r in readings
+        )
     )
-    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
-    report(results)
-    click.echo(f"details: {OUT}/results.json")
+    for n in expected:
+        if n not in by_comment:
+            continue
+        r = by_comment[n]
+        checks[f"picked-up-{n}"] = r["pickup_s"] is not None
+        checks[f"claimed-{n}"] = r["claim_s"] is not None
+        checks[f"replied-{n}"] = r["done_s"] is not None
+        checks[f"turn-ended-{n}"] = r["turn_completed"]
+    return checks
+
+
+def execute_scenario(case: str, payload: Path, work: Path) -> dict:
+    run_session(payload, case, work)
+    readings = score(work)
+    return {
+        "output": json.dumps(readings),
+        "metadata": {
+            "checks": grade(case, readings),
+            "diagnostics": {"comments": readings},
+        },
+    }

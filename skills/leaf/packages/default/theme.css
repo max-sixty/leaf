@@ -2261,7 +2261,6 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
    face's `ch`. */
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
-             padding-block-start: calc(12px + var(--lf-code-copy-space));
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
 /* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
    frame hid its end behind a scrollbar at the block's foot, and the end is where a log
@@ -2333,7 +2332,6 @@ html[data-lf-interactive] lf-code:not(.lf-rendered) {
   & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
             border-radius: var(--r);
             padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
-            padding-block-start: calc(12px + var(--lf-code-copy-space));
             white-space: pre-wrap; overflow-wrap: anywhere; }
   & > lf-note { margin-inline: 1px; }
 }

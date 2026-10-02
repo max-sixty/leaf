@@ -11,9 +11,11 @@ renders that source with its own browser,
 which avoids separate platform PNG approvals. Both arms share the browser, so a
 browser upgrade's own visual regression is outside this oracle.
 
-The baseline owns its Python Leaf and fixtures. Only the current browser mechanics, journey, snapshot
-adapter and pytest plugin are overlaid. A recipe incompatible with approved source
-fails during generation and requires a reviewed source refresh. Missing pins, failed
+The baseline owns its Python Leaf, runtime and fixtures. The current browser
+mechanics, journey, snapshot adapter and passive judges are overlaid in both arms.
+The judges read the approved runtime's declared regions and control vocabulary;
+none of those production declarations is copied from the candidate. An incompatible
+recipe fails during generation and requires a reviewed source refresh. Missing pins, failed
 generation and incomplete stores never fall back to the candidate's appearance.
 """
 
@@ -62,6 +64,10 @@ RECIPE = (
     "dev/leaf_dev/thread_snapshots.py",
     "dev/leaf_dev/thread_snapshot_plugin.py",
     "tests/test_render_thread_snapshots.py",
+    "tests/render_harness.py",
+    "tests/shift_watch.js",
+    "tests/write_watch.js",
+    "tests/words_watch.js",
 )
 CACHE = ROOT / ".tmp/thread-snapshots/approved"
 

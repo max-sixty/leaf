@@ -11,7 +11,9 @@ snapshot: merging a candidate never advances the reviewed baseline automatically
 
 The one real delivery journey supplies held-state appearance and delivery
 assertions. pytest-image-snapshot compares pixels using Pixelmatch's antialias
-handling and 0.1 perceptual tolerance; small color differences can pass. There is
+handling and 0.01 perceptual tolerance. Three unchanged seven-case repeats
+showed only two-level corner raster noise; this threshold excludes that noise
+while detecting the measured seventeen-level ink change. There is
 no whole-image allowance for mismatched pixels. Capture the
 thread's region and its independently compared viewport geometry, so a translated
 crop cannot hide bad placement. Global notices are checked by visible words at
@@ -205,7 +207,7 @@ class SnapshotRun:
         try:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.
-            self.compare(Image.open(io.BytesIO(png)), expected, threshold=0.1)
+            self.compare(Image.open(io.BytesIO(png)), expected, threshold=0.01)
         except AssertionError as error:
             self.failures.append(f"{stage}: {error}")
 

@@ -30,6 +30,7 @@ from interact_support import (
     PAGE,
     PAGE_PACKAGES,
     TOKEN,
+    append_carried_log_record,
     append_command,
     check,
     declare_data_input,
@@ -322,7 +323,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
 ):
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Practice</h1></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -406,7 +407,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         ("aabb0011", "Selected thread"),
         ("aabb0022", "Outside thread"),
     ):
-        event_model.append_event(
+        append_carried_log_record(
             page_dir,
             {
                 "kind": "comment",
@@ -418,7 +419,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
                 "id": identity,
             },
         )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -487,7 +488,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
 ):
     declare_data_input(page_dir, "builds", {"type": "array"})
     publish(page_dir)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -506,7 +507,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir, document, {"revision": 2, "version": None, "url": "/"}
     )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -945,7 +946,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     (page_dir / "index.html").write_text(source)
     first = revisioning_model.activate_source(page_dir)
     assert first.error is None
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -1746,7 +1747,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 200, body
 
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1816,7 +1817,7 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
     )
     (page_dir / "index.html").write_text(signoff)
     publish(page_dir, version=1)
-    approval = event_model.append_event(
+    approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
 
@@ -1829,7 +1830,7 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
 
     assert f"Approved v1 at {approval['ts']}." in transcript()
 
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
     )
     assert "Approved" not in transcript()
@@ -2160,11 +2161,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     }
     (page_dir / "index.html").write_text(old_page)
     publish(page_dir, 1)
-    reaction = event_model.append_event(
+    reaction = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
     )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -2183,7 +2184,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     )
     (page_dir / "index.html").write_text(new_page)
     publish(page_dir, 2)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2335,7 +2336,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     publish(page_dir, 1)
 
     def choose(widget, option):
-        return event_model.append_event(
+        return append_carried_log_record(
             page_dir,
             {
                 "kind": "action",
@@ -2351,12 +2352,12 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     kept = choose("kept", "kept-one")
     gone = choose("gone", "gone-one")
     restated = choose("picks", "flag-first")
-    approval = event_model.append_event(
+    approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
     # The fold reads revision 2 from `documents`; it is never written to disk, since
     # the door refuses to activate a revision that drops a standing decision.
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2760,7 +2761,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
 
 def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     publish(page_dir)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -2794,7 +2795,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         ],
     )
     assert reply.exit_code == 0, reply.output
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -3006,17 +3007,17 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
         return next(minted)
 
     monkeypatch.setattr(event_model.secrets, "token_hex", token_hex)
-    first = event_model.append_event(
+    first = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
-    second = event_model.append_event(
+    second = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "second"}
     )
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
     with pytest.raises(ValueError, match="event id .* already exists"):
-        event_model.append_event(
+        append_carried_log_record(
             page_dir,
             {"id": first["id"], "kind": "comment", "author": "user", "text": "third"},
         )
@@ -3114,7 +3115,7 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     stream, heard = _news(server)
     first = heard()
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
@@ -3377,12 +3378,12 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     """A crash tears an append mid-line. The next append restores the line
     discipline rather than gluing onto the fragment, the fragment's event is
     gone (its sender saw the failure), and the seqs around it hold."""
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
     )
     with open(page_dir / "events.jsonl", "a", encoding="utf-8") as f:
         f.write('{"kind": "comm')  # the tear: no trailing newline
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "after"}
     )
     events = event_model.read_events(page_dir)
@@ -3393,7 +3394,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     # before any line-level tolerance could reach it.
     with open(page_dir / "events.jsonl", "ab") as f:
         f.write('{"kind": "comment", "text": "café'.encode()[:-1])
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "again"}
     )
     assert [e["text"] for e in event_model.read_events(page_dir)] == [
@@ -3757,7 +3758,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, page_snapshot=snapshot
     ).page_state()
 
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4788,7 +4789,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     Status writes hold the log lease because a claim records the exact log floor it
     followed. The state reader takes the same lease across both reads, so every claim
     in a response names a floor that response's events actually contain."""
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
@@ -5003,7 +5004,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         )
     )
     publish(page_dir)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -5013,7 +5014,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "text": "the question nobody can read any more",
         },
     )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -5083,7 +5084,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert served_thread["id"] == "c-lost"
     assert served_thread["attention"]["kind"] == "needs_user"
 
-    closed = event_model.append_event(
+    closed = append_carried_log_record(
         page_dir,
         {"kind": "resolve", "author": "user", "parent": "c-lost"},
     )

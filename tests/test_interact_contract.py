@@ -43,6 +43,7 @@ from interact_support import (
     _report_without_upgrade,
     _tasks_version,
     _user_verb_update,
+    append_carried_log_record,
     append_command,
     assert_revendor_serializes_writer,
     check,
@@ -96,7 +97,7 @@ from leaf_dev.page_fixtures import package_selection_args
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     """Late answers keep their exact scope; marks and failure receipts stay closed."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
@@ -110,7 +111,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
             "responds": "question",
         },
     ):
-        events_model.append_event(
+        append_carried_log_record(
             page_dir, {"kind": "reply", "parent": "question", **message}
         )
         threads = event_folds_model.build_threads(
@@ -136,7 +137,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
 
     thread_model.cmd_resolve(page_dir, answer["id"])
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -588,11 +589,11 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     same widget are the others — and the thread reading owes all three the same
     reply, or a question would read as answered by a gesture the log itself records
     as taken back."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "which mounts?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -621,7 +622,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     )
     assert threads["c1"]["resolved"]["id"] == "a1"
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
     )
     threads = event_folds_model.build_threads(
@@ -650,7 +651,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
             data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
         )[1]
     )["state"]["events"][-1]
-    agent_closed = events_model.append_event(
+    agent_closed = append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": posted["id"]}
     )
 
@@ -847,7 +848,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -878,7 +879,7 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     retired verb is: the standing mark would have no glyph and no pill to take it
     back by. A token the layer keeps re-vendors as before."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
@@ -912,7 +913,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     retired verb above: admission is the schema's only reader, and the logged event
     replays the same either way."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1147,7 +1148,7 @@ def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1360,7 +1361,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
     vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
@@ -1384,7 +1385,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
@@ -1755,7 +1756,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     (page_dir / "index.html").write_text(restated)
     second = stamp_activation(page_dir)
     assert second.error is None and second.created
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -1825,7 +1826,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
     publish(page_dir)
     revision = files_model.latest_revision(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
     )
@@ -2377,9 +2378,9 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     green result cannot come from a floor that never reached this fold."""
     html = SUGGESTION_HOLDING_A_NAMESAKE
     document = structure_model.SourceDocument(html)
-    events_model.append_event(page_dir, dict(COMMENT))
-    events_model.append_event(page_dir, dict(ACCEPT))
-    events_model.append_event(
+    append_carried_log_record(page_dir, dict(COMMENT))
+    append_carried_log_record(page_dir, dict(ACCEPT))
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2401,7 +2402,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "detail"
         ] == {"outcome": "accept"}
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2945,7 +2946,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     snippet = '<lf-suggestion id="proposal" resolves="c1"><lf-new><p id="proposed">Ship after validation.</p></lf-new></lf-suggestion>'
     source = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + snippet)
     (page_dir / "index.html").write_text(source)
-    events_model.append_event(page_dir, dict(COMMENT))
+    append_carried_log_record(page_dir, dict(COMMENT))
     publish(page_dir)
     from leaf.files import latest_revision
 
@@ -4641,7 +4642,7 @@ def test_sample_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
     if available:
-        events_model.append_event(
+        append_carried_log_record(
             page_dir,
             {
                 "kind": "comment",
@@ -4669,11 +4670,11 @@ def test_sample_references_see_only_selected_threads(
 def test_sample_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -4806,7 +4807,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -5176,11 +5177,18 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
             "annotation": "plan-choice-decision",
         },
         "attempt": "named-dependencies",
+        "attention": False,
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     events = json.loads(body)["state"]["events"]
     accepted = events[-1]
+    assert accepted["attention"] is True
+    retried_status, retried = fetch(
+        f"{server}/api/event", data=json.dumps(command).encode()
+    )
+    assert retried_status == 200
+    assert json.loads(retried)["state"]["events"][-1]["id"] == accepted["id"]
     assert set(accepted["meaning"]["depends"]) == {"picks", "flag-first"}
     within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
     assert event_folds_model.action_retracted(

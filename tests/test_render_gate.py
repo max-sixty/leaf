@@ -12,12 +12,12 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     add_test_widget,
+    append_carried_log_record,
     append_command,
     running_http_server,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
@@ -1829,7 +1829,7 @@ flowchart LR
     )
 
     url = serve(page)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1839,7 +1839,7 @@ flowchart LR
             "text": "Show the same diagram in your reply.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2177,7 +2177,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 """,
     )
     url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2187,7 +2187,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
             "text": "Show both owners in your reply.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2352,7 +2352,7 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "detail": {"outcome": "accept"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
     )
@@ -2497,7 +2497,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
         "});\n"
     )
     url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2507,7 +2507,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
             "text": "Show the wrapper in your reply.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4681,7 +4681,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     is still nobody's check."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4691,7 +4691,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "text": "What should I carry into the patch?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",

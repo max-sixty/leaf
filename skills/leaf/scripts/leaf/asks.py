@@ -1,5 +1,6 @@
 """Declaration-driven page and thread ask projections."""
 
+from leaf.events import is_reaction, spoken_turns
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
@@ -8,12 +9,64 @@ from leaf.projection import (
     frozen_thread_reading,
     markup_value,
 )
+from leaf.read_state import content_version
 from leaf.schema import MESSAGE_KINDS
 
 
 def local_ask_entry(entry: dict) -> bool:
     """Whether one widget declaration originates an ask."""
     return entry.get("x-awaits") is not None
+
+
+def thread_awaits_user(
+    thread_id: str,
+    thread: dict,
+    registry: dict,
+    awaiting: dict[str, bool],
+    structure,
+    open_ask_threads: set[str],
+) -> tuple[bool, dict | None]:
+    """The unanswered widget Ask or textual prompt this thread holds for the user."""
+    if thread["resolved"]:
+        return False, None
+    if thread_id in open_ask_threads:
+        return True, None
+    turns = spoken_turns(thread)
+    tokens = registry.get("$reactions", {}).get("tokens", {})
+    for index in range(len(turns) - 1, -1, -1):
+        message = turns[index]
+        if message["author"] != "agent":
+            continue
+        later = turns[index + 1 :]
+        if any(entry["author"] != "agent" for entry in later):
+            continue
+        fragment = structure.fragments.get(message["id"])
+        asks = [
+            rec["attrs"].get("id")
+            for rec in (fragment.lf_elements if fragment else [])
+            if local_ask_entry(registry.get(rec["tag"]) or {})
+        ]
+        structural = (
+            any(awaiting.get(identity, False) for identity in asks) if asks else None
+        )
+        settled = any(
+            is_reaction(reaction)
+            and reaction["author"] == "user"
+            and reaction.get("parent") == message["id"]
+            and (tokens.get(reaction["token"]) or {}).get("settles")
+            for reaction in thread["msgs"]
+        )
+        if message["kind"] != "reply":
+            if structural is False:
+                continue
+        elif structural is False or (structural is None and not message.get("awaits")):
+            continue
+        if not settled:
+            return True, {
+                "message": message["id"],
+                "version": content_version(message),
+            }
+    return False, None
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -58,8 +111,8 @@ def part_of_ask(record: dict, entry: dict) -> bool:
     """Whether a user's move on one authored widget is part of that widget's own
     Ask's answer: the authored instance originates an x-awaits Ask.
 
-    The one rule for when a move is handed over. While the Ask stands unanswered
-    every move on its widget is the user still composing the answer — a swipe
+    The rule for when a move becomes an answer obligation. While the Ask stands
+    unanswered every move on its widget is the user still composing the answer — a swipe
     before the queue empties, a pick or an added option before a group's Done —
     and once its `answered` condition holds every standing move there is owed as
     part of it. Which verb happens to finish the answer does not decide it."""

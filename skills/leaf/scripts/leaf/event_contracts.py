@@ -39,6 +39,7 @@ from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
+from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
 # record, so it supplies placeholders for the three fields that cannot exist
@@ -66,9 +67,11 @@ def command_record_schema(contract: dict) -> dict:
         "properties": {
             key: value
             for key, value in schema["properties"].items()
-            if key != "meaning"
+            if key not in {"meaning", "attention"}
         },
-        "required": [key for key in schema["required"] if key != "meaning"],
+        "required": [
+            key for key in schema["required"] if key not in {"meaning", "attention"}
+        ],
     }
 
 
@@ -626,8 +629,28 @@ def admitted_event(view, events: list, event: dict) -> dict:
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
-    if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
+    # Fold only a validated event. Attention is server-owned and boolean by
+    # construction; the placeholder completes the stored shape before that fold.
+    if error := event_record_error(
+        contracts[kind], {**APPEND_STAMPED, **event, "attention": False}
+    ):
         raise EventRefused(f"{kind} event is invalid: {error}")
+    attention = kind in {"report", "error"}
+    if (
+        not attention
+        and event["author"] == "user"
+        and not contracts[kind].get("bookkeeping")
+    ):
+        candidate = {
+            **APPEND_STAMPED,
+            **event,
+            "seq": events[-1]["seq"] + 1 if events else 1,
+        }
+        claims = view.claims
+        attention = obligation_reading(readings, claims) != obligation_reading(
+            AdmissionReadings(view, [*events, candidate], registry), claims
+        )
+    event = {**event, "attention": attention}
     return event
 
 

@@ -6,7 +6,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_carried_log_record, append_command
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -339,7 +339,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
 def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, section):
     """A passage's generated body is not the owner of the reaction's margin control."""
     url = serve(JOURNEY_V1)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1326,7 +1326,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     """
     browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1438,7 +1438,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     """Closing Threads during delivery is later than sending the reply."""
     browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1924,7 +1924,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user):
     """Both inline views may POST the shared reply; its attempt appends it once."""
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1967,7 +1967,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
 def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_user):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2429,7 +2429,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     write(current_say.locator("leaf-text"), newer)
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", old)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2511,7 +2511,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
 def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serve):
     """Identity follows the edit generation, never content or a time window."""
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

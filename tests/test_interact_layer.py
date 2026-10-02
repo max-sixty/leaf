@@ -27,6 +27,7 @@ from interact_support import (
     SHIPPED_PACKAGES,
     SKILL_ROOT,
     add_test_widget,
+    append_carried_log_record,
     case_alias,
     check,
     element_declaration,
@@ -2869,7 +2870,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
 def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
     """The acknowledgement cursor is a position in the log. A directory whose log
     is absent takes the fresh-page path, so the position it kept names nothing."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     cleanup_model.write_json(page_dir / "cursor.json", {"seq": 1})
@@ -2889,7 +2890,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     `page init` takes it."""
     publish(page_dir)
     revision = interact_files.latest_revision(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -2901,7 +2902,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
         },
     )
     # The agent's side of that thread as the earlier Leaf wrote it.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",

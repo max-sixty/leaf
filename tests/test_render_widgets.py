@@ -5,7 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
-from interact_support import append_command
+from interact_support import append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -5501,7 +5501,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     workbench.locator("wa-number-input").press_sequentially("40")
     workbench.get_by_role("button", name="Add style").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": actions[0]["id"]},
     )
@@ -8736,7 +8736,7 @@ def test_the_asks_drawer_names_an_ask_a_message_carries(browser, serve):
     ask now, so the layer above it is nobody's apparatus and the words underneath are
     the widget's own."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -8746,7 +8746,7 @@ def test_the_asks_drawer_names_an_ask_a_message_carries(browser, serve):
             "text": "Either would do. Which are you leaning towards?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -8794,7 +8794,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     its own line."""
     url = serve(MESSAGE_ROOM_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -8804,7 +8804,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "text": "Anything else worth adding?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -8864,7 +8864,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     decision and passes whatever the decision would have been."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -8874,7 +8874,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
             "text": "Which store?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -8945,7 +8945,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
     inside its widget, so the box is between the words and their frame either way."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -8956,7 +8956,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
             "anchor": {"section": "cd-q"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -9002,7 +9002,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     """
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
-    message = events_model.append_event(
+    message = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -9041,7 +9041,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         [message["id"]],
     )
 
-    revision = events_model.append_event(
+    revision = append_carried_log_record(
         d,
         {
             "kind": "edit",
@@ -9109,7 +9109,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     the reconcile has just written."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -9119,7 +9119,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "text": "Which store?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -9137,7 +9137,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
         },
     )
     # The shape design mode writes: an element anchor naming a widget no version holds.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -10036,7 +10036,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
             "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
         )
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -10432,7 +10432,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     """
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -10442,7 +10442,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "text": "How did the quarter go?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -11317,7 +11317,7 @@ print(bracket(3))
     assert marked() == [3, 4]
     expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

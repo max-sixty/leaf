@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from interact_support import add_test_widget, append_command
+from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import projection as projection_model
 from leaf import schema as schema_model
@@ -134,7 +134,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     comment = comments[0]
     # The user has done nothing, so there is nothing to take back — a thread the
     # agent closed with `leaf thread resolve` is not theirs to reopen by pressing undo.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
@@ -220,7 +220,7 @@ def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
@@ -1296,7 +1296,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1341,7 +1341,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1384,7 +1384,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1843,7 +1843,7 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     """Undo restores a suggestion's passages and their anchored comment marks, and returns focus to the available decision control."""
     url = serve(SUGGESTION_PAGE)
     page = open_page(browser, url)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2540,7 +2540,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
     page.route("**/api/state*", refuse)
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2550,7 +2550,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2655,7 +2655,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2665,7 +2665,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2676,7 +2676,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
             "markup": '<lf-preparation id="approval-detail"><p>Detail</p></lf-preparation>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "done",
@@ -2747,7 +2747,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         route.continue_()
 
     page.route("**/api/event", record_post)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2757,7 +2757,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2926,7 +2926,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     page.route("**/api/state*", lambda route: held_states.append(route))
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2936,7 +2936,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
             "text": "Please show the deferred projection race.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

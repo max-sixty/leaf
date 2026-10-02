@@ -12,6 +12,7 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     SHIPPED_PACKAGES,
     add_test_widget,
+    append_carried_log_record,
     append_command,
     running_http_server,
     trial_family,
@@ -797,7 +798,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     # The pinned run is a second source that nothing rewrites.
     data_model.cmd_data_set(serve.page_dir, "docs-run-reviewed", record)
     page = open_page(browser, url)
-    case_thread = events_model.append_event(
+    case_thread = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4546,7 +4547,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4643,7 +4644,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     start."""
     url = serve(TRAVEL_PAGE)
     thread = {
-        section: events_model.append_event(
+        section: append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -4985,7 +4986,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     # Event ids and authored element ids belong to different identity spaces. Give
     # the thread and widget the same spelling so only the typed target can separate
     # their updates; a bare id or target lookup by store would merge them.
-    thread = events_model.append_event(
+    thread = append_carried_log_record(
         d,
         {
             "id": "ag-wren",
@@ -5085,7 +5086,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
 
     # Each source ends at its own authority: a reply settles thread work, while a
     # version note settles the report.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -6576,7 +6577,7 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -6662,7 +6663,7 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": decision["id"]},
     )
@@ -6864,7 +6865,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     outline drew nothing. Pending, the wrapper is a thing to point at; refused, the
     thread detaches like any passage the decision removed."""
     url = serve(SUGGESTION_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -6906,7 +6907,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     uses, and a bare URL arrives as the link the user will want to follow."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -6916,7 +6917,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
             "text": "which one wins?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -6973,7 +6974,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
     wears and its press is refused — asserted from a real press, since that refusal
     is the whole of what the runtime does here."""
     url = serve(REF_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7172,7 +7173,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     as typed. Rendering them would promise the user an italic where the next
     version carries the asterisks they wrote."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7249,7 +7250,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             },
         }
     url = serve(REPLY_HOST_PAGE, **layer)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7259,7 +7260,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             "text": "Please draft it.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7361,7 +7362,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     page = open_page(browser, live_url(url))
     held = []
     page.route("**/widgets/lf-draft.js", lambda route: held.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7372,7 +7373,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         },
     )
     with page.expect_request("**/widgets/lf-draft.js"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -7447,7 +7448,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -7457,7 +7458,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "text": "Which of these?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -7548,7 +7549,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/2")
@@ -7711,7 +7712,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     answer and its undo, the send continuation must not overwrite that authoritative
     authored state after replay has accounted for the action."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
@@ -7727,7 +7728,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -7748,7 +7749,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     their authored baseline. A definitive refusal removes the optimistic choice from
     that baseline instead of leaving a decision the log never took."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -7782,7 +7783,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     Reconstructing after a later refusal must replay both the recorded selection and
     the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     page.locator("#tq-logs").click()
@@ -7825,7 +7826,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     """A queued recordless action paints immediately and each refusal removes only
     the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
@@ -7879,7 +7880,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     still produce one action."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -7915,11 +7916,11 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     standing decision for the life of the page and have `d` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[0])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[0])
     page = open_page(browser, url)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
@@ -8064,7 +8065,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     # arrow, leaving the pair — and the pair is the half a `details > summary` gets from
     # the platform and a span gets from nowhere. So the row keeps its own `run`, and this
     # is the surface that says whether it does.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -8826,7 +8827,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
 def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
     url = serve(COMMAND_HUB_EXAMPLE)
     threads = {
-        target: events_model.append_event(
+        target: append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -8933,7 +8934,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         if event.get("holds") == "goal-parser"
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -9172,11 +9173,11 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
     """A command in thread markup fills the seat in that message's document, and the
     page's seat keeps the page's command's readings."""
     url = serve(COMMAND_HUB_EXAMPLE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "text": "Status?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

@@ -1361,14 +1361,17 @@ def _without_arguments(compound, pseudos):
 
 def _has_hosts(selector):
     """Each compound a `:has()` stands on, without that `:has()`'s argument, so an element
-    it looks for is not read as the element it stands on. A `:has()` inside an `:is()` or
+    it looks for is not read as the element it stands on. A negated selector does not
+    name that host either. A `:has()` inside an `:is()` or
     `:where()` argument stands on that argument's compound, not on the outer one."""
     for compound in _split_top(selector, " >+~"):
         for _start, _end, argument in _pseudo_arguments(compound, (":is(", ":where(")):
             for arm in _split_top(argument, ","):
                 yield from _has_hosts(arm)
         if ":has(" in _without_arguments(compound, (":is(", ":where(")):
-            yield _without_arguments(compound, (":has(",))
+            yield _without_arguments(
+                _without_arguments(compound, (":has(",)), (":not(",)
+            )
 
 
 def test_no_has_rule_stands_on_a_root():
@@ -1384,7 +1387,7 @@ def test_no_has_rule_stands_on_a_root():
     is on the chrome and `data-lf-draw-mode` on `html`.
 
     The roots are `.lf-chrome`, `html`, `:root` and `body` in any sheet and, inside the
-    layer's one `@scope`, which is the chrome's, `:scope` and a top-level `&`, each also
+    chrome's `@scope`, `:scope` and a top-level `&`, each also
     inside `:is()` or `:where()`."""
     sheets = [
         *sorted(schema_model.ASSETS.glob("*.css")),
@@ -1406,7 +1409,7 @@ def test_no_has_rule_stands_on_a_root():
 
     scopes = {
         root
-        for sheet in sheets
+        for sheet in [schema_model.ASSETS / "runtime" / "chrome.css"]
         for root in scope_roots(
             tinycss2.parse_stylesheet(
                 sheet.read_text(), skip_comments=True, skip_whitespace=True
@@ -1424,7 +1427,12 @@ def test_no_has_rule_stands_on_a_root():
         for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
             read += 1
             if any(
-                roots.search(stands) or ("scope" in enclosing and scoped.search(stands))
+                roots.search(stands)
+                or (
+                    sheet == schema_model.ASSETS / "runtime" / "chrome.css"
+                    and "scope" in enclosing
+                    and scoped.search(stands)
+                )
                 for stands in _has_hosts(selector)
             ):
                 rooted.append(
@@ -1432,8 +1440,10 @@ def test_no_has_rule_stands_on_a_root():
                 )
     assert read, "no rules read from the layer's sheets — the reading is broken"
     assert list(_has_hosts(".a:has(.b:has(.c)).d")) == [".a.d"]
+    assert list(_has_hosts(".a:not(:has(.b)).c")) == [".a.c"]
     assert list(_has_hosts(":is(:scope, .x):has(.y)")) == [":is(:scope, .x)"]
     assert list(_has_hosts(":is(html lf-a:has(> b)) > c")) == ["lf-a"]
+    assert list(_has_hosts("lf-a:not(:where(.lf-chrome *)):not(:has(> b))")) == ["lf-a"]
     assert roots.search("html[data-lf-live]") and not roots.search(".lf-body")
     assert not rooted, "a :has() on a root restyles everything below it:\n" + (
         "\n".join(rooted)
@@ -2650,7 +2660,9 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
+    (layer / "theme.css").write_text(
+        ":scope:is(lf-new-shape) { --accent: rebeccapurple; }\n"
+    )
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -4198,7 +4210,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
+    (widget_package / "theme.css").write_text(
+        ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
+    )
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -4244,9 +4258,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     theme = (page / "theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
     # theme, and its rules reach the page as written.
-    assert theme.index(
-        "lf-solo:where(lf-solo, :is(lf-solo) *) { --lf-block-frame: 1; }"
-    ) < theme.index(":root { --solo-night: 1; }")
+    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+        ":root { --solo-night: 1; }"
+    )
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"

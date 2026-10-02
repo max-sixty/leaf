@@ -772,7 +772,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                      --lf-icon-action-hit: var(--lf-option-action-size);
                      --lf-compose-pad-block: 0px; --lf-compose-pad-inline-start: 0px;
                      position: static; }
-  .lf-another leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
+  .lf-another > .lf-compose-field > leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
                      padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
@@ -1311,7 +1311,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * index from the current view, and the frame answers how far that view runs.
  * Unupgraded, and anywhere the strip has no handler behind it, the panels stack
  * as labeled sections. */
-:scope:is(lf-tabs) { display: block; margin: 14px 0; }
+:where(:scope:is(lf-tabs)) { display: block; margin: 14px 0; }
 :scope:is(lf-tab) { display: block; }
 :scope:is(lf-tab)::before { content: attr(label); display: block; font-size: var(--t-6);
                  text-transform: uppercase; letter-spacing: .05em;

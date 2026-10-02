@@ -542,18 +542,51 @@ The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
+To start with fictional conversations or decisions, author an inert JSON script
+in the parent and name its id in the template's `data-sample-events`:
+
+```html
+<script id="service-history" type="application/json">
+[
+  {"id":"service-question","kind":"comment","author":"user",
+   "anchor":{"section":"service-note"},"text":"Does Sunday keep the same timetable?"},
+  {"kind":"reply","author":"agent","parent":"service-question",
+   "text":"Yes, both weekend days use this timetable."}
+]
+</script>
+<lf-sample id="service-window" label="weekend service" window>
+  <template id="service-page" data-sample data-sample-events="service-history">
+    <h1>Weekend service</h1>
+    <p id="service-note">The shuttle runs every hour.</p>
+  </template>
+</lf-sample>
+```
+
+The array contains ordinary event commands, checked against the child document
+at `page check` and admitted before its first presentation. Give an event an explicit
+`id` when a later command references it; omitted ids and timestamps are supplied,
+and the history belongs to revision 1. Several samples can name the same script;
+each gets an independent copy. Reset restores that authored history. The script
+must be inline `application/json` in the template's parent document. Its events
+never appear in the outer log: leave fictional fixture anchors inside the template,
+and use this declaration rather than posting setup events from a page module.
+
 To begin with threads from the parent, set `data-sample-threads` on the
 template to their space-separated thread ids. The declaration selects from the
 parent's standing log rather than requiring it: a page whose log does not hold one
 of those threads yet — a first version, or a copy made from the source alone — opens
 the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child
-replies remain independent.
+replies remain independent. A template chooses either `data-sample-events` or
+`data-sample-threads`, never both.
 
 The child is a document of its own: a `<style>` or module script in the template
 applies to the child alone, and the surrounding page's styles and scripts do not
 reach it. A page module can await the element's `ready` promise to receive the child
-`Document`, and await `reset()` to replace it. Author child content in the
+`Document`, and await `reset()` to replace it. The bubbling `lf-sample-ready`
+event carries `detail.document` after each child presents, including Reset, so
+host controls can reapply a selected view without inspecting the Reset button.
+Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.
 

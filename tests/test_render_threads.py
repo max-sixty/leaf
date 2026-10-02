@@ -8149,9 +8149,10 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
       const style = getComputedStyle(element);
       return [style.animationName, style.backgroundClip, style.color];
     }"""
-    sweep, clip, _ = topic.evaluate(paint)
-    assert sweep != "none" and clip == "text"
-    # Without motion the words keep a fill of their own rather than the still gradient.
+    sweep, clip, fill = topic.evaluate(paint)
+    assert sweep == "none" and clip != "text"
+    assert fill != "rgba(0, 0, 0, 0)"
+    # The placeholder remains readable and still under either motion preference.
     page.emulate_media(reduced_motion="reduce")
     sweep, clip, fill = topic.evaluate(paint)
     assert sweep == "none" and clip != "text"

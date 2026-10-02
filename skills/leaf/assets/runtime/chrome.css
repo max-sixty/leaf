@@ -331,11 +331,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
-@keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
-@keyframes lf-runtime-4f3c2a8d-title-sweep {
-  from { background-position: 100% 0; }
-  to { background-position: 0 0; }
-}
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
 @keyframes lf-runtime-4f3c2a8d-flash {
   0% { background: var(--hi-tint); } 100% { background: var(--card); }
@@ -501,8 +496,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-dot { width: var(--lf-mark-w); height: var(--lf-mark-w); background: var(--muted-2); flex: none;
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat; }
-  .lf-dot.working { background: var(--accent);
-    animation: lf-runtime-4f3c2a8d-pulse 1.4s ease-in-out infinite; }
+  .lf-dot.working { background: var(--accent); }
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
@@ -868,7 +862,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: edge;
     outline-offset: 0; }
   .lf-thread-panel-head, .lf-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
-  .lf-first-unread { margin-inline-start: auto; margin-inline-end: 8px; color: var(--turn-ink);
+  .lf-first-unread { margin-inline-start: auto; margin-inline-end: 8px; color: var(--accent);
     font-size: var(--t-6); white-space: nowrap; }
   /* The words in here, against the apparatus the root has already answered for: a reply
      and the passage it is about. A quote is the page's own words and a message is
@@ -1004,26 +998,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: calc(-1 * var(--focus-ring-w)); --lf-focus-ring: thread-summary; }
   .lf-thread-topic { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  /* A placeholder stands in the title's place: muted and lighter, with a highlight
-     sweeping through its letters, so it never reads as a title. The gradient paints the
-     glyphs through a transparent fill, across a box sized to the words so the sweep
-     spends its time on them; without motion, or where forced colors replace the paint,
-     the words stay plain muted text. */
+  /* The placeholder remains visibly secondary until the agent gives it a title. */
   .lf-thread-topic[data-lf-pending-title] { justify-self: start; font-weight: 500;
-    color: transparent;
-    background: linear-gradient(90deg, var(--muted) 0 38%, var(--ink) 50%,
-      var(--muted) 62% 100%) 0 0 / 250% 100%;
-    -webkit-background-clip: text; background-clip: text;
-    animation: lf-runtime-4f3c2a8d-title-sweep 1.8s linear infinite; }
-  @media (prefers-reduced-motion: reduce), (forced-colors: active) {
-    .lf-thread-topic[data-lf-pending-title] { color: var(--muted); background: none;
-      animation: none; }
-  }
+    color: var(--muted); }
   .lf-thread-meta { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center;
     gap: 8px; min-width: 0; }
   .lf-thread-meta.lf-empty { display: none; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
-  .lf-thread-unread { color: var(--turn-ink); font-size: 10px;
+  .lf-thread-unread { color: var(--accent); font-size: 10px;
     font-weight: 700; white-space: nowrap; }
   .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
@@ -1042,7 +1024,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-checkpoint { margin-block: 16px; }
   .lf-summary-checkpoint { padding-block: 4px; }
   .lf-summary-label { margin-bottom: 4px; color: var(--muted); font: 500 11px/1.3 var(--sans); }
-  .lf-summary-unread { color: var(--turn-ink); font-weight: 600; }
+  .lf-summary-unread { color: var(--accent); font-weight: 600; }
   .lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
     overflow-wrap: anywhere; user-select: text; }
   .lf-summary-text > :first-child { margin-top: 0; }
@@ -1149,7 +1131,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   /* A border image outset into the inline margin draws the rail and takes no room. */
   :is(.lf-msg.lf-unread, .lf-thread-root-meta:has(+ .lf-thread-transcript > .lf-msg.lf-unread:first-child)) {
-    border-image: linear-gradient(var(--turn-ink), var(--turn-ink)) 0 0 0 1 / 0 0 0 2px
+    border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px
       / 0 0 0 6px; }
   /* The panel's column insets a quote and a code block less, in a message and in the
      draft a composer here draws of one, so the insets are the theme's tokens set once
@@ -1505,8 +1487,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: default; }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer; }
-  /* Agent work and the user's turn paint this row as they paint its margin entry, in
-     one rule set in theme.css; the row's ground and hover read the wash it sets. */
+  /* The user's turn paints this row as it paints its margin entry, in one rule set
+     in theme.css; the row's ground and hover read the wash it sets. */
   .lf-page-map-action:is(button, [role="button"]):is(:hover, :focus-visible):not([aria-disabled="true"]) {
     background: var(--lf-entry-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;

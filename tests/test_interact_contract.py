@@ -5256,3 +5256,202 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert threads["c1"]["resolved"]["id"] == "accept1"
     memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
     assert memberships["label1"] == []
+
+
+@pytest.mark.parametrize(
+    ("history", "script_attrs", "template_attrs", "complaint"),
+    [
+        (
+            "[]",
+            'type="application/json"',
+            'data-sample-events="missing"',
+            "must name one script",
+        ),
+        (
+            "[]",
+            'type="text/plain"',
+            'data-sample-events="fixture"',
+            "inline application/json",
+        ),
+        (
+            "[]",
+            'type="application/json" src="/page/history.json"',
+            'data-sample-events="fixture"',
+            "inline application/json",
+        ),
+        (
+            '[{"kind":"comment","text":NaN}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "invalid JSON",
+        ),
+        (
+            "{",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "invalid JSON",
+        ),
+        (
+            "{}",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "array of event objects",
+        ),
+        (
+            "[1]",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "array of event objects",
+        ),
+        (
+            '[{"kind": []}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "kind must be one of",
+        ),
+        (
+            '[{"kind":"reply","parent":"absent","text":"Reply"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "unknown parent",
+        ),
+        (
+            '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "already exists",
+        ),
+        (
+            '[{"kind":"comment","id":"child","text":"Collision"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "document or message widget id",
+        ),
+        (
+            '[{"kind":"action","widget":"absent","action":"choose","detail":{"options":[]}}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "unknown action widget",
+        ),
+        (
+            '[{"kind":"action"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "event is invalid",
+        ),
+        (
+            '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "ISO timestamp",
+        ),
+        (
+            "[]",
+            'type="application/json"',
+            'data-sample-events="fixture" data-sample-threads="aabb0011"',
+            "not both",
+        ),
+    ],
+)
+def test_sample_fixture_refusals_reach_page_check(
+    page_dir, history, script_attrs, template_attrs, complaint
+):
+    source = (
+        f'<script id="fixture" {script_attrs}>{history}</script>'
+        f'<template id="practice" data-sample {template_attrs}>'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "sample 'practice'" in result.output
+    assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    ("markup", "complaint"),
+    [
+        ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown widget"),
+        (
+            '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
+            "already taken",
+        ),
+        ("<p>Just prose</p>", "carries no widget"),
+        (
+            '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
+            "stylesheet of the whole document",
+        ),
+    ],
+)
+def test_sample_fixture_message_markup_uses_the_message_gate(
+    page_dir, markup, complaint
+):
+    history = json.dumps(
+        [{"kind": "comment", "author": "agent", "text": "Example", "markup": markup}]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "sample 'practice'" in result.output
+    assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    ("anchor", "valid", "complaint"),
+    [
+        ({"section": "outer-only"}, False, "no element id 'outer-only'"),
+        ({"section": "missing"}, False, "no element id 'missing'"),
+        (
+            {"section": "child", "quote": "Words only in the parent"},
+            False,
+            "doesn't say",
+        ),
+        ({"section": "child", "quote": "Child passage"}, True, ""),
+        ({"section": "generated-option", "quote": "Generated passage"}, True, ""),
+        ({"section": "message-widget"}, True, ""),
+        (None, True, ""),
+    ],
+)
+def test_sample_fixture_anchors_are_captured_in_the_child_reading(
+    page_dir, anchor, valid, complaint
+):
+    history = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "text": "A widget example",
+            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" choose><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
+        },
+        {
+            "kind": "comment",
+            "text": "A fixture question",
+            **({"anchor": anchor} if anchor is not None else {}),
+        },
+    ]
+    if anchor and anchor.get("section") == "generated-option":
+        history.insert(
+            1,
+            {
+                "kind": "action",
+                "widget": "message-widget",
+                "action": "add",
+                "detail": {"option": "generated-option", "text": "Generated passage"},
+            },
+        )
+    source = (
+        '<p id="outer-only">Words only in the parent</p>'
+        f'<script id="fixture" type="application/json">{json.dumps(history)}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1>Sample</h1><p id="child">Child passage</p></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert (result.exit_code == 0) == valid, result.output
+    if not valid:
+        assert "sample 'practice'" in result.output
+        assert complaint in result.output

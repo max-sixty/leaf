@@ -176,9 +176,15 @@ def check_markup(
     # with what was wrong. Here they are asked of what is arriving, at the one moment
     # anything can still be done about it.
     pinned_errors = pinned_thread_markup_errors(page_dir, frag)
-    errs = (
-        thread_markup_contract_errors(frag, registry)
-        + pinned_errors
+    revisions = list_revisions(page_dir)
+    if page is None:
+        page = (
+            read_revision(page_dir, revisions[-1]).document
+            if revisions
+            else SourceDocument("")
+        )
+    extra_errors = (
+        pinned_errors
         + (
             [
                 (
@@ -190,9 +196,6 @@ def check_markup(
             if pinned_errors
             else []
         )
-        + fragment_style_errors(frag)
-        + document_declaration_errors(frag)
-        + media_errors(frag, page_dir)
         + data_binding_errors(
             page_dir,
             registry,
@@ -201,35 +204,62 @@ def check_markup(
             incoming=[(frag.lf_elements, f"incoming {kind} markup")],
         )
     )
+    if error := message_markup_error(
+        page_dir,
+        kind,
+        frag,
+        events,
+        registry,
+        page,
+        version_ids(page_dir),
+        extra_errors,
+    ):
+        sys.exit(error)
+    return frag
+
+
+def message_markup_error(
+    page_dir: Path,
+    kind: str,
+    frag: SourceDocument,
+    events: list,
+    registry: dict,
+    page: SourceDocument,
+    prior_ids: set[str],
+    extra_errors: list[str],
+) -> str | None:
+    """The shared message-fragment gate for a stored or newly constructed page.
+
+    Callers supply their lifetime's binding and pinned-vocabulary checks. The
+    fragment's structure, vocabulary, presentation, media, ids and references
+    have one gate regardless of whether its page has been allocated yet.
+    """
+    errs = (
+        thread_markup_contract_errors(frag, registry)
+        + extra_errors
+        + fragment_style_errors(frag)
+        + document_declaration_errors(frag)
+        + media_errors(frag, page_dir)
+    )
     if errs:
-        sys.exit(
-            f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in errs
         )
     if not frag.lf_elements:
-        sys.exit("--markup carries no widget; put prose in --text")
+        return "--markup carries no widget; put prose in --text"
     if names := id_errors(frag):
-        sys.exit(f"{kind} widget markup: " + "; ".join(names))
+        return f"{kind} widget markup: " + "; ".join(names)
     thread = thread_structure(events)
-    revisions = list_revisions(page_dir)
-    if page is None:
-        page = (
-            read_revision(page_dir, revisions[-1]).document
-            if revisions
-            else SourceDocument("")
-        )
-    clash = sorted(frag.ids & (version_ids(page_dir) | page.ids | thread.ids))
+    clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
     if clash:
-        sys.exit(
-            f"{kind} widget ids already taken by the page or an earlier message: {clash}"
-        )
+        return f"{kind} widget ids already taken by the page or an earlier message: {clash}"
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
     ):
-        sys.exit(
-            f"{kind} markup doesn't validate:\n"
-            + "\n".join(f"  - {error}" for error in reference_errs)
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in reference_errs
         )
-    return frag
+    return None

@@ -110,6 +110,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
         scaled: {
           scale: { x: 1, y: 1 },
           reference: scrolled,
+          column: scrolled.right - input.minimum.width,
           line: card.line(scrolled, scrolled.top),
         },
         held: { height: box.height },

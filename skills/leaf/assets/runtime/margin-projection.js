@@ -889,6 +889,7 @@ export function createMarginProjection({
       clear,
       extent,
       row: (words ?? clear).top,
+      column: words?.left ?? null,
       margin: marginSpot(target, point),
     };
   }
@@ -983,6 +984,7 @@ export function createMarginProjection({
         const { reference, placement, middleware, heldIn } = previewSide.options(ui, {
           clear: place.clear,
           row: place.row,
+          column: place.column,
           margin: place.margin,
           boundary,
           minimum: { width: cardMinimum() },

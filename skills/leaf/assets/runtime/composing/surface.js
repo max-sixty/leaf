@@ -58,7 +58,7 @@
    their original anchor, while a later target starts clean and keeps focus.
 
    A quoted passage keeps its resolved block clear when choosing the side, while the
-   exact words supply its vertical attachment. The reading region and fixed Leaf chrome
+   exact words supply its row and inline start. The reading region and fixed Leaf chrome
    are the only collision boundary: page content may be overlaid, and the margin row the
    comment's thread will stand by is kept clear where the room past it holds a card.
    Floating UI owns coordinate conversion, overflow, and reflow updates; CSS owns
@@ -547,6 +547,7 @@ export function createResponseSurface({
         const { reference, placement, middleware, heldIn } = fabPlacement.options(ui, {
           clear: keepClear,
           row: target?.top,
+          column: fabAnchor.quote ? target?.left : null,
           margin: !unanchored && owner && marginSpot(owner, fabPointIn(owner)),
           boundary,
           minimum: { width: cardMinimum() },

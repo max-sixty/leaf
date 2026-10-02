@@ -150,6 +150,20 @@ def code_note(page: Page) -> None:
     )
 
 
+def wide_passage(page: Page) -> None:
+    """A selected passage in a wide block, with its comment field beside it."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    page.keyboard.press("/")
+    page.keyboard.insert_text('"keep the active card"')
+    page.keyboard.press("Enter")
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
 def code_copy_by_pointer(page: Page) -> None:
     """Code's corner control revealed by hovering its source."""
     code_note(page)
@@ -209,6 +223,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_note,
+        wide_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
         code_source_by_touch,
@@ -232,6 +247,7 @@ class State:
 
 STATES = (
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),

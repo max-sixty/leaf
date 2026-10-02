@@ -425,6 +425,67 @@ def test_where_a_comment_stands_before_and_after_send(browser, serve, snapshot):
     )
 
 
+@pytest.mark.parametrize("width", [900, 1650])
+@pytest.mark.parametrize("route", ["pointer", "search"])
+def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
+    browser, serve, width, route
+):
+    """A wide block is clearance, not the passage's inline attachment. The editor
+    and its sent card stand by the selected words while keeping that block clear."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "passage attachment",
+                '<h1>Review the handler</h1><pre id="source"><code>'
+                'const answer = {\n  decision: "Keep",\n  does: "Keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p>",
+                layout="wide",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": width, "height": 900})
+    words = "Keep the active card"
+    phrase = """words => {
+      const text = document.querySelector('#source code').firstChild;
+      const range = document.createRange();
+      const start = text.data.indexOf(words);
+      range.setStart(text, start);
+      range.setEnd(text, start + words.length);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    passage = page.evaluate(phrase, words)
+    if route == "pointer":
+        y = passage["top"] + passage["height"] / 2
+        select(page, (passage["left"] + 1, y), (passage["right"] - 1, y))
+    else:
+        page.keyboard.press("/")
+        page.keyboard.insert_text(words)
+        page.keyboard.press("Enter")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
+    rendered(page)
+
+    def attached(selector):
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    rendered(page)
+    before = attached(".lf-fab-bar")
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+
+
 @pytest.mark.parametrize("region", ["document", "pane"])
 @pytest.mark.parametrize("route", ["target", "selection"])
 def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_frame(

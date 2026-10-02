@@ -2264,9 +2264,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     it: standing beside its target, with their words and their caret in it. Geometry
     says where the field stands, never whether: an item's field used to read "the
     target is off screen" as "the target is gone" and put the field away, words and
-    all, the moment its item left the window. A pane scrolled past the target leaves
-    the field nowhere to stand, so it waits out of view and takes the user back when
-    the target returns."""
+    all, the moment its item left the window. While the target is away, the focused
+    field stays in the window with the draft; on return it stands beside the target."""
     page = open_page(
         browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
     )
@@ -2297,6 +2296,10 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     )
     scroll_settled(page)
     rendered(page)
+    expect(box).to_be_visible()
+    expect(box).to_have_attribute("data-lf-plane", "window")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Half a thought")
     page.evaluate(f"{away}.scrollTo({{top: {start}, behavior: 'instant'}})")
     scroll_settled(page)
     rendered(page)

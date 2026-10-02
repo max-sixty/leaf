@@ -8,7 +8,7 @@
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { failSoft } from "./widget-upgrade.js";
+import { failSoftUnreported } from "./widget-upgrade.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
 
 const controllers = new WeakMap();
@@ -141,7 +141,7 @@ function createWidgetController(owner) {
   };
 
   const presentPreparation = (handle, value, completion) =>
-    handle.present(value, completion, (reason) => failSoft(owner, reason));
+    handle.present(value, completion, (reason) => failSoftUnreported(owner, reason));
 
   const presentRender = (reading, callbacks) => {
     const firstRender = renderedReading !== reading;
@@ -192,7 +192,9 @@ function createWidgetController(owner) {
       // An incomplete startup reading has no DOM to present, but its ticket still
       // commits so the provisional publication can settle. Its subscribers first run
       // when the publisher supplies every declared verb.
-      void handle.present(reading, completion, (reason) => failSoft(owner, reason));
+      void handle.present(reading, completion, (reason) =>
+        failSoftUnreported(owner, reason),
+      );
     }
   };
 

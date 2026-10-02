@@ -21,7 +21,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     if (attempt !== undefined && (typeof attempt !== "string" || !attempt))
       throw new TypeError("A Thread reply attempt must be a non-empty string");
     const thread = find(key);
-    if (!thread || thread.resolved || thread.settling) return null;
+    if (!thread || thread.settling) return null;
     return post({
       kind: "reply",
       revision: currentRevision(),

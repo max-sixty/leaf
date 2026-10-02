@@ -31,18 +31,10 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from .event_contracts import append_admitted
-from .event_log import flocked
-from .files import read_json, write_json
-from .gesture_words import GestureWords, revisions_on_disk
+from .files import read_json
 from .host import claim_harness, session_harness
 from .machine import state_home
-from .registry.contract import RegistryError, event_clauses
-from .registry.reactions import described
-from .registry.storage import active_registry
-from .revision_artifact import active_enclosing
 from .schema import CURSOR_FILE
-from .served_state.page import full_state
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -51,13 +43,7 @@ from .service import (
     requires_agent_attention,
     unacknowledged,
 )
-from .thread_context import (
-    batch_threads,
-    thread_memberships,
-    thread_names,
-    thread_structure,
-    thread_widgets,
-)
+from .session_cleanup import flocked, write_json
 
 DELIVERY_FORMAT = "leaf-delivery-v3"
 # The routes that carry a delivery to an agent: `leaf wait`'s output, a host hook's
@@ -146,6 +132,9 @@ def _delivery_lock_path() -> Path:
 
 
 def _registry(page_dir: Path):
+    from .registry.contract import RegistryError
+    from .registry.storage import active_registry
+
     try:
         return active_registry(page_dir)
     except RegistryError:
@@ -172,6 +161,8 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     the Stop hook name the same operation. An input a newer one in its thread covers
     owns none; the newest carries the thread's one answer.
     """
+    from .served_state.page import full_state
+
     return {
         item["input"]: item["answer"]
         for item in full_state(page_dir, events, layer_identity={})["activity"][
@@ -184,6 +175,17 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its carrier: the route of a thread reply, and the `handling` that follows
     from it."""
+    from .gesture_words import GestureWords, revisions_on_disk
+    from .registry.reactions import described
+    from .revision_artifact import active_enclosing
+    from .thread_context import (
+        batch_threads,
+        thread_memberships,
+        thread_names,
+        thread_structure,
+        thread_widgets,
+    )
+
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
@@ -249,6 +251,8 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
     answer's route is a fact of the freeze, not of the capture: a Codex record
     collects batches before it knows which transport will offer it, and only the
     freeze does."""
+    from .registry.contract import event_clauses
+
     registry = _registry(Path(batch["page"]))
     # A clause asking the agent to act on a thread (name it, summarize it) rides the
     # event and reads the thread's digest, so the event says only what applies to
@@ -351,7 +355,11 @@ def read_delivery(delivery_id: str) -> dict:
 
 
 def cmd_delivery_read(delivery_id: str) -> None:
-    print(json.dumps(read_delivery(delivery_id), indent=2, ensure_ascii=False))
+    from .codex_state import accept_codex_delivery_read
+
+    payload = read_delivery(delivery_id)
+    accept_codex_delivery_read(delivery_id)
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
 def record_pickup(
@@ -399,6 +407,8 @@ def record_pickup(
     )
     if not fresh:
         return None
+    from .event_contracts import append_admitted
+
     return append_admitted(
         page,
         {

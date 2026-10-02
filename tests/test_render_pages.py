@@ -17,6 +17,7 @@ from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
@@ -156,6 +157,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 
+@pytest.mark.watch_shifts
 def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
     """Each trace step paints inside a fixed layout at both wide pane widths."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
@@ -978,7 +980,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(inline.locator(".lf-page-thread-body")).to_have_text("candidate root")
+    expect(inline.locator(".lf-msg-body")).to_have_text("candidate root")
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
         expect(composer).to_have_js_property("value", words)
@@ -1006,7 +1008,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     )
     page = open_page(browser, live_url(url))
     thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
-    reply = thread.locator(":scope > .lf-say leaf-text")
+    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
     expect(reply).to_be_focused()
@@ -1044,7 +1046,12 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_have_count(0)
+    expect(reply).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
+    assert reply.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 16, "backward"]
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
@@ -1104,7 +1111,11 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(page.locator(".lf-thread leaf-text")).to_have_count(0)
+    # The resolved card stays where the user is writing in it.
+    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
+        "value", "keep this unfinished reply"
+    )
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -1590,8 +1601,9 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
     anyway put a parse error across the whole window with its message on one line."""
-    # The console carries the renderer's refusal, which is what the fixture is for.
     page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    # The page reports the renderer's refusal, which is what the fixture is for.
+    consume_browser_errors(page, '<lf-diagram id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
         const box = document.getElementById('bad').querySelector('.lf-error');
@@ -1652,17 +1664,13 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     consume_browser_errors(page, "lf-tabs.js", "net::ERR_FAILED")
 
 
-def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
-    """The room is for the drawing, and until the module has made one what stands in the
-    box is the authored source: evidence, which reads at the column's width from the
-    column's own edge. The mark is written before any module imports, so this is every
-    page's first loading interval and not a corner — the renderer is fetched lazily — and
-    for a page whose module never arrives it is the whole of what the user sees. Held
-    to the room, three sources came out centred at three indents, none of them the
-    column's.
-
-    The module is blocked outright here because that is the state the failure holds
-    still: what the timed version of it measures is the machine."""
+def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
+    """The room is for the drawing. While the renderer loads, a live page gives the box
+    that room from first paint so the drawing lands without moving anything; once the
+    renderer cannot arrive, the page did not start, and the source is the whole of what
+    the user sees. It is evidence, which reads at the column's width from the column's
+    own edge. Held to the room, three sources came out centred at three indents, none of
+    them the column's."""
     url = serve(DIAGRAM_AND_RAIL_PAGE)
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
@@ -3247,6 +3255,89 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 
+@pytest.mark.parametrize("rail", [True, False])
+def test_authored_residency_runs_without_annotation_geometry(browser, serve, rail):
+    """Content residency imports inertly and admits authored residents independently
+    of annotation selection. Its one document listener owns disclosure changes; RTL
+    and a removed main still complete a reading without a second layout authority."""
+    page = open_page(
+        browser, serve(leaf_page("content owner", "<h1>Content owner</h1>"))
+    )
+    asset = page.evaluate("""new URL('runtime/content-layout.js', new URL(
+      document.querySelector('script[data-lf-entry]').dataset.lfEntry, location)).href""")
+    fixture = page.evaluate("new URL('content-owner-proof', location).href")
+    page.route(
+        fixture,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<!doctype html><html><head><style>
+body { margin: 0 }
+main { width: 720px; margin: auto; position: relative;
+ inset-inline-start: var(--lf-shift, 0px);
+ --rail: 100px; --sidebar: 150px; --note: 80px }
+aside { --lf-resident: sidebar }
+aside.note { --lf-resident: note; display: none }
+</style></head><body><main><h1>Neutral authored layout</h1>
+<aside>Sidebar</aside><aside class="note">Hidden until resident note</aside>
+<details><summary>More</summary><aside class="note">Disclosed note</aside></details>
+</main></body></html>""",
+        ),
+    )
+    page.set_viewport_size({"width": 950, "height": 800})
+    loaded = []
+    page.on("request", lambda request: loaded.append(request.url))
+    page.goto(fixture)
+    reading = page.evaluate(
+        """async ({asset, rail}) => {
+      const owner = await import(asset);
+      window.residency = owner; window.completed = [];
+      owner.scheduleResidency();
+      await new Promise(requestAnimationFrame);
+      const main = document.querySelector('main');
+      const inert = !owner.residencyStarted() && !main.hasAttribute('data-lf-margin');
+      owner.openResidency({rail, onRead: changed => window.completed.push(changed)});
+      return {inert, tokens: main.getAttribute('data-lf-margin'),
+              shift: main.style.getPropertyValue('--lf-shift')};
+    }""",
+        {"asset": asset, "rail": rail},
+    )
+    expected = {
+        "inert": True,
+        "tokens": "rail note" if rail else "sidebar note",
+        "shift": "" if rail else "35px",
+    }
+    assert reading == expected
+    page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
+    page.wait_for_function("completed.length >= 2")
+    assert (
+        page.locator("main").evaluate(
+            "node => node.style.getPropertyValue('--lf-shift')"
+        )
+        == expected["shift"]
+    )
+    page.evaluate("document.querySelector('details').open = true")
+    page.wait_for_function("completed.length >= 3")
+    expect(page.locator("main")).to_have_attribute("data-lf-margin", expected["tokens"])
+    page.evaluate(
+        "document.querySelector('main').remove(); residency.scheduleResidency()"
+    )
+    page.wait_for_function("completed.length >= 4")
+    assert page.evaluate("completed.at(-1)") is False
+    assert not [
+        url
+        for url in loaded
+        if any(
+            name in url
+            for name in (
+                "margin-layout",
+                "margin-projection",
+                "annotation-layer",
+                "page-map-dialog",
+            )
+        )
+    ]
+
+
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     browser, serve
 ):
@@ -3390,6 +3481,40 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     expect(page.locator(".lf-banner")).to_be_visible()
 
 
+def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
+    """Cookie names distinguish real ports in one browser's shared cookie jar."""
+    first_url = serve(INLINE_PAGE)
+    with (
+        TemporaryPageServer(serve.page_dir, token="another-listener-key") as other,
+        browser.new_context() as context,
+    ):
+        first = open_page(browser, first_url, context=context)
+        second = open_page(browser, other.url, context=context)
+        for page in (first, second):
+            assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+            page.reload()
+            wait_until_ready(page)
+            assert "?t=" not in page.url
+            assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+        cookies = context.cookies()
+        assert len({cookie["name"] for cookie in cookies}) == 2
+        assert all(
+            cookie["httpOnly"] and cookie["sameSite"] == "Strict" for cookie in cookies
+        )
+        assert first.evaluate("document.cookie") == ""
+
+        # Native keyboard sends still use relative API requests after both arrivals.
+        first.keyboard.press("c")
+        first.keyboard.type("Both tabs remain usable")
+        with sending(first, "comment"):
+            first.keyboard.press("Control+Enter")
+        assert any(
+            event.get("text") == "Both tabs remain usable"
+            for event in events_model.read_events(serve.page_dir)
+        )
+        assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
+
+
 # Everything an injected control still draws once the medium has taken the press away.
 # `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
 # a control wears — a chip ground, a pill's corner, a border, a link's underline, a
@@ -3413,13 +3538,14 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
     };
   })"""
 
-# Each disclosure and whether the sheet shows what it holds.
+# Each disclosure and whether the sheet shows its authored content. Injected controls
+# may sit beside that content for keyboard order, but are intentionally absent on paper.
 DISCLOSURES = """() => [...document.querySelectorAll('details')]
   .filter(d => !d.closest('.lf-chrome'))
   .map(d => ({
     open: d.open,
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY')
+    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
   }))"""
 

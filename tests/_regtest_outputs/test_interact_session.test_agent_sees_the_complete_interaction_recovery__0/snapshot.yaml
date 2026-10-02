@@ -2,19 +2,12 @@
 # Only page paths, event/delivery identities and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
 
-no watcher:
-  hookSpecificOutput:
-    hookEventName: Stop
-    additionalContext: |-
-      Leaf needs attention:
-      - <page>: no watcher. To watch all this session's pages, start an unnamed `leaf wait` as a background task with `timeout` 7200000 (milliseconds), the longest Claude Code allows; or run `leaf status <page> idle` if this page is done.
-
 idle before pickup:
   exit: 1
   output: |
     1 update nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
-wait wakes the session: |
+the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
 
 delivered at prompt:
@@ -85,9 +78,7 @@ delivered at prompt:
               kind: reply
               to: event-2
               for: event-2
-  attention: |-
-    Leaf needs attention:
-    - <page>: no watcher. To watch all this session's pages, start an unnamed `leaf wait` as a background task with `timeout` 7200000 (milliseconds), the longest Claude Code allows; or run `leaf status <page> idle` if this page is done.
+  attention: ''
 
 acknowledged at stop:
   hookSpecificOutput:

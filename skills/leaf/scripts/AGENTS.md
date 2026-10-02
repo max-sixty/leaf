@@ -15,8 +15,10 @@ subpackage's initializer is only a marker, never a second API.
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
-- `page`: vendored page guidance;
-- `event_log`: append-only JSONL storage, locking, and attempt identity;
+- `page_memory`: how long a process keeps what it read of a page: while the page is
+  among the eight it read most recently;
+- `page`: vendored page instructions;
+- `event_log`: append-only JSONL storage and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through;
 - `page_view`: the page as that door reads it;
 - `event_endpoint`: the browser's HTTP transport onto the door;
@@ -38,17 +40,21 @@ subpackage's initializer is only a marker, never a second API.
 - `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
+- `codex_state`: Codex hook turn observation and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the host's model for when a user opens a
   thread, before the agent's reply could name it;
-- `state_paths`, `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
-  the state-home path and cold session cleanup, process readings,
+- `session_cleanup`: standalone stdlib cold session cleanup, shared state paths,
+  page identity, cross-process locks, and durable byte and JSON replacement;
+- `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
+  process readings,
   process-backed leases taken through `take_lease` and `release_lease`, page
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;
 - `presence`: page, claim, and neighboring-leaf presence;
-- `samples`: disposable child pages built from captured templates;
+- `samples`, `sample_content`: disposable child pages built from captured templates,
+  and their initial histories admitted from parent threads or authored fixture commands;
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   authoring gates, and page init and layer transitions;
@@ -61,20 +67,22 @@ subpackage's initializer is only a marker, never a second API.
 - `media`, `publishing`, `live_shell`: page-bound media, public version stamps, and
   the static files a host serves beside Leaf's API.
 
-Within `registry/`, `contract` owns shared schema helpers, `kernel` the fixed
+Within `registry/`, `contract` owns vocabulary readings and derived declarations,
+`schema` the offline JSON Schema engine, and `kernel` the fixed
 kernel event contract, `layer`, `widgets`, and `state` own their vocabulary
 contracts, `validation` composes those gates, `page` composes page-owned
 declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
-Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
+Within `served_state/`, `context` owns the live or captured inputs every fold reads;
+`wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for the news stream, and
 `service` owns the page transaction every route reads through.
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
-the run of a page's own code, `preview` owns ephemeral servers, `browser` owns the
+the run plain `page check` and message markup take, `preview` owns ephemeral servers, `browser` owns the
 browser launch, `screens` owns the screens a passing check saves for the author, and
 `command` owns the CLI boundary, and `widget_quality` owns the report `package check
 --render` gives a widget's author, which refuses nothing.

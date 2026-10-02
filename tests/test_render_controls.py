@@ -8,12 +8,11 @@ from interact_support import (
     append_command,
     record_claim,
 )
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -58,7 +57,6 @@ from render_cases_navigation import (
     DIFF_PAGE,
     _publish,
     actions,
-    live_watcher,
 )
 from render_cases_widgets import (
     SCROLLED,
@@ -146,7 +144,7 @@ LIVE_SAMPLES_PAGE = leaf_page(
 
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
-    """Four child pages can hold different panel views and reset independently."""
+    """Child pages hold independent panel and anchored views across sample Reset."""
     gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
     page = open_page(browser, serve(gallery))
     views = {
@@ -155,7 +153,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "resolved": page.frame_locator("#resolved-sample iframe"),
         "summary": page.frame_locator("#summary-sample iframe"),
     }
-    for frame in views.values():
+    for name in ("overview", "resolved", "summary"):
+        frame = views[name]
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
         topic = frame.locator(".lf-thread[open] .lf-thread-topic")
         expect(topic).to_be_visible()
@@ -165,9 +164,13 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(
         views["overview"].locator(".lf-thread:not([open]) .lf-thread-topic").first
     ).to_be_visible()
-    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
-        "1 open thread · On you"
+    anchored = views["you"].locator(".lf-margin-preview")
+    expect(anchored).to_be_visible()
+    expect(anchored).to_have_attribute(
+        "aria-label", "Thread for Agenda and room photo."
     )
+    expect(anchored.locator(".lf-msg")).to_have_count(3)
+    expect(anchored.locator("leaf-text")).to_be_visible()
     expect(views["resolved"].locator(".lf-thread-view-summary")).to_have_text(
         "1 resolved thread"
     )
@@ -180,7 +183,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
 
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
-    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    expect(anchored).to_be_visible()
     reset = page.locator("#overview-sample").get_by_role(
         "button", name="Reset", exact=True
     )
@@ -188,6 +191,13 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(reset).to_be_enabled(timeout=30000)
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+    views["you"].get_by_role("button", name=re.compile("Open threads")).click()
+    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 open thread"
+    )
+    expect(views["you"].locator('.lf-thread[data-id="98850286"]')).to_be_visible()
 
 
 def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
@@ -251,6 +261,82 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(
         frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
     ).to_have_attribute("open", "")
+
+
+def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
+    browser, serve
+):
+    """Shared authored history starts independent windows before host controls run."""
+    source = leaf_page(
+        "History study",
+        """
+        <h1>History study</h1><output id="arrivals">0</output>
+        <lf-sample id="first-history" label="first treatment" window>
+          <template id="first-history-page" data-sample data-sample-events="history">
+            <h1>Weekend service</h1><p id="timetable">Trains run hourly.</p>
+          </template>
+        </lf-sample>
+        <lf-sample id="second-history" label="second treatment" window>
+          <template id="second-history-page" data-sample data-sample-events="history">
+            <h1>Weekend service</h1><p id="timetable">Trains run hourly.</p>
+          </template>
+        </lf-sample>
+        """,
+        head="""
+        <script id="history" type="application/json">
+          [{"id":"question","kind":"comment","anchor":{"section":"timetable"},
+            "text":"Does Sunday keep this timetable?"},
+           {"kind":"reply","author":"agent","parent":"question",
+            "text":"Yes, both weekend days use the same hourly service."}]
+        </script>
+        <script type="module">
+          let arrivals = 0;
+          document.addEventListener('lf-sample-ready', event => {
+            const child = event.detail.document;
+            const row = child.querySelector('.lf-thread[data-id="question"]');
+            if (!row || !row.textContent.includes('both weekend days'))
+              throw new Error('sample announced before fixture presentation');
+            child.querySelector('.lf-threads-toggle').click();
+            document.querySelector('#arrivals').textContent = String(++arrivals);
+          });
+        </script>
+        """,
+    )
+    page = open_page(browser, serve(source))
+    expect(page.locator("#arrivals")).to_have_text("2")
+    parent_before = events_model.read_events(serve.page_dir)
+    first = page.frame_locator("#first-history iframe")
+    other = page.frame_locator("#second-history iframe")
+    expect(first.locator(".lf-thread")).to_have_count(1)
+    expect(other.locator(".lf-thread")).to_have_count(1)
+    expect(first.locator(".lf-thread-panel")).to_be_visible()
+    first.locator('.lf-thread[data-id="question"] .lf-thread-summary').click()
+    first.locator('.lf-thread[data-id="question"] .lf-resolve').click()
+    expect(first.locator('.lf-thread[data-id="question"]')).to_have_attribute(
+        "data-resolved", "true"
+    )
+    other_events = page.request.get(
+        other.locator("body").evaluate("location.href") + "api/state"
+    ).json()["events"]
+    assert [event["kind"] for event in other_events if event["kind"] != "read"] == [
+        "comment",
+        "reply",
+    ]
+    assert events_model.read_events(serve.page_dir) == parent_before
+    page.locator("#first-history").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(page.locator("#arrivals")).to_have_text("3")
+    expect(first.locator(".lf-thread-panel")).to_be_visible()
+    state = page.request.get(
+        first.locator("body").evaluate("location.href") + "api/state"
+    ).json()
+    assert [event["kind"] for event in state["events"] if event["kind"] != "read"] == [
+        "comment",
+        "reply",
+    ]
+    assert state["events"][1]["parent"] == "question"
+    assert events_model.read_events(serve.page_dir) == parent_before
 
 
 def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
@@ -2626,7 +2712,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
         edge_control = page.locator(edge_selector)
         edge_control.evaluate("edge => edge.blur()")
-        for _ in range(80):
+        # Every thread title Tab reaches opens its thread, so the walk crosses each
+        # thread's own controls on the way to the grip.
+        for _ in range(400):
             page.keyboard.press("Tab")
             if edge_control.evaluate("edge => document.activeElement === edge"):
                 break
@@ -3138,18 +3226,15 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # so the row says so — dot and words both the banner's own vocabulary.
     expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
-    # Every row is cut to the panel's width, so the hover holds the whole account —
-    # and the fact no row draws is the work behind the page, which is what tells two
-    # rows apart when the titles somebody wrote for them are alike. Both rows carry it,
-    # from the one gatherer that answers for this page and for its neighbours
-    # (`presence`): the drawer's account of a neighbour is the account that page gives
-    # of itself.
+    # Every row is cut to the panel's width, so the hover holds the whole account.
+    # This page's own row carries the work behind it, which is what tells two rows
+    # apart when their titles are alike. A neighbour's row reads only that page's
+    # declaration (`presence.other_leaves`), so its hover has no work behind it.
     expect(self_row).to_have_attribute(
         "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
     )
     expect(link).to_have_attribute(
-        "title",
-        f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
+        "title", "The other leaf\nWorking — running the suite"
     )
     destination = link.get_attribute("href")
     # The new tab keeps the other page's live root, authorized by the key its link
@@ -3270,14 +3355,11 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         assert 0 <= fit["threads"]["left"] < fit["threads"]["right"] <= width, fit
 
 
-def test_a_panel_row_follows_its_pages_status_live(
-    browser, serve, other_leaf, dead_pid, tmp_path
-):
-    """The panel is a status surface, not a snapshot: a neighbour's state changing on
-    disk repaints its row at the next poll, in place — and a neighbour whose claimant
-    has exited reads as unheld, the computed fact its own banner would state, not the
-    claim its status file still makes. The row's hover follows it too, being the same
-    account written where there is room for it whole."""
+def test_a_panel_row_follows_its_pages_status_live(browser, serve, other_leaf):
+    """The panel is a status surface, not a snapshot: a neighbour's declaration
+    changing on disk repaints its row at the next poll, in place, and the row's
+    hover follows it, being the same account written where there is room for it
+    whole."""
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
@@ -3286,103 +3368,39 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
-    # in the same term its banner uses: one word per state across the product, or a
-    # user reading both surfaces has to work out whether they mean the same thing.
-    # Its own watcher has to be live for that, which is what the neighbour's held lease
-    # proves — judged from the same evidence its banner judges itself on.
-    files_model.write_json(
+    # in the same term its banner uses, with what it is waiting for: the panel is
+    # where a user picks which page to go to. The hover holds it whole, since the
+    # line ellipsizes at the panel's width, and it is the row's hover and not the
+    # line's, the innermost title winning where two overlap.
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": events_model.now_iso()},
+        {
+            "state": "waiting",
+            "detail": "pick a storage engine",
+            "ts": cleanup_model.now_iso(),
+        },
     )
-    with live_watcher(other_dir, page):
-        expect(row.locator(".lf-others-line")).to_have_text("Awaits")
-        # And what it is waiting for, because the panel is where a user picks which
-        # page to go to: the row that says a page needs them carries the decision, the way
-        # the working row above carries what its agent is doing. The hover holds it
-        # whole, with the rest of the account, since the line ellipsizes at the panel's
-        # width — and it is the row's hover and not the line's, the innermost title
-        # winning where two overlap: a title on the line would answer the hover most
-        # likely to be asking for the rest, a user pointing at the words that ran out
-        # of room, with the one part of the account they can already read.
-        files_model.write_json(
-            other_dir / "status.json",
-            {
-                "state": "waiting",
-                "detail": "pick a storage engine",
-                "ts": events_model.now_iso(),
-            },
-        )
-        told(page)
-        line = row.locator(".lf-others-line")
-        expect(line).to_have_text("Awaits — pick a storage engine")
-        expect(row).to_have_attribute(
-            "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine",
-        )
-        assert line.get_attribute("title") is None, (
-            "the line carries a tooltip of its own again, which wins under the pointer "
-            "over the row's whole account"
-        )
-        # A leaf holding words of the user's that nobody has read is a reason to go
-        # to it. The row keeps the live watcher as its primary state and carries the
-        # pending count beside it, rather than letting either fact hide the other.
-        comment = events_model.append_event(
-            other_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": "Mine."},
-        )
-        told(page)
-        expect(row.locator(".lf-others-line")).to_have_text(
-            "Listening — pick a storage engine · 1 update waiting"
-        )
-        expect(row).to_have_attribute(
-            "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\n"
-            "Listening — pick a storage engine · 1 update waiting"
-            "\n1 update waiting",
-        )
-        # Pickup into the claimant's current turn proves generic page work while the
-        # exact delivery phase remains on the interaction receipt and in the account.
-        with service_model.PageTransaction(other_dir) as transaction:
-            delivery_model.record_pickup(transaction, [comment])
-        told(page)
-        expect(row.locator(".lf-others-line")).to_have_text("Working")
-        expect(row).to_have_attribute(
-            "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nWorking"
-            "\n1 update being handled",
-        )
-        events_model.append_event(
-            other_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "parent": comment["id"],
-                "responds": comment["id"],
-                "revision": 1,
-                "text": "Use the existing page directory.",
-            },
-        )
-        told(page)
-        expect(row.locator(".lf-others-line")).to_have_text(
-            "Awaits — pick a storage engine"
-        )
-    # The claim still says waiting; its claimant is gone. The row reports what the
-    # directory can prove, exactly as the neighbour's own banner would.
-    record_claim(other_dir, id="s", pid=dead_pid)
     told(page)
-    expect(row.locator(".lf-others-line")).to_have_text("Unheld")
-    expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
+    line = row.locator(".lf-others-line")
+    expect(line).to_have_text("Awaits — pick a storage engine")
+    expect(row).to_have_attribute(
+        "title", "The other leaf\nAwaits — pick a storage engine"
+    )
+    assert line.get_attribute("title") is None, (
+        "the line carries a tooltip of its own again, which wins under the pointer "
+        "over the row's whole account"
+    )
 
 
 def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
@@ -3426,17 +3444,17 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
         {
             "state": "working",
             "detail": "recording the demo",
-            "ts": events_model.now_iso(),
+            "ts": cleanup_model.now_iso(),
         },
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     held = page.evaluate(
@@ -3505,9 +3523,9 @@ def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(0)
@@ -3549,9 +3567,9 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    files_model.write_json(
+    cleanup_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(2)
@@ -3667,9 +3685,9 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           };
         }"""
     )
-    files_model.write_json(
+    cleanup_model.write_json(
         closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
     told(page)
     page.wait_for_function(
@@ -4136,10 +4154,8 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
     reading_place()
 
-    # The card releases to whole-panel selection, and the press after that closes the
-    # sheet.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # A panel thread has no release of its own: Escape from it is the panel's, and with
+    # nothing narrowed that closes the sheet.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
@@ -4783,13 +4799,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `g T` lands the user; `c` there
-    # enters its page comment box.
+    # The panel, and then the thread its list shows open — which is where `g T` lands
+    # the user; `c` there enters that thread's reply box. The page comment box below the
+    # list is the panel's other box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    sweep("standing on the comment list")
+    shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    expect(shown.locator(":scope > .lf-thread-summary")).to_be_focused()
+    sweep("standing on the open thread")
     page.keyboard.press("c")
+    expect(shown.locator("leaf-text")).to_be_focused()
+    sweep("standing in a reply box")
+    page.locator(".lf-general leaf-text").focus()
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     sweep("standing in the general box")
     page.keyboard.press("Escape")
@@ -5125,7 +5146,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
           const bar = document.querySelector('.lf-shortcut-bar');
-          const hints = [...bar.children].filter(node => node.checkVisibility());
+          const hints = [...bar.querySelectorAll(".lf-shortcut:not([hidden])")];
           return {shortcut_bar: rect(bar), first: rect(hints[0]),
                   width: innerWidth, height: innerHeight};
         }"""
@@ -5776,6 +5797,7 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
+            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
@@ -5810,7 +5832,13 @@ RING_CASES = (
         (),
         {"pr-walkthrough": (("leaf-text.lf-fab-input", "inline-response"),)},
     ),
-    ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    # The list holds focus itself only while it shows no thread, so the sample finds
+    # nothing and backs out of the find box onto the emptied list.
+    (
+        "the thread list",
+        ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
+        {"corpus": ((None, "thread-list"),)},
+    ),
     (
         "a thread title",
         (),
@@ -6164,8 +6192,10 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     # The thread list's ring is a later-painted pseudo-element because its scrolling
     # contents can cover an outline on the list itself. Prove that paint is part of the
     # reading, then take it away without moving focus and require the list to be reported.
-    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
-    page.evaluate("() => document.activeElement?.blur()")
+    # The list keeps focus itself only while it shows no thread, so this half stands on
+    # a page with none.
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(RING_FOCUS_START)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -6277,6 +6307,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        if name == "wt-merge":
+            # Its pane body earns a keyboard stop only while it has content to scroll.
+            resized(page, 1200, 700)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
@@ -6430,10 +6463,10 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     if ring_name == "ask":
                         ask_id = target.evaluate(
                             """async node => {
-                              const { marginEntrySource } = await window.__lfRuntimeImport(
-                                '/runtime/margin-entries.js'
+                              const { contributionEntrySource } = await window.__lfRuntimeImport(
+                                '/runtime/contribution-controls.js'
                               );
-                              return marginEntrySource(node)?.id ?? null;
+                              return contributionEntrySource(node)?.id ?? null;
                             }"""
                         )
                         assert ask_id, f"{selector} {where} names no ask carrier"

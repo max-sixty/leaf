@@ -9,6 +9,7 @@ const runtimePrimitives = [
   "chrome.js",
   "dom-children.js",
   "focus.js",
+  "control-selectors.js",
   "keeps.js",
   "rendering.js",
   "repaint.js",
@@ -386,9 +387,10 @@ const architecturePlugin = {
       meta: { type: "problem", schema: [] },
       create(context) {
         const file = runtimeName(context.filename ?? context.getFilename());
-        // The prepaint bootstrap runs before the module graph and writes only
-        // provisional choices. root-state.js is the sole standing mutation boundary.
-        if (file === "bootstrap.js" || file === "root-state.js") return {};
+        // The bootstrap and the prepaint run before the module graph and write only
+        // what the first paint needs, before any authored revision has replaced the
+        // root's attributes. root-state.js is the sole standing mutation boundary.
+        if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
         const source = context.sourceCode ?? context.getSourceCode();
         const pagePaintAttributes = pagePaintAttributesFrom(
           context.languageOptions.parser,

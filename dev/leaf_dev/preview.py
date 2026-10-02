@@ -8,8 +8,9 @@ opens offline.
 
 A plain preview takes no claim: its comments settle in the page's log and nowhere
 else, so a session can drive it. `--user` claims the page for this session, so presses
-arrive through `leaf wait` and the Stop hook, and serves it from the page's durable
-service, which the preview stops on the way out.
+arrive through the host's feedback path, and serves it from the page's durable
+service, which the preview stops on the way out. In Codex it also starts or joins
+the task's delivery adapter, so comments can start a new turn after this one ends.
 
 A preview is a foreground process, like any dev server; SIGTERM takes the same cleanup
 path as Ctrl-C. Each start discards what an earlier one left in its slot, claim
@@ -73,6 +74,7 @@ WATCHER_PACKAGE = "watchfiles>=1.1.0"
 # The quiet gap that closes an editor's save batch (`step`), and the idle wake-up at
 # which the watcher re-reads the server's liveness (`rust_timeout`).
 WATCH_INTERVAL_MS = 250
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 class LeafFailed(RuntimeError):
@@ -145,7 +147,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
     Every field written here reaches the browser: the server hands the file to
     the page whole. It serves neither the file itself nor an absolute checkout path.
     """
-    from leaf.files import write_json
+    from leaf.session_cleanup import write_json
 
     layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
     producer = layer.get("producer", {})
@@ -249,9 +251,22 @@ class PreviewService:
         """Put the server up for the first time and report its URL and lifetime
         note. A `--user` preview claims the page for this session here, once, and
         gives the claim back if the start does not commit."""
-        from leaf.hosting import claim_and_start
+        from leaf.host import CodexHarness, session_harness
+        from leaf.hosting import claim_and_start, start_server
+        from leaf.service import starting_claim
 
-        return claim_and_start(self.page) if self.user else self._serve_temporary()
+        if not self.user:
+            return self._serve_temporary()
+        if isinstance(session_harness(), CodexHarness):
+            from leaf.codex_adapter import cmd_codex_start
+
+            # Both parts must be ready before handing over the URL. The carrier
+            # joins an existing task-wide adapter, whose lifetime it owns itself.
+            with starting_claim(self.page):
+                started = start_server(self.page)
+                cmd_codex_start(self.page)
+                return started
+        return claim_and_start(self.page)
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up, or say
@@ -678,13 +693,13 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
 
 
 def terminated(signum, _frame) -> None:
-    """End on SIGTERM the way Ctrl-C ends: through the cleanup it skips by default.
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
 
-    A runner that signals the whole process group reaches this process twice, once
-    directly and once through `uv run`'s forwarding, and a second exit raised inside
-    the first one's cleanup would abandon it. So the first is the only one heard.
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
     """
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
     raise SystemExit(128 + signum)
 
 
@@ -735,7 +750,8 @@ def preview(
         raise click.UsageError("--user serves a page; omit --export")
     try:
         if worker:
-            signal.signal(signal.SIGTERM, terminated)
+            for stop_signal in STOP_SIGNALS:
+                signal.signal(stop_signal, terminated)
             source = source.resolve()
             runtime = runtime.resolve()
             run_preview(

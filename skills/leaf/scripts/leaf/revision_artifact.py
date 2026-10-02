@@ -15,9 +15,12 @@ that file appears. Users never discover a staged or incomplete revision,
 including after a process crash.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
-revision owning its manifest, captured vocabulary, parsed document, and passage
-readings. `read_artifact` materializes the complete bundle under a bound of its own;
-delivery parses the document it rewrites for serving, which is other text.
+revision, owning its manifest, captured vocabulary, parsed document, and passage
+readings. The one exception is a neighbour's title, which `revision_title` reads from
+the manifest alone. `read_artifact` materializes the complete bundle under a bound of
+its own; delivery parses the document it rewrites for serving, which is other text.
+Each is kept in the memory of the page it was read from, for as long as the process
+keeps that page (`page_memory`).
 """
 
 import hashlib
@@ -39,15 +42,11 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser
 
-from leaf.files import (
-    file_stamp,
-    fsync_parents,
-    latest_revision,
-    list_revisions,
-    revision_path,
-)
+from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
+from leaf.session_cleanup import fsync_parents
 from leaf.structure import (
     SourceDocument,
     links_with_rel,
@@ -81,16 +80,6 @@ def _json(value) -> bytes:
 
 def _canonical_json(value) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
-
-
-def _read(path: Path) -> bytes:
-    return _read_stamped(path, file_stamp(path))
-
-
-@lru_cache(maxsize=512)
-def _read_stamped(path: Path, stamp: tuple | None) -> bytes:
-    """Cache stable payload reads without retaining every page ever inspected."""
-    return path.read_bytes()
 
 
 @dataclass(frozen=True)
@@ -404,41 +393,32 @@ def capture_artifact(
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code.
 
-    One complete capture is retained while every input is the same: the document's
+    The page keeps its last capture while every input is the same: the document's
     bytes, the vocabulary and declarations, and the stamp of every mutable file a
     capture may read. A capture that must be built is built from the caller's own
     document, which the check that asks has already parsed."""
     page_dir = page_dir.absolute()
     key = (
-        page_dir,
         document.data,
         _json(registry),
         _json(dict(declaration_sources or {})),
         _json(dict(widget_sources or {})) if widget_sources is not None else None,
         _capture_input_stamps(page_dir),
     )
-    with _captures_lock:
-        if (held := _captures.pop(key, None)) is not None:
-            _captures[key] = held
-            return held
-    artifact = _capture_artifact(
-        page_dir,
-        document,
-        registry,
-        declaration_sources=declaration_sources,
-        widget_sources=widget_sources,
+    return memo(page_dir, _Capture).get(
+        key,
+        lambda: _capture_artifact(
+            page_dir,
+            document,
+            registry,
+            declaration_sources=declaration_sources,
+            widget_sources=widget_sources,
+        ),
     )
-    with _captures_lock:
-        _captures[key] = artifact
-        while len(_captures) > _CAPTURES_LIMIT:
-            _captures.pop(next(iter(_captures)))
-    return artifact
 
 
-_CAPTURES_LIMIT = 8
-# capture inputs → the capture, least recently asked first.
-_captures: dict[tuple, RevisionArtifact] = {}
-_captures_lock = threading.Lock()
+class _Capture(Slot):
+    """A page's last capture, by every input it was built from."""
 
 
 def _capture_artifact(
@@ -465,7 +445,7 @@ def _capture_artifact(
                 f"{path}: dependency escapes its source directory through a symlink"
             )
         try:
-            data = _read(source)
+            data = source.read_bytes()
         except OSError as error:
             raise ArtifactError(
                 f"{path}: cannot capture dependency: {error.strerror}"
@@ -647,6 +627,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
+            "title": document.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,
@@ -718,27 +699,71 @@ def write_artifact(
     os.link(destination / "index.html", marker)
     fsync_parents([marker])
     marker = marker.absolute()
-    _hold(marker, file_stamp(marker), RevisionReading(marker, reading))
+    memo(page_dir, _Readings).hold(
+        marker, file_stamp(marker), RevisionReading(marker, reading)
+    )
     return marker
 
 
+def revision_title(page_dir: Path, revision: int) -> str:
+    """What a revision's `<title>` says, from its manifest alone, for a reader that
+    holds no reading of the page (`presence.other_leaves`). A manifest captured
+    before it recorded the title reads as untitled."""
+    manifest = revision_path(page_dir, revision).with_suffix("") / "manifest.json"
+    return json.loads(manifest.read_bytes()).get("title", "")
+
+
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
-    """Read exact captured inputs, never substituting a mutable page file."""
+    """Read exact captured inputs, never substituting a mutable page file.
+
+    The page keeps the last few it materialized (`_Artifacts`), until any file they
+    were read from changes."""
     path = revision_path(page_dir, revision).absolute()
     bundle = path.with_suffix("")
-    manifest_path = bundle / "manifest.json"
-    manifest_stamp = file_stamp(manifest_path)
-    return _read_artifact_stamped(
-        path,
-        bundle,
+    stamps = (
         file_stamp(path),
         file_stamp(bundle),
-        manifest_stamp,
+        file_stamp(bundle / "manifest.json"),
     )
+    held = memo(page_dir, _Artifacts)
+    if (artifact := held.get(path, stamps)) is None:
+        artifact = _materialize(path, bundle)
+        held.hold(path, stamps, artifact)
+    return artifact
+
+
+class _Artifacts:
+    """A page's last materialized bundles, least recently read first.
+
+    A bundle is a couple of hundred files and several megabytes. A server answers
+    each resource request from the revision a tab shows, which is the active one and
+    a few others at most, while a snapshot or a live shell walks every revision
+    once."""
+
+    LIMIT = 4
+
+    def __init__(self) -> None:
+        self.held: dict[Path, tuple[tuple, RevisionArtifact]] = {}
+        self.lock = threading.Lock()
+
+    def get(self, path: Path, stamps: tuple) -> RevisionArtifact | None:
+        with self.lock:
+            held = self.held.pop(path, None)
+            if held is None or held[0] != stamps or None in stamps:
+                return None
+            self.held[path] = held
+            return held[1]
+
+    def hold(self, path: Path, stamps: tuple, artifact: RevisionArtifact) -> None:
+        with self.lock:
+            self.held.pop(path, None)
+            self.held[path] = (stamps, artifact)
+            while len(self.held) > self.LIMIT:
+                self.held.pop(next(iter(self.held)))
 
 
 class RevisionReading(SourceReading):
-    """One stored revision, read once for every caller in the process.
+    """One stored revision, read once for every caller its page's memory serves.
 
     A revision's files never change after its HTML marker appears (`write_artifact`),
     so everything read from it — the manifest, the captured vocabulary, the parsed
@@ -814,52 +839,56 @@ class RevisionReading(SourceReading):
         return _digest(self.manifest_bytes)
 
 
-# How much authored source the held readings may stand for. An entry's weight is
-# its document's parse, which scales with the source: the corpus example's 323 KB
-# parses to about 9 MB, and its passage and word readings add about 3 MB more.
-# So entries are charged their source size, whether or not their document has been
-# parsed yet, and this budget keeps resident parses to a few hundred megabytes.
-# A normal history fits whole: some 180 revisions of the largest shipped example
-# page (44 KB), about 700 of the median one (11 KB). A history past it re-parses
-# the revisions a whole-history scan (`validation.admission.version_ids`) reaches
-# after the budget is spent, which is the price of not holding every parse ever
-# made in a long-lived server.
-_READINGS_BUDGET = 8 * 1024 * 1024
-# revision marker → (its stamp, the reading), least recently read first. Endpoints
-# read from a thread pool, so every change to this map and its total is under the
-# lock.
-_readings: dict[Path, tuple[tuple, RevisionReading]] = {}
-_readings_bytes = 0
-_readings_lock = threading.Lock()
-
-
 def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     """The one held reading of an immutable revision."""
     marker = revision_path(page_dir, revision).absolute()
     stamp = file_stamp(marker)
-    with _readings_lock:
-        held = _readings.get(marker)
-    if held and held[0] == stamp:
-        reading = held[1]
-    else:
-        reading = RevisionReading(marker)
-    return _hold(marker, stamp, reading)
+    readings = memo(page_dir, _Readings)
+    reading = readings.get(marker, stamp) or RevisionReading(marker)
+    return readings.hold(marker, stamp, reading)
 
 
-def _hold(marker: Path, stamp, reading: RevisionReading) -> RevisionReading:
-    """Hold `reading` as the newest read, within the budget."""
-    global _readings_bytes
-    with _readings_lock:
-        held = _readings.pop(marker, None)
-        if held:
-            _readings_bytes -= held[0][2]
-        if stamp:
-            _readings[marker] = (stamp, reading)
-            _readings_bytes += stamp[2]
-            while _readings_bytes > _READINGS_BUDGET and len(_readings) > 1:
-                evicted_stamp, _evicted = _readings.pop(next(iter(_readings)))
-                _readings_bytes -= evicted_stamp[2]
-    return reading
+class _Readings:
+    """A page's held revision readings, least recently read first, within a budget.
+
+    The budget is in authored source, since that is what a marker's stamp tells
+    without a parse, and a reading's weight scales with it: a document, its passages
+    and its words come to about twenty times the source (the corpus example's 336 KB
+    to 8 MB, a median example's 11 KB to 0.2 MB). Entries are charged their source
+    whether or not their document has been parsed yet, so 8 MB of source keeps one
+    page's readings under about 160 MB. A normal history fits whole: some 180
+    revisions of the largest shipped example page (44 KB), about 700 of the median
+    one. A longer one re-parses what a whole-history scan
+    (`validation.admission.version_ids`) reaches after the budget is spent.
+
+    Endpoints read from a thread pool, so every change is under the lock."""
+
+    BUDGET = 8 * 1024 * 1024
+
+    def __init__(self) -> None:
+        # revision marker → (its stamp, the reading)
+        self.held: dict[Path, tuple[tuple, RevisionReading]] = {}
+        self.size = 0
+        self.lock = threading.Lock()
+
+    def get(self, marker: Path, stamp) -> RevisionReading | None:
+        with self.lock:
+            held = self.held.get(marker)
+        return held[1] if held and held[0] == stamp else None
+
+    def hold(self, marker: Path, stamp, reading: RevisionReading) -> RevisionReading:
+        """Hold `reading` as the newest read, within the budget."""
+        with self.lock:
+            held = self.held.pop(marker, None)
+            if held:
+                self.size -= held[0][2]
+            if stamp:
+                self.held[marker] = (stamp, reading)
+                self.size += stamp[2]
+                while self.size > self.BUDGET and len(self.held) > 1:
+                    evicted_stamp, _evicted = self.held.pop(next(iter(self.held)))
+                    self.size -= evicted_stamp[2]
+        return reading
 
 
 def active_enclosing(page_dir: Path) -> dict:
@@ -886,27 +915,19 @@ def _shared_registry(data: bytes) -> dict:
     return json.loads(data)
 
 
-@lru_cache(maxsize=8)
-def _read_artifact_stamped(
-    path: Path,
-    bundle: Path,
-    marker_stamp: tuple | None,
-    bundle_stamp: tuple | None,
-    manifest_stamp: tuple | None,
-) -> RevisionArtifact:
-    """Materialize one immutable revision until any captured file changes."""
-    manifest_path = bundle / "manifest.json"
-    manifest_bytes = _read_stamped(manifest_path, manifest_stamp)
+def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
+    """Read one immutable revision's complete bundle."""
+    manifest_bytes = (bundle / "manifest.json").read_bytes()
     manifest = json.loads(manifest_bytes)
     resources = {
         logical: Resource(
-            _read(bundle / ("resources" + logical)),
+            (bundle / ("resources" + logical)).read_bytes(),
             record["mime"],
             tuple(record["dependencies"]),
         )
         for logical, record in manifest["resources"].items()
     }
-    html = _read_stamped(path, marker_stamp)
+    html = path.read_bytes()
     artifact = RevisionArtifact(html, MappingProxyType(resources), manifest_bytes)
     if not path.stem.endswith(artifact.digest.removeprefix("sha256:")[:16]):
         raise ArtifactError(

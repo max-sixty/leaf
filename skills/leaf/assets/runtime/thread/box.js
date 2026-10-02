@@ -1,6 +1,6 @@
 /* This module owns page-seated first-message boxes: the thread a widget declares
  * through `x-thread-seat`, built by `threadBox`. */
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";

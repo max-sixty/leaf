@@ -32,8 +32,8 @@ export function rowPosture({
   return blockRight - half > railInner ? "pin" : "rail";
 }
 
-// Rows that would stand over one another are pushed down, the more important first and
-// then from the top. Two rows collide only where their rectangles do: a pin and a rail
+// Rows that would stand over one another are pushed down, in seating order
+// (`inSeatingOrder`). Two rows collide only where their rectangles do: a pin and a rail
 // marker at the same height stand apart and stay where they are. A row's `fixed` are
 // boxes it may not stand on and that never move — the page's own controls under a pin,
 // such as a card's grip — so a pin level with one goes below it rather than taking its
@@ -41,17 +41,18 @@ export function rowPosture({
 // depends on the scroller it stands in: a pane body's options scrolled behind the pane's
 // footer are there for a pin in the body and nobody else.
 //
-// Each row is `{ key, rect, priority, held, fixed }`, its rect the one it takes with no
-// push. A row the user holds, under the pointer, with focus in it, or with its thread
-// card open, comes before every other (`inSeatingOrder`), so no row pushes it out from
-// under the press or moves the card it opened. The answer maps each key to its push.
+// Each row is `{ key, rect, came, held, pushed, fixed }`: its rect the one it takes with
+// no push, `came` the layout pass it came at, and `pushed` the push it stands at now. A
+// held row is packed from where it stands, its rect pushed by `pushed`, so holding a row
+// that stands pushed leaves it there; every other row is packed from its rect, and comes
+// back up as the room above it frees. The answer maps each key to its push.
 export function packRows(rows, gap) {
   const placed = [];
   const pushes = new Map();
   const order = inSeatingOrder(rows);
-  for (const { key, rect, priority, fixed = [] } of order) {
+  for (const { key, rect, held, pushed = 0, fixed = [] } of order) {
     const height = rect.bottom - rect.top;
-    let top = rect.top;
+    let top = rect.top + (held ? pushed : 0);
     const across = [...placed, ...fixed]
       .filter((box) => overlapsAcross(box, rect))
       .sort((a, b) => a.top - b.top);
@@ -64,27 +65,50 @@ export function packRows(rows, gap) {
       right: rect.right,
       top,
       bottom: top + height,
-      priority,
     });
   }
   return pushes;
 }
 
-// The order rows take their places in: held rows first, then the more important, then
-// from the top.
+// The pass each row came at, carried from the last pass's answer (`previous`) to this
+// one's. Each of this pass's rows is `{ row, at }`: the row's node and what it stands by,
+// its target or the row inside it a comment pointed at, or null where it has no target
+// shown. A row is news, coming at `pass`, only when neither the row nor what it stands by
+// was there at the last pass: the projection builds a row again when an edit shifts an
+// id-less target's path, and a renderer or a revision replaces a target's node under the
+// same key, and neither is news. A row hidden and shown again keeps the pass it came at,
+// and what has no row at this pass is forgotten, so a row it gains later is news. The
+// answer maps each row, and what each stands by, to the pass it came at.
+export function arrivals(previous, rows, pass) {
+  const next = new Map();
+  for (const { row, at } of rows) {
+    const first = previous.get(row) ?? previous.get(at) ?? pass;
+    next.set(row, first);
+    if (at) next.set(at, first);
+  }
+  return next;
+}
+
+// The order rows take their places in, each yielding to those before it. A row the user
+// holds (`held`: under the pointer, with focus in it, or with its thread card open) comes
+// first, so no row pushes it out from under the press or moves the card it opened. Then
+// by the pass each came at, the earliest first (`came`), so a row that has just come
+// takes the room those already there leave rather than moving them: news moves nothing
+// already standing. Then from the top, which is how rows that came together, as a page's
+// do at load, take their places.
 const inSeatingOrder = (rows) =>
   [...rows].sort(
     (a, b) =>
       Number(Boolean(b.held)) - Number(Boolean(a.held)) ||
-      a.priority - b.priority ||
+      (a.came ?? 0) - (b.came ?? 0) ||
       a.rect.top - b.rect.top,
   );
 
 // Where every pin stands, in seating order, so a pin seated first is one the next keeps
 // off (`pinSpot`). A held pin keeps the rect it holds: unfolding its options widens it,
 // and a seat taken again at that width could move the control the user is pressing. It is
-// seated first, so no other pin takes its room. A pin with no `parts` to read around,
-// such as one inside a shadow tree, stands at its home.
+// seated first, so no other pin takes its room. A pin with no `parts` to read around
+// stands at its home.
 //
 // A pin that finds no room for its resting face stands folded where it can fold: one
 // control, its options' toggle, seated as any pin is at that size, so it takes room the
@@ -96,7 +120,7 @@ const inSeatingOrder = (rows) =>
 // width on the left, and a home too near that edge moves right until it fits, though
 // never past the bounds' right edge, where the toggle at least stays reachable.
 //
-// Each pin is `{ key, rect, priority, held, seat, parts, cover, walls, neighbours, line,
+// Each pin is `{ key, rect, came, held, seat, parts, cover, walls, neighbours, line,
 // bounds, folds, folded }`, `rect` its home, `held` the rect it holds or null, `folds`
 // the same pin folded, `{ rect, seat, open }` with `open` its width opened, where it can
 // fold, and `folded` whether it stands folded now, which a held pin keeps. A pin seated

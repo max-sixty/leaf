@@ -482,8 +482,8 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
 
     Each declared emoji is its own margin entry, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
-    dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
-    in Threads.
+    dismissed, `e` is no longer a live page command. Opening Threads does not add an
+    unanchored page-wide reaction target.
     """
     page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
     select_paragraph(page, "#how-cap")
@@ -819,9 +819,9 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
 
 def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
     """A side is chosen for the field and its More press, narrower than Suggest and six
-    reactions at rest. Beside the open Threads panel at 1024px the bar had 256px for
-    that 288px row and the reactions dropped whole beneath Suggest. They give up spare
-    padding before the row breaks, so the row holds and stays inside the bar."""
+    reactions at rest. Constrain the bar beside the open Threads panel to the
+    280px space that previously made reactions drop beneath Suggest. They give
+    up spare padding before the row breaks, so it stays inside the bar."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1024, 768)
     page.locator(".lf-threads-toggle").click()
@@ -833,6 +833,9 @@ def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
     page.keyboard.press("Tab")
     choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
     expect(choices).to_have_count(7)
+    bar.evaluate("""element => {
+      element.style.minWidth = element.style.maxWidth = '280px';
+    }""")
     rendered(page)
     row = bar.evaluate("""bar => {
       const box = bar.getBoundingClientRect();
@@ -1164,7 +1167,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # Retiring a background draft must not interrupt an unrelated typing surface.
     search = page.get_by_role("searchbox", name="Find in threads")
-    search.focus()
+    search.click()
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
@@ -1876,8 +1879,10 @@ diff --git a/value.txt b/value.txt
 def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     browser, serve
 ):
-    """The shared placement path listens to nested scroll boxes, clips target
-    geometry to what is actually shown, and retracts the bar once none remains."""
+    """The shared placement path listens to nested scroll boxes and clips target
+    geometry to what is actually shown. While its editor is open, the bar stays
+    available in the window when the target scrolls away, then rejoins the target
+    when it returns."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -1917,9 +1922,13 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     ), (before_target, before_bar, after_target, after_bar)
 
     diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
-    expect(bar).to_be_hidden()
-    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(bar).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    diagram.evaluate("element => { element.scrollLeft = 0; }")
+    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(
@@ -2564,43 +2573,28 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     )
 
 
-@pytest.mark.parametrize("removal", ["resolve", "filter"], ids=["fold", "filter"])
-def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, removal):
-    """A remote resolve or settlement can remove the reply whose list is open without
-    a pointer or focus gesture in this tab. The detached list stops owning digits, so
-    a later key cannot react to a message that is no longer on screen."""
+def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
+    """A remote resolve takes away the strip whose list is open without a pointer or
+    focus gesture in this tab: the thread's card stays where it stands, drawn resolved,
+    and a resolved thread's messages wear no strip. The detached list stops owning
+    digits, so a later key cannot react to a message that no longer offers it, and the
+    user stays on the thread they were in."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    if removal == "filter":
-        page.locator(".lf-thread-filter-toggle").click()
-        page.locator(".lf-needs").click()
-        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    page.locator(".lf-thread-summary").click()
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile("lf-react-open"))
 
-    if removal == "resolve":
-        thread_model.cmd_resolve(serve.page_dir, root)
-    else:
-        events_model.append_event(
-            serve.page_dir,
-            {"kind": "reply", "author": "user", "parent": reply, "token": "keep"},
-        )
+    thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
+    expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
-    if removal == "filter":
-        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
-    # The user lands on the list, where Escape lands them and t/T walks on from. The
-    # disarm's own focus move runs while the list is still hiding the card, so a read of
-    # where the user stood taken after that loop said they had never been in the list,
-    # and left them on body.
-    assert page.evaluate(
-        "() => document.activeElement === document.querySelector('.lf-threads')"
-    )
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)
@@ -2675,7 +2669,7 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
     list the user was walking. The open list is where the mode stands."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 844)
-    page.keyboard.press("Shift+t")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # The reply strip that shows is in the panel; the page's own strips stand under it.
     page.evaluate(

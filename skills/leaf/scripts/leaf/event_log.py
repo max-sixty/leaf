@@ -1,83 +1,17 @@
-"""Append-only event log storage, locking, and attempt identity."""
+"""Append-only event log storage, raw readings, locking, and attempt identity."""
 
-import contextlib
 import json
 import os
 import secrets
+import signal
+import sys
 from collections.abc import Iterator
 from copy import deepcopy
-from datetime import datetime
 from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
-from leaf.schema import CURSOR_FILE, EVENTS_FILE
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - unsupported non-POSIX platform
-    fcntl = None
-
-
-def require_cross_process_locking() -> None:
-    """Refuse every writer/server path on a host without the log's lock."""
-    if fcntl is None:
-        raise RuntimeError(
-            "leaf requires POSIX cross-process file locking; this platform has no fcntl"
-        )
-
-
-@contextlib.contextmanager
-def flocked(path: Path):
-    """An exclusive lock held while the block runs — the one serialization
-    primitive here. The log serializes appends, cursor and status updates, and
-    claim and delivery transitions. Stable purpose locks serialize contract or service
-    transitions; a `.lock` beside a registry of JSON files serializes updates
-    to them, since the files themselves are replaced by rename and a lock on a
-    replaced inode holds nothing.
-
-    The event log is the successful-init marker as well as a lease. A transaction
-    racing page deletion must not recreate it and turn a deleted directory back into
-    an initialized page, so it is opened, never created, and it outlives the lock.
-
-    A purpose lock's file is the lock and nothing more, so it exists only while it
-    is held or awaited: it is minted on first use and its holder removes it on the
-    way out. A taker that waited on a file removed under it holds a lock on nothing
-    anyone else can find, so it takes the lock again on whatever the path names
-    now (`still_named`)."""
-    require_cross_process_locking()
-    if path.name == EVENTS_FILE:
-        with open(path, "r+b") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            yield f
-        return
-    while True:
-        f = open(path, "a+b")  # noqa: SIM115 - closed below, after the unlink
-        fcntl.flock(f, fcntl.LOCK_EX)
-        if still_named(f.fileno(), path):
-            break
-        f.close()
-    try:
-        yield f
-    finally:
-        path.unlink(missing_ok=True)
-        f.close()
-
-
-def still_named(held: int, path: Path) -> bool:
-    """Whether PATH still names the file the descriptor HELD was opened on.
-
-    A lock file is removed by whoever holds it, so a lock taken on a descriptor
-    opened before that removal is a lock on an unlinked inode. Every taker asks this
-    once it holds the lock and takes it again when the answer is no; the holder's
-    removal can then never let two processes each believe they hold one name."""
-    try:
-        return os.path.samestat(os.fstat(held), os.stat(path))
-    except FileNotFoundError:
-        return False
-
-
-def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+from leaf.schema import CURSOR_FILE
+from leaf.session_cleanup import EVENTS_FILE, flocked, now_iso
 
 
 def read_cursor(page_dir: Path) -> int:
@@ -321,3 +255,31 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
         read += len(complete)
         lines += complete.count(b"\n")
         stamp = next_reading(lambda: file_stamp(log), stamp)
+
+
+def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
+    """Print each event after `after` as the log reads back, and with `follow` each
+    one appended from then on, until stopped.
+
+    A reader that goes away is the ordinary end rather than a failure, whether
+    `head` closed the pipe or a follower's consumer stopped it: SIGINT, SIGTERM, and
+    a closed stdout all exit 0. Each line is flushed as it is printed, since a
+    follower's stdout is a pipe whose reader waits on that line.
+    """
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    records = (
+        follow_events(page_dir, after)
+        if follow
+        else (event for event in read_events(page_dir) if event["seq"] > after)
+    )
+    try:
+        for event in records:
+            print(jsonl_line(event), flush=True)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        # The interpreter flushes stdout again on exit, into the same closed pipe.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(0)
+    except FileNotFoundError as error:
+        sys.exit(str(error))

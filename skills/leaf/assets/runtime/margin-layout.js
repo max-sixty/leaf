@@ -24,37 +24,40 @@
    `position-visibility` hides a row whose anchor its scroller has clipped away, but not
    one whose anchor is invalid (missing, `display: contents`, inside
    `content-visibility: hidden`): every position function in the stylesheet therefore
-   parks the row off screen when its anchor fails, and this pass marks a row withheld,
-   out of the tab order, when its target has no shown part in its region.
+   parks the row off screen when its anchor fails. A target or its anchored part leaving
+   withholds the row before the next paint; layout withholds it when its region hides it.
 
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "./focus.js";
-import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
+import { TAB_STOP } from "./control-selectors.js";
+import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
 import { shadowHost, under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
-import { packRows, rowPosture, seatRows } from "./margin-placement.js";
+import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
 import { pointBand } from "./pointed-place.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
-import { repaintPage } from "./repaint.js";
+import { residencyStarted } from "./content-layout.js";
 import { keeps, layoutPx } from "./keeps.js";
 import { declarationFor } from "./registry.js";
 
 const rows = new Map();
+// The box the last pass anchored each row through. A contents target's first shown
+// part can leave while the declared target remains, and it is that box's departure
+// that invalidates the browser's anchor before the next pass reads its replacement.
+const anchors = new WeakMap();
 const GAP = 4;
 // The id of the thread card a margin row opens (margin-projection.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
 // the pointer, with focus in it, or whose entry has the thread card open, as that entry's
 // disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
-// relative to its row (thread-card-geometry.js), so a row arriving beside it, such as the
-// receipt of a pick made with the card open, would otherwise push the row down and the
-// card the user is reading with it.
+// relative to its row (margin-projection.js), so a standing row whose target moves into
+// it would otherwise push the row down and the card the user is reading with it.
 const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 // The anchor name the rail hangs from: `main`'s own box.
 const PAGE_ANCHOR = "--lf-page";
@@ -65,161 +68,62 @@ let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
 
-// The postures a margin resident may take besides the rail: the side each stands on and
-// the token holding the room it needs there beyond `main`'s box. The stylesheet says
-// which element takes which, in order of preference (`--lf-resident`, theme.css, at
-// aside.sidebar), so the media and Layout conditions on each are the stylesheet's own.
-const POSTURES = {
-  sidebar: ["left", "--sidebar"],
-  map: ["left", "--map"],
-  note: ["right", "--note"],
-};
-
-// Which residents stand in the margin, and how far the column moves off centre to seat
-// them: one reading of the room beside `main`, so the rail, the contents map, a sidebar
-// and the sidenotes all answer the same measurement, whatever width the page's own CSS
-// gave the column. It is written on `main` as `data-lf-margin`, one token per resident
-// standing, and `--lf-shift`, which the column Layout applies (layouts.css); the
-// stylesheet keys every margin posture on those.
-//
-// The rail comes first and stands where the room right of the centred column holds
-// `--rail`; it never moves the column. Then the left side's resident and the notes, which
-// share one decision: each takes the first of its postures for which the room either
-// side of the column, together, holds what those admitted so far need on each side and
-// this posture's need too, the column moving over by what one side lacks. One that fits
-// none stays in flow. The room is read with the column centred, so a shift this pass
-// wrote is taken back out of the reading and the decision never feeds itself.
-//
-// A page declares otherwise on `body`: `data-rail="right"` makes the shell give up the
-// rail's width on its right (theme.css), which this reads as room like any other, and
-// `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
-// Chrome layout asks for it on every pass (chrome-layout.js, `syncLayout`), which runs
-// more than once in a frame, so the reading is taken at most once a frame
-// (`scheduleResidency`): a second ask in a frame already read waits for the next. A change
-// brings this module's pass, since a moved column moves every margin row, and a page
-// repaint; this pass reads the answer off `main`.
-//
-// The reading is of the page as its widgets present it. Before they upgrade, the
-// authored fallback shows what the upgrade hides, such as every panel of a set of tabs
-// and so a sidenote in a tab not chosen, and a reading then moved the column over for a
-// resident the upgrade took away a moment later. So no ask is answered until startup has
-// upgraded the document (`openResidency`, leaf.js), which takes the first reading there
-// and then: it answers every ask made before it, and the margin rows that presentation
-// places stand in the posture it decided rather than moving to it a frame later.
-let residencyOpen = false;
-let residencyPending = 0;
-let residencyRead = -1;
-function residencyPass(time) {
-  residencyPending = 0;
-  if (time === residencyRead) {
-    residencyPending = nextFrame(residencyPass);
-    return;
-  }
-  residencyRead = time;
-  readResidency();
-}
-function readResidency() {
-  if (!settleResidency()) return;
-  scheduleMarginLayout();
-  repaintPage();
-}
-export function scheduleResidency() {
-  if (residencyOpen) residencyPending ||= nextRender(residencyPass);
-}
-export function openResidency() {
-  residencyOpen = true;
-  readResidency();
-}
-
-function settleResidency() {
-  const main = document.querySelector("main");
-  if (!main) {
-    decidePins(false);
-    return false;
-  }
-  const style = getComputedStyle(main);
-  const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
-  // The offset the column stands at, which is the written shift only where the Layout
-  // applies it: page CSS may override the offset, and under `dir="rtl"` it is `right`.
-  const shifted =
-    style.position === "relative"
-      ? parseFloat(style.left) || -parseFloat(style.right) || 0
-      : 0;
-  const written = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
-  const column = main.getBoundingClientRect();
-  const shell = document.body.getBoundingClientRect();
-  const room = {
-    left: column.left - shifted - shell.left,
-    right: shell.right - column.right + shifted,
-  };
-  const taken = { left: 0, right: 0 };
-  const standing = [];
-  if (
-    document.body.getAttribute("data-rail") !== "none" &&
-    room.right >= need("--rail")
-  ) {
-    standing.push("rail");
-    taken.right = need("--rail");
-  }
-  const declared = new Map();
-  // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
-  // room. One the page hides itself stays a resident, since a page may hide it until it
-  // stands in the margin. One in skipped content is asked nothing (`skipped`).
-  for (const aside of main.querySelectorAll("aside")) {
-    if (skipped(aside)) continue;
-    const own = getComputedStyle(aside);
-    const hiddenItself =
-      own.display === "none" && aside.parentElement.checkVisibility();
-    if (!aside.checkVisibility() && !hiddenItself) continue;
-    const postures = own
-      .getPropertyValue("--lf-resident")
-      .split(" ")
-      .filter((posture) => posture in POSTURES);
-    if (postures.length) declared.set(postures.join(" "), postures);
-  }
-  const side = (postures) => POSTURES[postures[0]][0];
-  for (const postures of [...declared.values()].sort(
-    (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
-  ))
-    for (const posture of postures) {
-      const [at, token] = POSTURES[posture];
-      const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
-      if (wants.left + wants.right > room.left + room.right + 0.5) continue;
-      standing.push(posture);
-      Object.assign(taken, wants);
-      break;
-    }
-  const shift = Math.round(
-    taken.left > room.left
-      ? taken.left - room.left
-      : taken.right > room.right
-        ? room.right - taken.right
-        : 0,
-  );
-  const tokens = standing.join(" ");
-  decidePins(standing.includes("rail"));
-  const changed =
-    (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
-  if (!changed) return false;
-  keeps(main, "data-lf-margin", tokens || null);
-  setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
-  return true;
-}
-
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
+
+// The rail lies beside the column, so it stands beside the rows of what flows in the
+// column: the document's own, and a bounded block's, which scrolls inside the document
+// as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
+const railBeside = (scroller) => {
+  if (scroller === pageScroller) return true;
+  const block = boundedBlockOf(scroller);
+  return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+};
+// The width of a rail row at rest: one margin entry, a pin's being smaller.
+const restingEntry = () =>
+  layer?.root.parentElement.querySelector(
+    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
+  )?.offsetWidth || 32;
+
+// Where across the page the margin row for a comment on `target` stands, at `point`
+// inside it if a pointing gesture named one (pointed-place.js): the row standing there
+// now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
+// `main`'s edge and one entry wide, and nothing where the rail does not stand beside
+// `target`, whose rows are pins placed as they come. A comment's surfaces keep it clear
+// (comment-placement.js), so the row a sent comment brings stays in view.
+export function marginSpot(target, point = null) {
+  for (const [row, options] of rows)
+    if (
+      options.anchor?.() === target &&
+      (options.point?.() ?? null) === point &&
+      row.checkVisibility()
+    ) {
+      const { left, right } = row.getBoundingClientRect();
+      return { left, right };
+    }
+  const main = marginColumn();
+  if (!railStands(main) || !railBeside(scrollerFor(target))) return null;
+  const hang =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
+    ) || 0;
+  const left = main.getBoundingClientRect().right + hang;
+  return { left, right: left + restingEntry() };
+}
 
 // Said on the chrome root where the margin's standing is decided: where the markers are
 // pins, the banner offers the Page Map in their place (chrome.css). Until the standing
 // is decided it says nothing, rather than one answer the decision then takes back.
-let railStood = null;
-function decidePins(stands) {
-  railStood = stands;
+export function syncMarginResidency(changed) {
   paintPins();
+  if (changed) scheduleMarginLayout();
 }
 function paintPins() {
-  if (railStood !== null)
-    layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !railStood);
+  if (!residencyStarted()) return;
+  const main = document.querySelector("main");
+  layer?.root
+    .closest(".lf-chrome")
+    .toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 
 const labelRect = (name, left, top, label) => ({
@@ -302,18 +206,32 @@ export function scheduleMarginEntryLabels() {
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
   paintPins();
-  hearScrolls(document);
-  // Opening or closing a disclosure shows or hides the residents inside it. `toggle`
-  // does not bubble, so it is heard on the way down.
-  document.addEventListener("toggle", scheduleResidency, { capture: true });
+  hearTargetChanges(document);
 }
 
-// A scroll event does not leave its shadow tree, so a target inside one is heard on each
-// tree holding it as well as on the document.
+// Neither scroll events nor mutation records leave their shadow tree, so a target
+// inside one is heard on each tree holding it as well as on the document.
 const heard = new WeakSet();
-function hearScrolls(root) {
+function hearTargetChanges(root) {
   if (heard.has(root)) return;
   heard.add(root);
+  // Resize delivery follows layout. A target or its anchored part removed by a widget
+  // would therefore paint the row's fallback before the next layout pass withheld it.
+  // Hear those moves at their mutation checkpoint, before paint;
+  // a remove-and-reinsert in one batch is a move, not a departure.
+  new MutationObserver((records) => {
+    const moved = records
+      .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
+      .filter((node) => node instanceof Element);
+    for (const [row, options] of rows) {
+      const target = options.anchor();
+      const anchor = anchors.get(row);
+      if (!moved.some((node) => under(target, node) || under(anchor, node))) continue;
+      if (!target?.isConnected || (anchor && !anchor.isConnected))
+        row.classList.toggle("lf-withheld", true);
+      scheduleMarginLayout();
+    }
+  }).observe(root, { childList: true, subtree: true });
   root.addEventListener(
     "scroll",
     (event) => {
@@ -487,7 +405,7 @@ function coverIn(root, band, target, block, bands, stop) {
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
-      const holds = node !== target && node.contains(target);
+      const holds = node !== target && under(target, node);
       const control = node.matches(TAB_STOP);
       if (
         !boxless &&
@@ -509,7 +427,7 @@ function coverIn(root, band, target, block, bands, stop) {
           continue;
         }
         if (
-          !block.contains(node) &&
+          !under(node, block) &&
           !style.display.startsWith("inline") &&
           style.display !== "contents"
         )
@@ -522,7 +440,7 @@ function coverIn(root, band, target, block, bands, stop) {
         if (summary) visit({ childNodes: [summary] });
         continue;
       }
-      visit(node);
+      visit(node.shadowRoot ?? node);
     }
   };
   visit(root);
@@ -574,8 +492,8 @@ function standFolded(row, fold, on) {
 
 // Seats every pin (`seatRows`): reads what each may not stand on around its target and
 // the room it may take, then writes each seat into its entry's rect for packing, with the
-// controls packing keeps it off. A pin inside a shadow tree stays at its corner: the words
-// around it are the tree's, which this walk does not read.
+// controls packing keeps it off. The walk crosses the shadow hosts holding the target,
+// so their words and controls bound its seat just as the document's do.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -616,7 +534,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
-    const parts = target.getRootNode() === document ? partsOf(point ?? target) : [];
+    const parts = partsOf(point ?? target);
     // A pin reaching past a line of words reads the page a line further out (`pinSpot`).
     const line = lineOf(blockOf(target));
     const around = height + REACH + line + GAP;
@@ -663,8 +581,8 @@ function seatPins(standing, { bands, shell, pinInset }) {
     pins.push({
       key: entry,
       rect: homeAt(wide),
-      priority: entry.priority,
       held: holding,
+      came: entry.came,
       parts,
       cover,
       walls,
@@ -716,9 +634,8 @@ function observeLayout() {
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
-// (`point`, pointed-place.js), its place among the others in the layer (`order`), its
-// packing priority, and how to move it between lanes without dropping the focus it holds
-// (`move`).
+// (`point`, pointed-place.js), its place among the others in the layer (`order`), and how
+// to move it between lanes without dropping the focus it holds (`move`).
 export function registerMarginRow(row, options = {}) {
   rows.set(row, options);
   observeLayout();
@@ -727,6 +644,7 @@ export function registerMarginRow(row, options = {}) {
 
 export function unregisterMarginRow(row) {
   rows.delete(row);
+  anchors.delete(row);
   if (row) {
     row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
@@ -741,7 +659,6 @@ export function unregisterMarginRow(row) {
       row.style.removeProperty(property);
     pushes.delete(row);
     steps.delete(row);
-    parked.delete(row);
     folded.delete(row);
   }
   if (!rows.size) {
@@ -794,14 +711,14 @@ function pinStands(row, box) {
 }
 
 const pushes = new Map();
+// The layout pass each row came at (`arrivals`). Packing seats the rows that came earlier
+// first (`packRows`), so a row arriving takes the room left to it and moves none already
+// there: a pick's receipt, an agent's change, a thread just sent, each lands below the
+// markers standing by its target, and an open card with them, rather than pushing them.
+let pass = 0;
+let came = new Map();
 const steps = new Map();
 const clips = new WeakMap();
-// A row whose anchor the browser would not take — one behind an author's `anchor-scope`,
-// say — stands at its fallback off screen. The pass finds it there once and
-// withholds it for as long as it anchors to the same box, rather than finding it again on
-// every heartbeat. `data-lf-parked` says so for the render gate.
-const parked = new WeakMap();
-
 // A scroll inside anything but the document moves its rows on the compositor. What it can
 // change is which of them still have somewhere to stand, so only rows under a box that
 // scrolled are read again, once a frame, and a row that changes answer brings the whole
@@ -819,7 +736,7 @@ function scheduleScrollReading() {
     const bands = new Map();
     for (const [row, options] of rows) {
       const target = options.anchor();
-      if (!target?.isConnected || parked.has(row)) continue;
+      if (!target?.isConnected) continue;
       const anchor = anchorElement(target);
       // A box scrolled inside the anchor moves a pointed row against the box the row is
       // inset from, as it moves a target inside its host.
@@ -854,6 +771,8 @@ export function layoutMarginRows() {
   cancelRender(pending);
   pending = 0;
   if (!layer) return;
+  pass += 1;
+  const present = [];
   const main = marginColumn();
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
@@ -864,19 +783,8 @@ export function layoutMarginRows() {
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
-  // The rail lies beside the column, so it stands beside the rows of what flows in the
-  // column: the document's own, and a bounded block's, which scrolls inside the document
-  // as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
-  const railBeside = (scroller) => {
-    if (scroller === pageScroller) return true;
-    const block = boundedBlockOf(scroller);
-    return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
-  };
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
-  const entry = layer.root.parentElement.querySelector(
-    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
-  );
-  const size = entry?.offsetWidth || 32;
+  const size = restingEntry();
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]
@@ -891,6 +799,7 @@ export function layoutMarginRows() {
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
+      present.push({ row, at: null });
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
@@ -901,24 +810,27 @@ export function layoutMarginRows() {
     // tab switch does not move the rows of a reading region's hidden panels between
     // lanes.
     if (skipped(target)) {
+      present.push({ row, at: null });
       reads.push({ row, options, lane: row.parentElement ?? layer.root, shown: false });
       continue;
     }
     const anchor = anchorElement(target);
+    anchors.set(row, anchor);
     // Level with the row a gesture pointed into, where the row's comment has one
     // (pointed-place.js); otherwise level with the target's top.
     const point = options.point?.() ?? null;
+    present.push({ row, at: point ?? target });
     for (
       let root = (point ?? target).getRootNode();
       shadowHost(root);
       root = root.host.getRootNode()
     )
-      hearScrolls(root);
-    if (parked.has(row) && parked.get(row) !== anchor) parked.delete(row);
+      hearTargetChanges(root);
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
-    const extent = shownExtent(target);
+    const whole = shownExtent(target);
+    const extent = whole && clippedBand(target, whole, bands, scroller);
     const top = extent && point ? pointBand(extent, point).top : extent?.top;
     const level = point ? top : box.top;
     const place = rowPosture({
@@ -929,9 +841,7 @@ export function layoutMarginRows() {
       half: size / 2,
       noted: notes.some((note) => note.top < level + size && note.bottom > level),
     });
-    const shown =
-      !parked.has(row) &&
-      targetShown(target, extent, place === "pin" ? null : { top }, bands);
+    const shown = targetShown(target, extent, place === "pin" ? null : { top }, bands);
     reads.push({
       row,
       options,
@@ -948,6 +858,7 @@ export function layoutMarginRows() {
       top,
     });
   }
+  came = arrivals(came, present, pass);
   // What each lane's region shows, cut by the scrollers around it but not by the window,
   // so a pane below the fold is clipped where its own edges will be when it arrives.
   const regions = new Map();
@@ -1002,7 +913,11 @@ export function layoutMarginRows() {
     row.classList.toggle("lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
-    if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
+    if (row.dataset.lfPlace !== place) {
+      // A push in one posture says nothing of where the row stands in the other.
+      pushes.delete(row);
+      row.dataset.lfPlace = place;
+    }
     if (shown) continue;
     setStyle(row, "--lf-inset-top", px(extent && top - box.top));
     setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
@@ -1031,21 +946,25 @@ export function layoutMarginRows() {
           top: read.top,
           bottom: read.top + box.height,
         },
-        priority: read.options.priority ?? 0,
-        held: read.row.matches(HELD),
+        // Held where it stands, which a row has only once it has stood in its posture:
+        // one that has just come, or just changed posture, takes its place as any other.
+        held: pushes.has(read.row) && read.row.matches(HELD),
+        came: came.get(read.row),
+        pushed: pushes.get(read.row),
         read,
       };
     });
-  for (const { key: row, stranded, read } of placed) {
+  // Anchor availability belongs to this geometry pass: the author can lift a scope or
+  // restore a name without replacing the target. Never retain a failed reading by identity.
+  for (const { key: row, stranded } of placed) {
     row.toggleAttribute("data-lf-parked", stranded);
-    if (stranded) {
-      parked.set(row, read.anchor);
-      row.classList.toggle("lf-withheld", true);
-    }
+    if (stranded) row.classList.toggle("lf-withheld", true);
   }
   const standing = placed.filter(({ stranded }) => !stranded);
   seatPins(standing, { bands, shell, pinInset });
   const packed = packRows(standing, GAP);
+  // A push says where a standing row stands, so a row that no longer stands has none.
+  for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
   for (const { key: row, rect, read } of standing) {
     // Written as insets from the box the row anchors to, so the row keeps its place
     // beside its target through every scroll with no pass.

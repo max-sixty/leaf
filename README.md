@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/70a90eb42648b449904e088f67e112a34bce1bc3/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/70a90eb42648b449904e088f67e112a34bce1bc3/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/242f81ce2e3112cc7af05c96a940f8d731d5babf/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/242f81ce2e3112cc7af05c96a940f8d731d5babf/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/70a90eb42648b449904e088f67e112a34bce1bc3/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/242f81ce2e3112cc7af05c96a940f8d731d5babf/demo/demo.gif)
 
 </details>
 
@@ -58,8 +58,8 @@ index. Render checks use the executable named by
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.
 
-In Claude Code, a page messages its session when input arrives after the session's
-`leaf wait` has stopped. A session that bypasses permissions holds that message for
+In Claude Code, a page messages its session when input arrives while nothing watches
+it, as after a turn you interrupted. A session that bypasses permissions holds that message for
 your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
 
 </details>

@@ -13,8 +13,8 @@ if (!carrier) throw new Error("leaf: the document carries no runtime stylesheets
 const sheets = JSON.parse(carrier.textContent);
 
 // A widget module's own rules join the theme's cascade layer (layer.py, CASCADE_LAYERS), so
-// they rank against it by specificity and order as they always have, below the Layouts
-// and the page's own stylesheet. The chrome and marks sheets stay unlayered: their paint
+// specificity, scope proximity, then order rank their rules, below the Layouts and
+// the page's own stylesheet. The chrome and marks sheets stay unlayered: their paint
 // lies over the page and must beat page and widget alike (chrome.css).
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 

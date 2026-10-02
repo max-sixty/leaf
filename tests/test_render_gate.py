@@ -112,6 +112,7 @@ from render_harness import (
     resized,
     root_overflow,
     scroll_followers,
+    scroll_settled,
     scroll_writes,
     state_changes,
     still_page,
@@ -269,45 +270,59 @@ def _pane_regions(columns: str, media: str) -> str:
     )
 
 
+def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
+    """A workspace is a screen the reader moves through, so a region of it that has to
+    scroll is the exception, and the gate names each one at the desktop viewport, as
+    advice: the page still passes. Here the detail pane runs past its room and the
+    queue fits, so only the detail is named."""
+    source = leaf_page(
+        "screen regions",
+        """
+  <header><h1>Alerts</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
+    <lf-pane id="detail" label="Detail"><div><p>Disk pressure on db-2.</p>"""
+        + "".join(f"<p>Evidence line {n}.</p>" for n in range(60))
+        + """</div></lf-pane>
+  </div>
+""",
+        head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
+        "gap: var(--sp-4); }</style>",
+        layout="workspace",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    assert [region["id"] for region in reading.overflowing] == ["detail"]
+    (advice,) = [line for line in reading.advice if "past the region" in line]
+    assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+
+
 STACK = "{ #regions { grid-template-columns: 1fr; } }"
 SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
 
 
 @pytest.mark.parametrize(
-    ("columns", "media", "stacked"),
+    ("columns", "media"),
     [
-        ("1fr 2fr", f"(width < 900px) {STACK}", "720–880px"),
-        ("1fr 2fr", f"(width < 720px) {STACK}", None),
-        ("1fr", f"(width < 900px) {STACK}", None),
-        ("1fr", f"(width >= 1800px) {SPLIT}", None),
+        ("1fr 2fr", f"(width < 720px) {STACK}"),
+        ("1fr", f"(width < 900px) {STACK}"),
+        ("1fr", f"(width >= 1800px) {SPLIT}"),
     ],
     ids=[
-        "stacks-early",
         "stacks-where-the-layout-flows",
         "rows-at-every-width",
         "rows-then-columns-when-ultrawide",
     ],
 )
-def test_a_workspace_stacks_its_panes_only_where_the_layout_stops_holding_it(
-    browser, serve, columns, media, stacked
-):
-    """Held, a workspace shares one window's height among its panes, so panes that stand
-    side by side at the desktop viewport and stack while the window is still held each
-    get a slice of it. Stacking where the Layout lets the page scroll passes, and so does
-    a body of rows, which was built to share the height, even where an ultrawide window
-    sets its panes side by side."""
+def test_workspace_panes_can_follow_the_authored_grid(browser, serve, columns, media):
+    """Workspace panes can stay in rows or share columns as the authored grid changes."""
     reading = render_gate_model.render_version(
         browser, serve(_pane_regions(columns, media), packages=())
     )
 
-    if stacked is None:
-        assert reading.failures == []
-    else:
-        (failure,) = reading.failures
-        assert failure.startswith(
-            f"at {stacked} wide, <div id=regions> stacks its panes in one column "
-            "while the workspace fills the window"
-        ), failure
+    assert reading.failures == []
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -917,7 +932,7 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
                 content_type="text/javascript; charset=utf-8",
                 body=facade.replace('from "./', 'from "/_leaf/render-checks/')
                 + "\nconst held = [];\n"
-                + "export const failSoftErrors = () =>"
+                + "export const invalidPaints = () =>"
                 + " new Promise((settle) => held.push(settle));\n",
             ),
         )
@@ -928,7 +943,7 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
 
     assert failures
     assert all(
-        "probe failSoftErrors must be synchronous" in failure for failure in failures
+        "probe invalidPaints must be synchronous" in failure for failure in failures
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
@@ -1778,28 +1793,6 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
         )
     )
     assert render_gate_model.render_version(browser, url).failures == []
-
-
-def test_a_diagram_link_draws_no_tab_stop(browser, serve):
-    """Nothing on the page navigates a Mermaid `click` or `link` target, so its box
-    draws as a plain one rather than as a focusable link that goes nowhere."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "diagram links",
-                '<h1 id="title">Diagram links</h1>\n'
-                '<lf-diagram id="flow"><pre>\nflowchart LR\n  A[Alpha] --&gt; B[Beta]\n'
-                '  click A href "https://example.com" "Open"\n</pre></lf-diagram>\n'
-                '<lf-diagram id="model"><pre>\nclassDiagram\n  class A\n'
-                '  link A "https://example.com"\n</pre></lf-diagram>',
-            )
-        ),
-    )
-    expect(page.locator("lf-diagram svg")).to_have_count(2)
-    expect(
-        page.locator("lf-diagram :is([tabindex], [role='link'], [data-href])")
-    ).to_have_count(0)
 
 
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
@@ -2836,6 +2829,117 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
                 )
                 break
     assert findings == [], "\n\n".join(findings)
+
+
+# The words in the field holding the focus, found through the shadow trees on the way
+# to it, or null where the focus is on no field; and each field's words that the page
+# draws, found the same way.
+FOCUSED_WORDS = """() => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  if (!at?.matches('textarea, input, [contenteditable], leaf-text')) return null;
+  return at.value ?? at.textContent;
+}"""
+SHOWN_WORDS = """() => {
+  const found = [];
+  const walk = (root) => {
+    for (const node of root.querySelectorAll('*')) {
+      if (node.matches('textarea, input, [contenteditable], leaf-text')
+          && node.checkVisibility({ visibilityProperty: true }))
+        found.push(node.value ?? node.textContent);
+      if (node.shadowRoot) walk(node.shadowRoot);
+    }
+  };
+  walk(document);
+  return found;
+}"""
+# Every scroller the page holds sent to one end on both axes, remembering where each
+# stood, or put back there.
+SCROLL_ALL_TO = """(end) => {
+  const scrolls = (el) => el === document.scrollingElement
+    || /auto|scroll/.test(getComputedStyle(el).overflow);
+  const scrollers = [document.scrollingElement, ...document.querySelectorAll('*')]
+    .filter((el) => scrolls(el) && (el.scrollHeight > el.clientHeight + 1
+      || el.scrollWidth > el.clientWidth + 1));
+  window.__lfScrolledFrom = scrollers.map((el) => [el, el.scrollTop, el.scrollLeft]);
+  for (const el of scrollers) {
+    el.scrollTop = end === 'start' ? 0 : el.scrollHeight;
+    el.scrollLeft = end === 'start' ? 0 : el.scrollWidth;
+  }
+}"""
+SCROLL_ALL_BACK = """() => {
+  for (const [el, top, left] of window.__lfScrolledFrom) {
+    el.scrollTop = top;
+    el.scrollLeft = left;
+  }
+}"""
+
+
+def into_the_page(page):
+    """Tab to the first stop inside the page's content, where `c` names its item."""
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if page.evaluate("() => Boolean(document.activeElement?.closest('main'))"):
+            return True
+    return False
+
+
+# Every box the user types into from the keyboard, by how they reach it: a comment on
+# the item they stand at, the page's own comment, and a thread card's reply where the
+# page has a thread to open. Each route takes the user from the page to where the
+# box's keys apply and returns them, or nothing where the page offers no such box. A
+# new box joins by its route.
+TYPED_BOXES = {
+    "comment on an item": lambda page: into_the_page(page) and ["c"],
+    "comment on the page": lambda page: ["c"],
+    "thread card reply": lambda page: (
+        page.locator(
+            '.lf-threads-toggle:text-matches("Open threads: [1-9]")'
+        ).first.is_visible()
+        and ["t", "c"]
+    ),
+}
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
+    """A box the user is typing in is still there, holding their words and the focus,
+    after every scroller on the page has been sent to either end and back: scrolling is
+    reading, and what the user wrote waits for them. The browser fixture fails a box
+    that went away on the way even where it came back (`words_watch.js`)."""
+    url = serve(source)
+    findings = []
+    for box, route in TYPED_BOXES.items():
+        page = still_page(browser, url)
+        left_alone(page)
+        page.evaluate(RELEASE_FOCUS)
+        keys = route(page)
+        if not keys:
+            continue
+        for key in keys:
+            page.keyboard.press(key)
+            rendered(page)
+        if page.evaluate(FOCUSED_WORDS) is None:
+            findings.append(f"{'+'.join(keys)} put the user in no {box} to type in")
+            continue
+        words = f"Words for the {box}"
+        page.keyboard.type(words)
+        for end in ("end", "start"):
+            page.evaluate(SCROLL_ALL_TO, end)
+            scroll_settled(page)
+            rendered(page)
+            page.evaluate(SCROLL_ALL_BACK)
+            scroll_settled(page)
+            rendered(page)
+            if words not in page.evaluate(SHOWN_WORDS):
+                findings.append(f"the {box} scrolled to the {end} and back is gone")
+                break
+            if page.evaluate(FOCUSED_WORDS) != words:
+                findings.append(
+                    f"the {box} scrolled to the {end} and back lost the focus"
+                )
+                break
+    assert findings == [], "\n".join(findings)
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

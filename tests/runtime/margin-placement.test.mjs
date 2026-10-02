@@ -6,7 +6,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { packRows, pinSpot, rowPosture, seatRows } from "/runtime/margin-placement.js";
+import {
+  arrivals,
+  packRows,
+  pinSpot,
+  rowPosture,
+  seatRows,
+} from "/runtime/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPosture({
@@ -47,9 +53,9 @@ const rect = (left, top, width = 37, height = 32) => ({
 test("rows that would overlap are pushed below the one placed first", () => {
   const pushes = packRows(
     [
-      { key: "b", rect: rect(1079, 110), priority: 10 },
-      { key: "a", rect: rect(1079, 100), priority: 10 },
-      { key: "c", rect: rect(1079, 300), priority: 10 },
+      { key: "b", rect: rect(1079, 110) },
+      { key: "a", rect: rect(1079, 100) },
+      { key: "c", rect: rect(1079, 300) },
     ],
     4,
   );
@@ -59,31 +65,43 @@ test("rows that would overlap are pushed below the one placed first", () => {
 test("a pin and a rail marker level with each other both stay where they are", () => {
   const pushes = packRows(
     [
-      { key: "rail", rect: rect(1079, 100), priority: 10 },
-      { key: "pin", rect: rect(900, 100), priority: 10 },
+      { key: "rail", rect: rect(1079, 100) },
+      { key: "pin", rect: rect(900, 100) },
     ],
     4,
   );
   assert.deepEqual(Object.fromEntries(pushes), { rail: 0, pin: 0 });
 });
 
-test("the more important row keeps its place and the other moves", () => {
+test("a row that came earlier keeps its place and one that has just come moves", () => {
   const pushes = packRows(
     [
-      { key: "late", rect: rect(1079, 90), priority: 10 },
-      { key: "first", rect: rect(1079, 100), priority: 0 },
+      { key: "late", rect: rect(1079, 90), came: 2 },
+      { key: "first", rect: rect(1079, 100), came: 1 },
     ],
     4,
   );
   assert.deepEqual(Object.fromEntries(pushes), { first: 0, late: 46 });
 });
 
+test("a held row is packed from where it stands, not from its home", () => {
+  // Held where it was pushed to, `late` stays there, and `first` keeps its place too.
+  const pushes = packRows(
+    [
+      { key: "late", rect: rect(1079, 90), came: 2, held: true, pushed: 46 },
+      { key: "first", rect: rect(1079, 100), came: 1 },
+    ],
+    4,
+  );
+  assert.deepEqual(Object.fromEntries(pushes), { late: 46, first: 0 });
+});
+
 test("rows are packed from the top, so a push carries on down the stack", () => {
   const pushes = packRows(
     [
-      { key: "a", rect: rect(1079, 100), priority: 10 },
-      { key: "b", rect: rect(1079, 136), priority: 10 },
-      { key: "c", rect: rect(1079, 104), priority: 10 },
+      { key: "a", rect: rect(1079, 100) },
+      { key: "b", rect: rect(1079, 136) },
+      { key: "c", rect: rect(1079, 104) },
     ],
     4,
   );
@@ -93,10 +111,7 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
 
 test("a pin level with a control of the page goes below it", () => {
   const grip = { left: 1060, right: 1076, top: 98, bottom: 114 };
-  const pushes = packRows(
-    [{ key: "pin", rect: rect(1045, 96), priority: 10, fixed: [grip] }],
-    4,
-  );
+  const pushes = packRows([{ key: "pin", rect: rect(1045, 96), fixed: [grip] }], 4);
   assert.deepEqual(Object.fromEntries(pushes), { pin: 22 });
   // A control beside the pin rather than under it moves nothing.
   const aside = packRows(
@@ -104,7 +119,6 @@ test("a pin level with a control of the page goes below it", () => {
       {
         key: "pin",
         rect: rect(1045, 96),
-        priority: 10,
         fixed: [{ left: 900, right: 916, top: 98, bottom: 114 }],
       },
     ],
@@ -260,24 +274,24 @@ test("a pin reaching further passes no wall and no other pin's target", () => {
 test("a pin that reaches further keeps to its own target's pins", () => {
   // A comment on the whole section holds the run, so its target does not keep the
   // run's pin from the heading's end; a comment on the heading does.
-  const pin = (key, parts, priority) => ({
+  const pin = (key, parts, came) => ({
     ...section,
     key,
-    priority,
+    came,
     held: null,
     parts,
     cover: section.cover,
   });
-  const run = pin("run", section.parts, 10);
+  const run = pin("run", section.parts, 1);
   const whole = {
-    ...pin("section", [box(24, 621, 366, 900)], 20),
+    ...pin("section", [box(24, 621, 366, 900)], 2),
     seat: box(342, 621, 366, 645),
   };
   assert.deepEqual(seatRows([run, whole], { reach: 12, gap: 4 }).get("run"), {
     rect: box(282, 619, 378, 663),
     folded: false,
   });
-  const titled = { ...pin("heading", [heading], 20), seat: box(342, 621, 366, 645) };
+  const titled = { ...pin("heading", [heading], 2), seat: box(342, 621, 366, 645) };
   assert.deepEqual(seatRows([run, titled], { reach: 12, gap: 4 }).get("run"), {
     rect: section.rect,
     folded: false,
@@ -290,7 +304,6 @@ test("a pin that reaches further keeps to its own target's pins", () => {
 const pair = (over = {}) => ({
   ...longer,
   key: "pair",
-  priority: 10,
   held: null,
   folds: {
     rect: box(322, longer.rect.top, 366, longer.rect.bottom),
@@ -308,11 +321,6 @@ test("a pin with no room for its face stands folded where one control finds room
     rect: box(320, 736.5, 364, 780.5),
     folded: true,
   });
-  // A pin that cannot fold stands at its home, over its words.
-  assert.deepEqual(seatOf([pair({ folds: null })]), {
-    rect: longer.rect,
-    folded: false,
-  });
   // One that finds room for its face keeps it whole.
   assert.deepEqual(
     seatOf([
@@ -327,12 +335,19 @@ test("a pin with no room for its face stands folded where one control finds room
     ]),
     { rect: box(282, 619, 378, 663), folded: false },
   );
-  // With no room even folded, it stands folded at its home.
+});
+
+test("cramped pins remain reachable within their bounds", () => {
   const crowded = [...longer.cover, box(4, 560, 386, 900)];
-  assert.deepEqual(seatOf([pair({ cover: crowded })]), {
-    rect: box(322, longer.rect.top, 366, longer.rect.bottom),
-    folded: true,
-  });
+  for (const input of [pair({ folds: null }), pair({ cover: crowded })]) {
+    const seat = seatOf([input]);
+    assert.ok(seat);
+    assert.ok(seat.rect.right > seat.rect.left && seat.rect.bottom > seat.rect.top);
+    assert.ok(
+      seat.rect.left >= input.bounds.left && seat.rect.right <= input.bounds.right,
+    );
+    if (input.folds === null) assert.equal(seat.folded, false);
+  }
 });
 
 test("a folded pin stands only where its opened actions stay inside its bounds", () => {
@@ -377,7 +392,7 @@ test("a folded pin held open keeps its fold, and the others keep to its toggle",
     [
       pair({ held: open, folded: true }),
       {
-        ...pair({ key: "beside", priority: 20 }),
+        ...pair({ key: "beside" }),
         // A pin whose seat is where the open pin's actions now stand.
         seat: box(230, 740, 274, 784),
         parts: [box(24, 748, 226, 769)],
@@ -398,11 +413,11 @@ test("a folded pin held open keeps its fold, and the others keep to its toggle",
   });
 });
 
-// Two pins by the same run: `first` the more important, `second` below it in packing.
+// Two pins by the same run: `first` came at an earlier pass than `second`.
 const seat = box(284, 115.5, 328, 159.5);
-const pin = (key, priority, held = null) => ({
+const pin = (key, came, held = null) => ({
   key,
-  priority,
+  came,
   held,
   rect: box(318, 100, 362, 144),
   seat,
@@ -416,15 +431,18 @@ const pin = (key, priority, held = null) => ({
 const overlap = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-test("pins are seated the more important first, each clear of those before it", () => {
-  const seats = seatRows([pin("second", 10), pin("first", 0)], { reach: 12, gap: 4 });
+test("a pin that came earlier is seated first, and a later one keeps clear of it", () => {
+  const seats = seatRows([pin("second", 2), pin("first", 1)], {
+    reach: 12,
+    gap: 4,
+  });
   assert.deepEqual(seats.get("first").rect, seat);
   assert.ok(!overlap(seats.get("second").rect, seat), seats);
 });
 
-test("a held pin keeps its seat, and a more important pin takes other room", () => {
+test("a held pin keeps its seat, and a pin that came earlier takes other room", () => {
   // `second` is under the pointer, at the seat `first` would otherwise take.
-  const seats = seatRows([pin("second", 10, seat), pin("first", 0)], {
+  const seats = seatRows([pin("second", 2, seat), pin("first", 1)], {
     reach: 12,
     gap: 4,
   });
@@ -435,10 +453,30 @@ test("a held pin keeps its seat, and a more important pin takes other room", () 
 test("a held row is packed first, so nothing pushes it from under the press", () => {
   const pushes = packRows(
     [
-      { key: "first", rect: rect(1079, 100), priority: 0 },
-      { key: "held", rect: rect(1079, 110), priority: 10, held: true },
+      { key: "first", rect: rect(1079, 100), came: 1 },
+      { key: "held", rect: rect(1079, 110), came: 2, held: true },
     ],
     4,
   );
   assert.deepEqual(Object.fromEntries(pushes), { held: 0, first: 46 });
+});
+
+test("a row is news only when neither it nor what it stands by was there", () => {
+  const [row, rebuilt, target, replaced, other] = ["row", "rebuilt", "t", "t2", "o"];
+  const last = arrivals(new Map(), [{ row, at: target }], 1);
+  // Built again for the same target, as an edit shifting an id-less path does.
+  assert.equal(arrivals(last, [{ row: rebuilt, at: target }], 4).get(rebuilt), 1);
+  // Its target's node replaced under the same key, the row kept.
+  assert.equal(arrivals(last, [{ row, at: replaced }], 4).get(row), 1);
+  // Both new: a row arriving.
+  assert.equal(arrivals(last, [{ row: other, at: replaced }], 4).get(other), 4);
+});
+
+test("a hidden row keeps the pass it came at, and what has no row is forgotten", () => {
+  const last = arrivals(new Map(), [{ row: "row", at: "t" }], 1);
+  const hidden = arrivals(last, [{ row: "row", at: null }], 2);
+  assert.equal(arrivals(hidden, [{ row: "row", at: "t" }], 3).get("row"), 1);
+  // The row gone for a pass, a row its target gains later is news.
+  const gone = arrivals(last, [], 2);
+  assert.equal(arrivals(gone, [{ row: "new", at: "t" }], 3).get("new"), 3);
 });

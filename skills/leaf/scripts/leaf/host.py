@@ -15,6 +15,7 @@ carrier proves itself with."""
 import json
 import os
 import socket
+import subprocess
 import sys
 import time
 from collections.abc import Callable
@@ -45,11 +46,13 @@ class Harness:
     What differs between harnesses is how a leaf's input reaches the session
     between its turns, and the methods below answer for that carrier:
 
-    - Claude Code's model keeps a background `leaf wait` running, which ends when
-      input arrives and so opens a turn; the host's prompt hook, which runs as that
-      turn begins, and its Stop hook put the input in the turn's context and
-      confirm it (`hook_delivers`). The wait is the one carrier part that stops
-      while its session lives on, which is why this is the harness with a `nudge`.
+    - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
+      session's pages in the background and wakes the session when input arrives
+      (`watches_between_turns`), and the prompt hook, which runs as the turn the
+      wake opens begins, and the other Stop hook put the input in the turn's
+      context and confirm it (`hook_delivers`). A turn that ends without its Stop
+      hooks, as an interrupt does, leaves nothing watching while the session lives
+      on, which is why this is the harness with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease. It queues each delivery with `codex queue`, or
       starts its turn over the task's App Server when Leaf can reach one.
@@ -65,9 +68,6 @@ class Harness:
     # and hand over the whole delivery, and `leaf wait` only wakes the session.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
-    # How long a `leaf wait` under this harness watches before it ends itself with
-    # `wait_lapsed`, or None where nothing but input and the page's end stops it.
-    wait_lifetime: ClassVar[float | None] = None
 
     @classmethod
     def from_claim(cls, claim: dict) -> "Harness":
@@ -109,9 +109,17 @@ class Harness:
         """What to do about a live page this session owes a watcher."""
         raise NotImplementedError
 
-    def wait_lapsed(self) -> str:
-        """The line a wait prints as it ends at `wait_lifetime` with no input."""
-        raise NotImplementedError
+    def watches_between_turns(self) -> bool:
+        """Whether this session's host runs Leaf's watch as a Stop hook it keeps in
+        the background, which wakes the session when input arrives
+        (`session.watch_between_turns`); the model then starts no `leaf wait`."""
+        return False
+
+    def host_runs(self) -> bool:
+        """Whether the host process whose hook started this watch still runs. A
+        watch it has orphaned can wake nobody, and would hold the session's lease
+        over the input a `nudge` could still deliver."""
+        return True
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
@@ -133,10 +141,10 @@ class Harness:
         """Put this page's new input in front of the session, and say whether
         anything took it.
 
-        Only a carrier the model runs stops between turns while its session
-        stands, so only such a harness has anywhere to put this. A carrier that
-        is a process of its own is either running, and needs no telling, or gone
-        along with the session it served."""
+        Only a carrier the session's own turns start stops between turns while
+        its session stands, so only such a harness has anywhere to put this. A
+        carrier that is a process of its own is either running, and needs no
+        telling, or gone along with the session it served."""
         return False
 
     def title_generator(self) -> Callable[[str, Path], dict] | None:
@@ -174,23 +182,16 @@ class EnvironmentHarness(Harness):
     identity_variables: ClassVar[tuple[str, ...]]
 
 
-# Claude Code stops a background command once its Bash `timeout` runs out, and this
-# is the longest it takes; left out, the timeout is 1,800,000. The stop reaches the
-# model as "stopped after reaching its background time limit", beside Claude Code's
-# advice not to restart a command that already had the longest timeout.
-BACKGROUND_LIMIT_MS = 7_200_000
-
-# How a Claude Code session starts the wait that wakes it. The timeout is the
-# longest, since every end of a wait wakes the session, input or not.
-START_WAIT = (
-    "start an unnamed `leaf wait` as a background task with `timeout` "
-    f"{BACKGROUND_LIMIT_MS} (milliseconds), the longest Claude Code allows"
-)
-
-
+@dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a wait the model keeps running to wake it, hooks that carry
-    input into the turn, and a socket to reach it with."""
+    """Claude Code: a Stop hook that watches between turns and wakes the session,
+    hooks that carry input into the turn, and a socket to reach it with.
+
+    `job` is the background job directory a claim rests on (`lifetime`), which
+    `nudge` resumes when no worker hosts the job; None for a session the user sits
+    at, and for the harness the environment implies."""
+
+    job: str | None = None
 
     name = "claude-code"
     default_agent = "Claude"
@@ -199,12 +200,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
-    # A wait ends itself two minutes short of the longest background timeout, room
-    # for the launcher's start and the pass under way. Its end is then an ordinary
-    # completion, and the prompt hook's "no watcher" asks for the next, where Claude
-    # Code's stop would come with its advice not to restart. A wait started with a
-    # shorter timeout is still stopped, and that notice says to give it a longer one.
-    wait_lifetime = BACKGROUND_LIMIT_MS / 1000 - 120
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -252,26 +247,41 @@ class ClaudeCodeHarness(EnvironmentHarness):
         }
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
-        return (
-            f"start `leaf wait --ack {delivery_id}` as the next background task, "
-            f"with `timeout` {BACKGROUND_LIMIT_MS} (milliseconds)"
-        )
+    def from_claim(cls, claim: dict) -> "ClaudeCodeHarness":
+        return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
+
+    def watches_between_turns(self) -> bool:
+        """Claude Code keeps an `asyncRewake` hook in the background and wakes the
+        session when it exits 2, except under plain `--print`, where it waits on
+        the hook as on any other and the turn would hold until input came
+        (measured at 2.1.286). A print session fed `--input-format stream-json`
+        backgrounds it like an interactive one. Only the process's own argv
+        tells the two apart: the hook's input and environment are the same."""
+        argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
+        printing = "-p" in argv or "--print" in argv
+        streaming = "stream-json" in argv or "--input-format=stream-json" in argv
+        return not printing or streaming
+
+    def host_runs(self) -> bool:
+        """The process the hook ran under is CLAUDE_PID. A background job's daemon
+        retires the job's worker about an hour after it goes idle whether or not a
+        hook runs, and the hook outlives it (measured at 2.1.286: retired at 61
+        minutes, the hook still running)."""
+        return pid_alive(int(os.environ["CLAUDE_PID"]))
+
+    def carrier_live(self, *, listening: bool) -> bool:
+        """The watch is the session's own Stop hook, started again as every turn
+        ends, so where Leaf's hooks run for the session its carrier stands across
+        the turn as well as between turns."""
+        return listening or self.hooks_carry()
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         return (
-            f"no watcher. To watch all this session's pages, {START_WAIT}; or run "
-            "`leaf status <page> idle` if this page is done."
-        )
-
-    def wait_lapsed(self) -> str:
-        return (
-            f"no input in {self.wait_lifetime / 60:.0f} minutes, so this wait ended "
-            "before Claude Code's background time limit could stop it. To go on "
-            f"watching, {START_WAIT}."
+            "no watcher: Leaf's Stop hook watches this session's pages between "
+            "turns, and has not run for this session."
         )
 
     def live_turn(self) -> dict | None:
@@ -312,11 +322,11 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return claude_code_title
 
     def nudge(self, page_dir: Path) -> bool:
-        return message_claude_code_session(
-            self.session,
-            f"leaf: {page_dir} has new input, which arrives with this message, "
-            "and no `leaf wait` is running for this session. So that later input "
-            f"wakes you, {START_WAIT}.",
+        """The session's socket, or, for a background job no worker hosts, the job
+        itself, resumed with the message as its prompt."""
+        text = f"leaf: {page_dir} has new input, which arrives with this message."
+        return message_claude_code_session(self.session, text) or (
+            self.job is not None and resume_claude_code_job(self.session, text)
         )
 
 
@@ -550,25 +560,28 @@ def claude_code_session_records(session_id: str) -> list[dict]:
     Every state read asks this of each claimed page, so a listing is reused for
     `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
     presence cache's interval: a record added, removed or atomically replaced
-    moves the stamp at once."""
+    moves the stamp at once. The listing is the machine's rather than a page's, so
+    the process keeps the last one, replaced whole."""
+    global _registry_listing
     sessions = claude_code_sessions()
     try:
         stamp = sessions.stat().st_mtime_ns
     except OSError:
         return []
-    held = _registry_cache.get(sessions)
+    held = _registry_listing
     if (
         held is None
-        or held[1] != stamp
-        or time.monotonic() - held[0] >= REGISTRY_READ_S
+        or held[:2] != (sessions, stamp)
+        or time.monotonic() - held[2] >= REGISTRY_READ_S
     ):
-        held = (time.monotonic(), stamp, _registry_records(sessions))
-        _registry_cache[sessions] = held
-    return [record for record in held[2] if record.get("sessionId") == session_id]
+        held = (sessions, stamp, time.monotonic(), _registry_records(sessions))
+        _registry_listing = held
+    return [record for record in held[3] if record.get("sessionId") == session_id]
 
 
 REGISTRY_READ_S = 1.0
-_registry_cache: dict[Path, tuple[float, int, list[dict]]] = {}
+# (registry directory, its stamp, when it was listed, its records)
+_registry_listing: tuple[Path, int, float, list[dict]] | None = None
 
 
 def _registry_records(sessions: Path) -> list[dict]:
@@ -581,6 +594,39 @@ def _registry_records(sessions: Path) -> list[dict]:
         if isinstance(record, dict):
             records.append(record)
     return records
+
+
+def resume_claude_code_job(session_id: str, text: str) -> bool:
+    """Wake a background job whose worker has retired, with `text` as its next
+    prompt, and say whether Claude Code took it.
+
+    The daemon retires an idle job's worker after about an hour, and its socket
+    goes with it. `claude --bg --resume <session> <prompt>` claims a fresh worker
+    for the same job and session, with the options the job was started with, and
+    runs the prompt there, which fires its prompt hook (measured at 2.1.286). With
+    a worker still running, the same command would start a copy, so a job any live
+    worker hosts is left alone.
+
+    The command is started and not awaited: it takes about a second, the nudge
+    runs under the page's lock, and the turn it starts takes that lock in its
+    prompt hook. So True means only that it started, as a socket taking the frames
+    is all `message_claude_code_session` can say."""
+    if any(
+        isinstance(record.get("pid"), int) and pid_alive(record["pid"])
+        for record in claude_code_session_records(session_id)
+    ):
+        return False
+    try:
+        subprocess.Popen(
+            ["claude", "--bg", "--resume", session_id, text],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return False
+    return True
 
 
 def message_claude_code_session(session_id: str, text: str) -> bool:

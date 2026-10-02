@@ -91,7 +91,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -185,7 +185,8 @@ const versionedHeadNode = (node) =>
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
 // built. The module graph can define chrome-only elements before this clone, but authored
-// markup cannot contain those tags, so the authored main is still untouched. Runtime-owned
+// markup cannot contain those tags, so the authored main is untouched but for the marks
+// the prepaint painted for the first paint, which the copy takes off. Runtime-owned
 // head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
 // The source and live main are therefore the same tree, which makes the pairing below a
 // plain walk of the two together.
@@ -209,7 +210,7 @@ const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
   authoredHtmlAttributes: authoredAttributes(document.documentElement),
-  source: servedMain?.cloneNode(true) ?? null,
+  source: servedMain ? unmarkedCopy(servedMain) : null,
 };
 const initialPairs = servedMain
   ? pairSources(initialDocument.source, servedMain, new WeakMap())
@@ -219,8 +220,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  landedAt,
-  setLanded,
   forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
@@ -1541,7 +1540,6 @@ export function createVersionController({
     const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
       revision: runtime.currentRevision,
-      ask: landedAt()?.id,
       activeRegion: active?.id,
       regions: Object.fromEntries(regionViews),
     });
@@ -1557,7 +1555,6 @@ export function createVersionController({
   }
 
   function restoreView(view, currentIntent) {
-    setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
@@ -1845,8 +1842,9 @@ export function createVersionController({
   // lands it at parse time, before a widget hides the tabs around it, collapses a
   // disclosure over it, or declares a strip that covers it, and before presentation
   // adds controls above it; so the arrival lands it again at each step that changes
-  // the page's geometry: once widgets upgrade, before the first state read, and once
-  // the page presents. Each landing is the browser's own rule (`scrollToFragment`), the
+  // the page's geometry: once widgets upgrade, before the first state read, once
+  // the page presents, and after declared deferred arrivals settle. Each landing is
+  // the browser's own rule (`scrollToFragment`), the
   // target's start at its scroller's landing edge, taken in the geometry of that step,
   // so a target nothing moved stays where it is. The fragment is read before widgets
   // upgrade, since a widget may write its own view into the URL (a root tab set names

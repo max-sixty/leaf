@@ -11,12 +11,12 @@
    which would be this box, which never scrolls, so the header stuck to nothing and
    scrolled away with its rows. `:where` scopes the rule without outranking the review
    press's later negative-margin placement. */
-:host(.lf-rendered) :where(.lf-diff-file) > details,
-:host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details,
+:scope:host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
-:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
+:scope:host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
 /* The file's row pins over the rows it names (below), so it is one line of a stated
@@ -25,14 +25,14 @@
    line gives way from its folders: the file's own name stays whole, the folders before
    it end in an ellipsis, and the row's title holds the whole path. A flex row draws no
    disclosure marker, so the triangle is the row's own first mark. */
-:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
                                      display: flex; align-items: center; gap: 6px;
                                      box-sizing: border-box;
                                      block-size: var(--lf-diff-head-h);
                                      white-space: nowrap; overflow: hidden; }
-:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
                                      content: "▶" / ""; flex: none; font-size: .7em; }
-:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
                                      content: "▼" / ""; }
 .lf-diff-head > .lf-diff-path { display: flex; min-width: 0; white-space: nowrap; }
 /* Chrome breaks at a <wbr> even where nothing may wrap. */
@@ -190,7 +190,7 @@
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: code-summary;
+:scope:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: code-summary;
                                             outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
@@ -198,7 +198,7 @@
    sides there; each row is positioned, so the row after painted over its lower run; and
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
-:host(.lf-rendered) [data-content] > [data-line]:is(:focus-visible, .lf-focus-visible) {
+:scope:host(.lf-rendered) [data-content] > [data-line]:is(:focus-visible, .lf-focus-visible) {
                                             outline: var(--focus-ring);
                                             --lf-focus-ring: code-line;
                                             outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -218,15 +218,15 @@
    one underneath — a diff in a reply scrolls in the panel's list rather than in the
    document. */
 @media screen {
-  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file { --lf-top-outer: var(--lf-top); }
-  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file { --lf-top-outer: var(--lf-top); }
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
                               --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h)); }
-  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
                               --lf-top: var(--lf-top-outer);
                               top: var(--lf-top, 0px); z-index: 2; }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
-  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
                               top: calc(var(--lf-top, 0px)
                                         + var(--lf-diff-action-top) - 1px); }
 }
@@ -234,7 +234,7 @@
    scroller's `scroll-padding` clears what stands over the whole of it, the banner and a
    page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
    it covers nothing. */
-:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-diff-head-h); }
+:scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-diff-head-h); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path { font-family: var(--mono); font-size: var(--t-6);
@@ -242,7 +242,7 @@
 .lf-diff-stat { color: var(--code-muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); font-variant-numeric: tabular-nums;
                 white-space: nowrap; }
-:host(.lf-rendered) {
+:scope:host(.lf-rendered) {
   --diffs-font-family: var(--mono);
   --diffs-font-size: var(--code-size);
   --diffs-line-height: var(--code-line);
@@ -276,14 +276,14 @@
    floor, and wrapping drops it (below): a wrapped line still measures its whole
    unwrapped self at max-content, so a floor left in place would size the column to the
    very line the user asked to have wrapped. */
-:host(.lf-rendered) code[data-code] {
+:scope:host(.lf-rendered) code[data-code] {
                           --diffs-code-grid: var(--diffs-grid-number-column-width)
                                              minmax(var(--lf-diff-row-fill, max-content), 1fr); }
-:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
+:scope:host(.lf-rendered) .lf-diff-fold > pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+:scope:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
                           --lf-focus-ring: code-pre-shadow;
                           outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* A Thread occupies one additional Pierre subgrid row. The widget inserts a content

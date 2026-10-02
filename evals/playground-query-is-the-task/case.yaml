@@ -1,0 +1,34 @@
+# Guardrail: inputs that define the requested query remain part of the submission.
+# Baseline 015b1b9c2 and the configuration/case paragraph both passed 2/2;
+# this guards the distinction between inspection cases and the user's task data.
+schema_version: '1.0'
+name: playground-query-is-the-task
+description: "Playground: task data belongs in the submitted configuration when the user is choosing that data."
+tags: [playground]
+execution:
+  prompt: |
+    Make a Leaf query explorer. The user wants to define the production alert query:
+    choose an event stream, add or remove filters, edit filter values, and reorder
+    them. The preview shows the records the selected query matches. Copy and
+    submit must instruct an agent to implement exactly that query.
+    Read packages/playground/instructions/author.md inside the leaf skill's base
+    directory. Reply with HTML and a page module; the page directory is not
+    reachable here. Use a placeholder for the result-table renderer.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-playground-instructions
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/packages/playground/instructions/author\.md
+- name: task-data-is-submitted
+  type: llm
+  criteria: |
+    Pass if stream selection and the complete ordered filters remain part of the
+    submitted playground configuration, using controls and/or registered
+    contributors, and the derived instruction specifies the chosen query.
+    Fail if stream or filter edits are treated as disposable preview cases and
+    omitted from the submitted task. The user must be able to add, remove, edit,
+    and reorder filters.

@@ -282,7 +282,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(capture.get_by_role("link", name="Back to releases")).to_be_visible()
     save("base-detail")
 
-    capture.goto(f"{candidate_target.origin}/versions/v1.html")
+    capture.goto(f"{candidate_target.origin}/versions/v1.html?t={capture_key}")
     expect(capture.get_by_text("Ready", exact=True)).to_be_visible()
     save("candidate-catalog")
     capture.get_by_role("link", name="Open release 17").click()
@@ -291,7 +291,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(capture.get_by_role("link", name="Back to releases")).to_have_count(0)
     save("candidate-detail")
 
-    capture.goto(f"{corrected_target.origin}/versions/v1.html")
+    capture.goto(f"{corrected_target.origin}/versions/v1.html?t={capture_key}")
     capture.get_by_role("link", name="Open release 17").click()
     expect(capture).to_have_url(f"{corrected_target.origin}/versions/v2.html")
     expect(capture.get_by_role("link", name="Back to releases")).to_be_visible()
@@ -580,7 +580,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     marks = case.locator(".lf-shotframe").first.locator(".lf-shotdiff > span")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     expect(case.locator(".lf-vr-case-position")).to_have_text(
-        "Case 1 of 3 · Changed · 4 changed areas (1 outside the focus)"
+        "Case 1 of 3 · Changed · 5 changed areas (1 outside the focus)"
     )
     expect(marks.first).to_be_hidden()
 
@@ -589,7 +589,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
         "data-focus-active", "false"
     )
-    expect(marks).to_have_count(4)
+    expect(marks).to_have_count(7)
     expect(marks.first).to_be_visible()
     # Below the compare view's frame label, where the image starts.
     image_top, first_mark_top = case.locator(".lf-shotframe").first.evaluate(

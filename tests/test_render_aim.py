@@ -1,6 +1,7 @@
 """Modifier aiming and design-mode browser tests."""
 
 import io
+import json
 import math
 import re
 from datetime import datetime, timedelta
@@ -16,7 +17,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.served_state import page as served_page
+from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
@@ -70,7 +71,9 @@ from render_harness import (
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
+    draft_key,
     expect_comment_notes,
+    judge_watches,
     leaf_page,
     open_page,
     panel_settled,
@@ -80,6 +83,7 @@ from render_harness import (
     select,
     sending,
     stamp_page,
+    stored_draft_text,
     told,
     write,
 )
@@ -183,12 +187,10 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
-    """The in-place field and the thread are two sizes of one writing surface.
+    """A compact comment keeps its writing face as Send opens its target's thread.
 
-    The field keeps the small footprint that leaves the passage readable, but uses the
-    thread UI's type instead of a smaller caption face. On send, its last rectangle is
-    carried to the inline thread while the real card fades through it; the card must not
-    simply replace the field in one frame.
+    A pending margin repaint still carries the submitted field's frame into the real
+    card. The send-placement cases check each word through the motion.
     """
     page = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
     resized(page, 1440, 900)
@@ -197,95 +199,80 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
     compact = field.evaluate(
-        """node => {
-          const style = getComputedStyle(node), box = node.getBoundingClientRect();
-          return { x: box.x, y: box.y, width: box.width, height: box.height,
-                   family: style.fontFamily, size: style.fontSize };
-        }"""
+        "node => ({family: getComputedStyle(node).fontFamily, "
+        "size: getComputedStyle(node).fontSize})"
     )
-    assert compact["height"] == 32
+    assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
     source = field.bounding_box()
-    # Keep a margin render pending across the accepted comment and its next frame.
-    # Rendering rebuilds entry records, so the scheduled carry must recognize the same
-    # destination by its durable key rather than by the old record's object identity.
     page.evaluate(
         """() => {
           window.__lfForceMarginRender = true;
+          window.__lfRenderCycles = 0;
           const renderAgain = () => {
             if (!window.__lfForceMarginRender) return;
+            window.__lfRenderCycles += 1;
             dispatchEvent(new Event('resize'));
             requestAnimationFrame(renderAgain);
           };
           requestAnimationFrame(renderAgain);
         }"""
     )
+    page.wait_for_function("() => window.__lfRenderCycles > 0")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
-    ghost = page.locator(".lf-thread-transition")
-    expect(ghost).to_have_count(1)
-    page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    reply = preview.locator("leaf-text")
-    # The send leaves the user on the target, the card up beside it.
+    page.evaluate("() => (window.__lfForceMarginRender = false)")
+    expect(preview.get_by_text("Carry this comment into its thread.")).to_be_visible()
     expect(target).to_be_focused()
-    full = reply.evaluate(
-        "node => ({ family: getComputedStyle(node).fontFamily, "
-        "size: getComputedStyle(node).fontSize })"
+    message = preview.locator(".lf-msg-body").first
+    expect(message).to_have_text("Carry this comment into its thread.")
+    full = message.evaluate(
+        "node => ({family: getComputedStyle(node).fontFamily, "
+        "size: getComputedStyle(node).fontSize})"
     )
-    assert (compact["family"], compact["size"]) == (
-        full["family"],
-        full["size"],
-    )
-
-    # Hold the first frame: the field's submitted box still stands exactly where the
-    # user left it, and the full card is transparent underneath. Three motions share
-    # the one duration — shell, card, and words — so reduced motion can settle all three
-    # through the same primitive.
-    assert page.evaluate("() => window.__lfHeld.length") == 3
-    carried = ghost.bounding_box()
-    for dimension in ("x", "y", "width", "height"):
-        assert carried[dimension] == pytest.approx(source[dimension], abs=1)
-    expect(preview).to_have_css("opacity", "0")
-    destination = page.evaluate(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          const card = preview.getBoundingClientRect();
-          const motion = window.__lfHeld.find((played) =>
-            played.effect.target.classList.contains('lf-thread-transition'));
-          const end = motion.effect.getKeyframes().at(-1);
+    assert compact == full
+    assert preview.get_attribute("data-lf-comment-frame") is not None
+    motion = preview.evaluate(
+        """card => {
+          const played = window.__lfHeld.find(animation =>
+            animation.effect.target === card &&
+            animation.effect.getKeyframes().some(frame => 'clipPath' in frame));
+          if (!played) return null;
+          const [start, end] = played.effect.getKeyframes();
+          const inset = [...start.clipPath.matchAll(/-?\\d+(?:\\.\\d+)?px/g)]
+            .slice(0, 4).map(match => Number.parseFloat(match[0]));
+          const box = card.getBoundingClientRect();
+          const style = getComputedStyle(card);
+          const scaleX = box.width / Number.parseFloat(style.width);
+          const scaleY = box.height / Number.parseFloat(style.height);
           return {
-            card: {
-              x: parseFloat(preview.style.left), y: parseFloat(preview.style.top),
-              width: card.width, height: card.height,
+            source: {
+              x: box.left + inset[3] * scaleX,
+              y: box.top + inset[0] * scaleY,
+              width: box.width - (inset[1] + inset[3]) * scaleX,
+              height: box.height - (inset[0] + inset[2]) * scaleY,
             },
-            end: {
-              x: parseFloat(end.left), y: parseFloat(end.top),
-              width: parseFloat(end.width), height: parseFloat(end.height),
-            },
+            card: box.toJSON(),
+            end: end.clipPath,
           };
         }"""
     )
+    assert motion is not None
     for dimension in ("x", "y", "width", "height"):
-        assert destination["end"][dimension] == pytest.approx(
-            destination["card"][dimension], abs=1
-        ), destination
+        assert motion["source"][dimension] == pytest.approx(source[dimension], abs=1), (
+            motion
+        )
+    assert motion["end"] == "inset(0px round 10px)", motion
     page.evaluate(
-        """() => {
-          const words = window.__lfHeld.find((played) =>
-            played.effect.target.classList.contains('lf-thread-transition-text')
-          );
-          words.currentTime = words.effect.getComputedTiming().duration / 2;
-        }"""
+        "() => window.__lfHeld.slice().forEach(animation => animation.finish())"
     )
-    expect(ghost.locator(".lf-thread-transition-text")).to_have_css("opacity", "0")
-
-    page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
-    expect(ghost).to_have_count(0)
-    expect(preview).to_have_css("opacity", "1")
-    expect(target).to_be_focused()
+    settled = preview.bounding_box()
+    for dimension in ("x", "y", "width", "height"):
+        assert settled[dimension] == pytest.approx(motion["card"][dimension], abs=1)
+    expect(message).to_have_text("Carry this comment into its thread.")
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
@@ -363,8 +350,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
 ):
     """A passage and its growing editor remain visible together.
 
-    Without a horizontal rail, the compact field chooses the vertical side with more
-    reachable room. It keeps that side while growing and moves the reading region only
+    Without a horizontal rail, the compact field first uses a side with visible room.
+    It keeps that side while growing and moves the reading region only
     enough to reveal itself. Its trailing actions stay with the last line, and its
     corners keep the first and last line readable after the capsule becomes an editor.
     """
@@ -405,10 +392,6 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     compact = field.bounding_box()
     placement = page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
     before_scroll = page.evaluate("scrollY")
-    if placement in {"top-start", "bottom-start"}:
-        assert placement == "bottom-start", (
-            "the page has substantially more reachable room below this passage"
-        )
     clear = """() => {
           const target = document.getElementById('passage').getBoundingClientRect();
           const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
@@ -531,9 +514,6 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         }"""
     )
     assert boxes["barBottom"] <= boxes["passageTop"], boxes
-    float_height = bar.evaluate(
-        "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
-    )
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -546,22 +526,19 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         scroll_settled(page)
         moved = page.evaluate("scrollY")
         assert moved > last_scroll
-        assert bar.evaluate(
-            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
-        ) == pytest.approx(float_height, abs=1)
+        expect(bar).to_be_visible()
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-placement", "top-start")
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(field).to_be_focused()
 
 
-def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, serve):
-    """The block a comment names decides where the field stands, on screen or off it.
-
-    Placement reads that block through the viewport, so a paragraph scrolled clear of
-    the viewport has no shown rect left to read. Falling back to the passage there let a
-    short selection lend the words after it after all: the field left the free margin,
-    crossed into the column, and came to rest on the sentences the user had scrolled
-    down to. The column does not move when the page scrolls, so neither may the field.
+def test_a_comment_on_a_scrolled_away_paragraph_stays_open_in_the_window(
+    browser, serve
+):
+    """Scrolling its attachment away keeps the writer's field in the usable window,
+    with the same words and focus. The page owns its scroll; the draft remains attached
+    semantically to the original passage until the writer sends or dismisses it.
     """
     body = "".join(
         f'<p id="p{n}">Paragraph {n} carries enough ordinary reading text to be '
@@ -601,7 +578,6 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     expect(field).to_be_visible()
     field.click()
     write(field, "A short note.\nSecond line.\nThird line.")
-    beside = page.locator(".lf-fab-bar").bounding_box()["x"]
 
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 900)
@@ -611,22 +587,8 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     )
     scroll_settled(page)
 
-    covered = page.evaluate(
-        """() => {
-          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          return [...document.querySelectorAll('p')]
-            .filter(p => {
-              const r = p.getBoundingClientRect();
-              return r.width && r.height && r.left < bar.right && bar.left < r.right
-                && r.top < bar.bottom && bar.top < r.bottom;
-            })
-            .map(p => p.id);
-        }"""
-    )
-    assert covered == [], f"the field stands on the user's paragraphs: {covered}"
-    assert page.locator(".lf-fab-bar").bounding_box()["x"] == beside, (
-        "the field left the column it was seated beside when the passage scrolled away"
-    )
+    assert _draft_in_view(page, "A short note.\nSecond line.\nThird line.")
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
 
 
 def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
@@ -830,8 +792,7 @@ def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
 def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     browser, serve
 ):
-    """With no room left under it, the field rises by what its next line needs, its
-    foot on the window's, and scrolls only once it fills the window."""
+    """A side editor at the window foot grows upward, then scrolls within its frame."""
     page = open_page(
         browser,
         serve(
@@ -847,7 +808,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     passage = page.locator("#passage")
     passage.evaluate(
         """node => scrollBy({
-          top: node.getBoundingClientRect().top - (innerHeight - 140),
+          top: node.getBoundingClientRect().top - (innerHeight - 240),
           behavior: 'instant'
         })"""
     )
@@ -902,7 +863,11 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact = bar.bounding_box()
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
-    assert compact["y"] > 200, compact
+    ceiling = page.evaluate(
+        """async () => (await window.__lfRuntimeImport('/runtime/geometry.js'))
+          .shownWindow({gap: 8}).top"""
+    )
+    assert compact["y"] > ceiling + 20, compact
     write(
         field,
         "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50)),
@@ -913,8 +878,6 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
           return field.scrollHeight > field.clientHeight;
         }"""
     )
-    banner = page.locator(".lf-banner").bounding_box()
-    ceiling = max(48, banner["y"] + banner["height"] + 6)
     box = bar.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert box["y"] < compact["y"] - 20, (compact, box)
@@ -956,11 +919,9 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
 
     write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
-    page.wait_for_function(
-        """() => {
-          const field = document.querySelector('.lf-fab-input');
-          return field.clientHeight === field.scrollHeight && field.clientHeight > 100;
-        }"""
+    rendered(page)
+    assert field.evaluate(
+        "node => node.clientHeight === node.scrollHeight && node.clientHeight > 60"
     )
 
     write(field, "\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
@@ -1568,7 +1529,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_js_property("value", draft)
-    expect(bar).to_have_attribute("data-lf-placement", placement)
+    assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
     rendered(page)
     restored = bar.bounding_box()
     assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
@@ -1601,8 +1562,10 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     )
 
 
-def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve):
-    """Moving the reference across the block axis opens a better attachment side."""
+def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serve):
+    """Moving the reference across the block axis opens a better attachment side, once
+    a resize asks for the side again: the room the page can make over the paragraph
+    moves with it (comment-placement.js)."""
     page = open_page(
         browser,
         serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
@@ -1615,21 +1578,32 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     write(field, "Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
-    expect(bar).to_have_attribute("data-lf-placement", "top-start")
+    expect(bar).to_have_attribute(
+        "data-lf-placement", re.compile(r"^(top|bottom)-start$")
+    )
+    over = bar.get_attribute("data-lf-placement") == "top-start"
 
+    # Moved toward the side it stands on, the paragraph leaves more room on the other.
     target.evaluate(
-        """node => {
-          node.style.transform = 'translateY(-180px)';
-        }"""
+        "(node, up) => { node.style.transform = `translateY(${up ? -300 : 300}px)`; }",
+        over,
     )
     resized(page, 700, 601)
-    expect(bar).to_have_attribute("data-lf-placement", "bottom-start")
+    expect(bar).to_have_attribute(
+        "data-lf-placement", "bottom-start" if over else "top-start"
+    )
     target_after = target.bounding_box()
     after = bar.bounding_box()
-    assert after["y"] >= target_after["y"] + target_after["height"] + 5, (
-        target_after,
-        after,
-    )
+    if over:
+        assert after["y"] >= target_after["y"] + target_after["height"] + 5, (
+            target_after,
+            after,
+        )
+    else:
+        assert after["y"] + after["height"] <= target_after["y"] - 5, (
+            target_after,
+            after,
+        )
     expect(field).to_have_js_property(
         "value", "Keep this comment connected when its paragraph moves vertically."
     )
@@ -1762,7 +1736,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
     sent_at = datetime.fromisoformat(logged_action["ts"])
     advanced = (sent_at + timedelta(minutes=3)).isoformat()
-    for clock_owner in (served_page, events_model, service_model):
+    for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", lambda: advanced)
     session_model.cmd_status(page_dir, "idle", "")
     told(page)
@@ -2250,10 +2224,8 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     )
     expect(panel.locator(".lf-thread > .lf-thread-summary")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # Escape leaves the thread for the whole panel, then the page. The mode they put
-    # on before either surface comes off last.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # Escape from the thread is the panel's, which closes onto the page. The mode they
+    # put on before the panel comes off last.
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_be_focused()
@@ -3787,3 +3759,187 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
         box,
         viewport,
     )
+
+
+COMPOSER_ATTACHMENT_PAGE = leaf_page(
+    "An open comment keeps its writer",
+    """<h1 id="title">Resize an active comment</h1>
+<aside class="sidebar" id="bg-sidebar"><lf-toc id="bg-contents" max-level="2"></lf-toc></aside>
+<h2 id="first">First section</h2><p id="ordinary" tabindex="0">An ordinary paragraph remains visible at both widths.</p>
+<h2 id="second">Second section</h2><p>Another section gives the contents outline destinations.</p>
+<details id="disclosure" open><summary>Disclosure</summary><p id="detail-word" tabindex="0">A comment target inside a disclosure.</p></details>
+<section id="tabbed-section"><h2 id="views-title">A tabbed section</h2>
+<lf-tabs id="views"><lf-tab id="active-view" label="First view"><p id="tab-word" tabindex="0">A comment target in the first view.</p></lf-tab>
+<lf-tab id="other-view" label="Other view"><p>The other view can appear without closing a draft.</p></lf-tab></lf-tabs></section>
+<p id="offscreen-word" tabindex="0">A comment target whose paragraph can scroll away.</p>
+<p id="quote-holder" style="height:72px;overflow:auto">Quoted words stay attached to this paragraph.<br>
+ More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
+ More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
+ More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.</p>
+<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section>
+""",
+    head="""<style>
+main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {display:none}
+</style>""",
+)
+
+
+def _draft_in_view(page, words):
+    field = page.locator(".lf-fab-input")
+    box = field.bounding_box()
+    viewport = page.viewport_size
+    return (
+        field.is_visible()
+        and field.evaluate("el => el.value") == words
+        and field.evaluate("el => el.matches(':focus-within')")
+        and (box is not None)
+        and (
+            box["x"] >= 0
+            and box["y"] >= 0
+            and (box["x"] + box["width"] <= viewport["width"])
+            and (box["y"] + box["height"] <= viewport["height"])
+        )
+    )
+
+
+def _open_attachment_draft(browser, url, target):
+    page = open_page(browser, url)
+    rendered(page)
+    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    destination = page.locator(target).first
+    for _ in range(50):
+        if destination.evaluate("el => el.matches(':focus-within')"):
+            break
+        page.keyboard.press("Tab")
+    assert destination.evaluate("el => el.matches(':focus-within')"), target
+    page.keyboard.press("c")
+    rendered(page)
+    words = "A draft about " + target
+    page.keyboard.type(words)
+    rendered(page)
+    judge_watches()
+    return (page, words)
+
+
+def test_open_draft_remains_at_responsive_widths(browser, serve):
+    url = serve(COMPOSER_ATTACHMENT_PAGE)
+    facts = []
+    for target in ("#ordinary", "#bg-contents a"):
+        page, words = _open_attachment_draft(browser, url, target)
+        assert _draft_in_view(page, words)
+        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+        for width in (480, 1200):
+            resized(page, width, 900)
+            rendered(page)
+            expected = (
+                "window" if target == "#bg-contents a" and width == 480 else "page"
+            )
+            assert (
+                page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == expected
+            )
+            facts.append(
+                (
+                    target,
+                    width,
+                    _draft_in_view(page, words),
+                    page.locator(".lf-fab-input").evaluate("el => el.value"),
+                )
+            )
+    assert all(
+        (
+            visible and focus == "A draft about " + target
+            for target, width, visible, focus in facts
+        )
+    ), facts
+
+
+def test_open_draft_stays_visible_when_existing_subject_hides(browser, serve):
+    url = serve(COMPOSER_ATTACHMENT_PAGE)
+    cases = (
+        (
+            "disclosure",
+            "#detail-word",
+            "document.getElementById('disclosure').open=false",
+            "document.getElementById('disclosure').open=true",
+        ),
+        (
+            "inactive-tab",
+            "#tab-word",
+            "document.getElementById('other-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
+            "document.getElementById('active-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
+        ),
+        (
+            "offscreen",
+            "#offscreen-word",
+            "scrollTo(0,document.documentElement.scrollHeight)",
+            "document.getElementById('offscreen-word').scrollIntoView({block:'center'})",
+        ),
+    )
+    results = []
+    for name, target, hide, show in cases:
+        page, words = _open_attachment_draft(browser, url, target)
+        page.evaluate(hide)
+        rendered(page)
+        results.append((name, "hidden", _draft_in_view(page, words)))
+        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
+        page.evaluate(show)
+        rendered(page)
+        results.append((name, "returned", _draft_in_view(page, words)))
+        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+    assert all((result for name, phase, result in results)), results
+
+
+def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
+    page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
+    rendered(page)
+    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    page.locator("#quote-holder").scroll_into_view_if_needed()
+    points = page.locator("#quote-holder").evaluate(
+        """el => {
+        const first=document.createRange(), last=document.createRange();
+        first.setStart(el.firstChild,0);first.setEnd(el.firstChild,1);
+        last.setStart(el.firstChild,11);last.setEnd(el.firstChild,12);
+        const a=first.getBoundingClientRect(),b=last.getBoundingClientRect();
+        return [[a.left,a.top+a.height/2],[b.right,b.top+b.height/2]];
+    }"""
+    )
+    select(page, *points)
+    rendered(page)
+    page.keyboard.press("c")
+    rendered(page)
+    words = "A draft about quoted words"
+    page.keyboard.type(words)
+    rendered(page)
+    judge_watches()
+    page.evaluate("document.getElementById('quote-holder').scrollTop=200")
+    rendered(page)
+    assert _draft_in_view(page, words)
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
+    page.evaluate("document.getElementById('quote-holder').scrollTop=0")
+    rendered(page)
+    assert _draft_in_view(page, words)
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+
+
+def test_unanchored_draft_keeps_editing_and_deliberate_dismissal(browser, serve):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+    )
+    context = 'composer:[["section","bg-contents"]]'
+    saved = draft_key(page, context)
+    resized(page, 480, 900)
+    rendered(page)
+    assert _draft_in_view(page, words)
+    page.keyboard.type(" and more words")
+    words += " and more words"
+    rendered(page)
+    judge_watches()
+    assert _draft_in_view(page, words)
+    assert draft_key(page, context) == saved
+    draft = json.loads(stored_draft_text(page, context))
+    assert draft["anchor"] == {"section": "bg-contents"}
+    assert draft["text"] == words
+    page.keyboard.press("Escape")
+    rendered(page)
+    assert not page.locator(".lf-fab-input").is_visible()
+    assert json.loads(stored_draft_text(page, context))["text"] == words

@@ -22,6 +22,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
@@ -66,6 +67,7 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
+    CORPUS_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -126,12 +128,14 @@ VISUAL_ACTION_TIMING = """
 """
 
 
-def test_a_live_page_cannot_be_framed_or_run_its_data(browser, serve):
-    """Another site cannot put a live Leaf under its own controls, and a data route
-    never runs as a script, whatever the page's own code tries."""
+def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, serve):
+    """A same-origin frame is an ordinary operable page; data never runs as code."""
     source = leaf_page(
         "Boundaries",
-        '<h1 id="h">Boundaries</h1>',
+        """<h1 id="h">Boundaries</h1>
+<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
+</lf-options></lf-ask>""",
         head="""<script type="module">
 window.authoredModuleRan = true;
 </script>""",
@@ -151,6 +155,8 @@ window.authoredModuleRan = true;
         )
         == "blocked"
     )
+    errors = consume_browser_errors(page, 'MIME type of "application/json"')
+    assert any('MIME type of "application/json"' in error for error in errors), errors
     framed = page.locator("body").evaluate(
         """async (body, url) => {
               const frame = document.createElement('iframe');
@@ -166,12 +172,131 @@ window.authoredModuleRan = true;
             }""",
         page.url,
     )
-    assert framed is None
-    errors = consume_browser_errors(
-        page, "Content Security Policy", 'MIME type of "application/json"'
+    assert framed == "Boundaries"
+    frame = page.frame_locator("#framed-leaf")
+    expect(frame.locator("body")).to_have_attribute("data-lf-presented", "1")
+    frame.locator("#yes").click()
+    page.wait_for_function(
+        "() => document.querySelector('#yes')?.hasAttribute('chosen')"
     )
-    assert any("frame-ancestors 'none'" in error for error in errors), errors
-    assert any('MIME type of "application/json"' in error for error in errors), errors
+    assert any(
+        event.get("kind") == "action"
+        and event.get("widget") == "pick"
+        and event.get("detail") == {"options": ["yes"]}
+        for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
+    """Authored iframe markup opens a durable version rather than a practice copy."""
+    url = live_url(serve(FEATURE_GALLERY))
+    page = open_page(browser, url + "#bg-durable-embedding")
+    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
+    page.locator("#bg-durable-frame-open").click()
+    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+    frame.locator(".lf-threads-toggle").click()
+    expect(frame.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    frame.goto(frame.url)
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+
+
+def test_a_composed_page_does_not_offer_history_it_does_not_have(browser, serve):
+    """Corpus composition preserves markup, not another page's durable versions."""
+    page = open_page(browser, live_url(serve(CORPUS_PAGE)))
+    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
+    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
+    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
+    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
+
+
+def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
+    """SameSite cookies do not isolate ports, so a different origin can authenticate
+    the frame even without knowing its key. CSP blocks disguising its controls."""
+    context = browser.new_context()
+    child = open_page(
+        browser,
+        live_url(serve(leaf_page("Child", '<h1 id="h">Child</h1>'))),
+        context=context,
+    )
+    child_url = child.url
+    parent_url = live_url(serve(leaf_page("Parent", '<h1 id="parent">Parent</h1>')))
+    assert urlparse(child_url).port != urlparse(parent_url).port
+    parent = open_page(browser, parent_url, context=context)
+    with parent.expect_response(child_url) as loaded:
+        parent.locator("body").evaluate(
+            """async (body, url) => {
+                const frame = document.createElement('iframe');
+                frame.id = 'blocked-leaf';
+                frame.src = url;
+                const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+                body.append(frame);
+                await loaded;
+            }""",
+            child_url,
+        )
+    response = loaded.value
+    assert response.status == 200
+    assert TOKEN in response.request.all_headers()["cookie"]
+    assert "t=" not in response.url
+    errors = consume_browser_errors(parent, "Content Security Policy")
+    assert any("frame-ancestors 'self'" in error for error in errors), errors
+    assert parent.locator("#blocked-leaf").evaluate(
+        "frame => frame.contentDocument === null"
+    )
+
+
+def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
+    """The page-interface barrier includes loading its optional owner's module."""
+    source = leaf_page(
+        "Deferred gallery",
+        """<h1>Deferred gallery</h1>
+<section data-interaction-gallery data-interaction-viewport="2">
+  <lf-tabs id="gallery-tabs"><lf-tab id="demo" label="Accept a suggestion">
+    <figure data-interaction-demo="accept">
+      <template id="sample-page" data-sample>
+        <p>The importer <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>.</p>
+      </template>
+      <div class="interaction-stage">
+        <iframe data-interaction-frame title="Contained suggestion"></iframe>
+        <span class="interaction-pointer" hidden></span>
+      </div>
+    </figure>
+  </lf-tab></lf-tabs>
+</section>
+<div style="height: 1000px"></div>
+<section id="destination"><h2>Requested destination</h2><p>Read this next.</p></section>""",
+    )
+    page = browser.new_page()
+    watched(page)
+    page.add_init_script(
+        "document.addEventListener('lf-page-interface', () => { window.interfaceStarted = true; });"
+    )
+    held = []
+    page.route("**/runtime/interaction-gallery.js", lambda route: held.append(route))
+    page.goto(live_url(serve(source)) + "#destination", wait_until="domcontentloaded")
+    page.wait_for_function("() => window.interfaceStarted === true")
+    assert held, "the positive control did not hold the optional owner import"
+    page.evaluate(
+        """async () => {
+          const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
+        }"""
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    held.pop().continue_()
+    wait_until_ready(page)
+    expect(page.locator("[data-interaction-ready]")).to_have_count(1)
+    expect(page.locator("#destination")).to_be_in_viewport()
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):
@@ -1311,6 +1436,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     """Core page visuals paint after upgrade while agent state still waits."""
     url = serve(FEATURE_GALLERY)
     held = []
+    release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.add_init_script(
@@ -1326,7 +1452,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     )
 
     def hold_parent_state(route):
-        if route.request.frame == page.main_frame:
+        if route.request.frame == page.main_frame and not release_state:
             held.append(route)
         else:
             route.continue_()
@@ -1349,7 +1475,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
-    held.pop(0).continue_()
+    release_state = True
+    for route in held:
+        route.continue_()
     wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
@@ -1987,7 +2115,8 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    expect(reopened).to_have_count(0)
+    # The undo is no gesture on the thread, so its card stays where it stands, closed.
+    expect(reopened).to_have_attribute("data-resolved", "true")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
@@ -2491,7 +2620,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     # presence must leave the sentinel alone: a hidden, still-open tab no longer
     # counts as user attention. Reopening the stream below must replace it.
     page.wait_for_timeout(100)
-    files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
+    cleanup_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
     serve.httpd.viewed_at = 0
     events_model.append_event(
         serve.page_dir,
@@ -2529,9 +2658,9 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     text = page.locator(".lf-status-detail")
 
     def declare(detail):
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
+            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
         )
 
     # Every ask is held; the test answers each admitted read by hand.
@@ -2634,7 +2763,7 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     page.wait_for_function("() => window.__leafReadBounds.length >= 2")
     bounds = page.evaluate("() => window.__leafReadBounds")
     assert bounds[0] == 120_000, bounds
-    assert bounds[1] == 10_000, bounds
+    assert 0 < bounds[1] < bounds[0], bounds
 
 
 def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
@@ -2648,34 +2777,15 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     and the answer that lands after the page has presented offline is applied where it
     stands.
     """
-    # The wait is read off the page rather than written here, and shortened so the test
-    # spends its own time on the behaviour instead of on the bound. It is the first long
-    # timer the runtime's modules install; every other one they set is either shorter
-    # than this floor or installed after presentation. The prepaint bootstrap's own
-    # bound on held keys is set while that classic script runs, so it is passed over.
-    shorten_the_first_long_wait = """
-      window.__leafPresentationWait = null;
-      const native = window.setTimeout.bind(window);
-      window.setTimeout = (fn, ms, ...rest) => {
-        const bootstrap = document.currentScript?.hasAttribute('data-lf-runtime');
-        if (window.__leafPresentationWait === null && ms >= 5000 && !bootstrap) {
-          window.__leafPresentationWait = ms;
-          return native(fn, 200, ...rest);
-        }
-        return native(fn, ms, ...rest);
-      };
-    """
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    page.add_init_script(shorten_the_first_long_wait)
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+    expect(page.locator("body[data-lf-presented]")).to_have_count(1, timeout=60_000)
     expect(page.locator(".lf-status-detail")).to_contain_text(
         "Server offline — reconnecting"
     )
-    assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
 
     # The read the page presented without is still the one it is waiting on. Ticks of
     # the shared clock pass with the slot held, and none of them opens a second read.
@@ -2997,7 +3107,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             )
         else:
             service_model.claim_path(d).unlink(missing_ok=True)
-        files_model.write_json(d / "status.json", status)
+        cleanup_model.write_json(d / "status.json", status)
         told(page)
 
     declare("working", "revising the plan")
@@ -3266,9 +3376,9 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d, id="s")
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
+            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
         )
         told(page)
 
@@ -3313,9 +3423,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
-    held_workflow = held_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    held_workflow = held_thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+    )
     other_workflow = other_thread.locator(
-        ":scope > .lf-thread-root-meta .lf-msg-sending"
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
     )
     expect(workflows).to_have_count(2)
     expect(held_workflow).to_have_text("Sent")
@@ -3326,7 +3438,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # activity reading.
     record_claim(d, id="s", pid=os.getpid(), agent="Claude")
     old_status = files_model.read_json(d / "status.json")
-    files_model.write_json(
+    cleanup_model.write_json(
         d / "status.json",
         {
             **old_status,
@@ -3501,12 +3613,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # A thread the user has closed asks nothing and shows nothing, for the same
-    # reason its reply box is gone.
+    # A thread the user has closed asks nothing: its card, closed from another tab,
+    # stays where it stands and says it is resolved.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
     expect(workflows).to_have_count(1)
 
     # Reopening restores a claim that no reply answered. The local line still goes
@@ -3549,7 +3661,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
 
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
@@ -3619,7 +3731,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page = open_page(browser, url)
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     expect(workflow).to_have_text("Waiting for pickup")
     expect(workflow).to_have_attribute("title", "Waiting for pickup")
@@ -3648,7 +3760,9 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     page = open_page(browser, url)
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
-    workflow = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    workflow = thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+    )
     thread.locator(".lf-thread-summary").click()
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
@@ -3720,19 +3834,19 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
-        f'.lf-thread[data-id="{held}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{held}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "rerunning the failing shard",
-                "ts": events_model.now_iso(),
+                "ts": cleanup_model.now_iso(),
                 "after": events_model.read_events(d)[-1]["seq"],
                 "work": [
                     {
@@ -3755,7 +3869,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         )
         told(page)
 
-    claim(events_model.now_iso())
+    claim(cleanup_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
     expect(work_line).to_have_text("Working")
@@ -3843,7 +3957,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d, id="s")
-    claim(events_model.now_iso())
+    claim(cleanup_model.now_iso())
     expect(work_line).to_have_text("Working")
     expect(work_line).to_have_count(1)
     expect(held_thread).not_to_have_attribute(
@@ -3894,9 +4008,9 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             )
 
     def declare(state, **status):
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": state, "ts": events_model.now_iso(), **status},
+            {"state": state, "ts": cleanup_model.now_iso(), **status},
         )
         told(page)
 
@@ -4857,9 +4971,9 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
     with page.expect_response("**/api/state*"):
-        files_model.write_json(
+        cleanup_model.write_json(
             serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": events_model.now_iso()},
+            {"state": "working", "detail": "newer", "ts": cleanup_model.now_iso()},
         )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")

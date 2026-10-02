@@ -4,9 +4,10 @@ import json
 import re
 from itertools import pairwise
 
+import pytest
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -416,9 +417,16 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#direction")).to_have_count(1)
+    message_top = page.locator("#direction").evaluate(
+        "node => node.getBoundingClientRect().top"
+    )
     with sending(page, "choose North in the authored reply"):
         page.locator("#north .lf-pick").click()
     round_trip(page)
+    assert (
+        page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
+        == message_top
+    )
     assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
       .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
@@ -512,22 +520,23 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
             "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
         )
 
-    removed = first.element_handle()
-    first.evaluate("node => node.remove()")
+    # The widget taken out stands last, so taking it out moves nothing else.
+    removed = second.element_handle()
+    second.evaluate("node => node.remove()")
     stopped_at = removed.evaluate("node => node.updates")
-    second.locator("input").fill("Delta")
-    second_before = second.evaluate("node => node.updates")
+    first.locator("input").fill("Delta")
+    first_before = first.evaluate("node => node.updates")
     with sending(page, "another Thread after one widget disconnected"):
         write(page.locator(".lf-general leaf-text"), "Delta")
         page.locator(".lf-general button").click()
-    expect(second.locator("li")).to_have_text("Delta")
-    assert second.evaluate("node => node.updates") > second_before
+    expect(first.locator("li")).to_have_text("Delta")
+    assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
 
-    thread_id = second.evaluate(
+    thread_id = first.evaluate(
         "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
-    second.locator("button", has_text="Delta").click()
+    first.locator("button", has_text="Delta").click()
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
 
@@ -571,8 +580,10 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     page.locator(".lf-threads-toggle").click()
 
     with sending(page, "a reply from the first package mirror"):
-        write(first.locator(".lf-page-thread .lf-say leaf-text"), "Shared reply")
-        first.locator(".lf-page-thread .lf-say").get_by_role(
+        write(
+            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "Shared reply"
+        )
+        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
             "button", name="Send"
         ).click()
     expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
@@ -589,8 +600,8 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     second.evaluate("node => { node.holding = true; node.consumer.update(); }")
     expect(second).to_have_attribute("data-held", "true")
     with sending(page, "a reply while a package mirror is held"):
-        write(first.locator(".lf-page-thread .lf-say leaf-text"), "While held")
-        first.locator(".lf-page-thread .lf-say").get_by_role(
+        write(first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "While held")
+        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
             "button", name="Send"
         ).click()
     expect(first.locator(".lf-page-thread")).to_contain_text("While held")
@@ -610,14 +621,19 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
       node.removeAttribute('data-held');
       node.consumer.update();
     }""")
-    expect(second.locator(".lf-page-thread")).to_contain_text("While held")
+    # The log answered the reply before the held mirror drew it, so to that mirror it is
+    # news, which waits behind a notice rather than moving its reply box.
+    expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
+    expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
     second_handle = second.element_handle()
     second.evaluate("node => node.remove()")
     stopped_at = second_handle.evaluate("node => node.updates")
     with sending(page, "a reply after the second mirror disconnected"):
-        write(first.locator(".lf-page-thread .lf-say leaf-text"), "After removal")
-        first.locator(".lf-page-thread .lf-say").get_by_role(
+        write(
+            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "After removal"
+        )
+        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
             "button", name="Send"
         ).click()
     expect(first.locator(".lf-page-thread")).to_contain_text("After removal")
@@ -913,7 +929,10 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     )
 
 
-def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
+@pytest.mark.parametrize("expanded", [False, True])
+def test_admission_holds_approval_until_the_answer_is_in_the_log(
+    browser, serve, expanded
+):
     """An answer the log has not taken in cannot open the irreversible approval.
 
     The pick is the user's at once — that is their own gesture drawn on their own
@@ -937,6 +956,16 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
         "title", "Answer every Ask before approving this work"
     )
 
+    if expanded:
+        page.keyboard.press("?")
+        expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+            "data-lf-expanded", "true"
+        )
+    # Admission may repack contextual hints and More inside the same bottom band.
+    band = page.locator(".lf-shortcut-bar")
+    before = band.bounding_box()
+    assert before is not None
+
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -945,6 +974,9 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+
+    rendered(page)
+    assert band.bounding_box() == before
 
 
 PAGE_DECLARATION = {
@@ -1066,16 +1098,17 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
 
 def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
+    # The widget the test takes out and puts back stands last in the page, where neither
+    # moves anything else.
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>'
         '<lf-ask id="package-ask"><h2>Package choice</h2>'
         '<lf-options id="package-options" choose>'
         '<lf-option id="package-a">A</lf-option>'
         '<lf-option id="package-b">B</lf-option>'
         "</lf-options></lf-ask>",
-    )
+    ).replace("</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>')
     version_url = serve(
         source,
         page_files={
@@ -1200,10 +1233,11 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     browser, serve
 ):
     """One widget owns distinct render and preparation regions across its lifetime."""
+    # The owner is removed and reattached by script below. Keep it after the page's
+    # content so that neither operation moves text the reader did not ask to move.
     source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
+        "</main>",
+        '<lf-local id="page-local" choice="idle"></lf-local></main>',
     )
     page = open_page(
         browser,
@@ -1353,6 +1387,10 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     # A removed owner retires both regions. Reconnecting the same instance reattaches
     # its still-pending preparation at the same semantic epoch, so an already resolved
     # readiness call cannot be reused as proof for the replacement renderer.
+    # Leave the widget by a real gesture before probing its lifetime: removing a
+    # focused control would also change shortcut context without user input.
+    page.locator("#live-title").click()
+    rendered(page)
     page.evaluate(
         """() => {
           window.pageLocal = document.querySelector('#page-local');
@@ -1606,7 +1644,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
-    editor = inline.locator(":scope > .lf-say leaf-text")
+    editor = inline.locator(":scope > .lf-thread-reply leaf-text")
     write(editor, "draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
     expect(editor).to_be_focused()
@@ -1629,7 +1667,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           window.keptInline = document.querySelector(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
-          window.keptEditor = keptInline.querySelector(':scope > .lf-say leaf-text');
+          window.keptEditor = keptInline.querySelector(':scope > .lf-thread-reply leaf-text');
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
@@ -1702,7 +1740,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
+            inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "list retention replaced a committed panel card, seat, or editor"
@@ -1746,7 +1784,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
+            inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
@@ -1802,7 +1840,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     panel_settled(page)
     left = page.locator(
         f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]'
-        " > .lf-say leaf-text"
+        " > .lf-thread-reply leaf-text"
     )
     went = page.locator("#other > .lf-thread-seat leaf-text")
     write(left, "where the user was")
@@ -2037,20 +2075,31 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     with sending(page, "a package resolution"):
         actions.get_by_role("button", name="Resolve").click()
     expect(actions).to_have_attribute("data-resolved", "true")
-    actions.get_by_role("button", name="Reply").click()
-    expect(actions).to_have_attribute("data-accepted", "false")
-    with sending(page, "a package reopen"):
-        actions.get_by_role("button", name="Reopen").click()
+    with sending(page, "a package reply that reopens the thread"):
+        actions.get_by_role("button", name="Reply").click()
+    expect(actions).to_have_attribute("data-accepted", "true")
     expect(actions).to_have_attribute("data-resolved", "false")
 
     with sending(page, "a package reaction"):
         actions.get_by_role("button", name="React").click()
     expect(actions).to_have_attribute("data-reacted", "true")
-    with sending(page, "the same reaction withdrawn"):
-        actions.get_by_role("button", name="React").click()
+    pressed = page.locator(
+        '.lf-thread[data-id="thread-action-root"] .lf-react[aria-pressed="true"]'
+    )
+    expect(pressed).to_have_count(1)
+    # Taking the reaction back is drawn while the log has yet to answer it.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    actions.get_by_role("button", name="React").click()
+    holding(page, held, 1, "the same reaction withdrawn")
     expect(actions).to_have_attribute("data-reacted", "false")
+    expect(pressed).to_have_count(0)
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(pressed).to_have_count(0)
     assert [
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("author") == "user" and event["kind"] != "comment"
-    ] == ["reply", "resolve", "unresolve", "reply", "undo"]
+    ] == ["reply", "resolve", "reply", "reply", "undo"]

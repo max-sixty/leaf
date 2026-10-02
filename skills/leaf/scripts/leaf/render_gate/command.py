@@ -1,9 +1,12 @@
 """Command boundary for browser-backed page validation."""
 
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from leaf.revision_artifact import RevisionArtifact
+from leaf.files import latest_revision
+from leaf.registry.storage import read_page_registry
+from leaf.revision_artifact import RevisionArtifact, capture_artifact, read_artifact
 from leaf.structure import SourceDocument
 
 from .browser import (
@@ -13,7 +16,7 @@ from .browser import (
     launch_browser,
     playwright_driver,
 )
-from .page_code import run_page_code
+from .page_code import message_page, places_judged_widget, run_page_code
 from .preview import preview_server
 from .readings import SWEEP_WIDTHS
 from .screens import save_screens
@@ -22,8 +25,24 @@ from .version import RENDER_VIEWPORTS, render_version
 
 def in_browser(gate: str, read):
     """Launch the host's browser and return what `read` finds with it, with the
-    browser's name. A browser is part of the gate: where none launches, it reports
-    that and returns None."""
+    browser's name. Where none launches, say that `gate` was not run and why, and
+    return None: Leaf runs without a browser, and a page reports its errors to its
+    author whenever one draws it, so a host without one loses the early reading and
+    not the command.
+
+    Playwright runs on a thread of its own. Its sync API refuses a thread that already
+    drives another instance or runs an event loop, and a thread command runs this from
+    whatever process called it."""
+    with ThreadPoolExecutor(1) as pool:
+        found = pool.submit(_launch, read).result()
+    if isinstance(found, str):
+        print(f"· {gate}: not run, {found}", file=sys.stderr)
+        return None
+    return found
+
+
+def _launch(read):
+    """What `read` finds, with the browser's name, or why no browser ran it."""
     from playwright.sync_api import Error as PlaywrightError
 
     try:
@@ -31,23 +50,16 @@ def in_browser(gate: str, read):
             try:
                 browser, browser_name = launch_browser(p)
             except PlaywrightError as error:
-                print(
-                    f"✗ {gate} failed — no browser launched: "
-                    f"{str(error).strip().splitlines()[0]}. {browser_hint()}",
-                    file=sys.stderr,
+                return (
+                    f"no browser launched: {str(error).strip().splitlines()[0]}. "
+                    f"{browser_hint()}"
                 )
-                return None
             try:
                 return read(browser), browser_name
             finally:
                 browser.close()
     except DriverNotStarted as error:
-        print(
-            f"✗ {gate} failed — Playwright's driver did not start: {error}. "
-            f"{driver_hint()}",
-            file=sys.stderr,
-        )
-        return None
+        return f"Playwright's driver did not start: {error}. {driver_hint()}"
 
 
 def _in_browser(
@@ -65,6 +77,30 @@ def _in_browser(
         return in_browser(gate, lambda browser: read(browser, url))
 
 
+def _code_errors(
+    what: str,
+    page_dir: Path,
+    document: SourceDocument,
+    revision: int,
+    artifact: RevisionArtifact,
+) -> tuple[int, str | None]:
+    """Run `document` once and print every error it reports under `what`. Returns
+    the status and the browser that ran it, None where the host has none."""
+    ran = _in_browser(what, run_page_code, page_dir, document, revision, artifact)
+    if ran is None:
+        return 0, None
+    errors, browser_name = ran
+    if errors:
+        print(
+            f"✗ {what}: {len(errors)} error(s) the page would report to you",
+            file=sys.stderr,
+        )
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1, browser_name
+    return 0, browser_name
+
+
 def page_code_check(
     page_dir: Path,
     document: SourceDocument,
@@ -73,25 +109,52 @@ def page_code_check(
 ) -> int:
     """Run the page's own code once and fail on every error it reports
     (`page_code` says which run and which errors)."""
-    ran = _in_browser(
-        "page code check", run_page_code, page_dir, document, revision, artifact
+    status, browser_name = _code_errors(
+        "page code", page_dir, document, revision, artifact
     )
-    if ran is None:
-        return 1
-    errors, browser_name = ran
-    if errors:
+    if browser_name and not status:
         print(
-            f"✗ page code: {len(errors)} error(s) the page would report to you",
-            file=sys.stderr,
+            f"✓ page code: runs through upgrade and first paint in {browser_name} "
+            "with no error reported"
         )
-        for error in errors:
-            print(f"  - {error}", file=sys.stderr)
-        return 1
-    print(
-        f"✓ page code: runs through upgrade and first paint in {browser_name} "
-        "with no error reported"
+    return status
+
+
+def message_code_check(page_dir: Path, kind: str, fragment: SourceDocument) -> int:
+    """Run a message's widget markup once, as a page of its own
+    (`page_code.message_page`), where it places what only a browser can judge, and
+    fail on every error it reports. The log freezes the markup, so this is the one
+    moment its author can still fix it. Prints nothing when it passes: the thread
+    command's output is the records it appends."""
+    document = message_page(fragment)
+    # The markup is read under the active revision's vocabulary, as the live document
+    # that shows it reads it, and under the candidate's before the first activation.
+    active = latest_revision(page_dir)
+    if active is None:
+        candidate = read_page_registry(page_dir)
+        registry = candidate.registry
+        declarations = candidate.declaration_sources
+        widgets = candidate.widget_sources
+    else:
+        captured = read_artifact(page_dir, active)
+        registry = captured.registry
+        declarations = None
+        widgets = {
+            tag: implementation["path"].removeprefix("/")
+            for tag, implementation in captured.implementations.items()
+        }
+    artifact = capture_artifact(
+        page_dir,
+        document,
+        registry,
+        declaration_sources=declarations,
+        widget_sources=widgets,
     )
-    return 0
+    if not places_judged_widget(document, artifact):
+        return 0
+    revision = (active or 0) + 1
+    what = f"{kind} markup"
+    return _code_errors(what, page_dir, document, revision, artifact)[0]
 
 
 def _read_and_shoot(page_dir: Path):
@@ -115,10 +178,20 @@ def _screen_lines(screens) -> list[str]:
             runs[-1][0].append(shot.name)
         else:
             runs.append(([shot.name], label))
-    return [f"  screens to read before handing the page over, in {into}:"] + [
-        f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
-        for names, label in runs
-    ]
+    return (
+        [f"  screens to read before handing the page over, in {into}:"]
+        + [
+            f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
+            for names, label in runs
+        ]
+        + [
+            (
+                "  before handover, have a subagent with only the user's request and "
+                "these screens read the page as the user would "
+                '(page-authoring.md, "Pre-handover review")'
+            )
+        ]
+    )
 
 
 def render_check(
@@ -138,7 +211,7 @@ def render_check(
         artifact,
     )
     if ran is None:
-        return 1
+        return 0
     (reading, screens), browser_name = ran
     if reading.failures:
         print(
@@ -192,7 +265,7 @@ def widget_quality_report(package: Path) -> int:
         )
         return 1
     if ran is None:
-        return 1
+        return 0
     findings, browser_name = ran
     widgets = f"{len(own_tags(package))} widget(s)"
     if not findings:

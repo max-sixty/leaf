@@ -48,6 +48,14 @@
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
  * a list or quote.
+ *
+ * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
+ * never clips the words; the page sizes the host. When that room changes, the field
+ * reveals its focused selection again under the new constraint. CodeMirror's edit
+ * reveal may have preceded the owner's sizing pass, and its own resize observer
+ * watches the inner scroller, whose natural height need not change with the host.
+ * This reveal belongs to the host alone: resizing a focused field does not move a
+ * reading pane the user scrolled away from it.
  */
 import {
   EditorView,
@@ -63,8 +71,9 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, markdownTokens } from "../markdown.js";
+import { sizeObserver } from "../rendering.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -347,6 +356,39 @@ class LeafText extends HTMLElement {
   #placeholderText = document.createTextNode("");
   #frame = document.createElement("div");
   #readOnly = false;
+  #sizes = sizeObserver(() => {
+    const view = this.#view;
+    if (view?.hasFocus)
+      view.requestMeasure({
+        key: this,
+        read: () => {
+          const caret = view.coordsAtPos(view.state.selection.main.head);
+          const box = this.getBoundingClientRect();
+          const { scaleX, scaleY } = view;
+          return {
+            caret,
+            scaleX,
+            scaleY,
+            top: box.top + this.clientTop * scaleY,
+            left: box.left + this.clientLeft * scaleX,
+            bottom: box.top + (this.clientTop + this.clientHeight) * scaleY,
+            right: box.left + (this.clientLeft + this.clientWidth) * scaleX,
+          };
+        },
+        write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
+          if (!caret) return;
+          this.scrollBy({
+            top:
+              (Math.min(0, caret.top - top) + Math.max(0, caret.bottom - bottom)) /
+              scaleY,
+            left:
+              (Math.min(0, caret.left - left) + Math.max(0, caret.right - right)) /
+              scaleX,
+            behavior: "instant",
+          });
+        },
+      });
+  });
 
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
 
@@ -433,6 +475,7 @@ class LeafText extends HTMLElement {
       },
     });
     this.#model = null;
+    this.#sizes.observe(this);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
@@ -446,6 +489,7 @@ class LeafText extends HTMLElement {
     queueMicrotask(() => {
       if (this.isConnected || !this.#view) return;
       this.#model = this.#view.state;
+      this.#sizes.disconnect();
       this.#view.destroy();
       this.#view = null;
     });

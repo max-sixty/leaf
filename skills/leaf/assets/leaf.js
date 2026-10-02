@@ -16,6 +16,7 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  whenArrived,
   pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
@@ -49,7 +50,7 @@ import {
   targetPickerHintLayer,
   pageSearchSurface,
 } from "./runtime/composing/target-picker.js";
-import { createStandingElement } from "./runtime/composing/standing.js";
+import { createStandingTarget } from "./runtime/composing/standing.js";
 import {
   createReactionController,
   reactionTokens,
@@ -161,7 +162,8 @@ import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scope
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { layoutMarginRows, openResidency } from "./runtime/margin-layout.js";
+import { layoutMarginRows, syncMarginResidency } from "./runtime/margin-layout.js";
+import { openResidency } from "./runtime/content-layout.js";
 import {
   createNavigation,
   placeThreadEdge,
@@ -322,12 +324,13 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
+  focusForNavigation: (target) => app.margin.focusForNavigation(target),
+  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  scrollToThread: anchorTravel.scrollToThread,
   revealThread: narrowing.revealThread,
   cardTarget: (thread) => app.margin.cardTarget(thread),
 });
@@ -349,8 +352,6 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  landedAt: (...args) => asks.landedAt(...args),
-  setLanded: (...args) => asks.setLanded(...args),
   forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
@@ -476,8 +477,6 @@ declareCovering({
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
 declareStanding({
-  threadsBox,
-  narrowing,
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||
@@ -498,18 +497,17 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
-  scrollToElement: anchorTravel.scrollToElement,
+  arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
   announce,
   repaint,
 });
 
-const standingElement = createStandingElement({
+const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
 });
@@ -527,7 +525,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
 selectionComposer = createSelectionComposer({
@@ -542,6 +539,7 @@ selectionComposer = createSelectionComposer({
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   fabPointAt: (...args) => responseSurface.fabPointAt(...args),
+  fabFrameAt: () => responseSurface.fabFrameAt(),
   fabPositioned: (...args) => responseSurface.fabPositioned(...args),
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
@@ -563,15 +561,15 @@ responseSurface = createResponseSurface({
   threadHere: () => app.margin.threadHere(),
   threadTarget: (thread) =>
     app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
-  standingElement,
+  standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
-  scrollRevealedElement: anchorTravel.scrollRevealedElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
+  carryComposerToReply: selectionComposer.carryComposerToReply,
   resetResponseOptions: selectionComposer.resetResponseOptions,
   responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
   setResponseOptions: selectionComposer.setResponseOptions,
@@ -609,7 +607,7 @@ reactions = createReactionController({
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
   standingThread,
-  standingElement,
+  standingTarget,
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
@@ -833,6 +831,7 @@ const replayReady = passiveSample
         setPanel: threadPanelController.setPanel,
         detachComposer: selectionComposer.detachComposer,
         fabInput,
+        fabFrameAt: () => responseSurface.fabFrameAt(),
         openComposer: selectionComposer.openComposer,
         closePreview: app.margin.closePreview,
         openInlineThread: app.margin.openInlineThread,
@@ -908,6 +907,7 @@ async function presentPage() {
     throw error;
   }
   markPagePresented();
+  void whenArrived().then(landFragment);
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();
@@ -948,8 +948,8 @@ async function startPage() {
   ]);
   if (!upgraded) return;
   if (!offlineInteractive) {
-    // The margin's residents are read from the upgraded document (margin-layout.js).
-    openResidency();
+    // Authored residents are read from the upgraded document (content-layout.js).
+    openResidency({ rail: true, onRead: syncMarginResidency });
     layout.syncLayout();
     asks.buildBulkAnswers();
     asks.syncAsks();

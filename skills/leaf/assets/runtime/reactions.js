@@ -33,7 +33,7 @@
    mount installs the mode teardown listeners after composition. */
 
 import { nextRender } from "./rendering.js";
-import { registerMarginContribution } from "./margin-entries.js";
+import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
@@ -51,7 +51,12 @@ import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
 import { handBack } from "./focus.js";
 import { repaint } from "./repaint.js";
 
-import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
+import {
+  allButCommandReference,
+  coveringAuxiliarySurface,
+  pageCommand,
+  pageScope,
+} from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
@@ -211,7 +216,7 @@ export function createReactionController({
   showFabOptions,
   updateFab,
   standingThread,
-  standingElement,
+  standingTarget,
 }) {
   const surfaces = new WeakMap();
   const marginSurface = Symbol("margin reactions");
@@ -312,8 +317,8 @@ export function createReactionController({
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };
     if (hasPageSelectionTarget()) return { kind: "selection" };
-    const addressable = standingElement();
-    return addressable ? { kind: "addressable", addressable } : null;
+    const target = standingTarget();
+    return target ? { kind: "target", target } : null;
   }
   const hasReactionTarget = () => Boolean(reactionTarget());
 
@@ -326,7 +331,7 @@ export function createReactionController({
     fabBar.dataset.lfMarginRaised = "1";
     const standing = unfoldedMarginEntries()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
-    marginOffer = registerMarginContribution({
+    marginOffer = registerContribution({
       key: "responses",
       target,
       read: () => {
@@ -424,12 +429,12 @@ export function createReactionController({
       else {
         const target = reactionTarget();
         if (target?.kind === "surface") reactSurface = target.surface;
-        else if (target?.kind === "anchor" || target?.kind === "addressable") {
-          if (target.kind === "addressable") {
-            // The addressable element's margin row may stand where the target itself is
+        else if (target?.kind === "anchor" || target?.kind === "target") {
+          if (target.kind === "target") {
+            // The target's margin row may stand where the target itself is
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
-            showFab({ section: target.addressable.id }, null, {
+            showFab(target.target.anchor, null, {
               origin: reactFrom,
               place: false,
             });
@@ -653,9 +658,14 @@ export function createReactionController({
           ", ",
         )} — for the selection, the item you are standing on, or the reply you are reading`,
     line: "react",
+    // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
+    // covering surface the page's own targets are out of reach.
+    covering: true,
     when: () =>
       reactionTokens().length > 0 &&
-      hasReactionTarget() &&
+      (coveringAuxiliarySurface()
+        ? reactionTarget()?.kind === "surface"
+        : hasReactionTarget()) &&
       (anchoringIsReady() || !pageSelection()),
     run: () => {
       // Selection capture normally follows the pointer gesture in its queued turn. A fast

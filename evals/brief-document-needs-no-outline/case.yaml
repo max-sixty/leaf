@@ -1,0 +1,38 @@
+# Guardrail for the contents default: a short document readable at a glance
+# needs no outline. Passed 2/2 on both the earlier and revised Contents rule;
+# this measures the exception rather than reproducing the long-session omission.
+schema_version: '1.0'
+name: brief-document-needs-no-outline
+description: "Contents navigation: omit an outline for a short document readable at a glance."
+tags:
+- layout
+- navigation
+execution:
+  prompt: |
+    Write a brief Leaf update, around 150 words, from these notes. Use two sections:
+    Build and Verification. The build succeeded and produced the release candidate.
+    Unit tests passed. Browser verification is still pending, so release approval
+    remains open. There is no decision to collect on this page; it is a concise
+    record the user can read in one glance.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/page-authoring\.md
+- name: no-outline
+  type: regex
+  pattern: ^(?![\s\S]*<lf-toc\b)[\s\S]*$
+- name: judgment
+  type: llm
+  criteria: |
+    Pass if the page remains a brief update with the two requested sections and
+    accurately preserves the successful build, passed unit tests, pending browser
+    verification, and open release approval. It needs no contents outline, custom
+    section-navigation list, tabs, or controls asking the user for a decision.

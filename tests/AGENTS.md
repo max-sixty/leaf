@@ -22,7 +22,6 @@ Python.
 wt setup
 uv run pytest tests                  # everyday gate; no network after setup
 npm run test:runtime                 # the gate's other half: tests/runtime/, under Node
-uv run pytest tests --run-nightly    # everything
 uv run pytest tests/test_render_widgets.py -q -n0 -k board   # one case, kept local
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
@@ -32,17 +31,21 @@ Mark a test `nightly` when a pull request can land without it, including any tes
 needs the network; expense alone does not make a test nightly. Broad discovery skips
 nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
-in the test files the change touches. Before handing over a browser-facing change, run its whole browser file, the
-everyday gate, and the smallest nightly selection covering it. Run a new or changed
-browser test through `uv run leaf-dev flake NODEID`, which runs it as concurrent
-copies: a serial rerun samples only the idle machine that already passes it. The
-copies share every fixed path a test writes in the checkout, such as an export under
-`.tmp/`, so a failure naming one is the copies racing there, not load.
+whose own lines the change edits.
+
+A change lands only on a green landing gate. Every other nightly test is CI's to
+report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
+`tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
+run the everyday gate and the few browser tests that hold the behavior you changed,
+named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
+file locally: each takes minutes to over an hour and slows every other session on the
+machine. To learn what main fails, read that job's run, and reproduce a failure it
+names by node id.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
 never for instruction text. Review the affected recordings when changing interaction
-guidance, and after an intentional change reset only the affected test and read the
+instructions, and after an intentional change reset only the affected test and read the
 diff.
 
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
@@ -162,15 +165,23 @@ that reason. A test that reads the page by changing it and putting it back does 
 inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
-of those problems (`shift_watch.js`): one Chrome reports without recent input, and
+of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
-both; the nightly-marked tests watch again once the defect most of their shifts share is
-fixed (`known_shifts.watches_shifts`). Playwright's
-clicks and keys are input, as is a viewport resize; a script's `click()`, a `value`
-written by script, and the server's news are not. Fix what moved rather than consuming
-the report. `known_shifts.py` names the tests whose pages still shift without input,
-each with the region its known shift moves: a defect waiting on its fix, whose entry
-goes when it is fixed.
+both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
+after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
+exempts first presentation, whose remaining defects the widget quality check records
+in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
+viewport resize; a script's `click()`, a `value` written by script, and the server's
+news are not. Chrome's recent-input window can nevertheless mask a shift for half a
+second after a click, so a test proving a news update's stability delivers it after
+that window. Fix what moved rather than consuming the report; shift reports have no
+per-test allowances.
+
+Typed words leaving the screen without a key or press, which the "Words stay where
+they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
+included. A key that typed is editing rather than putting away, and a scroll, a
+resize, a script, and the server's news are none of them, so a test that closes a box
+must do it the way a user does.
 
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):
@@ -241,9 +252,9 @@ changes the outcome, run the gesture both ways and assert they agree. Before
 ## State races are arrangements, not probabilities
 
 If a race appears only under load, order it with `page.route` rather than repeating
-the test. `leaf-dev flake` reproduces it and prints every failing copy's message,
-which differs run to run and names the mechanism; the same run then confirms the
-route holds. Register the route before the gesture it catches, or through `primed` or
+the test. `leaf-dev flake` (`dev/AGENTS.md`) reproduces it and prints every failing
+copy's message, which differs run to run and names the mechanism; the same run then
+confirms the route holds. Register the route before the gesture it catches, or through `primed` or
 `held_events` for the first navigation; raw and `browser.unwatched` pages are not
 armed for later routes. Where the driver loses a fact, such as the Page for a tab
 Chromium opened, observe the browser's record (`opened_tab`).
@@ -291,14 +302,10 @@ borders, outlines, and shadows.
 ## Make a green test non-vacuous
 
 Name the single product change that would make each assertion fail, and arrange the
-fixture so that change reaches the measured surface. Reintroduce the defect and run
-the gate before accepting a test, and again when a refactor changes how an existing
-failure shows. `uv run leaf-dev bugback NODEID...` does it on a committed branch: it
-runs the named tests with the branch's non-test change reverted and says which went
-red. To prove each of several guards, flip one at a time by hand. An assertion that
-nothing moved straddles a transition that would move without the rule. Check what a
-lower layer already guarantees: a send queue that drops a second POST hides whether
-the widget refused it.
+fixture so that change reaches the measured surface. An assertion that nothing moved
+straddles a transition that would move without the rule. Check what a lower layer
+already guarantees: a send queue that drops a second POST hides whether the widget
+refused it.
 
 The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
@@ -306,11 +313,13 @@ standing actions or reports twice and checking the visible state and idempotence
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
 surface's round trips fail where one leaves a different `page_state` than the first,
-or `live_counts` climb on every trip; and a resize fails where a width says something
-other than it said on the way out. The last three read a `still_page`, whose reduced
-motion and stopped clock leave only what the test did. All of them run on every
-corpus page, so a new widget or page joins without a case of its own; a new surface
-joins the round trips by its keys. Run generated-markup probes (`undeclaredAttrs`,
+or `live_counts` climb on every trip; a resize fails where a width says something
+other than it said on the way out; and a box the user types in fails where sending
+every scroller to either end and back loses its words. The last four read a
+`still_page`, whose reduced motion and stopped clock leave only what the test did.
+All of them run on every corpus page, so a new widget or page joins without a case of
+its own; a new surface joins the round trips by its keys, and a new box the typed
+boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
 `relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 

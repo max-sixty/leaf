@@ -42,12 +42,14 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -365,7 +367,7 @@ def vendored_by_another_leaf(page_dir: Path) -> str:
     foreign = "sha256:" + "b" * 64
     assert registry["$layer"]["runtime"] != foreign
     registry["$layer"]["runtime"] = foreign
-    files_model.write_json(stamp, registry)
+    cleanup_model.write_json(stamp, registry)
     return foreign
 
 
@@ -432,14 +434,8 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    """`page check`, in-process. A page that runs its own code has the check start
-    Playwright, whose sync API refuses a thread already driving another instance —
-    which a worker holding the session `browser` fixture is — so the command gets a
-    thread of its own."""
-    with ThreadPoolExecutor(1) as pool:
-        return pool.submit(
-            CliRunner().invoke, cli_model.cli, ["page", "check", str(d)]
-        ).result()
+    """`page check`, in-process."""
+    return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
 
 
 def read_page_data(page_dir) -> dict:
@@ -455,15 +451,15 @@ def declare_data_input(
     contract="test-data",
     tag="lf-test-data",
     input_name="data",
-    guidance=None,
+    instructions=None,
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
-    if guidance:
-        declaration["guidance"] = guidance
+    if instructions:
+        declaration["instructions"] = instructions
     registry["$data"]["contracts"][contract] = declaration
     registry[tag] = {
         "description": "A test widget with one external-data input.",
@@ -533,7 +529,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     """
     registry = files_model.read_json(page_dir / "registry.json")
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
-    files_model.write_json(page_dir / "registry.json", registry)
+    cleanup_model.write_json(page_dir / "registry.json", registry)
     # An Ask, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
@@ -582,7 +578,7 @@ def record_claim(page, harness="claude-code", **fields):
         "ts": "t",
         "released": None,
         "turn": "turn-1",
-        "turn_opened": events_model.now_iso(),
+        "turn_opened": cleanup_model.now_iso(),
         "turn_closed": None,
         **fields,
     }
@@ -593,7 +589,7 @@ def record_claim(page, harness="claude-code", **fields):
         record.pop("pid", None)
     path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
-    files_model.write_json(path, record)
+    cleanup_model.write_json(path, record)
     return record
 
 
@@ -1087,7 +1083,7 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "enabled": True,
         "lifetime": lifetime,
     }
-    files_model.write_json(directory / "service.json", service)
+    cleanup_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     HELD_LEASES.append(handle)
@@ -1151,6 +1147,17 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
                 hosting_model.cmd_stop(lease.parent)
 
 
+@contextmanager
+def fresh_process():
+    """What a newly started process holds of every page: nothing (`page_memory`)."""
+    kept = page_memory_model._memories
+    page_memory_model._memories = page_memory_model.PageMemories()
+    try:
+        yield
+    finally:
+        page_memory_model._memories = kept
+
+
 def neighbour_page(directory, title=None, dead=False, published=True):
     """A page with desired service state and, unless dead, a live lease."""
     directory.mkdir(parents=True)
@@ -1165,7 +1172,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
     # What `page init` writes: a page always has a status record.
-    files_model.write_json(
+    cleanup_model.write_json(
         directory / "status.json",
         {"state": "idle", "detail": "", "ts": None, "after": 0},
     )
@@ -1182,7 +1189,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         )
     record = {"port": 59999}
     if dead:
-        files_model.write_json(
+        cleanup_model.write_json(
             directory / "service.json",
             {
                 "host": "127.0.0.1",
@@ -1262,6 +1269,39 @@ def codex_program(tmp_path_factory):
 
 
 @pytest.fixture
+def codex_queue(tmp_path):
+    """Replace the external queue CLI while exercising real preview delivery.
+
+    The executable acknowledges help and records submitted arguments. Tests may
+    set PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation.
+    This is separate from codex_program, which models kernel process ancestry.
+    """
+    executable = tmp_path / "queue-bin" / "codex"
+    executable.parent.mkdir()
+    queued = tmp_path / "queued.json"
+    executable.write_text(
+        f"""#!{sys.executable}
+import json
+import os
+import sys
+from pathlib import Path
+
+if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
+    print("queue unsupported", file=sys.stderr)
+    sys.exit(1)
+if sys.argv[1:] != ["queue", "--help"]:
+    Path(os.environ["PREVIEW_QUEUE_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print("queued")
+"""
+    )
+    executable.chmod(0o755)
+    return {
+        "PATH": f"{executable.parent}{os.pathsep}{os.environ['PATH']}",
+        "PREVIEW_QUEUE_RECORD": str(queued),
+    }
+
+
+@pytest.fixture
 def under_codex(spawn, codex_program):
     """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what
@@ -1334,7 +1374,7 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
     claim = service_model.page_claim(page)
-    files_model.write_json(
+    cleanup_model.write_json(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
     return page
@@ -1508,7 +1548,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     registry_path.write_text(json.dumps(registry, indent=2))
     with (package / "theme.css").open("a") as theme:
         theme.write(
-            f"\n{tag} {{\n"
+            f"\n:scope:is({tag}) {{\n"
             "  display: block;\n"
             "  margin: var(--sp-3) 0;\n"
             "  padding: var(--sp-3);\n"

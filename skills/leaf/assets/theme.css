@@ -153,7 +153,6 @@
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-surface: 8900;           /* a standing drawer or thread panel */
-  --lf-z-thread-transition: 8910; /* a thread moving between the card and the panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
@@ -186,9 +185,8 @@
      scheme's accent is a pale tint a white glyph cannot stand on, so there the pin
      takes a deeper one. */
   --pin-fill: light-dark(var(--accent), #4d74a8);
-  /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
-     white glyph in the dark scheme. */
-  --pin-working: light-dark(#2f7d45, #2d8047);
+  /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
+  --pin-on-user: light-dark(#2f7d45, #2d8047);
   --r: 6px;
   /* The compact label every layer draws a small fact in: .tag here, lf-chip and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
@@ -240,11 +238,9 @@
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. It takes the room right of the words it is
-     about down to the minimum, covering its margin cluster where it must; with less
-     than that it stands under or over the cluster at the minimum, its right edge on the
-     visible edge, so it crosses the column by only what that room lacks. Its height is
-     never cut to spare the cluster (thread-card-geometry.js). */
+     their width, down to the minimum. The minimum is what the room beside the words,
+     or past the margin cluster, must hold for the card, and the comment box before it,
+     to stand there (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
@@ -399,18 +395,10 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* A thread whose next word is the user's. The green below says the agent has
-     this one, so the user's own turn has to be a hue apart from it, and apart again
-     from the violet a comment mark already wears. Blue is where the page's pointing
-     already lives; the wash is mixed to the same strength as --ok-wash so the two
-     states read as one pair rather than two decorations.
-     TODO: this is a first colour, not a settled scheme. A margin entry can now stand in
-     three states — on the agent, on the user, on neither — and they have not been
-     designed together. Decide whether the user's turn deserves a hue of its own
-     rather than the accent's, and whether "on neither" should say so at all. */
-  --turn-tint: light-dark(#dbe6f4, #1a2533);
-  --turn-wash: color-mix(in srgb, var(--turn-tint) 52%, var(--paper));
-  --turn-ink: var(--accent);
+  /* Green identifies the user's next move. Unread and agent progress keep the blue
+     accent, so neither can be mistaken for a request to the user. */
+  --turn-wash: var(--ok-wash);
+  --turn-ink: var(--ok-ink);
   --warn-tint: light-dark(#f7ecd2, #322715);   --warn-ink: light-dark(#8a5a12, #e2bb75);
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
@@ -618,8 +606,9 @@ html { background: var(--paper); }
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets the body's percentage minimum fill a short
  * viewport while a longer body still overflows it. A standing scrollbar prevents a
- * later height change from recentering the page. The server's prepaint bootstrap marks
- * a live page before its graph has loaded, and paper has no fixed chrome. */
+ * later height change from recentering the page. A served page's bootstrap marks it
+ * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
+ * and paper has no fixed chrome. */
 @media screen {
   html[data-lf-live] {
     height: 100%;
@@ -717,19 +706,19 @@ body {
  * version gate refuses it for the display and visibility properties this boundary owns. */
 @layer {
   @media screen {
-    html[data-lf-live] body:not([data-lf-presented]),
-    html[data-lf-live] body:not([data-lf-presented]) > main,
-    html[data-lf-live] body:not([data-lf-presented]) > main *,
-    html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) > main,
+    html[data-lf-interactive] body:not([data-lf-presented]) > main *,
+    html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
   }
 }
-/* The keys the prepaint bootstrap holds until presentation (runtime/bootstrap.js). It
- * stands where the chrome's bottom status will, and is styled here because it can
+/* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
+ * It stands where the chrome's bottom status will, and is styled here because it can
  * appear before the runtime has adopted chrome.css. */
 .lf-held-keys {
   position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
@@ -759,22 +748,22 @@ body {
   border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
-/* A single-line field or select a widget offers wears the text box's frame at a
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
    button's height, so a row of them beside .lf-btn reads as one set of controls. With
    no face the browser drew its own: a 2px inset border and square corners, 21px tall
    beside 30px buttons. At a class's weight, so a component rule naming its own field
    still wins by standing later. */
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
   padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 6px;
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui:focus-visible {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field):focus-visible {
   outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
+:is(input, textarea):is(.lf-ui, .field)::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--focus-ring);
   --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
@@ -980,7 +969,7 @@ main {
    * drawing's: one drawn at the stated height keeps it, and one whose content has a
    * height of its own takes that. A failure is shown whole, since the user has to read
    * it. */
-  html[data-lf-live] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+  html[data-lf-interactive] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
     box-sizing: border-box;
     block-size: attr(data-lf-height px);
     overflow: clip;
@@ -1004,59 +993,7 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-a { color: var(--accent); text-underline-offset: var(--link-underline-offset);
-    text-decoration-color: var(--link-underline); }
-a:hover { text-decoration-color: currentColor; }
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
-/* An identifier breaks where it must. A test name or a path is one word to the line
- * breaker, and a word a box cannot hold is either drawn past the box or holds the
- * box to its own width — in a table cell the latter: a column of 79-character test
- * names beside a column of prose held its column at 583px of the 720px measure, the
- * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
- * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
- * because only `anywhere` counts the break when a box's minimum is measured, and a
- * table's columns are sized from exactly that: with it the same table stood
- * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
- * because a cell's minimum is its longest word, and that is what keeps a column of
- * row names from being squeezed under the prose beside it — with every cell
- * breakable the same table's row names measured 55px. The minimum is what every
- * shrinking box is sized from, so a flex item or a grid track holding a long name
- * hands room to its neighbour the same way (a flex item measured 691px to 359px).
- * A block (pre) wraps nothing, so this reaches nothing there.
- *
- * Slice the decoration across lines so side padding belongs only to the span's
- * start and end. Cloning each fragment adds padding after line breaking and can
- * paint past the column. */
-code { background: var(--code-bg); border-radius: var(--code-inline-r);
-       padding: var(--code-inline-pad); font-size: var(--code-inline-size);
-       font-family: var(--mono); overflow-wrap: anywhere;
-       box-decoration-break: slice; }
-/* A code block is sized by how many characters it takes across, which is why its size
- * is off the serif ladder above. At --code-size, the column keeps comfortably more
- * than the 80 characters most source is written to.
- *
- * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
- * shadow tree must keep one density through upgrade. */
-pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
-      padding: 12px var(--pre-inset); overflow-x: auto; font-size: var(--code-size);
-      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none;
-      /* A block that scrolls its own lines never sizes what holds it: without this a
-       * long line is every flex item's and grid track's minimum up the tree. */
-      contain: inline-size; }
-pre code { background: none; padding: 0; font-size: 100%; }
-/* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
-   wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
-   makes for its rows. `anywhere` because what runs long in source is paths, URLs and
-   minified data, none of which offer the line box a break to find. `overflow-x` is left
-   alone: once the line wraps there is nothing to scroll, and releasing the clip would
-   only let what cannot wrap paint out through the block's own border. A rule that
-   restates `white-space` for its own box states the paper half beside itself, because
-   naming that box here would tie on specificity and lose on source order, and `@media`
-   contributes nothing to break the tie. */
-@media print {
-  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-}
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
    tokenizer's scopes into six of leaf's own first. Styled at document level like
@@ -1075,9 +1012,6 @@ pre code { background: none; padding: 0; font-size: 100%; }
    half-width band. */
 [data-lf-syn="ins"] { color: var(--ok-ink); }
 [data-lf-syn="del"] { color: var(--danger-ink); }
-blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
-             border-left: var(--quote-rule); color: var(--muted);
-             font-style: var(--quote-style); --lf-block-frame: 1; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -1168,6 +1102,15 @@ th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rul
    the prose above it, and stopped the last column short of the same edge. */
 tr > :first-child { padding-left: 0; }
 tr > :last-child { padding-right: 0; }
+/* A cell the user stands on, as a thread's target once its card closes, wears the ring
+ * inside its own box. The table scrolls its columns, so it clips to its own edges, and
+ * the outer columns, the header row and the last row stand flush with them: the layer's
+ * outward ring there lost the side on the table's edge. Room outside the table would
+ * have to come from a negative margin, which overflows any scroller holding the table
+ * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
+ * outlined the cell, and like the trace it meets the words of an outer column, which
+ * keeps no padding on its outer side. */
+:where(th, td):focus-visible { outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Which kind of header a th is, asked of the author's own word for it rather
    than of where it sits: a header row written without a <thead> is still column
    headings, and `scope="row"` is what a row's name needs said anyway. Each rule
@@ -1278,8 +1221,10 @@ dd { margin: 0 0 8px 0; }
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
         margin: 0 0 10px; }
-/* Riding in a line of prose is all this adds to the chip above. */
-.tag { vertical-align: middle; }
+/* Riding in a line is all this adds to the chip above: in the middle of a line of prose,
+ * and of a row a page lays out as flex or grid, at its own height. Stretched, it took
+ * the height of a link a size up beside it, its text at the top of a tall box. */
+.tag { vertical-align: middle; align-self: center; }
 /* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
    page's own prose at the page's own size, so the tint is the whole of the marking and
    this says nothing about size at all. It held 16px once, a pixel under the body around it
@@ -1628,6 +1573,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
+/* Keep a new row measurable, but unpainted until layout gives it a posture. */
+.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
@@ -1673,7 +1620,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
 /* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
-   through marginEntry(); this declaration owns every visual and interactive
+   through contributionEntry(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family.
 
    In the theme rather than in chrome.css, where it was, because a margin entry stands
@@ -1713,9 +1660,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   border-color: var(--rule); color: var(--ink-2);
   box-shadow: none; cursor: default;
 }
-/* Tone colours the icon until pickup uses that channel; then tone moves to the
-   control's existing contour. Category keeps its weight and shadow, and working owns
-   the fill, so the meanings remain simultaneous without drawing another ring. */
+/* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
 .lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
@@ -1762,63 +1707,36 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   border-width: 2px; border-color: var(--border-2); color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-/* Agent work on a margin carrier. A margin entry and its row in the Page Map
-   (chrome.css) are one carrier drawn twice, so they wear one reading of it, stated here
-   for both. Pickup colors the carrier's glyph; working also washes its interior. A
-   thread whose next word is the user's wears the same two channels in blue. Agent
-   workflow outranks it, because a carrier the agent has picked up or is working on is
-   reporting something happening now, and one interior cannot carry two washes.
-
-   The wash is a token rather than a background: each carrier's resting ground and its
-   hover read --lf-entry-tint, so the Page Map row, whose face the adopted sheet states,
-   takes the wash without a copy of these rules beside it. The entry's own contour still
-   says what the press does. */
-:is(.lf-margin-entry, .lf-page-map-action):is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)
+/* Margin and Page Map share the same attention reading. Blue is the ordinary
+   thread and work cue; green means the user owes a move, even when another thread
+   on the same carrier has active agent work. Progress stays in the status words and
+   the one arrival pulse rather than competing for the attention color. */
+:where(.lf-margin-entry[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"],
+    .lf-margin-entry[data-lf-agent-workflow],
+    .lf-page-map-action[data-lf-agent-workflow])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--ok-ink);
+  color: var(--accent);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-workflow="working"] {
-  --lf-entry-tint: var(--ok-wash);
-}
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
-  [data-lf-agent-workflow]
-)
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--turn-ink);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
-  [data-lf-agent-workflow]
-) {
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {
   --lf-entry-tint: var(--turn-wash);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
 }
 @keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
-  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
-  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent); }
   100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
 }
-/* An entry's tone moves from its glyph to its contour once pickup takes the glyph, and
-   an action keeps its lower shadow under the arrival pulse. */
-.lf-margin-entry:is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)[data-lf-tone="positive"] {
-  border-color: var(--ok-ink);
-}
-.lf-margin-entry:is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)[data-lf-tone="negative"] {
-  border-color: var(--danger-ink);
-}
+/* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
@@ -1885,9 +1803,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    under a finger, so what the user sees is what they press.
 
    The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   other channels, in the rail's order: a thread on the user carries a ring of the fill
-   outside the edge; pickup turns the edge green; working turns the fill green and
-   outranks both. A read-only status keeps the rail's paper face, since a fill would say
+   attention color: a thread on the user has a green fill, while every other thread
+   stays blue. Work progress keeps the same fill and reports its stage in words.
+   A read-only status keeps the rail's paper face, since a fill would say
    it can be pressed. Stated after the entry's states, whose hover and focus contours it
    has to outrank. */
 .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
@@ -1901,8 +1819,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
-  box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
-    0 1px 2px var(--shade), 0 3px 8px var(--shade); }
+  box-shadow: 0 1px 2px var(--shade), 0 3px 8px var(--shade); }
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
@@ -1914,12 +1831,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, [aria-expanded="true"]),
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
   background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
-  --lf-pin-halo: 0 0 0 4px color-mix(in srgb, var(--pin-fill) 45%, transparent); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="picked_up"] {
-  --lf-pin-edge: var(--pin-working); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
-  --lf-pin-face: var(--pin-working); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"] {
+  --lf-pin-face: var(--pin-on-user); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
   box-shadow: 0 0 0 2px var(--paper); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }

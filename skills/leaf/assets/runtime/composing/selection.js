@@ -26,6 +26,7 @@ import {
   loadDraft,
   saveDraft,
   sendMessage,
+  transferDraft,
   watchDraft,
 } from "../drafts.js";
 
@@ -142,6 +143,7 @@ export function createSelectionComposer({
   bringForward,
   fabAnchorAt,
   fabPointAt,
+  fabFrameAt,
   fabPositioned,
   beginFabFocus,
   endFabFocus,
@@ -158,7 +160,11 @@ export function createSelectionComposer({
   const closeReactions = () => setReact(false);
   const openInlineThread = (id, options) => {
     const local = focusSurface(id, { focus: "thread" });
-    return local?.closest(".lf-page-thread") ?? marginOpenInlineThread(id, options);
+    return (
+      local?.closest(".lf-page-thread") ??
+      marginOpenInlineThread(id, options)?.thread ??
+      null
+    );
   };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so
@@ -180,18 +186,17 @@ export function createSelectionComposer({
         .sort(([left], [right]) => left.localeCompare(right)),
     );
   let syncComposer;
+  const composerDraftValue = (text = syncComposer.value()) =>
+    JSON.stringify({
+      text,
+      anchor: pendingAnchor,
+      suggest: suggestCheck.checked,
+      about: pendingAbout,
+      drawing: pendingDrawing,
+      touched: Date.now(),
+    });
   const saveComposerDraft = (text = syncComposer.value()) =>
-    saveDraft(
-      composerCtx(pendingAnchor),
-      JSON.stringify({
-        text,
-        anchor: pendingAnchor,
-        suggest: suggestCheck.checked,
-        about: pendingAbout,
-        drawing: pendingDrawing,
-        touched: Date.now(),
-      }),
-    );
+    saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
   // One passage's draft record, or null when it holds none. Parsed under its own guard: a
   // record that no longer parses costs the user that one draft, where throwing would
   // cost them the page, at module top level.
@@ -383,7 +388,7 @@ export function createSelectionComposer({
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
     // version. Said here rather than at each dismissal because every one of them — an
-    // outside press, Escape, a covering panel taking the room — leaves the same state, and
+    // outside press, Escape, another target — leaves the same state, and
     // every path that discards the words empties the box before hiding it (leaveComposer),
     // so those stay silent. The sentence names the address that brings the draft back,
     // which is the whole of what the user needs from this moment.
@@ -450,7 +455,6 @@ export function createSelectionComposer({
         (previousText || previousDrawing) &&
         !(record?.text || validDrawing(record?.drawing));
       if (carrying) {
-        clearDraft(previousCtx);
         text ||= previousText;
         if (!drawingSupplied) drawing = previousDrawing;
         carriedDraft = true;
@@ -492,7 +496,8 @@ export function createSelectionComposer({
     watchComposer();
     // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.
-    if (carriedDraft || drawingSupplied) saveComposerDraft();
+    if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
+    else if (drawingSupplied) saveComposerDraft();
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
@@ -544,6 +549,25 @@ export function createSelectionComposer({
   function detachComposer() {
     composerEpoch += 1;
     leaveComposer(false);
+  }
+  // Reply drafts hold ordinary message text. A passage's replacement, design remark,
+  // drawing, or attached media stays in its original context rather than losing its
+  // meaning when the user continues a different conversation.
+  function carryComposerToReply(ctx) {
+    if (!pendingAnchor) return;
+    const text = syncComposer.value();
+    if (
+      ctx &&
+      text &&
+      !loadDraft(ctx) &&
+      !suggestCheck.checked &&
+      !pendingAbout &&
+      !pendingDrawing &&
+      !syncComposer.hasMedia()
+    )
+      transferDraft(composerCtx(pendingAnchor), ctx, text);
+    detachComposer();
+    showFab(null, null, { returnFocus: "none" });
   }
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
@@ -633,7 +657,7 @@ export function createSelectionComposer({
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.
-        const transition = threadTransitionOrigin(composerInput, visible);
+        const transition = threadTransitionOrigin(composerInput, fabFrameAt());
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -788,6 +812,7 @@ export function createSelectionComposer({
     openComposer,
     hideComposer,
     detachComposer,
+    carryComposerToReply,
     openDraft,
     KEPT_DRAFT,
     mount,

@@ -17,7 +17,6 @@ the turn a preview and its path, so a delivery that large goes as a pointer its
 reader confirms instead of being confirmed unseen."""
 
 import json
-from collections.abc import Callable
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
@@ -205,27 +204,19 @@ def stop_harness(session_id: str) -> type[Harness]:
 HOOK_CONTEXT_LIMIT = 10_000
 
 
-def pointer_acknowledgement(harness: type[Harness]) -> Callable[[str], str]:
+def pointer_acknowledgement(delivery_id: str) -> str:
     """What a delivery too large to hand over inline tells its reader, who confirms
-    it in the way `harness` runs the next wait."""
-
-    def acknowledge(delivery_id: str) -> str:
-        return (
-            "Leaf's hook handed this delivery over as a pointer, because it was too "
-            "large for the turn's context; until it is confirmed, the user's moves "
-            "read Sent. Once all of it is in your context, confirm it: "
-            f"{harness.run_ack(delivery_id)}: it confirms this delivery and waits "
-            "for the next."
-        )
-
-    return acknowledge
+    it once read."""
+    return (
+        "Leaf's hook handed this delivery over as a pointer, because it was too "
+        "large for the turn's context; until it is confirmed, the user's moves "
+        "read Sent. Once all of it is in your context, confirm it with "
+        f"`leaf delivery ack {delivery_id}`."
+    )
 
 
-def compose(
-    batches: list[dict], attention: list[str], harness: type[Harness]
-) -> tuple[str, dict | None]:
-    """The turn context for one hook under `harness`, and the delivery handing it
-    over confirms.
+def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None]:
+    """The turn context for one hook, and the delivery handing it over confirms.
 
     A delivery that fits goes in whole, and handing it over is receipt. One that
     would not fit goes as a pointer the model reads and confirms itself, since
@@ -247,7 +238,7 @@ def compose(
     if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
         return message, delivery
     pointer = freeze_delivery(
-        batches, carrier="hook", acknowledge=pointer_acknowledgement(harness)
+        batches, carrier="hook", acknowledge=pointer_acknowledgement
     )
     return "\n".join(
         [
@@ -261,7 +252,7 @@ def compose(
     ), None
 
 
-def carry_turn(event: str | None, sid: str, payload: dict) -> None:
+def carry_turn(event: str | None, sid: str, payload: dict) -> bool | None:
     """Answer a prompt, Stop, or other page-reading hook for a session holding a
     page: open or close its turn, hand over its pending input, and name what its
     pages are owed."""
@@ -287,8 +278,11 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
         # turn with what it says as new context. Stamp only a turn the hook lets
         # end.
         if not owed and (not reasons or payload.get("stop_hook_active")):
-            close_session_turn(sid)
-            return
+            # A provider-named turn closes through the synchronous observation
+            # in cmd_hook, which also covers a page acquired mid-turn.
+            if not payload.get("turn_id"):
+                close_session_turn(sid)
+            return True
     else:
         reasons = unattended_pages(sid)
     if not reasons and not batches:
@@ -313,8 +307,7 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
     # just before it is printed, so a hook that fails on the way confirms
     # nothing. A page whose receipt is refused keeps its batch pending for the
     # next hook, which a page and sequence already handled treats as a retry.
-    harness = stop_harness(sid)
-    message, confirmed = compose(batches, attention, harness)
+    message, confirmed = compose(batches, attention)
     refused = []
     for batch in confirmed["batches"] if confirmed else ():
         try:
@@ -330,7 +323,7 @@ def carry_turn(event: str | None, sid: str, payload: dict) -> None:
             for page in refused
         )
     if event == "Stop":
-        print(json.dumps(harness.continue_turn(message)))
+        print(json.dumps(stop_harness(sid).continue_turn(message)))
     else:
         print(
             json.dumps(

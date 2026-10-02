@@ -16,16 +16,14 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
-    GUIDANCE_DIR,
-    GUIDANCE_FILE,
     HTML_NAME,
+    INSTRUCTIONS_DIR,
+    INSTRUCTIONS_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
     VENDORED_FILES,
 )
-from .styles import confined, css_syntax_errors
-from .validation.compatibility import incoming_registry
 
 
 def named_package(name: str) -> Path | None:
@@ -105,11 +103,11 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
                 continue
             if not directory.is_dir():
                 sys.exit(f"{directory} must be a directory")
-            if sub == GUIDANCE_DIR:
+            if sub == INSTRUCTIONS_DIR:
                 for path in directory.iterdir():
                     if not path.is_file():
                         sys.exit(f"{path} must be a file")
-                    if not GUIDANCE_FILE.fullmatch(path.name):
+                    if not INSTRUCTIONS_FILE.fullmatch(path.name):
                         sys.exit(f"{path} must be named <audience>.md")
                 continue
             for path in directory.rglob("*"):
@@ -138,7 +136,9 @@ def input_paths(inputs: list[Path]) -> list[Path]:
             paths.append(directory.resolve())
             if directory.is_dir():
                 entries = (
-                    directory.iterdir() if sub == GUIDANCE_DIR else directory.rglob("*")
+                    directory.iterdir()
+                    if sub == INSTRUCTIONS_DIR
+                    else directory.rglob("*")
                 )
                 paths.extend(path.resolve() for path in entries)
     return paths
@@ -176,8 +176,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
-# share one layer, so they rank against each other by specificity and order as they
-# always have. The kernel's Layouts sit above it, and the page's own stylesheet,
+# share one layer, so specificity, scope proximity, then order rank their rules.
+# The kernel's Layouts sit above it, and the page's own stylesheet,
 # unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
 # and a page overrides either. The page's rules reach Leaf's own controls only where
 # they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
@@ -186,6 +186,8 @@ CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
 
 
 def _sheet(source: Path) -> str:
+    from .styles import css_syntax_errors
+
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -196,10 +198,11 @@ def _sheet(source: Path) -> str:
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
-    """The conditions a package's rules meet: in the document, the element is one of
-    the package's widgets or stands inside one; in a declared shadow tree, the tree's
-    host is one of them, which is the one element outside the tree a selector in it can
-    name. None for a package that declares no widget."""
+    """Native document and shadow scope roots for a package's declared widgets.
+
+    The browser confines matching to each root and its descendants; authors name
+    a root with :scope. A widget-free package is an unscoped page theme.
+    """
     registry = root / "registry.json"
     tags = (
         sorted(
@@ -212,7 +215,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
         return None
     listed = ", ".join(tags)
     host = f":host(:is({listed}))"
-    return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
+    return f":is({listed})", host
 
 
 # A root's own stylesheets, in the order the document's theme.css reads them.
@@ -231,13 +234,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     sheet stays unlayered: a renderer that brings its own layered CSS into the tree
     (the diff's) keeps ranking below it.
 
-    A package that declares widgets styles those widgets and nothing else
-    (`widget_confinement`): in the document each of its rules matches only an element
-    that is one of them or stands inside one, and in the shadow sheet every declared
-    tree receives, only an element of a tree one of them hosts. A package that
-    declares none is a theme, and reaches the page and every tree the way the kernel's
-    own sheets do.
+    Each widget package's sheet has one native @scope around its declared tags
+    in the document, or around their :host in shadow trees. :scope names the root,
+    ordinary selectors its descendants. CSS owns nested conditions and proximity;
+    composition neither rewrites selectors nor adds specificity. Widget-free
+    packages are unscoped themes that reach the page and every tree.
     """
+    from .styles import scoped
+
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
     theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
@@ -249,12 +253,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if not source.is_file():
                 continue
             css = _sheet(source)
-            try:
-                placed = confined(css, where[0]) if where else css
-                if name == "shadow.css":
-                    shadow.append(confined(css, where[1]) if where else css)
-            except ValueError as error:
-                sys.exit(f"{source}: {error}; state a widget's rules on the widget")
+            placed = scoped(css, where[0]) if where else css
+            if name == "shadow.css":
+                shadow.append(scoped(css, where[1]) if where else css)
             theme.append(f"@layer lf-base {{\n{placed}}}\n")
     if (layouts := inputs[0] / "layouts.css").is_file():
         theme.append(_sheet(layouts))
@@ -264,8 +265,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     }
 
 
-def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
-    """Package guidance joined by audience in layer precedence order.
+def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
+    """Package instructions joined by audience in layer precedence order.
 
     Each package's passage opens under a heading naming its package, so a guide
     file starts with its first rule rather than a title of its own, and one
@@ -273,19 +274,19 @@ def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
     """
     parts: dict[str, list[str]] = {}
     for root in inputs:
-        directory = root / GUIDANCE_DIR
+        directory = root / INSTRUCTIONS_DIR
         if not directory.is_dir():
             continue
         for path in sorted(directory.iterdir()):
             if not path.is_file():
                 continue
             try:
-                guidance = path.read_text(encoding="utf-8")
+                instructions = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 sys.exit(f"{path} must be UTF-8")
-            if guidance.strip():
+            if instructions.strip():
                 parts.setdefault(path.name, []).append(
-                    f"# Package `{root.name}`\n\n{guidance.strip()}\n"
+                    f"# Package `{root.name}`\n\n{instructions.strip()}\n"
                 )
     return {name: "\n".join(passages).encode() for name, passages in parts.items()}
 
@@ -484,6 +485,8 @@ def provenance_label(provenance: dict) -> str:
 
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
+    from .validation.compatibility import incoming_registry
+
     incoming = incoming_registry(roots)
     directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(
@@ -523,5 +526,5 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
             "the incoming runtime/layer-client.js must contain exactly one "
             "layer-generation placeholder"
         )
-    directory_files[GUIDANCE_DIR] = composed_guidance(roots)
+    directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
     return LayerComposition(incoming, top_files, directory_files)

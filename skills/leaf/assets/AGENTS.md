@@ -18,7 +18,12 @@ theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row sits in the
+Auxiliary runtime controls overlay the page's existing geometry. Adding a control
+preserves content position, wrapping, and block size, including when its CSS loads
+before first paint. Keep covered content reachable through placement or disclosure
+rather than padding or a reserved row.
+
+A margin row sits in the
 rail beside its target (`rowPosture`), or as a pin by its target: in room found where
 it covers no words and no other box that paints its own extent, clear of neighbouring
 blocks where its target has room of its own, and reaching one line of words further
@@ -32,8 +37,8 @@ toggle left under the press, and moves nothing else.
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
-the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
-Only the left resident and the notes move the column over (`settleResidency`). A pin,
+the column, and `data-rail` on `body` withholds or reserves it (`content-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency` there). A pin,
 a passage mark, and everything else in the annotation layer is an overlay: it covers
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
@@ -64,26 +69,49 @@ inspection layer.
 ### Stability
 
 The page holds still under the user's aim. A state change may repaint any box but
-must not move controls next to the gesture that caused it. News causes no layout
-shift: when a box's content changes without a gesture, that box may grow or shrink
-into free room, but no other element moves. News grows where the reader isn't
-looking: above the screen, where scroll anchoring takes the growth into what they
-scrolled past, or below it. So a thread's reply box stands at the foot of the
+must not move controls next to the gesture that caused it. Without a gesture, a box
+may grow or shrink into free room, but reading content and controls stay put.
+Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
+region, such as a conversation header, declares its own stationary box: labels may
+repack inside it while every contained control stays put. A `controls` region,
+such as the adaptive shortcut bar, permits its hints and controls to repack inside
+its stationary box. Declare the box that owns the available room, rather than an
+auto-sized inner label group or a boxless wrapper. A nested region must hold its own
+boundary and every enclosing declaration's guarantees; it never borrows an outer
+declaration or relaxes one, including across a shadow root. Both painted positions stay inside
+that boundary, and neighbours and ordinary page reading content stay put. Typing
+still cannot carry its field.
+News grows where the reader isn't looking: above the screen, where scroll anchoring
+takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they
-open it, as a reply arriving in a thread in the page's flow waits behind its head
-row's notice (`thread/held-news.js`). A change the user requested may reflow the
+open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
+thread the agent starts wait behind a notice in a row the seat already draws, and a
+thread that would open a seat of its own, as on a diff line with no thread, waits in
+the margin behind its marker (`thread/held-news.js`). In the Threads panel, a card
+news takes out of the view, as another actor resolving its thread under Open does,
+stays where it stands, drawn as the news left it in the shape it stood in, until its
+going would move nothing the user sees or they change the view
+(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+log or the clock decides, so no first paint can size it, shows none of them until the
+reader opens them through a control of fixed size the widget already draws, as a
+command's counts open its lists; after that a change to its rows waits the same way
+while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+fixed-height box that scrolls them is no answer: nothing tells the reader a row is
+cut off, since a scroller shows no edge until it is scrolled.
+A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page makes a
-layout shift Chrome reports without recent input, or whose typing carries its field
-(`tests/shift_watch.js`).
+suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+for a protected box moving on screen without input, news landing just after a press included,
+or typing carrying its field (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
-`html[data-lf-live]`, the size its module will draw it at, so first paint already has
-the page's geometry and upgrade adds behavior without moving what follows. The
+`html[data-lf-interactive]`, the size its module will draw it at, so first paint
+already has the page's geometry and upgrade adds behavior without moving what follows,
+in a served page and an export alike. The
 widget quality check `keeps-first-box` measures each widget's box at first paint and
 once the page presents (`leaf package check PACKAGE --render`,
 `scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
@@ -107,6 +135,23 @@ log can supply waits with `aria-busy`, painted on a delay so a fast answer shows
 nothing. Persistent status text is for a state the user must return to, such as
 failure.
 
+### Words stay where they were typed
+
+What the user has typed stays in front of them until they put it away. A box holding
+words closes only in answer to a key or a press that means to close it (Send,
+Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
+document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
+news never closes it. Geometry decides where a box stands, never whether: a box
+whose existing subject loses its visible attachment stays in the usable window,
+keeping its words, anchor, and focus, and reattaches when that target returns.
+Only where no usable window remains does it wait out of view with its words,
+anchor, and caret, standing again, focus returned, when room returns (`standFab`,
+`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+words and caret to the replacement. The suite's browser fixture fails any test
+whose page loses typed words without a key or press (`tests/words_watch.js`), and
+every corpus page is scrolled to both ends and back with each typed box open
+(`test_words_in_a_box_survive_scrolling_away_and_back`).
+
 ### Visual grammar
 
 Use visual treatments to carry hierarchy and state. Contours are solid; a dotted
@@ -119,11 +164,15 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than a colored edge: pickup colors its icon green, and working also colors
-the interior and pulses once on arrival, which a repaint never replays. User attention wears
-the same two channels in blue. Reading is bookkeeping and never moves the user.
+rather than competing with attention for color. Green marks a move the user owes;
+other thread controls stay blue. Pickup and work use status words, with one brief
+pulse when work begins that a repaint never replays. Reading is bookkeeping and
+never moves the user.
 
 ### Motion
+
+Use restrained, finite animations to acknowledge state changes. Do not animate
+continuously while a state remains unchanged.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be
@@ -137,9 +186,18 @@ share; the theme's guard answers for CSS.
 
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
-boot sequence. `runtime/bootstrap.js` loads before everything else, can show a startup
-failure even if the module graph never loads, and holds page keys pressed
-before presentation. Content modules import only
+boot sequence. Two classic scripts run before the first paint, which no module
+reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
+else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
+it shows a startup failure and waits for a server that can start the page, even if
+the module graph never loads; and it holds page keys pressed before presentation.
+`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
+ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
+each widget its upgraded box, and takes the mark off when the runtime could not start
+because something it needs did not arrive (naming why in `data-lf-startup-error`), so
+the themes give back the readable fallback for every widget at once; it declares the
+page's storage scope;
+and it decides which member an `x-views` holder opens on. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -167,7 +225,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `thread-card-geometry.js`, `pointed-place.js` |
+| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
+| Comment box and thread card placement | `comment-placement.js`, `floating.js` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
@@ -197,7 +256,9 @@ the step between. The browser fixture fails a write that changes
 nothing in any test (`tests/write_watch.js`), and
 `test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
 
-What a page says follows from where it stands now, not from how it got there. A page
+What a page says follows from where it stands now, not from how it got there. The one
+history its arrangement keeps is the order its margin rows came in, since a row that
+arrives yields to those already there rather than moving them (`margin-layout.js`). A page
 nobody touches writes nothing, asks for no frame, and moves no focus; a surface opened
 and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever

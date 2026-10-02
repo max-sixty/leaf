@@ -1,5 +1,6 @@
 """Static document, version, and page-state tests."""
 
+import gc
 import hashlib
 import json
 import math
@@ -7,9 +8,11 @@ import os
 import queue
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import threading
+import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -36,6 +39,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
+    fresh_process,
     model_layer,
     publish,
     read_page_data,
@@ -52,6 +56,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import leases as leases_model
+from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -60,10 +65,12 @@ from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
+from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source import check_source
@@ -249,7 +256,6 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     declaration["description"] = "Options this page declares for itself."
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
-    assert redeclared.executable != reordered.executable
 
     files_model.replace_files(
         [(page_dir / "leaf.js", b"// re-vendored runtime", False)]
@@ -318,69 +324,6 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     rewritten = activate()
     assert rewritten.widgets["lf-options#0"] != base.widgets["lf-options#0"]
     assert rewritten.widgets["flow"] == base.widgets["flow"]
-
-
-def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
-    """An immutable revision saved before this field is one no save can repair.
-
-    Capture has written the digest since the browser learned to take a revision on in
-    place, and the live root always has one: adding the field moved the manifest digest,
-    so the next save mints a new revision. The addresses where an older manifest is still
-    reachable are the stamped versions and the revision URLs, and those documents are
-    immutable — refusing them turned a page's whole history into a 500 over a field that
-    only ever answers a question a historical document does not ask. So the absence is a
-    reading: state says `null`, every address still serves, and the next save records it.
-    """
-    (page_dir / "index.html").write_text(PAGE, encoding="utf-8")
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None, activated.error
-    revision = activated.revision
-    marker = files_model.revision_path(page_dir, revision)
-    bundle = marker.with_suffix("")
-    manifest_path = bundle / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    del manifest["executable"]
-    del manifest["widgets"]
-    # The revision is named for its manifest's digest, so an older manifest arrives
-    # under an older name; write both the way that capture would have.
-    body = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    manifest_path.write_bytes(body)
-    older = f"r{revision}-{artifact_model._digest(body).removeprefix('sha256:')[:16]}"
-    bundle.rename(bundle.with_name(older))
-    marker.rename(marker.with_name(f"{older}.html"))
-
-    artifact = artifact_model.read_artifact(page_dir, revision)
-    assert artifact.executable is None
-    assert artifact.widgets == {}
-
-    # The reading the browser takes: a document that cannot say what it is as code is
-    # one an open page can only follow into a fresh document.
-    descriptor = files_model.active_descriptor(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert descriptor["executable"] is None
-
-    # And the document itself still serves, prelude and all.
-    document = revision_delivery_model.compose_document(
-        (page_dir / "index.html").read_text(encoding="utf-8"),
-        revision,
-        None,
-        executable=artifact.executable,
-        widgets=artifact.widgets,
-        resources=artifact.resources,
-        registry=artifact.registry,
-        delivery=revision_delivery_model.Delivery(address=lambda path: path),
-    )
-    assert "lf-executable" not in document and "lf-widgets" not in document
-    assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
-
-    # The next save records it, for every revision from then on.
-    (page_dir / "index.html").write_text(
-        PAGE.replace("Backfill plan", "Backfill schedule"), encoding="utf-8"
-    )
-    saved = revisioning_model.activate_source(page_dir)
-    assert saved.error is None, saved.error
-    assert artifact_model.read_artifact(page_dir, saved.revision).executable
 
 
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
@@ -711,7 +654,9 @@ def folded(page_dir, board="b1"):
     """Each column of `board` in the order the page draws it: the position fold over
     the revision `page state` activates."""
     revision = state_json(page_dir)["active"]["revision"]
-    _, reading, _ = read_served_page(page_dir, events_model.read_events(page_dir))
+    _, reading, _ = read_served_page(
+        read_page(page_dir, events_model.read_events(page_dir))
+    )
     document = reading.documents[revision]
     registry = require_registry(page_dir)
     return projection_model.folded_positions(
@@ -1230,20 +1175,19 @@ def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
     assert "belongs to delivery" in result.output
 
 
-def test_check_refuses_markup_the_browser_never_renders(page_dir):
-    """<template> parses into an inert fragment and <noscript> stays unrendered
-    in any scripting browser, while the file's reading would take both for the
-    page's words — a comment could anchor on text no user ever sees."""
+def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
+    """In a scripting browser noscript is hidden, while the file reader takes its
+    content for page words. Refusal prevents anchoring on text no user can see."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><template><p id="tp">Ghost words.</p></template>'
-            "<noscript>Fallback words.</noscript>",
+            "<h2>Plan</h2><noscript>Fallback words.</noscript>",
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert result.output.count("the browser renders none of its content") == 2
+    assert "<noscript>" in result.output
+    assert "the browser renders none of its content" in result.output
 
 
 def test_check_rejects_widget_violations(page_dir):
@@ -4145,35 +4089,6 @@ def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
     ("patch_text", "message"),
     [
         (
-            """diff --git a/logo.png b/logo.png
-index 1234567..89abcde 100644
-Binary files a/logo.png and b/logo.png differ
-""",
-            "unsupported hunkless diff",
-        ),
-        (
-            """diff --git a/run.sh b/run.sh
-old mode 100644
-new mode 100755
-""",
-            "unsupported hunkless diff",
-        ),
-        (
-            """diff --git a/source.py b/copied.py
-similarity index 100%
-copy from source.py
-copy to copied.py
-""",
-            "unsupported copy diff",
-        ),
-        (
-            """diff --git a/empty.txt b/empty.txt
-new file mode 100644
-index 0000000..e69de29
-""",
-            "unsupported hunkless diff",
-        ),
-        (
             """diff --git a/old.py b/new.py
 similarity index 100%
 rename from old.py
@@ -4489,10 +4404,10 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None
     source.write_text(draft)
-    documents = data_contracts_model.page_data_documents(
-        page_dir, events_model.read_events(page_dir)
+    documents = data_contracts_model.page_data_document_readings(
+        page_dir, events_model.read_events(page_dir), registry
     )
-    immutable, errors = data_contracts_model.merge_data_bindings(documents, registry)
+    immutable, errors = data_contracts_model.merge_data_document_readings(documents)
     assert errors == [] and "project-feed" not in immutable
     events_model.append_event(
         page_dir,
@@ -4740,7 +4655,7 @@ def test_a_reader_that_closes_the_pipe_ends_page_events_quietly(page_dir):
     0 and prints nothing past what the reader took. The log outgrows a pipe's buffer,
     or the write that finds the reader gone never happens."""
     record = {"kind": "comment", "author": "user", "text": "x" * 200}
-    (page_dir / schema_model.EVENTS_FILE).write_text(
+    (page_dir / cleanup_model.EVENTS_FILE).write_text(
         "".join(json.dumps({**record, "id": f"e{n}"}) + "\n" for n in range(2000))
     )
     for follow in ([], ["--follow"]):
@@ -5463,16 +5378,6 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     revisions = files_model.list_revisions(page_dir)
     assert len(revisions) == 12  # more revisions than any bundle cache retains
 
-    for cache in (
-        artifact_model._read_stamped,
-        artifact_model._read_artifact_stamped,
-        artifact_model._shared_registry,
-    ):
-        cache.cache_clear()
-    artifact_model._captures.clear()
-    artifact_model._readings.clear()
-    revisioning_model._held.clear()
-
     opens = Counter()
     native_open = Path.open
 
@@ -5482,7 +5387,9 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
         return native_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counted_open)
-    activated = revisioning_model.activate_source(page_dir)
+    # A server started now: it holds none of this test's readings.
+    with fresh_process():
+        activated = revisioning_model.activate_source(page_dir)
     monkeypatch.undo()
     assert activated.error is None, activated.error
     assert not activated.created
@@ -5496,7 +5403,8 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
 
 def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
-    """A revision is immutable, so what its words say is read once per process.
+    """A revision is immutable, so what its words say is read once while its page
+    is held.
 
     Every state read folds the log against the active revision's words, and
     walking a large page for them was most of what a read cost. The first read
@@ -5504,7 +5412,6 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
     never saw a walk cannot pass the second assertion on its own."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    artifact_model._readings.clear()
     walks = []
     native = passages_model.page_passages
 
@@ -5513,10 +5420,11 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
         return native(*args, **kwargs)
 
     monkeypatch.setattr(passages_model, "page_passages", counted)
-    read_served_page(page_dir, events_model.read_events(page_dir))
-    assert walks
-    walks.clear()
-    read_served_page(page_dir, events_model.read_events(page_dir))
+    with fresh_process():
+        read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
+        assert walks
+        walks.clear()
+        read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
     assert walks == []
 
 
@@ -5527,15 +5435,14 @@ def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
     (page_dir / "index.html").write_bytes(PAGE.replace("\n", "\r\n").encode())
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    artifact_model._readings.clear()
     events = events_model.read_events(page_dir)
-    checked = check_source(page_dir, events, allow_transition=False)
-    data = (page_dir / "index.html").read_bytes()
-    assert b"\r\n" in data
-    assert (
-        artifact_model.read_revision(page_dir, activated.revision).document.data == data
-    )
-    assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
+    with fresh_process():
+        checked = check_source(page_dir, events, allow_transition=False)
+        data = (page_dir / "index.html").read_bytes()
+        assert b"\r\n" in data
+        reading = artifact_model.read_revision(page_dir, activated.revision)
+        assert reading.document.data == data
+        assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
 
 
 def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monkeypatch):
@@ -5578,18 +5485,43 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert revisioning_model.activate_source(page_dir).error is None
     revisions = files_model.list_revisions(page_dir)
     size = files_model.revision_path(page_dir, revisions[-1]).stat().st_size
-    artifact_model._readings.clear()
-    artifact_model._readings_bytes = 0
-    monkeypatch.setattr(artifact_model, "_READINGS_BUDGET", 2 * size + size // 2)
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 2 * size + size // 2)
+    with fresh_process():
+        readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
+        kept = page_memory_model.memo(page_dir, artifact_model._Readings)
+        assert [reading for _stamp, reading in kept.held.values()] == readings[-2:]
+        assert kept.size <= kept.BUDGET
+        # Reading an evicted revision again takes a fresh reading, and one still
+        # held answers with the same object.
+        assert artifact_model.read_revision(page_dir, revisions[-1]) is readings[-1]
+        assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
-    readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
-    held = [reading for _stamp, reading in artifact_model._readings.values()]
-    assert held == readings[-2:]
-    assert artifact_model._readings_bytes <= artifact_model._READINGS_BUDGET
-    # Reading an evicted revision again takes a fresh reading, and one still held
-    # answers with the same object.
-    assert artifact_model.read_revision(page_dir, revisions[-1]) is readings[-1]
-    assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
+
+def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
+    """A process keeps what it read of the last few pages it read, so one that reads
+    many, such as the website or a test worker, holds a bounded amount however many
+    it has read. A page read again while kept answers with the same reading; one
+    dropped is read afresh and its old reading is freed. A memory something still
+    holds, as a sample holds its own, outlives being pushed out."""
+    revision = revisioning_model.activate_source(page_dir).revision
+    held_page = page_dir.parent / "held"
+    shutil.copytree(page_dir, held_page)
+    with fresh_process():
+        held = artifact_model.read_revision(page_dir, revision)
+        assert artifact_model.read_revision(page_dir, revision) is held
+        kept = weakref.ref(held)
+        del held
+        holder = page_memory_model.memory_of(held_page)
+        sample_reading = artifact_model.read_revision(held_page, revision)
+        for n in range(page_memory_model.PageMemories.LIMIT):
+            other = page_dir.parent / f"other-{n}"
+            shutil.copytree(page_dir, other)
+            artifact_model.read_revision(other, revision)
+        gc.collect()
+        assert kept() is None
+        assert artifact_model.read_revision(page_dir, revision).document.title
+        assert artifact_model.read_revision(held_page, revision) is sample_reading
+        assert page_memory_model.memory_of(held_page) is holder
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

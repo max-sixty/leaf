@@ -135,10 +135,10 @@
           <a href="#x-example"><code>x-example</code></a>
           <a href="#x-exhibit"><code>x-exhibit</code></a>
           <a href="#x-face"><code>x-face</code></a>
-          <a href="#x-guidance"><code>x-guidance</code></a>
           <a href="#x-height"><code>x-height</code></a>
           <a href="#x-history"><code>x-history</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
+          <a href="#x-instructions"><code>x-instructions</code></a>
           <a href="#x-language"><code>x-language</code></a>
           <a href="#x-lines"><code>x-lines</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
@@ -161,6 +161,7 @@
           <a href="#x-tone"><code>x-tone</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
           <a href="#x-verbatim"><code>x-verbatim</code></a>
+          <a href="#x-views"><code>x-views</code></a>
           <a href="#x-visual"><code>x-visual</code></a>
           <a href="#x-withdrawn-as"><code>x-withdrawn-as</code></a>
           <a href="#x-word"><code>x-word</code></a>
@@ -325,17 +326,6 @@
               </details>
             </div>
           </section>
-          <section class="reference-entry" id="x-guidance">
-            <h3><code>x-guidance</code></h3>
-            <div class="reference-copy">
-              <p>
-                Audience-specific authoring or operating guidance owned by this widget.
-                <code>page guidance</code> composes it with data-contract guidance and
-                package-wide guidance, so instructions travel with the contribution they
-                explain rather than with whichever package happened to distribute it.
-              </p>
-            </div>
-          </section>
           <section class="reference-entry" id="x-height">
             <h3><code>x-height</code></h3>
             <div class="reference-copy">
@@ -348,16 +338,16 @@
               <details class="reference-more">
                 <summary aria-label="Full x-height contract">Full contract</summary>
                 <p>
-                  Delivery paints it into the served document as data-lf-height, and on
-                  a live page the theme holds the box to it from the first paint until
-                  the module marks the element drawn (<code>lf-rendered</code>), when
-                  the box becomes the drawing's own. Declare it on a widget whose
-                  drawing cannot be sized from its markup before the module draws. A
-                  module that can draw to any height, as a chart's can, draws at the
-                  stated one, so nothing moves when the reservation ends; one whose
-                  content has a height of its own draws that, and the reservation is the
-                  author's estimate of it. A failure takes the height of the message it
-                  shows.
+                  Delivery paints it into the served document as data-lf-height, and
+                  wherever the runtime runs the theme holds the box to it from the first
+                  paint until the module marks the element drawn
+                  (<code>lf-rendered</code>), when the box becomes the drawing's own.
+                  Declare it on a widget whose drawing cannot be sized from its markup
+                  before the module draws. A module that can draw to any height, as a
+                  chart's can, draws at the stated one, so nothing moves when the
+                  reservation ends; one whose content has a height of its own draws
+                  that, and the reservation is the author's estimate of it. A failure
+                  takes the height of the message it shows.
                 </p>
               </details>
             </div>
@@ -390,6 +380,16 @@
                 The element is set among the words around it, so the render gate holds
                 its box to no width of its own and the rule that a block widget stands
                 in a block slot passes over it.
+              </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-instructions">
+            <h3><code>x-instructions</code></h3>
+            <div class="reference-copy">
+              <p>
+                Author instructions for using this widget, read after selecting it and
+                before writing markup. A flat nonempty string, separate from its short
+                discovery description and its structured schema.
               </p>
             </div>
           </section>
@@ -575,11 +575,16 @@
                   <code>page check</code> then requires both an existing id and a target
                   tag whose declaration in that package-owned map matches the predicate.
                   This lets a package distinguish a goal, worker, or evidence reference
-                  without Leaf knowing those roles or tags. In the browser a declared
-                  attribute is what a module hands <code>navigateToDatum</code> and the
-                  experimental <code>indicate</code> to reach the named widget, which
-                  each resolves in the owner's own authored document first (its
-                  message's markup, for a widget in a reply) and then in the page.
+                  without Leaf knowing those roles or tags. A typed contract with
+                  <code>owns: true</code> says the referrer fills its target, as a
+                  command fills the readings seat it names:
+                  <code>page check</code> requires the target in the referrer's own
+                  document, and every element there that the predicate selects named by
+                  exactly one referrer. In the browser a declared attribute is what a
+                  module hands <code>navigateToDatum</code> and the experimental
+                  <code>indicate</code> to reach the named widget, which each resolves
+                  in the owner's own authored document first (its message's markup, for
+                  a widget in a reply) and then in the page.
                 </p>
               </details>
             </div>
@@ -854,6 +859,29 @@
                   promise the passage reader treats the widget as opaque, since its
                   module may insert or replace words. The render gate refuses changed
                   wrapper prose or removed and reordered nested ownership boundaries.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-views">
+            <h3><code>x-views</code></h3>
+            <div class="reference-copy">
+              <p>
+                <code>true</code>: the element shows one of its members at a time, as a
+                tab set shows one panel, and its module opens it on the member the
+                runtime names (<code>openingView</code>) and records each member it
+                shows (<code>keepView</code>).
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-views contract">Full contract</summary>
+                <p>
+                  The runtime opens it on the member holding the element the address's
+                  fragment names, else on the member this browser tab last showed, else
+                  on the first; a reload puts the member last shown before the
+                  fragment's. Delivery paints it into the served document as
+                  data-lf-views, and before the first paint Leaf marks the member it
+                  will open <code>data-lf-opening</code>, so the package theme can show
+                  that member alone until the module upgrades the element.
                 </p>
               </details>
             </div>

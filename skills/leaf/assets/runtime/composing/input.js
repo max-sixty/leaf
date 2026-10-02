@@ -308,6 +308,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
+    ta.addEventListener("beforeinput", () => readBoxPlace(ta), { capture: true });
     ta.addEventListener("paste", async (event) => {
       const images = [...(event.clipboardData?.items ?? [])]
         .filter((item) => item.kind === "file" && item.type.startsWith("image/"))

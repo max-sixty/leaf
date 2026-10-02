@@ -20,6 +20,15 @@ primitive must give the user something that site would not:
 - **Difficult code.** Mechanisms too hard to write well each time: anchored
   threads, widgets whose state survives a revision, and the event log that
   returns each comment and decision to the agent as a structured event.
+- **Live revisions.** Continuous, low-latency page updates are a core feature.
+  Agents revise an open page in place while the user reads, comments, and
+  interacts.
+- **Contextual threads.** Passage-relative floating replies are a core feature.
+  Users read and answer a thread beside the passage it concerns.
+- **Drawing comments.** Freehand annotations are a core feature. Users point at
+  visual details with ink as well as with text and semantic anchors.
+- **Public website.** Visitors can try Leaf directly on leaf.page through
+  interactive examples. The website is a core feature.
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.
@@ -66,7 +75,7 @@ better app, and say in the commit which behavior moved.
 
 The written contracts do not constrain new code either. No package, host, or
 integration exists outside this repository, so every reader of
-`skills/leaf/references/`, a package's guidance, or a protocol sidecar is in
+`skills/leaf/references/`, a package's instructions, or a protocol sidecar is in
 this tree. What those files state is what the code does now, and a promise to
 nobody. When a change is simpler under a different contract, whether that is
 an id's form, an event's shape, a command's output, or what a host is told
@@ -128,7 +137,7 @@ and Codex install the tracked tree whole.
 - `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/hooks.json`: the shared host hooks;
-- `evals/`: cases a headless agent answers, scoring the shipped guidance;
+- `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
@@ -158,7 +167,7 @@ For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
 for agents that use Leaf or extend its package interface.
 
-### Where guidance lives
+### Where instructions live
 
 The sections above **Repository map** are the maintainer's direction; change them
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
@@ -246,13 +255,14 @@ itself, under the identity that replacement already keys on, or the user loses i
 
 Python derives page-wide `activity` and exact-input `workflows` from the agent's
 status declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner and neighboring-page rows describe page activity. Messages,
-thread attention, and margin entries consume the canonical workflows; thread
-attention also retains outstanding user Asks. Page activity does not imply work
-on every message. JavaScript adds unresolved local sends through the application
-publisher and may schedule a read at `next_transition_at`; it does not age or
-independently reclassify accepted workflow evidence. The stop guard consumes the
-same underlying response obligations.
+evidence. The banner describes page activity; a neighboring-page row, for now,
+describes only that page's declaration, in the same shape (`presence.other_leaves`).
+Messages, thread attention, and margin entries consume the canonical workflows;
+thread attention also retains outstanding user Asks. Page activity does not imply
+work on every message. JavaScript adds unresolved local sends through the
+application publisher and may schedule a read at `next_transition_at`; it does not
+age or independently reclassify accepted workflow evidence. The stop guard consumes
+the same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
 immutable revisions, an append-only event log, and one replaceable JSON file per
@@ -296,10 +306,10 @@ Before finishing a feature:
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
-  other references point at that section by name. Shipped guidance sets goals
-  for the user's experience and names the surface they read on; it leaves
+  other references point at that section by name. Shipped instructions set goals
+  for the user's experience and name the surface they read on; they leave
   format and phrasing to the agent. Score the change with `evals/` before and
-  after (`/developing-leaf`, "Score a guidance change").
+  after (`/developing-leaf`, "Score an instruction change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and

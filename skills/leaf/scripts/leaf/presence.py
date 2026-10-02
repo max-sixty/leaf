@@ -7,10 +7,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn, transition_due
-from .event_log import now_iso, read_cursor, read_events
+from .activity import Turn, current_turn, declared_activity
+from .event_log import read_cursor
 from .files import (
-    active_descriptor,
     entry_stamps,
     file_stamp,
     latest_revision,
@@ -19,7 +18,8 @@ from .files import (
 from .host import claim_harness
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
-from .revision_artifact import read_revision
+from .page_memory import memo
+from .revision_artifact import revision_title
 from .schema import (
     INTERACTIONS_FILE,
     UNNAMED_AGENT,
@@ -36,16 +36,27 @@ from .service import (
     read_status,
     unacknowledged,
 )
+from .session_cleanup import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. The news stream already allowed this much staleness,
 # so sharing one observation across streams does not change what a user can learn.
 PRESENCE_CACHE_S = 2.0
-_CACHE_LIMIT = 256
-_presence_cache = {}  # page -> (page-file stamp, expiry, reading)
-_neighbor_cache = {}  # page -> (input key, presence entry or None)
-_candidates = ((), ())  # (state-home stamp, resolved candidate pages)
-_presence_cache_lock = threading.RLock()
+# (state-home stamp, resolved candidate pages): the machine's, so one slot.
+_candidates = ((), ())
+_candidates_lock = threading.Lock()
+
+
+class _Presence:
+    """What a page keeps of its presence between readings.
+
+    The lock is held through a whole observation, so concurrent news streams on the
+    page share one reading rather than racing into one parse each."""
+
+    def __init__(self) -> None:
+        self.lock = threading.RLock()
+        # (page-file stamp, expiry, the token `presence_reading` gave)
+        self.token: tuple | None = None
 
 
 def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
@@ -83,7 +94,7 @@ def neighbor_candidates() -> tuple:
     home = state_home()
     claims, pages = home / "claims", home / "pages"
     stamp = (home, file_stamp(claims), file_stamp(pages))
-    with _presence_cache_lock:
+    with _candidates_lock:
         if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
             return _candidates[1]
         found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
@@ -99,121 +110,50 @@ def neighbor_candidates() -> tuple:
 
 
 def other_leaves(page_dir: Path) -> list:
-    """The machine's other live leaves, for the banner's panel: each page
-    whose server is up, as a title, its handover URL, and the same presence
-    facts the page ships about itself — so a row there and the banner above it
-    are the one judgment reading the one shape.
+    """The machine's other live leaves, for the banner's panel: each page whose
+    server is up, as its title, its handover URL, and the activity its agent last
+    declared.
 
-    Candidates are `neighbor_candidates`. Liveness is the held server.lock
-    lease, the same answer `running_server` gives everything else, asked of
-    every candidate on every read, since a server starts and stops without
-    moving either directory the candidates are keyed on; a candidate that is not
-    serving costs that one probe. The URL is the one in durable service state, key included.
-    The title is the active revision's — the document that page's own root URL
-    answers with — read the way `transcript` reads it.
+    Candidates are `neighbor_candidates`. Liveness is the held server.lock lease, the
+    same answer `running_server` gives everything else, asked of every candidate on
+    every read, since a server starts and stops without moving either directory the
+    candidates are keyed on. A serving neighbour then costs two small reads: its
+    `status.json` and its latest revision's manifest, which records the title
+    (`revision_title`). No server parses another page's log or revision, and none
+    keeps anything of another page between reads.
 
-    This runs on every /api/state; what it reads of each serving neighbour is
-    kept per file, so a state read costs the lease probes and the presence reads
-    rather than a parse of every live neighbour's active revision
-    (`read_revision`)."""
+    TODO(2026-10-01): a row states the declaration alone (`declared_activity`), not
+    the judgment the page's own banner makes from its log, claims, leases and host
+    turn. So it does not say when a neighbour's agent has stalled or gone (Stalled,
+    Away, Unheld), how many of the user's moves wait there, or that its agent has
+    picked them up: a crashed agent's last "working" stands until its server stops.
+    Restoring that needs the judgment made once per page rather than once per
+    server reading it, such as a row file each page keeps current."""
     others = []
     own = page_dir.resolve()
-    seen = set()
     for candidate in neighbor_candidates():
         if candidate == own:
             continue
-        seen.add(candidate)
         # A neighbour's fault stays its own. This is the one read of state some
         # other page owns: a directory deleted mid-scan (stale pages are deleted
-        # and made again) or a log a disk fault corrupted would otherwise 500
+        # and made again) or a file a disk fault corrupted would otherwise 500
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
             if info is None:
                 continue
-            claim = page_claim(candidate)
-            active = claim if claim_is_active(claim) else None
-            key = (
-                _page_stamp(candidate, claim),
-                info["url"],
-                live_facts(candidate, claim),
-            )
-            with _presence_cache_lock:
-                held = _neighbor_cache.get(candidate)
-                observed_at = now_iso()
-                if (
-                    held
-                    and held[0] == key
-                    and (
-                        held[1] is None
-                        or not transition_due(held[1]["activity"], observed_at)
-                    )
-                ):
-                    present = held[1]
-                else:
-                    present = None
-                    try:
-                        events = read_events(candidate)
-                        revision = latest_revision(candidate)
-                        if revision is not None:
-                            parser = read_revision(candidate, revision).document
-                            # A neighboring row consumes the same canonical
-                            # activity as that page's own banner. Import here
-                            # to keep the base presence gatherer independent
-                            # of served-state assembly.
-                            from .served_state.browser import project_browser_state
-                            from .served_state.page import project_activity
-
-                            raw, live_stream = presence_with_activity(candidate, events)
-                            active = active_descriptor(candidate, events)
-                            projected = project_browser_state(
-                                candidate,
-                                events,
-                                None,
-                                active,
-                                raw,
-                                observed_at,
-                                live_stream=live_stream,
-                            )
-                            browser = projected[0] if projected is not None else None
-                            activity = project_activity(
-                                candidate,
-                                events,
-                                raw,
-                                observed_at,
-                                browser,
-                                live_stream,
-                            )
-                            workflows = (
-                                browser.pop("workflows")
-                                if browser is not None
-                                else activity.pop("workflows")
-                            )
-                            present = {
-                                "title": parser.title.strip() or candidate.name,
-                                "url": info["url"],
-                                **raw,
-                                "activity": activity,
-                                "workflows": workflows,
-                            }
-                    except Exception:  # noqa: BLE001 - cache this page's fault
-                        present = None
-                    # Cache failures as well. Their input key changes when a repair
-                    # gives them something to say, while repeated quiet scans do no
-                    # log parse at all.
-                    _neighbor_cache[candidate] = (key, present)
-            if present is None:
+            revision = latest_revision(candidate)
+            if revision is None:
                 continue
+            others.append(
+                {
+                    "title": revision_title(candidate, revision) or candidate.name,
+                    "url": info["url"],
+                    "activity": declared_activity(read_status(candidate)),
+                }
+            )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
-        others.append(dict(present))
-    with _presence_cache_lock:
-        # A long-lived process may see pages that are later deleted. Keep the
-        # reading cache bounded and discard entries no current scan can reach.
-        for candidate in set(_neighbor_cache) - seen:
-            _neighbor_cache.pop(candidate, None)
-        while len(_neighbor_cache) > _CACHE_LIMIT:
-            _neighbor_cache.pop(next(iter(_neighbor_cache)))
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
@@ -243,11 +183,9 @@ def presence_with_activity(
     agent is working. Keeping private activity records out of that dictionary makes
     them unavailable to every browser-facing consumer by construction.
 
-    One gatherer for every such seat — `full_state` spreads it into the page's own
-    state answer, and `other_leaves` attaches it to each entry — so the runtime's one
-    claim-against-proof judgment reads the same fields whichever page it judges,
-    and the drawer's account of a neighbour is the account this page gives of
-    itself."""
+    `full_state` spreads it into the page's own state answer, so the runtime's one
+    claim-against-proof judgment reads these fields. A neighbour's row reads none
+    of them (`other_leaves`)."""
     stored_status = read_status(page_dir)
     status = {
         key: value
@@ -334,12 +272,10 @@ def presence(page_dir: Path, events: list) -> dict:
 
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as the drawer shows them. A
-    neighbour's `viewed` is left out, since it moves every half minute that tab
-    stays open and changes nothing this page shows."""
+    already carries: its `live_facts`, and the neighbours as the drawer shows them."""
     facts = (
         [present[key] for key in ("listening", "session_alive", "live_turn")],
-        [{k: v for k, v in other.items() if k != "viewed"} for other in others],
+        others,
     )
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
@@ -357,18 +293,17 @@ def presence_reading(page_dir: Path) -> str:
     claim = page_claim(page_dir)
     stamp = _page_stamp(page_dir, claim)
     now = time.monotonic()
-    with _presence_cache_lock:
-        held = _presence_cache.get(page_dir)
+    kept = memo(page_dir, _Presence)
+    with kept.lock:
+        held = kept.token
         if held and held[0] == stamp and now < held[1]:
             return held[2]
 
         # Keep the lock while observing the neighbours. Concurrent news streams
-        # then share one complete reading instead of racing into one parse per
-        # stream; the lock and pid checks remain part of this fresh observation.
+        # then share one complete reading instead of racing into one each; the
+        # lock and pid checks remain part of this fresh observation.
         reading = presence_fingerprint(
             live_facts(page_dir, claim), other_leaves(page_dir)
         )
-        _presence_cache[page_dir] = (stamp, now + PRESENCE_CACHE_S, reading)
-        while len(_presence_cache) > _CACHE_LIMIT:
-            _presence_cache.pop(next(iter(_presence_cache)))
+        kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading

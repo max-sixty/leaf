@@ -10,7 +10,6 @@ several operations, so its trace alone cannot prove their internal order.
 
 import json
 import re
-import shutil
 import threading
 from datetime import datetime
 from functools import partial
@@ -18,7 +17,6 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 
-from leaf_dev import ROOT
 from leaf_dev.harness import (
     URL,
     LiveChild,

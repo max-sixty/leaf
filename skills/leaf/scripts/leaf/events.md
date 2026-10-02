@@ -168,7 +168,7 @@ seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
 stdout end it with exit 0. A log that is removed, replaced by another file, or
 shorter than what the feed has read ends it with exit 1 and `<log> is gone` on
 stderr, since its positions no longer name that log's lines. The feed wakes on the
-log's file stamp at the browser news stream's `LOOK_S` cadence, so an event any
+log's file stamp at `LOOK_S` cadence, so an event any
 process appends reaches it the same way.
 
 The feed carries the log only. External data under `data/` is replaced in place

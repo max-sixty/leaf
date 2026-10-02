@@ -61,6 +61,7 @@ from render_cases_interaction import (
     ROSTER_PAGE,
     SEATED_ASK_ENTRY,
     SEATED_ASK_MODULE,
+    SEATED_QUESTION_PAGE,
     STANDING_ACTIONS,
     STANDING_PAGE,
     SUGGESTION_PAGE,
@@ -1937,6 +1938,161 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
 
 
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
+def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, width):
+    """Growing inline news waits without moving the user's simultaneous places.
+
+    The following passage and editor are visible below the reply's insertion point.
+    Status paints immediately, a reply paints its fixed-row notice, and the revision
+    paints its offer while composition holds the current document. Opening the tall
+    reply proves this was growth the user would have seen without the hold.
+    """
+    source = SEATED_QUESTION_PAGE.replace(
+        "</main>",
+        '<p id="reading">The next passage remains where I am reading.</p>'
+        + "<p>Further context. "
+        + "Context. " * 300
+        + "</p></main>",
+    )
+    url = serve(source)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job comes first?",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, width, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    editor = thread.locator("leaf-text")
+    words = "  Keep the middle of this unsent thought.  "
+    write(editor, words)
+    editor.evaluate("box => box.setSelectionRange(7, 17, 'backward')")
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    reading = page.locator("#reading")
+    expect(reading).to_be_in_viewport()
+    target = resolve.bounding_box()
+    assert target
+    point = {
+        "x": target["x"] + target["width"] / 2,
+        "y": target["y"] + target["height"] / 2,
+    }
+    page.mouse.move(**point)
+    rendered(page)
+    # Keep Chrome's native clock and deliver news after its 500 ms input grace period.
+    page.wait_for_timeout(600)
+    place = reading.bounding_box()
+    box = editor.bounding_box()
+    assert place and box
+
+    def kept():
+        expect(editor).to_be_focused()
+        assert editor.evaluate(
+            "box => [box.value, box.selectionStart, box.selectionEnd, box.selectionDirection]"
+        ) == [words, 7, 17, "backward"]
+        assert reading.bounding_box() == pytest.approx(place, abs=0.5)
+        assert editor.bounding_box() == pytest.approx(box, abs=0.5)
+        assert resolve.bounding_box() == pytest.approx(target, abs=0.5)
+        assert resolve.evaluate(
+            "(node, p) => node.contains(document.elementFromPoint(p.x, p.y))", point
+        ), "arriving news took the resting pointer off Resolve"
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status(
+            "working",
+            "Checking the order of these jobs",
+            work={
+                "subject": {"kind": "thread", "id": root["id"]},
+                "after": root["seq"],
+            },
+        )
+    told(page)
+    expect(page.locator(".lf-status-detail")).to_contain_text("Checking the order")
+    rendered(page)
+    kept()
+
+    reply = "\n\n".join(["The first job needs a careful explanation."] * 12)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "revision": 1,
+            "text": reply,
+        },
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    expect(thread.locator(".lf-msg")).to_have_count(1)
+    rendered(page)
+    kept()
+
+    (serve.page_dir / "index.html").write_text(
+        source.replace(
+            "<title>seated question</title>", "<title>Jobs updated</title>"
+        ).replace('<h1 id="h">', '<p id="new-context">New context.</p><h1 id="h">')
+    )
+    told(page)
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page).to_have_title("seated question")
+    expect(page.locator("#new-context")).to_have_count(0)
+    rendered(page)
+    kept()
+
+    # A press releases genuine growth; all preceding observations were made at rest.
+    notice.click()
+    expect(thread.locator(".lf-msg")).to_have_count(2)
+    expect(thread.locator(".lf-msg").last).to_contain_text(
+        "The first job needs a careful explanation."
+    )
+    rendered(page)
+    assert reading.bounding_box()["y"] > place["y"] + 100
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
+def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, width):
+    """A content revision keeps the reader on a page that still asks for approval.
+
+    Native scroll anchoring is disabled by this page's layout, so it cannot conceal
+    a broken semantic carry when five paragraphs arrive above the reader.
+    """
+    anchoring = "<style>html { overflow-anchor: none; }</style>"
+    first = LIVE_V1.replace(
+        "</head>",
+        '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
+    )
+    second = LIVE_V2.replace("</head>", anchoring + "</head>")
+    page = open_page(browser, live_url(serve(first)))
+    resized(page, width, 900)
+    reading = page.locator("#live-reading")
+    reading.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => document.scrollingElement.scrollBy({
+          top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
+          behavior: 'instant'
+        })"""
+    )
+    scroll_settled(page)
+    expect(reading).to_be_in_viewport()
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    page.wait_for_timeout(600)
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live second")
+    expect(page.locator("#live-new-4")).to_contain_text("New finding 4")
+    rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=4), (before, after)
+
+
 def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser, serve):
     """Authored `html` and `body` attributes both revisions write stay where they are.
 
@@ -3391,6 +3547,121 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     # Reachable, not focused: the revision wrapped the control, so the element the
     # user stood on is gone and the region owes them the way back to its replacement.
     expect(page.locator("#standing-control")).to_be_visible()
+
+
+def test_ask_repaints_keep_the_drawers_reading_until_an_explicit_arrival(
+    browser, serve
+):
+    """The drawer's standing mark may repaint without returning to its focused Ask."""
+    questions = "".join(
+        f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
+        f'<lf-options id="options-{index}" choose>'
+        f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
+        f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
+        "</lf-options></lf-ask>"
+        for index in range(30)
+    )
+    page = open_page(browser, serve(leaf_page("Reading the Ask inventory", questions)))
+    resized(page, 1200, 900)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    page.locator('.lf-asks-row[data-lf-at="ask-0"]').click()
+    expect(page.locator("#ask-0")).to_be_focused()
+    list_selector = ".lf-asks-panel .lf-drawer-list"
+    drawer = page.locator(list_selector)
+    drawer.evaluate(
+        """list => list.addEventListener('scroll', () => {
+          if (list.scrollTop > 100) window.readLaterAsks = true;
+        })"""
+    )
+    box = drawer.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 700)
+    page.wait_for_function("() => window.readLaterAsks")
+    scroll_settled(page, list_selector)
+    reading = drawer.evaluate("list => list.scrollTop")
+    assert reading > 100, "painting the standing row must not undo scrolling the list"
+
+    resized(page, 1180, 900)
+    scroll_settled(page, list_selector)
+    assert drawer.evaluate("list => list.scrollTop") == reading
+    expect(page.locator("#ask-0")).to_be_focused()
+
+    page.keyboard.press("a")
+    expect(page.locator("#ask-1")).to_be_focused()
+    scroll_settled(page, list_selector)
+    assert drawer.evaluate("list => list.scrollTop") < reading
+    row = page.locator('.lf-asks-row[data-lf-at="ask-1"]')
+    assert row.locator(".lf-asks-says").evaluate(
+        "words => words.getBoundingClientRect().top >= "
+        "words.closest('.lf-drawer-list').getBoundingClientRect().top"
+    ), "explicit Ask navigation still reveals its matching drawer row"
+
+
+@pytest.mark.parametrize("newer_reading", [False, True])
+def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
+    browser, serve, newer_reading
+):
+    """An automatic scroll-container change preserves reading rather than stale focus."""
+    paragraphs = "".join(
+        f'<p id="line-{index}">Reading paragraph {index}. '
+        + "Words holding the current reading. " * 10
+        + "</p>"
+        for index in range(30)
+    )
+    source = leaf_page(
+        "Reading beyond the focused control",
+        '<lf-pane id="reading" label="Reading"><div id="reading-body">'
+        '<button id="control">Earlier focused control</button>'
+        f"{paragraphs}</div></lf-pane>",
+        head="""<style>
+#reading-body { height: 400px; overflow: auto; }
+@media (width < 720px) { #reading-body { height: auto; overflow: visible; } }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    body = page.locator("#reading-body")
+    control = page.locator("#control")
+    control.focus()
+    body.evaluate("body => body.scrollTop = 900")
+    scroll_settled(page, "#reading-body")
+    assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
+    landmark_id = body.evaluate(
+        """body => [...body.querySelectorAll('p')].find(paragraph =>
+          paragraph.getBoundingClientRect().top >= body.getBoundingClientRect().top).id"""
+    )
+    if newer_reading:
+        # Interleave at the announced handover, before its deferred restoration. The
+        # platform input supersedes that restoration just as a trackpad gesture does.
+        page.evaluate("""async () => {
+          const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
+            if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
+              return;
+            stop();
+            dispatchEvent(new WheelEvent('wheel', {deltaY: 500}));
+            scrollTo({top: 1900, behavior: 'instant'});
+            window.laterReading = scrollY;
+          });
+        }""")
+
+    resized(page, 520, 900)
+    pane_posture(page, page.locator("#reading"), "flow")
+    scroll_settled(page)
+
+    expect(control).to_be_focused()
+    if newer_reading:
+        assert page.evaluate("() => window.laterReading") > 1000
+        assert page.evaluate("() => scrollY === window.laterReading"), (
+            "a queued posture restore must yield to the user's later reading"
+        )
+        return
+    landmark = page.locator(f"#{landmark_id}")
+    assert landmark.evaluate(
+        "paragraph => paragraph.getBoundingClientRect().top < innerHeight"
+    ), "changing posture must keep the passage being read on screen"
+    assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):

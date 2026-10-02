@@ -1007,6 +1007,14 @@
   },
   "$idioms": {
     "description": "Recurring shapes the theme styles directly — no element declaration, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for. Each key is the CSS selector the shape is written as, and the example beside it is that markup. A layer adds one by declaring it here and styling it in its theme.css; members merge across layers, so the declaration joins this catalog rather than replacing it.",
+    "button.button": {
+      "description": "A page-local action button. The button class supplies the layer's control typography, frame, hover and focus treatment. A toggle states its selection with aria-pressed; true draws the selected face. These classes supply presentation; the page module owns the action and state.",
+      "example": "<button type=\"button\" class=\"button\" aria-pressed=\"true\">Anchored threads</button>"
+    },
+    "select.field, input.field": {
+      "description": "A labeled page-local select or single-line text field, using the same typography, frame and height as the layer's buttons. Use the existing control face rather than rebuilding it in page CSS; page CSS arranges the row.",
+      "example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"
+    },
     ".eyebrow": {
       "description": "A small-caps label above a heading.",
       "example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"

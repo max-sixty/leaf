@@ -131,12 +131,12 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     The page directory is the record of its own use, and it already holds both
     halves. The session appends events and writes status there; the server
     writes `viewed.json` every thirty seconds for as long as a tab holds the
-    page's news stream, so a user looking at the page is a touch too. Neither
+    page's freshness requests, so a user looking at the page is a touch too. Neither
     side has to stamp a heartbeat for this, and one shallow `iterdir` reads both
     — shallow because every file a touch moves sits at the top level, and this is
     read on the serving watchdog's poll.
 
-    Only a *visible* tab, though: `state-feed.js` closes the stream from its
+    Only a *visible* tab, though: `state-feed.js` stops freshness requests from its
     `visibilitychange` listener, so a page sitting in a background tab goes
     untouched until the user returns to it. That gap, not the agent's, is what
     ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
@@ -144,7 +144,7 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     Diagnostic `interactions.jsonl` is excluded: a request alone does not prove
     a visible reader or active agent. `served_state/reading.py` excludes both it
     and `viewed.json` from the page's own reading token, where counting either
-    would make a stream answer its own question. There is no such loop here:
+    would make freshness answer its own question. There is no such loop here:
     ownership feeds the watchdog, not the token.
 
     The claim's own timestamp joins the files for the page that has been served

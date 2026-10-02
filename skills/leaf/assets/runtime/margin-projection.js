@@ -1,21 +1,11 @@
-/* The page-side projection of activity attached to exact document targets.
+/* Overlay annotation clusters and contextual Thread cards.
 
-   This module combines registered contributions with core readings such as Threads,
-   Asks, version changes, delivery receipts, and work claims. It reconciles one cluster
-   and the inline thread card per target, and one more cluster for each thread a
-   pointing gesture stood at a row inside its target (pointed-place.js), then supplies
-   the complete target projection to `page-map-dialog.js`. `contributions.js` owns the
-   public control grammar and contribution registry; `margin-cluster-view.js` owns
-   retained control materialization and Lit child order; `margin-layout.js` owns where
-   each row stands: its lane, its posture in the rail or as a pin, and the packing that
-   keeps rows clear of one another.
-
-   `margin-model.js` derives the immutable inventory and cluster selection; its public
-   records carry target coordinates, captured contribution readings, and generated facts.
-   This adapter keeps target nodes and generated-reading callbacks. The contribution
-   registry keeps registrations and command scopes.
-   `margin-map-model.js` derives the complete searchable Page Map from the same inventory.
-   A model never reads back identity from a control or carries a native control.
+   The application supplies the neutral annotation inventory and its live target/action
+   directory. This renderer selects clusters and controls from those readings; it does
+   not gather Threads, Asks, workflows or contributed actions. Shared contribution
+   controls retain native entries across page and frozen-Thread seats. This renderer's
+   Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
+   lanes and packing. Page Map consumes the inventory independently of this renderer.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
@@ -62,7 +52,8 @@
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
    The rest of the runtime reads both directions from here: `threadHere` gives the thread
    a user standing on the page is at, and the side this owner declares to
-   standing-target.js gives the page target a card, cluster, or panel thread stands for.
+   standing-target.js gives the page target a card or cluster stands for. The panel
+   declares its own target association.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the messages' own scroll, held through reflow. The metadata and
@@ -75,18 +66,12 @@
    A print-media render is deferred until screen media returns because print removes the
    injected controls and cannot supply their geometry.
 
-   One constructed owner holds margin layout, retained controls, and preview state.
-   Boot supplies version, map, travel, and semantic thread-render capabilities.
-   mount hands the layer to the layout and binds the lifecycle after those owners exist; every
-   later render reads the same bound capabilities, including event-driven repaints. */
-import { replyHasWords } from "./thread/replies.js";
+   This owner holds overlay geometry and preview state. The application's annotation
+   pass owns refresh, clocks, contribution updates and print deferral; local geometry
+   gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
+
 import { afterScript, cancelRender, nextRender } from "./rendering.js";
-import {
-  KINDS,
-  excerptWords,
-  labelWords,
-  spokenSubject,
-} from "./contribution-model.js";
+import { labelWords, spokenSubject } from "./contribution-model.js";
 import {
   THREAD_CARD,
   layoutMarginRows,
@@ -98,17 +83,13 @@ import {
   standsFolded,
   unregisterMarginRow,
 } from "./margin-layout.js";
-import {
-  contributionEntries,
-  presentingContributions,
-  contributionSource,
-  watchContributions,
-} from "./contributions.js";
+
 import {
   contributionEntry,
   contributionEntryRecord,
   contributionEntrySource,
   presentContributionEntry,
+  activateContributionControl as activateSharedContribution,
   syncContributionAgentWorkflow,
   syncContributionSelection,
   syncContributionTurn,
@@ -122,7 +103,6 @@ import {
   primaryReading,
   threadReading,
   entryHasMarginHost,
-  contributionItem,
   optionsOffered,
   canFold,
   markerFace,
@@ -134,12 +114,11 @@ import {
   unreadIn,
   readingContext,
   clusterProjection,
-  marginInventory,
 } from "./margin-model.js";
-import { compareContributions } from "./contribution-model.js";
+
 import { mapButton } from "./page-map-dialog.js";
-import { watchProjection } from "./projection-watch.js";
-import { pointBand, standingPoint } from "./pointed-place.js";
+
+import { pointBand } from "./pointed-place.js";
 import {
   declareRelease,
   focusDestination,
@@ -154,8 +133,7 @@ import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
-import { ago, clocked } from "./presence.js";
-import { runtime } from "./context.js";
+
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -177,30 +155,25 @@ import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-picker.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { declareSide, placeOf } from "./standing-target.js";
-import { closestAcross, elementById, inChrome } from "./passages.js";
-import { addressableLabel, addressableWord, visualAt } from "./anchor-resolution.js";
+import { closestAcross, inChrome } from "./passages.js";
+import { visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
-import { updateSequence } from "./updates.js";
+
 import { threadList } from "./thread/state.js";
-import { threadKey, turns } from "./thread/model.js";
+import { turns } from "./thread/model.js";
 import { whenDocumentPresented } from "./semantic-state.js";
 
-import { projectionOrigins } from "./projection/model.js";
-import { authoredStates } from "./projection/authored.js";
-import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
 import {
   claimed,
   focusSurface,
   surfaceFocusTarget,
-  heldOut,
   showHeld,
 } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
-import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import {
@@ -216,148 +189,42 @@ import { clamp, union } from "./rect.js";
 import { passageBox } from "./resolved-target.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
-import {
-  isLiveWorkflow,
-  isPageWidgetWorkflow,
-  isWorkflowProgress,
-  strongestWorkflow,
-  threadAttention,
-  workflowLabel,
-} from "./thread/workflow.js";
-import { renderedParent, shadowHost, under } from "./shadow.js";
+
+import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
+import { threadFocusDestination } from "./thread/focus.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 
 export function createMarginProjection({
+  inventory,
+  refreshInventory,
+  renderAnnotations,
+  showThread,
   panel,
   accompaniedThread,
   accompanyThread,
   panelIsOpen,
-  openAsks,
   designModeActive,
   pointerModeActive,
-  comparisonBase,
-  comparisonChanges,
-  inlineComparison,
-  toggleInlineComparison,
   leavePageMap,
   openPageMap,
   pageMapDialogContains,
-  renderPageMapDialog,
   scrollThreadIntoView,
   renderMarginThread,
   placedAt,
-  showThread,
-  goToAsk,
   scrollToElement,
   scrollToThread,
 }) {
-  const humanized = (value) =>
-    String(value ?? "")
-      .replace(/[-_]+/g, " ")
-      .trim();
-
-  function targetPath(target) {
-    const host = shadowHost(target.getRootNode());
-    // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
-    // own stable path so two instances of the same shadow template stay distinct,
-    // while a live-version replacement at the same authored coordinate can still
-    // retain its marker and preview focus.
-    const prefix = host ? `${targetPath(host)}/shadow/` : "";
-    if (target.id) return `${prefix}id:${target.id}`;
-    const steps = [];
-    let from = "path:";
-    for (let node = target; node;) {
-      // A projected datum's node is generated, so it stands at no authored position
-      // among its siblings; it is named by its projection and key, which also survive a
-      // renderer replacing it (projection/data.js).
-      if (node.dataset?.lfProjection && node.hasAttribute("data-lf-datum")) {
-        from = `datum:${node.dataset.lfProjection}/${node.dataset.lfDatum}:`;
-        break;
-      }
-      const parent =
-        node.parentElement ??
-        (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
-      if (!parent) break;
-      const siblings = [...parent.children].filter(
-        (candidate) =>
-          !candidate.classList.contains("lf-ui") &&
-          !candidate.hasAttribute("data-lf-gen"),
-      );
-      steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-      if (node.localName === "main" || parent instanceof ShadowRoot) break;
-      node = parent;
-    }
-    return `${prefix}${from}${steps.reverse().join("/")}`;
-  }
-
-  function comesBefore(left, right) {
-    if (left === right) return 0;
-    if (!left) return 1;
-    if (!right) return -1;
-    // compareDocumentPosition calls nodes in separate shadow trees disconnected and
-    // leaves their order implementation-specific. Build each composed ancestry instead:
-    // the first divergent nodes share a document or shadow root and therefore have a
-    // stable order. Keeping every inner step also distinguishes a target in an outer
-    // tree from a later target inside one of its nested shadow hosts.
-    const ancestry = (target) => {
-      const chain = [];
-      for (let node = target; node;) {
-        chain.push(node);
-        node = renderedParent(node);
-      }
-      return chain.reverse();
-    };
-    const leftChain = ancestry(left);
-    const rightChain = ancestry(right);
-    let index = 0;
-    while (
-      index < leftChain.length &&
-      index < rightChain.length &&
-      leftChain[index] === rightChain[index]
-    )
-      index += 1;
-    if (index === leftChain.length || index === rightChain.length)
-      return leftChain.length - rightChain.length;
-    return leftChain[index].compareDocumentPosition(rightChain[index]) &
-      Node.DOCUMENT_POSITION_FOLLOWING
-      ? -1
-      : 1;
-  }
-
-  // Targets and generated-reading callbacks stay outside the model. Registered
-  // contributions already publish their own immutable model readings.
-  const targets = new Map();
-  const itemSources = new WeakMap();
-  const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
-  // The row a pointed entry stands by (groupFor), as anchor paint last placed it, while
-  // it still stands inside its target. Where the entry stands (`entryPlace`) is that
-  // row, else the target: every reading of where an entry is on the page, as against
-  // what it is about, asks this.
-  const points = new Map();
-  const entryPoint = (entry) =>
-    entry ? standingPoint(targetFor(entry), points.get(entry.key)) : null;
-  const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
-  // A pointed row is named by its words as the page reads them, cells and blocks apart.
-  const pointName = (words) => {
-    const excerpt = words && excerptWords(words, 32);
-    return excerpt ? `“${excerpt}”` : null;
-  };
-  const sourceItem = (item) => itemSources.get(item);
-  function captureItem(item) {
-    const { activate, discloses, thread, ...data } = item;
-    const snapshot = Object.freeze({
-      ...data,
-      carriesWorkflow: Boolean(workflowReceipt([item])),
-    });
-    itemSources.set(snapshot, { activate, discloses, thread });
-    return snapshot;
-  }
-
-  const workflows = () => runtime.workflows;
-  const renderMargin = clocked(document.body, renderNow);
+  const {
+    targetFor,
+    entryPoint,
+    entryPlace,
+    sourceItem,
+    workflowReceipt,
+    threadItem: marginThreadItem,
+  } = inventory;
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
@@ -512,21 +379,10 @@ export function createMarginProjection({
 
   let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
-  // Selected from the published workflows rather than gathered from the items, whose
-  // order is the margin's, so the strongest is the server's.
-  const workflowReceipt = (items) => {
-    const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
-    return strongestWorkflow(
-      workflows().filter(
-        (workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow),
-      ),
-    );
-  };
   const rows = new Map();
   const moreMarginEntries = new Map();
   const readingMarginEntries = new Map();
   const hosts = new Map();
-  const inlineHosts = new Map();
   let optionsOrdinal = 0;
   let pageInventory = [];
   // How far down the page each entry's target stands, in whole percent, as its marker's
@@ -729,7 +585,7 @@ export function createMarginProjection({
     if (widthFrame) return;
     widthFrame = nextRender(() => {
       widthFrame = 0;
-      renderMargin.refresh();
+      renderAnnotations.refresh();
     });
   }
   function deferThreadPreviewFocus(positioned, focus) {
@@ -1113,368 +969,6 @@ export function createMarginProjection({
     return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
   }
 
-  // One group per target, and one more for each row inside it that pointing gestures
-  // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, an Ask's marker, a widget's
-  // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
-  // row's key, which its first comment gave it and later ones share, the element it is,
-  // and its words as the page reads them, which name it.
-  function groupFor(groups, target, pointed = null) {
-    const slot = pointed ? `point:${pointed.key}` : target;
-    let group = groups.get(slot);
-    if (!group) {
-      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
-      const word = addressableWord(target);
-      group = {
-        key,
-        target,
-        point: pointed?.element ?? null,
-        pointWords: pointed?.words ?? null,
-        word,
-        subject: null,
-        title: null,
-        items: [],
-        offers: [],
-      };
-      groups.set(slot, group);
-    }
-    return group;
-  }
-
-  function add(groups, target, item, pointed = null) {
-    if (!target?.isConnected || inChrome(target)) return;
-    const group = groupFor(groups, target, pointed);
-    group.items.push(item);
-  }
-
-  function visibleWidgetWorkflows() {
-    return workflows().filter((workflow) =>
-      isPageWidgetWorkflow(workflow, runtime.currentRevision),
-    );
-  }
-
-  // A receipt's face is its category's icon and rank under the receipt's own label,
-  // so one reading of a receipt never names a different stage than its text does.
-  function agentWorkflowFace(receipt) {
-    if (!receipt) return null;
-    const label = workflowLabel(receipt);
-    if (!label) return null;
-    return {
-      kind:
-        receipt.next_actor === "user" || receipt.condition
-          ? "waiting"
-          : ["working", "replying"].includes(receipt.stage)
-            ? "activity"
-            : receipt.stage === "picked_up"
-              ? "pickup"
-              : receipt.stage === "queued"
-                ? "queued"
-                : "sent",
-      text: label,
-      context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
-        .filter(Boolean)
-        .join(" · "),
-    };
-  }
-
-  const marginThreadItem = (thread) => (thread ? `comment:${threadKey(thread)}` : null);
-
-  function collectEntries() {
-    const groups = new Map();
-    const receiptByCoordinate = new Map();
-    for (const receipt of visibleWidgetWorkflows()) {
-      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
-    }
-    const representedThreads = new Set();
-    for (const thread of threadList()) {
-      // A settled thread keeps its marker while the user has words for it, or while a
-      // widget holds it out of its flow behind that marker (thread/held-news.js).
-      const kept = replyHasWords(threadKey(thread)) || heldOut(thread.id);
-      if ((thread.resolved && !kept) || !thread.anchor || claimed(thread.id)) continue;
-      const id = thread.id;
-      const target = placedAt(id)?.element;
-      if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
-      const attention = threadAttention(thread);
-      const onUser = attention?.kind === "needs_user";
-      const unread = thread.unread.length;
-      const placement = placedAt(id);
-      const point = standingPoint(target, placement?.point);
-      const pointed = point
-        ? { key: placement.pointRow, element: point, words: placement.pointWords }
-        : null;
-      add(
-        groups,
-        target,
-        {
-          kind: "comment",
-          // One row for one thread, across the log answering for it. A thread the
-          // user just opened is known by its attempt until the log names it, and a row
-          // whose identity changed there would be rebuilt — taking with it the reply box
-          // the send had just put them in.
-          id: marginThreadItem(thread),
-          text: labelWords(
-            thread.root.text || anchorLabel(thread.anchor, thread.root.about),
-          ),
-          thread,
-          // The Thread record already combines server attention with the local workflow
-          // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields.
-          userAttention: onUser
-            ? {
-                label: attention.label,
-                reason: thread.attention?.reason ?? "workflow",
-              }
-            : null,
-          unread,
-          // Page Map lists each thread on its own row, so the word goes on the row
-          // rather than on an aggregate.
-          ...(onUser
-            ? { mapContext: attention.label }
-            : unread
-              ? { mapContext: `${unread} unread` }
-              : {}),
-          // Work decorates the thread control; it never replaces the control's
-          // comment face or its disclosure action.
-          workflowReceipt: onUser ? null : attention?.workflow,
-          activate: () => showThread(id),
-        },
-        pointed,
-      );
-    }
-
-    const asks = openAsks();
-    for (const ask of asks) {
-      const id = ask.id;
-      const target = elementById(id);
-      if (!target) continue;
-      add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
-        // The group this row stands in already names the Ask; the row says why it is
-        // there, since these are the Asks the user owes.
-        text: "Waiting on you",
-        // The marker's own label is the question, which says more than the kind its
-        // glyph already shows.
-        label: addressableLabel(target) || null,
-        activate: () => {
-          const standing = openAsks();
-          const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, standing);
-        },
-      });
-    }
-
-    const projection = currentProjection();
-    const claimActivity = new Map(
-      workflows()
-        .filter(isLiveWorkflow)
-        .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
-    );
-    const activityAlreadyShown = new Set();
-    const acknowledged = new Set();
-    for (const [coordinate, entry] of projection.desired) {
-      if (entry.e.kind !== "action") continue;
-      const target = elementById(entry.unit) ?? elementById(entry.e.widget);
-      if (!target) continue;
-      const receipt = receiptByCoordinate.get(coordinate);
-      if (!receipt) continue;
-      const account = [
-        addressableWord(target),
-        humanized(entry.e.action),
-        addressableLabel(target),
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      const face = agentWorkflowFace(receipt);
-      if (!face) continue;
-      if (face.kind === "activity")
-        activityAlreadyShown.add(`widget:${receipt.subject.id}`);
-      acknowledged.add(target);
-      add(groups, target, {
-        kind: face.kind,
-        id: `acknowledgment:${receipt.id}`,
-        text: labelWords(`${face.text} · ${account}`),
-        workflowFace: Object.freeze({ ...KINDS[face.kind], label: face.text }),
-        workflowReceipt: receipt,
-        ...(face.context ? { context: face.context } : {}),
-        activate: () =>
-          revealTarget(target, `${face.text}: ${account}`, scrollToElement),
-      });
-    }
-
-    for (const origin of projectionOrigins(authoredStates(), projection)) {
-      const target = elementById(origin.unit);
-      if (!target) continue;
-      // A gesture the agent still owes an answer to stands under its workflow row, which
-      // says the change is the user's and where it has got to; its provenance row would
-      // say the first half again.
-      if (origin.origin === "user" && acknowledged.has(target)) continue;
-      const face = KINDS[origin.origin];
-      add(groups, target, {
-        kind: origin.origin,
-        id: `state-origin:${origin.origin}:${origin.unit}`,
-        // Durable provenance belongs in Page Map rather than another target margin entry:
-        // it remains explicit without changing the page's action density or geometry.
-        marker: false,
-        text: labelWords(
-          [face.label, addressableWord(target), addressableLabel(target)]
-            .filter(Boolean)
-            .join(" · "),
-        ),
-        activate: () =>
-          revealTarget(
-            target,
-            `${face.label}: ${addressableLabel(target) || addressableWord(target)}`,
-            scrollToElement,
-          ),
-      });
-    }
-
-    const base = comparisonBase();
-    comparisonChanges().forEach((target, index) => {
-      const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
-      const inline = inlineComparison(target);
-      const mapAccount = inline ? `${addressableWord(target)} changed` : account;
-      add(groups, target, {
-        kind: "change",
-        id: `change:${targetPath(target)}:${index}`,
-        text: labelWords(
-          [mapAccount, addressableLabel(target)].filter(Boolean).join(" · "),
-        ),
-        // A disclosure has to say what it holds, or its one word reports a fact and
-        // promises nothing. The margin entry's quieter line carries it, and a block the
-        // comparison holds nothing for has none, so no margin entry offers a press it has
-        // not got.
-        ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
-        // What a Change reading holds, where the comparison kept the base version's
-        // words for this block: pressing it splices dropped text into the current
-        // passage and paints additions there, so the user learns what changed without
-        // travelling to the other version and back. Where it kept none, the press is the
-        // travel it always was, and `discloses` answering null is what says so — to the
-        // margin entry's relation, to the shortcut bar's word for the press, and to the
-        // reference.
-        discloses: () => inlineComparison(target),
-        activate: () => {
-          const said = toggleInlineComparison(target);
-          revealTarget(
-            target,
-            said ? `${account} · ${said}` : account,
-            scrollToElement,
-          );
-        },
-      });
-    });
-
-    if (runtime.activity?.held)
-      for (const update of updateSequence()) {
-        if (update.source !== "claim" || update.disposition !== "effective") continue;
-        if (update.revision > runtime.currentRevision) continue;
-        if (update.target.kind === "thread" && representedThreads.has(update.target.id))
-          continue;
-        if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
-          continue;
-        const target =
-          update.target.kind === "thread"
-            ? placedAt(update.target.id)?.element
-            : elementById(update.target.id);
-        const age = ago(update.ts);
-        const account = [update.agent, update.text || humanized(update.action)]
-          .filter(Boolean)
-          .join(" · ");
-        add(groups, target, {
-          kind: "activity",
-          id: `activity:${update.id}`,
-          text: labelWords(account),
-          workflowFace: KINDS.activity,
-          workflowReceipt: claimActivity.get(
-            `${update.target.kind}:${update.target.id}`,
-          ),
-          context: [age && `Checked in ${age}`, update.text]
-            .filter(Boolean)
-            .join(" · "),
-          activate: () => revealTarget(target, account, scrollToElement),
-        });
-      }
-
-    for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
-      if (!target?.isConnected || inChrome(target)) continue;
-      const group = groupFor(groups, target);
-      if (group.offers.some((candidate) => candidate.key === offered.key))
-        throw new TypeError(
-          `Duplicate margin contribution key for ${target.id || targetPath(target)}: ${offered.key}`,
-        );
-      group.offers.push(offered);
-      const subject = offered.reading.subject;
-      if (String(subject ?? "").trim()) {
-        if (group.subject && group.subject !== String(subject).trim())
-          throw new TypeError(
-            `Conflicting margin contribution subjects for ${target.id || targetPath(target)}`,
-          );
-        group.subject = String(subject).trim();
-      }
-      for (const item of offered.reading.readings) {
-        const kind = item.kind ?? "action";
-        if (!KINDS[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
-        group.items.push({
-          marker: false,
-          ...item,
-          owner: offered.key,
-          kind,
-          activate: () => offered.registration.activateReading(item.id),
-        });
-      }
-    }
-
-    const outline = pageOutline();
-    const collected = [...groups.values()];
-    const subjects = collected
-      .filter((group) => !group.subject)
-      .map((group) => group.target);
-    targets.clear();
-    points.clear();
-    return marginInventory(
-      collected
-        .sort((left, right) =>
-          comesBefore(left.point ?? left.target, right.point ?? right.target),
-        )
-        .map((group) => {
-          const subject = outlineSubjectFor(group.target, subjects, outline);
-          targets.set(group.key, group.target);
-          if (group.point) points.set(group.key, group.point);
-          return Object.freeze({
-            key: group.key,
-            targetId: group.target.id,
-            title: labelWords(
-              [
-                group.subject ? null : subject.context,
-                group.word,
-                group.subject ?? addressableLabel(group.target),
-                // A pointed row is named by the words it stands by, so it and the
-                // target's own row do not read alike.
-                pointName(group.pointWords),
-              ]
-                .filter(Boolean)
-                .join(" · "),
-            ),
-            offers: Object.freeze(group.offers.map((offered) => offered.model)),
-            items: Object.freeze(group.items.map(captureItem)),
-            workflowReceipt: workflowReceipt(group.items),
-          });
-        }),
-    );
-  }
-
-  function revealTarget(target, account, scrollToElement) {
-    if (!target?.isConnected) return;
-    scrollToElement(target, scrollBehavior(), "nearest");
-    // The account goes to the bottom notice rather than to the live region alone:
-    // a Change margin entry's target is usually already on screen, so the scroll moves nothing
-    // and a press that only announced was, to a sighted user, a press that did nothing.
-    notice(account);
-  }
-
   // Every row lives in the chrome's margin layer, whatever it holds, and the layout owns
   // where: which lane, in which posture, at what offset (margin-layout.js). The row states
   // its target and its place among the others.
@@ -1506,7 +1000,7 @@ export function createMarginProjection({
           refoldQueued = true;
           queueMicrotask(() => {
             refoldQueued = false;
-            renderMargin.refresh();
+            renderAnnotations.refresh();
           });
         },
       },
@@ -1601,7 +1095,7 @@ export function createMarginProjection({
     const paint = () => {
       settlingOptionsFocus = true;
       try {
-        renderMargin.refresh();
+        renderAnnotations.refresh();
         if (returnFocus && previousKey) {
           handBack(moreMarginEntries.get(previousKey));
         } else if (focusOption && nextKey) {
@@ -1658,14 +1152,14 @@ export function createMarginProjection({
   // anything paints, so the cluster renders once, already open, rather than shut and
   // then opened in the same task.
   function openMarginEntryOptions(target, owner) {
-    const entry = collectEntries().find(
+    const entry = refreshInventory().find(
       (candidate) =>
         targetFor(candidate) === target &&
         candidate.offers.some((offered) => offered.key === owner),
     );
     if (!entry || !entryHasMarginHost(entry)) return false;
     if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
-      renderMargin.refresh();
+      renderAnnotations.refresh();
       const options = hosts.get(entry.key)?.options;
       if (options?.isConnected && !options.hidden) return true;
       expandedOptionsKey = null;
@@ -1836,7 +1330,7 @@ export function createMarginProjection({
       expandedOptionsOwner = null;
     }
     revealHost(null);
-    renderMargin.refresh();
+    renderAnnotations.refresh();
     repaint();
   });
   pageCommand({
@@ -1985,31 +1479,17 @@ export function createMarginProjection({
   function activateContributionControl({ offered, entry, control, surface, event }) {
     const consumesFocusedOwner =
       expandedOptionsKey && expandedOptionsOwner === offered.key;
-    const activated = contributionSource(offered).registration.activate(entry.key, {
-      origin: control,
-      surface,
-      input: event.detail === 0 ? "keyboard" : "pointer",
-      // A contributor can replace the activated entry and ask to retain focus. That is
-      // one semantic destination, not a fresh keyboard arrival that should disclose the
-      // whole cluster again.
-      focus: (key) => {
-        const destination = contributionSource(offered).registration.control(
-          key,
-          surface,
-          true,
-        );
-        if (!destination) return false;
-        focusForNavigation(destination);
-        return true;
-      },
-    });
+    const activated = activateSharedContribution(
+      { offered, entry, control, surface, event },
+      focusForNavigation,
+    );
     // A disclosed contributor is a route to an action, not a mode that survives that
     // action. Its next immutable reading decides whether the resulting controls remain
     // open.
     if (activated && consumesFocusedOwner) {
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
-      renderMargin.refresh();
+      renderAnnotations.refresh();
     }
   }
 
@@ -2068,65 +1548,6 @@ export function createMarginProjection({
     return primary;
   }
 
-  // A widget frozen into a thread belongs to that thread's document,
-  // not to the page margin behind it. Keep its contributed controls in the local
-  // flow, grouped by the same exact target identity, without registering a page rail
-  // claim or a second placement model in the widget module.
-  function syncInlineOffers() {
-    const grouped = new Map();
-    for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
-      if (
-        !target?.isConnected ||
-        !inChrome(target) ||
-        !offered.reading.entries.some((entry) => entry.visible)
-      )
-        continue;
-      const offers = grouped.get(target) ?? [];
-      offers.push(offered.model);
-      grouped.set(target, offers);
-    }
-
-    // A dynamic target can move one retained contribution between thread seats.
-    // Retire the old owner before the new one tracks that same native control.
-    for (const [target, host] of inlineHosts)
-      if (!grouped.has(target)) {
-        host.clear();
-        host.remove();
-        inlineHosts.delete(target);
-      }
-
-    for (const [target, offers] of grouped) {
-      let host = inlineHosts.get(target);
-      if (!host) {
-        host = clusterViews.createInline();
-        inlineHosts.set(target, host);
-      }
-      host.lfTarget = target;
-      const items = (side) =>
-        offers
-          .filter((offered) => offered.reading.side === side)
-          .sort(compareContributions)
-          .flatMap((offered) =>
-            offered.reading.entries
-              .filter((record) => record.visible)
-              .map((record) => contributionItem(offered, record, "inline")),
-          );
-      host.present(
-        Object.freeze({
-          entry: null,
-          items: Object.freeze([...items("before"), ...items("after")]),
-          kind: "inline",
-          label: `Actions for ${spokenSubject(addressableWord(target))}`,
-          offers: Object.freeze([...offers]),
-          target: target.id || targetPath(target),
-        }),
-      );
-      if (target.nextSibling !== host) moveHost(host, () => target.after(host));
-    }
-  }
-
   function moveHost(host, move) {
     const restoreFocus = holdFocus(host);
     // Moving a focused expanded cluster between lanes, when its target's scroller
@@ -2155,7 +1576,7 @@ export function createMarginProjection({
     const previousOwner = expandedOptionsOwner;
     expandedOptionsKey = entry.key;
     expandedOptionsOwner = null;
-    renderMargin.refresh();
+    renderAnnotations.refresh();
     if (previousOwner === "responses")
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
@@ -2170,28 +1591,14 @@ export function createMarginProjection({
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
-  // Paper is not a posture this can be read in. Print hides every injected control
-  // (`[data-lf-offer]` in the chrome stylesheet's print block) and the margin projection
-  // with it, so the one contributor-visibility reading a render is built on comes back
-  // empty: every cluster folds to nothing, and what has been written down is the medium
-  // rather than the page. Nobody sees it on the dialog, where the margin does not print
-  // at all, but the fold outlives the print preview and stands on screen until the next
-  // render repairs it. A reading taken where the box is `display: none` is not a
-  // measurement, so a render asked for on paper is refused whole and taken once the
-  // screen is back.
-  const onPaper = matchMedia("print");
-
-  function renderNow() {
-    if (onPaper.matches) return;
+  function renderNow(inventory) {
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
       chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
-    presentingContributions();
-    syncInlineOffers();
-    pageInventory = collectEntries();
+    pageInventory = inventory;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
@@ -2375,7 +1782,6 @@ export function createMarginProjection({
         syncContributionAgentWorkflow(control, null);
     workflowCarriers = nextWorkflowCarriers;
     nameMarkers(readSpokenPositions(pageInventory));
-    renderPageMapDialog(pageInventory);
     keepsHidden(nav, pageInventory.length === 0);
     keeps(nav, "aria-label", `Page Map, ${pageInventory.length} locations`);
     if (previewEntry) {
@@ -2556,7 +1962,7 @@ export function createMarginProjection({
               return (
                 may() &&
                 mayLand.available() &&
-                Boolean(openPageThread(thread, { focus: "thread" }))
+                Boolean(await openPageThread(thread, { focus: "thread", intent: may }))
               );
             },
           };
@@ -2846,7 +2252,7 @@ export function createMarginProjection({
         setOptionsOpen(entry, false);
       closePreview();
       leavePageMap();
-      openPageThread(sourceItem(choice.items[0]).thread.id);
+      void openPageThread(sourceItem(choice.items[0]).thread.id);
       return;
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2864,10 +2270,7 @@ export function createMarginProjection({
   // `unfold: false` is a card that accompanies where the user stands rather than one
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
-  function openInlineThread(
-    id,
-    { transition = null, onPositioned = null, unfold = true } = {},
-  ) {
+  function openInlineThread(id, { transition = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadList().find((t) => t.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2897,7 +2300,7 @@ export function createMarginProjection({
       forcedInlineOptionsKey = expandedOptionsKey === entry.key ? null : entry.key;
       if (forcedInlineOptionsKey)
         setOptionsOpen(entry, true, { preservePreview: transfersPreview });
-      else renderMargin.refresh();
+      else renderAnnotations.refresh();
       button = threadMarginEntry(entry);
     }
     if (!button?.isConnected) {
@@ -2917,13 +2320,6 @@ export function createMarginProjection({
     const positioned = transition
       ? revealThread(transition, entry, initiallyPositioned)
       : initiallyPositioned;
-    if (thread && onPositioned)
-      deferThreadPreviewFocus(positioned, () => {
-        const current = [...previewList.children]
-          .find((candidate) => candidate.lfMarginItem === itemId)
-          ?.querySelector(".lf-page-thread");
-        if (current) onPositioned(current);
-      });
     return thread && { thread, presented: positioned };
   }
 
@@ -2932,37 +2328,58 @@ export function createMarginProjection({
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable thread. Callers choose only the landing within the thread;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
-  // cannot drift into different policies. The margin card always lands on the thread
-  // itself.
+  // cannot drift into different policies. Its default opens the compact margin card
+  // on the thread; an explicit reply requests its editor, and Threads defaults to reply.
+  // The promise resolves the actual destination after the selected placement lands.
   //
   // A press on marked words passes `travel: false`: the words are already under the
   // user's hand, and centring them moves everything the user was looking at. The
   // card needs no trip: it opens in the window even where its cluster is above it.
-  function openPageThread(id, { focus = "reply", travel = true } = {}) {
+  async function openPageThread(
+    id,
+    { focus = null, travel = true, intent = retainUserIntent() } = {},
+  ) {
+    if (!intent()) return null;
     if (!panelIsOpen()) {
-      // The trip starts before the surface takes focus, which scrolls it into view: the
-      // trip records the place the user leaves, so it has to find them still there.
-      const local = surfaceFocusTarget(id, { focus });
+      // Capture the departure before any selected surface moves focus. The route
+      // returns its actual destination only after the existing placement has landed.
+      const localFocus = focus ?? "reply";
+      const local = surfaceFocusTarget(id, { focus: localFocus });
       if (local) {
-        if (travel) scrollToThread(id, { focus });
-        else focusSurface(id, { focus });
-        closePreview();
-        return local;
+        intent.handoff(closePreview);
+        if (travel) {
+          if (!(await scrollToThread(id, { focus: localFocus, intent }))) return null;
+        } else if (!intent.handoff(() => focusSurface(id, { focus: localFocus })))
+          return null;
+        return surfaceFocusTarget(id, { focus: localFocus });
       }
-      const opened = openInlineThread(id, {
-        onPositioned: travel
-          ? null
-          : (thread) => {
-              focusForNavigation(thread);
-              thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-            },
-      });
+      const opened = openInlineThread(id);
       if (opened) {
-        if (travel) scrollToThread(id, { focus, presented: opened.presented });
-        return opened.thread;
+        if (travel) {
+          if (
+            !(await scrollToThread(id, {
+              focus: focus ?? "thread",
+              presented: opened.presented,
+              intent,
+            }))
+          )
+            return null;
+        } else {
+          if (!(await opened.presented) || !intent()) return null;
+          const current = threadFocusTarget(id, { focus });
+          if (
+            !current ||
+            !intent.handoff(() => {
+              focusForNavigation(current);
+              current.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+            })
+          )
+            return null;
+        }
+        return threadFocusTarget(id, { focus });
       }
     }
-    return showThread(id, { focus });
+    return showThread(id, { focus: focus ?? "reply", intent });
   }
 
   // The row's acknowledgment face is read out of the published state projection rather
@@ -3181,23 +2598,22 @@ export function createMarginProjection({
   // The page element a thread is about, resolved or not: where its anchor is placed, the
   // element its inventory entry is grouped under. A general or detached thread has none.
   const threadTarget = (id) => placedAt(id)?.element ?? null;
-  const threadFocusTarget = (id, options) =>
-    surfaceFocusTarget(id, options) ??
-    [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (thread) => thread.dataset.thread === id,
-    ) ??
-    null;
+  const threadFocusTarget = (id, { focus = null } = {}) => {
+    const surface = surfaceFocusTarget(id, { focus });
+    if (surface) return surface;
+    const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
+      (candidate) => candidate.dataset.thread === id,
+    );
+    return thread ? threadFocusDestination(thread, { focus: focus ?? "thread" }) : null;
+  };
   // The page target this owner's chrome shows (standing-target.js): a margin cluster
-  // control's, the card's — its threads and its own controls — and a thread's in the
-  // Threads panel. `threadHere` is the same relation read the other way.
+  // control's and the card's — its threads and its own controls. `threadHere` is
+  // the same relation read the other way.
   declareSide((node) => {
     const projected = marginTargetAt(node);
     if (projected) return projected;
     if (preview.contains(node)) return targetFor(previewEntry);
-    const listed = panel.contains(node)
-      ? closestAcross(node, ".lf-thread[data-id]")
-      : null;
-    return listed ? threadTarget(listed.dataset.id) : null;
+    return null;
   });
   // A live revision replaces the browser document, so DOM identity cannot carry a
   // user standing in retained margin chrome. Carry the target and margin-entry keys
@@ -3261,9 +2677,6 @@ export function createMarginProjection({
 
   function mount() {
     mountMarginLayer(toolbar);
-    onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderMargin.refresh();
-    });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusout", (event) => {
       const row = event.target.closest?.(".lf-thread-reply");
@@ -3285,8 +2698,6 @@ export function createMarginProjection({
     });
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    watchProjection(document.body, renderMargin);
-    document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
       placeThreadPreview();
       scheduleMarginEntryLabels();
@@ -3322,16 +2733,12 @@ export function createMarginProjection({
       },
       { capture: true },
     );
-    watchContributions(({ immediate }) => {
-      renderMargin();
-      if (immediate) layoutMarginRows();
-    });
     document.addEventListener("scroll", () => scheduleRoving(), {
       capture: true,
       passive: true,
     });
     window.addEventListener("resize", () => scheduleWidthRender());
-    renderMargin();
+    renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box
     // laid out before it: the margin comes first.
     chromeRoot.append(nav, preview);
@@ -3349,11 +2756,20 @@ export function createMarginProjection({
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),
-    activateMapItem: activate,
-    faceForMap: (item) => KINDS[item.kind],
+    releaseForMap: (entry) => {
+      if (expandedOptionsKey && expandedOptionsKey !== entry.key)
+        setOptionsOpen(entry, false);
+      closePreview();
+    },
+    mapFocusTarget: (entry) => {
+      const visible = visibleRows();
+      return entry
+        ? (rows.get(entry.key) ?? null)
+        : (visible.find((row) => row.tabIndex === 0) ?? visible[0] ?? null);
+    },
     targetFor,
-    mapControlPlaces,
-    renderMargin,
+    paint: renderNow,
+    flushLayout: layoutMarginRows,
     threadTransitionOrigin,
     scheduleThreadPreviewPosition,
     marginTargetAt,

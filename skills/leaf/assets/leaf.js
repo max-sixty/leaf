@@ -20,9 +20,9 @@ import {
   pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
-  PAGE_PAINT_ATTRIBUTE,
   PRESENTATION,
 } from "./runtime/presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
 import { renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
@@ -221,7 +221,7 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
-    app.margin.renderMargin();
+    app.renderAnnotations();
     paintKeys();
     repaint();
     anchorPaint.refreshHover();
@@ -349,6 +349,9 @@ const anchorControls = createAnchorControls({
 });
 
 const version = createVersionController({
+  compositionInput: fabInput,
+  openThread: (id, options) =>
+    app.margin.openPageThread(id, { ...options, travel: false }),
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
@@ -487,11 +490,10 @@ declareStanding({
 });
 
 pageMapDialog = createPageMapDialog({
-  activeInMargin: app.margin.pageMapActive,
-  activateItem: app.margin.activateMapItem,
-  faceFor: app.margin.faceForMap,
-  mapControlPlaces: app.margin.mapControlPlaces,
-  targetFor: app.margin.targetFor,
+  inventory: app.annotations,
+  activeInAnnotations: app.margin.pageMapActive,
+  releaseAnnotations: app.margin.releaseForMap,
+  annotationFocus: app.margin.mapFocusTarget,
 });
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
@@ -667,6 +669,7 @@ threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
   threadHere: app.margin.threadHere,
+  placedAt: anchorPaint.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
@@ -789,6 +792,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  app.mountAnnotations();
   app.margin.mount();
   app.mountThread();
   app.mountRead();
@@ -897,11 +901,17 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
+    const draftOpened =
+      !offlineInteractive && selectionComposer.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a
     // malformed page that the unanchored provisional pass could not yet inspect.
     await whenApplicationPresented();
+    if (draftOpened) {
+      await responseSurface.fabPositioned();
+      paintKeys();
+    }
   } catch (error) {
     setAnchoringReady(false);
     throw error;
@@ -923,10 +933,9 @@ async function presentPage() {
   repaint();
   layoutMarginRows();
   landFragment();
-  landArrival();
+  await landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  selectionComposer.openDraft(savedComposer);
   document.dispatchEvent(new Event(PRESENTATION));
 }
 

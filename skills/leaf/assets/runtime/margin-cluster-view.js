@@ -1,20 +1,16 @@
-/* The generated child-order owner for page and thread margin controls.
+/* The generated child-order owner for overlay annotation controls.
  *
  * The margin projection supplies one frozen descriptor model before any DOM is
- * materialized. This synchronous light-DOM Lit owner retains native controls by
- * contribution and entry identity, then places them across the direct, disclosed, and
- * inline seats. The projection still owns semantic selection, keyboard state, and
+ * materialized. This synchronous light-DOM Lit owner seats shared retained native
+ * controls across direct and disclosed positions. The overlay owns selection, keyboard state, and
  * whole-host placement; no other code inserts, moves, or removes a child inside a view.
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import {
   clearContributionControls,
-  createContributionControl,
+  materializeContributionControls,
   contributionEntry,
-  contributionControlMatches,
-  contributionEntryRecord,
   presentContributionEntry,
-  trackContributionControl,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
 import { el, offer } from "./widget-elements.js";
@@ -58,15 +54,8 @@ class MarginClusterView extends HTMLElement {
     keeps(this, "data-lf-margin-for", model.target);
     keeps(this, "aria-label", model.label);
     this.#offers = model.offers;
-    this.#surface = model.kind === "inline" ? "inline" : "margin";
+    this.#surface = "margin";
     this.#owner.prepare(this.#offers, this.#surface);
-    if (model.kind === "inline") {
-      const nodes = this.#owner.materialize(model.items);
-      for (const node of nodes) node.removeAttribute("data-lf-margin-entry-primary");
-      render(html`${this.#owner.nodes(nodes)}`, this);
-      restoreFocus?.();
-      return null;
-    }
     if (!this.#marker || !this.#more || !this.#optionsId)
       throw new Error("Page margin presentation needs its retained controls");
     this.#entryKey = model.options.entryKey;
@@ -142,50 +131,15 @@ export function createMarginClusterViews({
   materializeReading,
   openSpill,
 }) {
-  const contributionControls = new WeakMap();
   const contributionNotices = new WeakMap();
   const spills = new Map();
-  let relationOrdinal = 0;
 
-  function controlsOf(offered, surface) {
-    const source = contributionSource(offered);
-    let controls = contributionControls.get(source);
-    if (!controls) {
-      controls = new Map();
-      contributionControls.set(source, controls);
-    }
-    const entries = offered.reading.entries.filter((entry) => entry.visible);
-    const liveKeys = new Set(entries.map((entry) => entry.key));
-    const changed = new Set();
-    for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
-    for (const entry of entries) {
-      let control = controls.get(entry.key);
-      if (!control || !contributionControlMatches(control, entry)) {
-        control = createContributionControl(entry);
-        controls.set(entry.key, control);
-        changed.add(control);
-      } else if (contributionEntryRecord(control) !== entry) changed.add(control);
-      control.onclick = (event) =>
-        activateContribution({ offered, entry, control, surface, event });
-      trackContributionControl(source, surface, entry.key, control);
-    }
-    clearContributionControls(source, surface, liveKeys);
-    for (const entry of entries) {
-      const control = controls.get(entry.key);
-      const related =
-        entry.relation?.kind === "entries"
-          ? entry.relation.keys.map((key) => controls.get(key)).filter(Boolean)
-          : [];
-      related.forEach((node, index) => {
-        if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
-      });
-      if (changed.has(control))
-        presentContributionEntry(control, entry, {
-          relatedControlIds: related.map((node) => node.id),
-        });
-    }
-    return controls;
-  }
+  const controlsOf = (offered, surface) =>
+    materializeContributionControls(
+      contributionSource(offered),
+      surface,
+      activateContribution,
+    );
 
   function materializeOne(item) {
     if (item.kind === "contribution") {
@@ -279,7 +233,6 @@ export function createMarginClusterViews({
   };
 
   return Object.freeze({
-    createInline: () => create("lf-ui lf-margin-inline"),
     createPage: (marker, more, optionsId) =>
       create("lf-ui lf-margin-cluster", { marker, more, optionsId }),
   });

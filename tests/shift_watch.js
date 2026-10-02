@@ -23,7 +23,9 @@
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation or
 // pixel left/top/marginLeft/marginTop. Scale, rotation and composed effects receive
-// no inferred translation credit.
+// no inferred translation credit. A floating owner's last-written held-edge point
+// declares page/window plane changes under the same subject, anchor and tenure;
+// its solver dimensions, not the holder's rendered displacement, supply that credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
@@ -35,7 +37,7 @@
 // any subsequent sampled pose remains an unresolved observability limit.
 //
 // Every finding fails the ordinary browser fixture. It installs this sensor after
-// write_watch.js and binds the canonical runtime/control-selectors.js declaration.
+// write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
   const WINDOW = 1000;
   // How long what the observer may yet judge is kept: it hears of a frame's shifts a
@@ -136,6 +138,8 @@
   const placed = new WeakMap();
   const scrolled = new WeakMap();
   const animated = new WeakMap();
+  const floating = new WeakMap();
+  let floatingOwners = new Set();
   const animationProperties = (animation) => [
     ...new Set(
       animation.effect
@@ -168,6 +172,18 @@
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
     const at = performance.now();
+    const selections = new Map(
+      (
+        document.querySelector("script[data-lf-entry]")?.lfFloatingSelections?.() ?? []
+      ).map((selection) => [selection.floating, selection]),
+    );
+    for (const owner of new Set([...floatingOwners, ...selections.keys()])) {
+      const readings = floating.get(owner) ?? [];
+      readings.push({ at, selection: selections.get(owner) ?? null });
+      prune(readings, (reading) => reading.at);
+      floating.set(owner, readings);
+    }
+    floatingOwners = new Set(selections.keys());
     const effects = document.getAnimations().filter(moves);
     const uses = new Map();
     for (const animation of effects) {
@@ -241,6 +257,8 @@
       const range = node.nodeType === Node.TEXT_NODE ? document.createRange() : null;
       if (range) range.selectNodeContents(node);
       const rect = range ? range.getBoundingClientRect() : node.getBoundingClientRect();
+      const scaleX = !range && node.offsetWidth ? rect.width / node.offsetWidth : 1;
+      const scaleY = !range && node.offsetHeight ? rect.height / node.offsetHeight : 1;
       const fragments = range ? [...range.getClientRects()] : [rect];
       const style = getComputedStyle(element);
       let paintedElement = element;
@@ -253,6 +271,7 @@
         paintedElement instanceof Element &&
         exposed(element) &&
         paintedElement.checkVisibility({ checkOpacity: true });
+      const clipping = clippingAxes(style);
       const paint = {
         parent: up(node),
         anchor: range
@@ -270,11 +289,37 @@
           [node.style.top, node.style.bottom].some((value) =>
             anchorInset(value, "top"),
           ),
+        insetX: range ? null : `${node.style.left}|${node.style.right}`,
+        insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,
+        block:
+          !range && ["fixed", "absolute"].includes(style.position)
+            ? node.offsetParent
+            : null,
+        clipLeft: range
+          ? null
+          : node === document.scrollingElement
+            ? 0
+            : rect.left + node.clientLeft * scaleX,
+        clipTop: range
+          ? null
+          : node === document.scrollingElement
+            ? 0
+            : rect.top + node.clientTop * scaleY,
+        clipRight: range
+          ? null
+          : node === document.scrollingElement
+            ? innerWidth
+            : rect.left + (node.clientLeft + node.clientWidth) * scaleX,
+        clipBottom: range
+          ? null
+          : node === document.scrollingElement
+            ? innerHeight
+            : rect.top + (node.clientTop + node.clientHeight) * scaleY,
         visibility: style.visibility,
         opacity: style.opacity,
-        overflowX: style.overflowX,
-        overflowY: style.overflowY,
+        clipsX: clipping.x,
+        clipsY: clipping.y,
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
@@ -283,6 +328,16 @@
       };
       const seen = placed.get(node) ?? [];
       const last = seen.at(-1);
+      const sameBox =
+        last &&
+        ["left", "top", "right", "bottom"].every(
+          (edge) => last.rect[edge] === rect[edge],
+        );
+      const sameCoordinates =
+        last &&
+        ["position", "block", "anchor", "anchorX", "anchorY", "insetX", "insetY"].every(
+          (key) => last.paint[key] === paint[key],
+        );
       if (
         last?.rect.left === rect.left &&
         last.rect.top === rect.top &&
@@ -297,7 +352,13 @@
         )
       )
         continue;
-      seen.push({ at, rect, fragments, paint });
+      seen.push({
+        at,
+        poseAt: sameBox && sameCoordinates ? last.poseAt : at,
+        rect,
+        fragments,
+        paint,
+      });
       prune(seen, (item) => item.at);
       placed.set(node, seen);
     }
@@ -550,6 +611,8 @@
       top = Math.max(0, rect.top);
     let right = Math.min(innerWidth, rect.right),
       bottom = Math.min(innerHeight, rect.bottom);
+    let escaped = false,
+      containing = null;
     for (
       let parent = own.reading ? up(node) : node;
       parent instanceof Element;
@@ -557,16 +620,24 @@
     ) {
       const style = paintAt(parent, at);
       if (style.opacity === "0") return { paintable: false, visible: false };
-      if (parent === node) continue;
-      const clip = boxAt(parent, at);
-      if (!clip) return { paintable: false, visible: false };
-      if (style.overflowX !== "visible") {
-        left = Math.max(left, clip.left);
-        right = Math.min(right, clip.right);
+      if (escaped && parent === containing) escaped = false;
+      if (!escaped && parent !== node) {
+        if (style.clipsX) {
+          left = Math.max(left, style.clipLeft);
+          right = Math.min(right, style.clipRight);
+        }
+        if (style.clipsY) {
+          top = Math.max(top, style.clipTop);
+          bottom = Math.min(bottom, style.clipBottom);
+        }
       }
-      if (style.overflowY !== "visible") {
-        top = Math.max(top, clip.top);
-        bottom = Math.min(bottom, clip.bottom);
+      if (
+        !escaped &&
+        style.block !== undefined &&
+        ["fixed", "absolute"].includes(style.position)
+      ) {
+        escaped = true;
+        containing = style.block;
       }
     }
     return { paintable: true, visible: right > left && bottom > top };
@@ -606,14 +677,51 @@
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const anchored = { left: false, top: false };
-    for (const owner of ancestryAt(element, to)) {
+    const ancestors = ancestryAt(element, to);
+    for (const owner of ancestors) {
+      const selections = floating.get(owner);
+      const was = selections?.findLast((reading) => reading.at <= from)?.selection;
+      const now = selections?.findLast((reading) => reading.at <= to)?.selection;
+      const crossesFixed = ancestors
+        .slice(0, ancestors.indexOf(owner))
+        .some(
+          (node) =>
+            paintAt(node, from)?.position === "fixed" ||
+            paintAt(node, to)?.position === "fixed",
+        );
+      if (
+        was &&
+        now &&
+        !crossesFixed &&
+        was.tenure === now.tenure &&
+        was.subject === now.subject &&
+        was.anchor === now.anchor &&
+        was.plane !== now.plane
+      ) {
+        const before = boxAt(was.anchor, readingAt(owner, from).poseAt),
+          after = boxAt(now.anchor, to);
+        if (before && after) {
+          for (const [axis, size, start] of [
+            ["left", "width", "left"],
+            ["top", "height", "top"],
+          ]) {
+            if (anchored[axis]) continue;
+            const predicted = (selection, anchor) =>
+              selection.point[axis] +
+              (selection.plane === "page" ? anchor[axis] : 0) -
+              (selection.edges[axis] === start ? 0 : selection.size[size]);
+            motion[axis] += predicted(now, after) - predicted(was, before);
+            anchored[axis] = true;
+          }
+        }
+      }
       const prior = paintAt(owner, from),
         next = paintAt(owner, to);
       const anchor = prior?.anchor;
       if (!anchor || anchor !== next?.anchor) continue;
       // Native anchor layout can follow its scroller in the next frame. Credit
       // source scrolling since this retained portal pose was first observed.
-      const start = readingAt(owner, from).at;
+      const start = readingAt(owner, from).poseAt;
       const before = boxAt(anchor, start),
         after = boxAt(anchor, to);
       const beforeLayout = layoutAt(anchor, start),

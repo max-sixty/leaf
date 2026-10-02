@@ -125,11 +125,13 @@ holdArrivingBounds();
 // scene readings answer different questions: which readiness fact the page has yet to state
 // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
 // handled since, and which native layers currently expose reading and controls.
+import { floatingSelections } from "./runtime/floating.js";
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
   validationEntry.lfNativeLayers = nativeLayers;
+  validationEntry.lfFloatingSelections = floatingSelections;
 }
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {

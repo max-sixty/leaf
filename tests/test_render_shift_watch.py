@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 import pytest
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
@@ -14,6 +15,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    scroll_settled,
     take_browser_errors,
 )
 
@@ -1296,3 +1298,382 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     assert any(e.startswith("button#control moved without input") for e in errors), (
         errors
     )
+
+
+@pytest.mark.parametrize("destination", ["window", "page"])
+@pytest.mark.parametrize("guard_mode", ["typing", "passive"])
+@pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
+def test_real_floating_plane_retains_local_motion(
+    browser, serve, fault, guard_mode, destination
+):
+    source = leaf_page(
+        "Plane evidence",
+        '<p id="evidence" style="position:sticky;top:100px;left:10px">Paint evidence</p><h1>Floating evidence</h1><div style="height:650px"></div><p id="subject">Retain this exact subject.</p><div style="height:1800px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 600)
+    page.locator("#subject").evaluate(
+        "n=>scrollTo(0,n.getBoundingClientRect().top+scrollY-400)"
+    )
+    rendered(page)
+    page.locator("#subject").click(modifiers=["Alt"], position={"x": 30, "y": 10})
+    page.locator(".lf-fab-input").type("Keep these words.")
+    rendered(page)
+    page.wait_for_function(
+        "document.querySelector('.lf-fab-bar').dataset.lfPlane==='page'"
+    )
+    page.evaluate("window.originalReturnScroll=scrollY")
+    if destination == "page":
+        page.evaluate("scrollBy(0,1500)")
+        scroll_settled(page)
+        page.wait_for_function(
+            "document.querySelector('.lf-fab-bar').dataset.lfPlane==='window'"
+        )
+        page.screenshot()
+    if guard_mode == "passive":
+        page.keyboard.press("Shift")
+        page.evaluate(
+            "()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)))"
+        )
+        page.screenshot()
+    before = page.locator(".lf-fab-input").bounding_box()
+    page.evaluate("window.beforeField=document.querySelector('.lf-fab-input')")
+    page.evaluate("""()=>{
+      window.nativePlaneEntries=[];
+      new PerformanceObserver(list=>nativePlaneEntries.push(...list.getEntries().map(e=>({at:e.startTime,sources:e.sources.map(s=>({kind:s.node?.nodeName,previous:s.previousRect.toJSON(),current:s.currentRect.toJSON()}))})))).observe({type:'layout-shift'});
+    }""")
+    page.evaluate(
+        """([fault,destination])=>{
+      window.planeChanges=0;
+      const bar=document.querySelector('.lf-fab-bar');
+      let previous=bar.dataset.lfPlane;
+      new MutationObserver(()=>{
+        if(bar.dataset.lfPlane===previous) return;
+        previous=bar.dataset.lfPlane;
+        planeChanges++;
+        if(previous===destination) {
+          if(fault==='holder_x') bar.style.transform='translateX(80px)';
+          if(fault==='holder_y') bar.style.transform='translateY(80px)';
+          if(fault==='child_x') document.querySelector('.lf-fab-input').style.transform='translateX(80px)';
+          if(fault==='child_y') document.querySelector('.lf-fab-input').style.transform='translateY(80px)';
+          if(fault) document.querySelector('#evidence').style.marginLeft='30px';
+        }
+      }).observe(bar,{attributes:true,attributeFilter:['data-lf-plane']});
+    }""",
+        [fault, destination],
+    )
+    if destination == "window":
+        page.evaluate("scrollBy(0,1500)")
+    else:
+        page.evaluate("scrollTo(0,originalReturnScroll)")
+    scroll_settled(page)
+    page.wait_for_function(
+        "destination=>document.querySelector('.lf-fab-bar').dataset.lfPlane===destination",
+        arg=destination,
+    )
+    page.screenshot()
+    assert page.evaluate("planeChanges") >= 1
+    judge_watches()
+    errors = take_browser_errors(page)
+    entries = page.evaluate("nativePlaneEntries")
+    assert entries, (fault, guard_mode, destination, "no Chrome paint admission")
+    after = page.locator(".lf-fab-input").bounding_box()
+    assert page.evaluate("beforeField===document.querySelector('.lf-fab-input')")
+    assert after["width"] == before["width"]
+    assert after["height"] == before["height"]
+    if fault:
+        assert any(
+            "moved leaf-text.lf-ui.lf-response-control.lf-fab-input" in error
+            or "lf-fab-input moved without input" in error
+            for error in errors
+        ), (fault, errors)
+    else:
+        assert errors == [], errors
+
+
+# Native containing blocks, not DOM ancestry, decide which overflow clips apply.
+@pytest.mark.parametrize(
+    "outer,inner,field,hit,painted,delta",
+    [
+        (
+            "width:100px;height:100px;overflow:hidden",
+            "",
+            "position:fixed;left:200px;top:200px",
+            True,
+            True,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:hidden;transform:translateX(0)",
+            "",
+            "position:fixed;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:hidden;contain:layout",
+            "",
+            "position:fixed;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:hidden;filter:blur(0)",
+            "",
+            "position:fixed;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:hidden;opacity:0",
+            "",
+            "position:fixed;left:200px;top:200px",
+            True,
+            False,
+            20,
+        ),
+        (
+            "position:relative;width:500px;height:400px",
+            "width:100px;height:100px;overflow:hidden",
+            "position:absolute;left:200px;top:200px",
+            True,
+            True,
+            20,
+        ),
+        (
+            "position:relative;width:500px;height:400px",
+            "position:relative;width:100px;height:100px;overflow:hidden",
+            "position:absolute;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "position:relative;width:100px;height:100px;overflow:hidden",
+            "position:absolute;width:100px;height:100px;overflow:hidden",
+            "position:fixed;left:200px;top:200px",
+            True,
+            True,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:hidden;transform:scale(2);transform-origin:0 0",
+            "",
+            "position:fixed;left:75px;top:20px",
+            True,
+            True,
+            3,
+        ),
+        (
+            "width:100px;height:100px;overflow:visible;contain:paint",
+            "",
+            "position:fixed;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:visible;contain:strict",
+            "",
+            "position:fixed;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "width:100px;height:100px;overflow:visible;content-visibility:auto",
+            "",
+            "position:fixed;left:200px;top:200px",
+            False,
+            False,
+            20,
+        ),
+        (
+            "position:relative;width:100px;height:100px;overflow-x:visible;overflow-y:clip",
+            "",
+            "position:absolute;left:200px;top:20px",
+            True,
+            True,
+            20,
+        ),
+        (
+            "position:relative;width:100px;height:100px;overflow-x:clip;overflow-y:visible",
+            "",
+            "position:absolute;left:20px;top:200px",
+            True,
+            True,
+            20,
+        ),
+        (
+            "position:relative;width:100px;height:0;overflow-x:clip;overflow-y:visible",
+            "",
+            "position:absolute;left:20px;top:200px",
+            True,
+            True,
+            20,
+        ),
+    ],
+    ids=[
+        "viewport-fixed",
+        "transformed",
+        "contained",
+        "filtered",
+        "transparent",
+        "absolute-outer",
+        "absolute-inner",
+        "escaped-absolute",
+        "scaled",
+        "paint-contained",
+        "strict-contained",
+        "content-visibility",
+        "visible-x",
+        "visible-y",
+        "zero-height-x",
+    ],
+)
+def test_native_clipping_preserves_only_painted_carry(
+    browser, serve, outer, inner, field, hit, painted, delta
+):
+    source = leaf_page(
+        "Native clipping",
+        f'<div id="outer" style="{outer}"><div id="inner" style="{inner}"><textarea id="field" style="{field};width:14px;height:20px"></textarea></div></div><div id="evidence" style="position:absolute;left:10px;top:400px;width:300px;height:30px;background:red"></div>',
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate(PAINTED)
+    page.screenshot()
+    state = page.evaluate("""async()=>{
+      const field=document.querySelector('#field'), box=field.getBoundingClientRect();
+      const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
+      return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
+        shown:!!geometry.shownRect(field,new Map()),
+        opacity:field.checkVisibility({checkOpacity:true})};
+    }""")
+    assert state == {"hit": hit, "shown": hit, "opacity": painted or hit is False}
+    before = page.locator("#field").bounding_box()
+    page.evaluate(
+        """delta=>{
+      window.nativeClipEntries=[];
+      new PerformanceObserver(list=>nativeClipEntries.push(...list.getEntries())).observe({type:'layout-shift'});
+      document.querySelector('#field').style.marginLeft=delta+'px';
+      document.querySelector('#evidence').style.marginLeft='40px';
+    }""",
+        delta,
+    )
+    page.screenshot()
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert page.evaluate("nativeClipEntries.length")
+    after = page.locator("#field").bounding_box()
+    assert after["x"] - before["x"] == (6 if delta == 3 else delta)
+    if painted:
+        assert any("textarea#field moved without input" in error for error in errors), (
+            errors
+        )
+    else:
+        assert errors == [], errors
+
+
+@pytest.mark.parametrize("mode", ["typing", "passive"])
+def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mode):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body style="margin:0"><div id="scroller" style="height:140px;width:300px;overflow:auto"><div style="height:400px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">Target</div></div></div><textarea id="field" style="position:fixed;position-anchor:--target;left:0;top:200px"></textarea><div id="evidence" style="position:absolute;left:10px;top:400px;width:300px;height:60px;background:red"></div></body>"""
+        )
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    before = page.locator("#field").bounding_box()
+    page.evaluate("scroller.scrollTop=20")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    assert page.locator("#field").bounding_box() == before
+    page.evaluate("field.style.top='calc(anchor(top) + 160px)'")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    assert page.locator("#field").bounding_box() == before
+    if mode == "typing":
+        page.evaluate(
+            "field.addEventListener('beforeinput',()=>{field.style.marginTop='-20px';evidence.style.left='50px'})"
+        )
+        page.locator("#field").fill("a")
+    else:
+        page.keyboard.press("Shift")
+        page.evaluate(PAINTED)
+        page.screenshot()
+        page.evaluate("()=>{field.style.marginTop='-20px';evidence.style.left='50px'}")
+    page.screenshot()
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert page.locator("#field").bounding_box()["y"] == before["y"] - 20
+    expected = (
+        "typing in textarea#field moved textarea#field"
+        if mode == "typing"
+        else "textarea#field moved without input"
+    )
+    assert any(expected in error for error in errors), errors
+
+
+@pytest.mark.parametrize("fault", ["", "holder", "child"])
+def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
+    source = leaf_page(
+        "Floating tenure",
+        """<p id="subject" style="position:fixed;left:100px;top:100px;width:40px;height:20px;margin:0">Anchor</p><div id="host" style="position:fixed;left:0;top:0;width:600px;height:500px"><div id="holder" style="position:fixed;left:140px;top:100px;width:100px;height:60px"><textarea id="field" style="width:80px;height:20px"></textarea></div></div><div id="evidence" style="position:fixed;left:10px;top:400px;width:300px;height:60px;background:red"></div>""",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    initial = page.locator("#holder").bounding_box()
+    state = page.evaluate("""async()=>{
+      const module=await window.__lfRuntimeImport('/runtime/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
+      const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
+      const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
+      async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
+      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
+      if(!first||first.plane!=='page')throw Error('First placement was not supported page');
+      const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
+      host.style.removeProperty('transform');plane='window';await place();const second=selected();
+      if(!second)throw Error('Supported window placement missing');
+      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
+      window.reviewOwner=owner;window.reviewPlace=place;
+      return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
+    }""")
+    assert state == {
+        "absentUnsupported": True,
+        "unchanged": True,
+        "nativeNonwindow": True,
+        "window": "window",
+        "newTenure": True,
+        "sameSubject": True,
+        "sameAnchor": True,
+        "absentStopped": True,
+        "newStoppedTenure": True,
+        "sameStoppedSubject": True,
+    }, state
+    page.evaluate(PAINTED)
+    page.screenshot()
+    assert page.locator("#holder").bounding_box() == initial
+    judge_watches()
+    assert take_browser_errors(page) == []
+    page.keyboard.press("Shift")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    if fault:
+        page.evaluate(
+            """fault=>{document.querySelector(fault==='holder'?'#holder':'#field').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
+            fault,
+        )
+        page.screenshot()
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert any("textarea#field moved without input" in error for error in errors), (
+            errors
+        )
+    else:
+        assert errors == [], errors

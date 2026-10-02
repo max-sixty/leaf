@@ -77,7 +77,7 @@ WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 
 @cache
 def shift_watch_source():
-    """Install the sensor with the runtime's document-free control vocabulary."""
+    """Install the sensor with the runtime's document-free control and clipping vocabulary."""
     controls = subprocess.check_output(
         [
             "node",
@@ -85,13 +85,15 @@ def shift_watch_source():
             "--eval",
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
-                "process.stdout.write(JSON.stringify(WORKS));"
+                'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
+                "process.stdout.write(JSON.stringify([WORKS,clippingAxes.toString()]));"
             ),
         ],
         cwd=ROOT,
         text=True,
     )
-    return f"((interactive) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({controls});"
+    interactive, clipping = json.loads(controls)
+    return f"((interactive, clippingAxes) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())

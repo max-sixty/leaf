@@ -1357,6 +1357,13 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
             item.get_by_role("button", name=re.compile("^Reject the "))
         ).to_be_visible()
 
+
+@pytest.mark.parametrize("width", [1440, 1200, 700, 390])
+def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
+    browser, serve, width
+):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, width, 900)
     draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
     draft_item.locator(".lf-draft-pencil").click()
     editor = page.locator("#bg-draft textarea")

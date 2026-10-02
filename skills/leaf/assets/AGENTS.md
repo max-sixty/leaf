@@ -18,7 +18,12 @@ theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row sits in the
+Auxiliary runtime controls overlay the page's existing geometry. Adding a control
+preserves content position, wrapping, and block size, including when its CSS loads
+before first paint. Keep covered content reachable through placement or disclosure
+rather than padding or a reserved row.
+
+A margin row sits in the
 rail beside its target (`rowPosture`), or as a pin by its target: in room found where
 it covers no words and no other box that paints its own extent, clear of neighbouring
 blocks where its target has room of its own, and reaching one line of words further
@@ -64,23 +69,33 @@ inspection layer.
 ### Stability
 
 The page holds still under the user's aim. A state change may repaint any box but
-must not move controls next to the gesture that caused it. News causes no layout
-shift: when a box's content changes without a gesture, that box may grow or shrink
-into free room, but no other element moves. News grows where the reader isn't
-looking: above the screen, where scroll anchoring takes the growth into what they
-scrolled past, or below it. So a thread's reply box stands at the foot of the
+must not move controls next to the gesture that caused it. Without a gesture, a box
+may grow or shrink into free room, but reading content and controls stay put. Passive
+message metadata may rearrange inside a stationary header when it moves no neighbour
+and stays inside the header. Its age and receipt need no reserved-width slots;
+controls and ordinary reading text never take this exception. News grows where the
+reader isn't looking: above the screen, where scroll anchoring takes the growth into
+what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they
 open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws
-(`thread/held-news.js`). A change the user requested may reflow the
+thread the agent starts wait behind a notice in a row the seat already draws, and a
+thread that would open a seat of its own, as on a diff line with no thread, waits in
+the margin behind its marker (`thread/held-news.js`). A region whose rows only the
+log or the clock decides, so no first paint can size it, shows none of them until the
+reader opens them through a control of fixed size the widget already draws, as a
+command's counts open its lists; after that a change to its rows waits the same way
+while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+fixed-height box that scrolls them is no answer: nothing tells the reader a row is
+cut off, since a scroller shows no edge until it is scrolled.
+A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
-suite's browser fixture fails any test outside the nightly selection whose page moves
-a box on screen without input, news landing just after a press included, or whose
-typing carries its field (`tests/shift_watch.js`).
+suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+for a protected box moving on screen without input, news landing just after a press included,
+or typing carrying its field (`tests/shift_watch.js`).
 
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-interactive]`, the size its module will draw it at, so first paint
@@ -116,8 +131,10 @@ words closes only in answer to a key or a press that means to close it (Send,
 Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
 document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
 news never closes it. Geometry decides where a box stands, never whether: a box
-with nowhere to stand waits out of view with its words, anchor, and caret, and
-stands again, focus returned, when its target comes back (`standFab`,
+whose existing subject loses its visible attachment stays in the usable window,
+keeping its words, anchor, and focus, and reattaches when that target returns.
+Only where no usable window remains does it wait out of view with its words,
+anchor, and caret, standing again, focus returned, when room returns (`standFab`,
 `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
@@ -136,11 +153,15 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than a colored edge: pickup colors its icon green, and working also colors
-the interior and pulses once on arrival, which a repaint never replays. User attention wears
-the same two channels in blue. Reading is bookkeeping and never moves the user.
+rather than competing with attention for color. Green marks a move the user owes;
+other thread controls stay blue. Pickup and work use status words, with one brief
+pulse when work begins that a repaint never replays. Reading is bookkeeping and
+never moves the user.
 
 ### Motion
+
+Use restrained, finite animations to acknowledge state changes. Do not animate
+continuously while a state remains unchanged.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be
@@ -193,7 +214,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `thread-card-geometry.js`, `pointed-place.js` |
+| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
+| Comment box and thread card placement | `comment-placement.js`, `floating.js` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |

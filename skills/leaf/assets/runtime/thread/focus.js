@@ -6,11 +6,14 @@ import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { SAY_BOX, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
+import { replyHasWords } from "./replies.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
+export const threadFocusStop = (thread) =>
+  thread.querySelector(":scope > summary:not([hidden])") ?? thread;
 export function focusThread(thread, options) {
-  (thread.querySelector(":scope > summary:not([hidden])") ?? thread).focus(options);
+  threadFocusStop(thread).focus(options);
 }
 
 // An inline thread root may itself hold focus. A control inside it keeps its own
@@ -85,9 +88,9 @@ export const standingThreadId = () => heldThreadId() ?? pressed;
 // runs once the pass has drawn every surface, and lands the user through `open`, which
 // puts the thread up where it stands. Typing on in the box during the pass keeps them
 // in it; standing anywhere else, a press on the page included, is a newer word, and so
-// is a surface that landed them itself, as a resolved thread lands them on its card. A
-// box is carried once, and only to a thread with a reply box to carry it to: one the
-// reading still holds, open. Nothing is put up for a thread that has none, and one that
+// is a surface that landed them itself. A box is carried once, to a thread the reading
+// still holds and whose editor lifetime continues: an open conversation, or a resolved
+// one with an unfinished draft. Nothing is put up for a thread that has none, and one that
 // comes back later does not pull the user to it.
 const carried = new WeakSet();
 export function holdReply(open) {
@@ -100,7 +103,7 @@ export function holdReply(open) {
     held.restore(() => {
       carried.add(box);
       const standing = allThreads().find((candidate) => candidate.id === id);
-      if (!standing || standing.resolved) return null;
+      if (!standing || (standing.resolved && !replyHasWords(standing.key))) return null;
       const shown = open(id);
       return shown instanceof Element
         ? closestAcross(shown, THREAD)?.querySelector(SAY_BOX)

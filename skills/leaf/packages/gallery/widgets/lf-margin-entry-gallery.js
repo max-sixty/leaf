@@ -68,9 +68,17 @@ const GROUPS = [
     ],
   },
   {
-    heading: "Agent workflow",
-    summary: "Awaiting agent · picked up · working · awaiting continuation",
+    heading: "Turn and agent workflow",
+    summary: "On you · awaiting agent · picked up · working · awaiting continuation",
     samples: [
+      {
+        name: "On you",
+        detail: "Thread · your answer is needed",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        awaitsUser: true,
+      },
       {
         name: "Sent",
         detail: "recorded · awaiting agent",
@@ -255,7 +263,10 @@ function sampleNode(sample, groupIndex, sampleIndex) {
           : null,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
-      { selected: sample.selected ?? false },
+      {
+        selected: sample.selected ?? false,
+        awaitsUser: sample.awaitsUser ?? false,
+      },
     );
   };
   paint();

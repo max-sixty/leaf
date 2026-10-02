@@ -42,9 +42,9 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     )
     for line in result.advice:
         print(f"  · {line}")
-    from leaf.render_gate.page_code import authors_code
+    from leaf.render_gate.page_code import needs_browser
 
-    runs_code = authors_code(result.document, result.artifact)
+    runs_code = needs_browser(result.document, result.artifact)
     if not (runs_code or render):
         return 0
     from leaf.render_gate.command import page_code_check, render_check

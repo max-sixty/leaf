@@ -28,8 +28,19 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hook_carrier as hook_carrier_model
+from leaf import passages as passages_model
+from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.registry import storage as registry_storage
+
+
+def test_an_explicit_line_break_separates_quoted_words():
+    document = structure_model.SourceDocument(
+        "<main><p id='line'>Short label here<br>Then a second line.</p></main>"
+    )
+    assert passages_model.page_passages(document).text == (
+        "Short label here Then a second line."
+    )
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):

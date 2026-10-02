@@ -1,4 +1,9 @@
-"""Durable and process-owned page servers."""
+"""Durable and process-owned page servers.
+
+Desired service transitions need only records and leases. HTTP dependencies load
+when a server is constructed, so stopping or reviving a service doesn't load a
+second server stack in the client process.
+"""
 
 import contextlib
 import errno
@@ -13,16 +18,10 @@ import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import uvicorn
-
 from .detached import Handshake, StartRefused, start_detached
-from .event_log import require_cross_process_locking
-from .files import read_json, write_json
+from .files import read_json
 from .host import session_harness
-from .http import page_app, page_endpoint
-from .layer import payload_provenance, provenance_label
 from .leases import lock_is_held, page_locked, release_lease, take_lease
-from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
@@ -34,6 +33,7 @@ from .server import (
     stop_when_service_ends,
 )
 from .service import PageTransaction, claim_is_active, page_claim, starting_claim
+from .session_cleanup import require_cross_process_locking, write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
@@ -89,13 +89,16 @@ class LeafHTTPServer:
     """
 
     def __init__(self, address, endpoint) -> None:
+        import uvicorn
+
+        from .http import page_app
+
         self.endpoint = endpoint
         self.socket = listening_socket(address[0], address[1])
         self.server_address = self.socket.getsockname()[:2]
         self.server_id = secrets.token_hex(16)
         self.viewed_at = 0.0
         self.stopping = False
-        self._uvicorn = None
         # Leaf says what it has to say on its own streams: the URL, the lifetime
         # note, and the page's own errors. A server with a logging voice of its own
         # would write a line per refused request into the streams a foreground
@@ -106,14 +109,16 @@ class LeafHTTPServer:
             logger = logging.getLogger(name)
             logger.handlers = [logging.NullHandler()]
             logger.propagate = False
-        self._config = uvicorn.Config(
-            page_app(endpoint, self),
-            log_config=None,
-            access_log=False,
-            lifespan="off",
-            # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
-            # page's own gate never sees, ahead of the key and the page's routes.
-            ws="none",
+        self._uvicorn = uvicorn.Server(
+            uvicorn.Config(
+                page_app(endpoint, self),
+                log_config=None,
+                access_log=False,
+                lifespan="off",
+                # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
+                # page's own gate never sees, ahead of the key and the page's routes.
+                ws="none",
+            )
         )
 
     def fileno(self) -> int:
@@ -121,7 +126,6 @@ class LeafHTTPServer:
 
     def serve_forever(self) -> None:
         """Serve on the current thread until `shutdown` or a handled signal."""
-        self._uvicorn = uvicorn.Server(self._config)
         # A signal reaches uvicorn alone, and its graceful shutdown has no bound:
         # a news stream that never learns of the stop holds the process open.
         handled_exit = self._uvicorn.handle_exit
@@ -138,8 +142,7 @@ class LeafHTTPServer:
     def shutdown(self) -> None:
         """Ask the serving loop to stop, and tell open streams to end."""
         self.stopping = True
-        if self._uvicorn is not None:
-            self._uvicorn.should_exit = True
+        self._uvicorn.should_exit = True
 
     def server_close(self) -> None:
         """Release the listening socket this server has kept."""
@@ -163,6 +166,8 @@ class TemporaryPageServer:
         port: int = 0,
         page_options: dict | None = None,
     ) -> None:
+        from .http import page_endpoint
+
         self.token = token or secrets.token_urlsafe(16)
         self.httpd = LeafHTTPServer(
             ("127.0.0.1", port),
@@ -238,6 +243,9 @@ def cmd_serve_temporary(page_dir: Path) -> None:
 
 def startup_note(page_dir: Path) -> str:
     """Identify the page, vendored bytes, and serving Leaf beside its lifetime."""
+    from .layer import provenance_label
+    from .registry.storage import layer_metadata
+
     layer = layer_metadata(page_dir)
     service = read_json(page_dir / SERVICE_FILE) or {}
     # An older live service has no trustworthy runtime identity. Naming this
@@ -392,6 +400,9 @@ def cmd_serve(
     then owns service.json and the server.lock process lease. A detached serve
     answers `start_server` through `handshake`.
     """
+    from .http import page_endpoint
+    from .layer import payload_provenance
+
     require_cross_process_locking()
     lease = None
     httpd = None

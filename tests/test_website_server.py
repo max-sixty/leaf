@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from email.message import Message
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,6 +35,7 @@ from interact_support import (
 )
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
+from leaf.codex_state import delivery_lock_path
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
@@ -45,6 +47,7 @@ from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt, open_session_turn
+from leaf.session_cleanup import flocked
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, verify_site
 from playwright.sync_api import expect
@@ -58,7 +61,13 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
     open_session_turn(thread_id, turn)
-    accept_codex_delivery(thread_id, turn)
+    with flocked(delivery_lock_path(thread_id)):
+        [(path, _)] = [
+            (path, record)
+            for path, record in delivery_records(thread_id)
+            if record["state"] == "offering"
+        ]
+    accept_codex_delivery(thread_id, path.stem, turn)
 
 
 @pytest.fixture(autouse=True)
@@ -180,9 +189,10 @@ class FakeCodexHost:
         self.attached = []
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
-        if not website_server.agent_event_pending(page_dir, event_id):
+        inputs = website_server.pending_agent_inputs(page_dir)
+        if event_id not in inputs:
             return None
-        thread_id = website_server.agent_event_thread(page_dir, event_id)
+        thread_id = inputs[event_id]
         if thread_id is not None:
             return thread_id
         self.attached.append(page_dir)
@@ -319,7 +329,6 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
     monkeypatch.setattr(
         website_server,
@@ -393,8 +402,8 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     monkeypatch.setattr(
         website_server,
-        "agent_event_thread",
-        lambda *_: "hosted-thread" if follows or started else None,
+        "pending_agent_inputs",
+        lambda *_: {"user-event": "hosted-thread" if follows or started else None},
     )
     interrupted = []
     monkeypatch.setattr(
@@ -542,7 +551,44 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
 
     assert host.attach(page_dir, second["id"]) == "hosted-thread"
     assert deliveries == [[first["id"]], [second["id"]]]
-    assert website_server.agent_event_thread(page_dir, second["id"]) == "hosted-thread"
+    assert (
+        website_server.pending_agent_inputs(page_dir)[second["id"]] == "hosted-thread"
+    )
+
+
+@pytest.mark.parametrize("existing_claim", [False, True], ids=["unclaimed", "claimed"])
+def test_attach_rechecks_a_move_answered_while_the_provider_starts(
+    page_dir, monkeypatch, existing_claim
+):
+    """Provider startup releases the page lock; an answer there needs no new turn."""
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    if existing_claim:
+        with website_server.PageTransaction(page_dir) as page:
+            page.take_claim(
+                website_server.website_harness("previous-thread", os.getpid())
+            )
+
+    def ensure_server():
+        website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
+        return SimpleNamespace(pid=os.getpid())
+
+    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(
+        host,
+        "_start_thread",
+        lambda *_: pytest.fail("the answered move started a turn"),
+    )
+    monkeypatch.setattr(
+        host,
+        "_resume_and_start",
+        lambda *_: pytest.fail("the answered move resumed a turn"),
+    )
+    assert host.attach(page_dir, comment["id"]) is None
+    assert website_server.pending_agent_inputs(page_dir) == {}
 
 
 def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
@@ -600,6 +646,42 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
 
     assert rescans == [(page_dir, ("first-event",))]
     assert continued == [(page_dir, "next-event")]
+
+
+def test_continuation_reaches_the_next_move_when_the_named_one_settles(
+    page_dir, monkeypatch
+):
+    """A scan names a candidate, not a handoff; settlement there owes the next scan."""
+    first, second = [
+        append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
+        for text in ("first", "second")
+    ]
+    host = website_server.WebsiteCodexHost("codex")
+    scan = website_server.next_unaccepted_agent_event
+
+    def settling_scan(target, *, excluding):
+        named = scan(target, excluding=excluding)
+        if named == first["id"]:
+            cmd_resolve(target, first["id"])
+        return named
+
+    starts = []
+
+    def start(target, process, event_id):
+        starts.append(event_id)
+        host.following_threads.add("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(website_server, "next_unaccepted_agent_event", settling_scan)
+    monkeypatch.setattr(
+        host, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
+    )
+    monkeypatch.setattr(host, "_start_thread", start)
+    host._continue_page(page_dir, ())
+
+    assert first["id"] not in website_server.pending_agent_inputs(page_dir)
+    assert second["id"] in website_server.pending_agent_inputs(page_dir)
+    assert starts == [second["id"]]
 
 
 @pytest.mark.parametrize(
@@ -1167,7 +1249,6 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     fail_prewarm = threading.Event()
     calls = []
     process = type("Process", (), {"pid": 41})()
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
 
     def ensure_server():
         calls.append(None)
@@ -1188,8 +1269,8 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     )
     monkeypatch.setattr(
         website_server,
-        "agent_event_thread",
-        lambda *_: "hosted-thread" if delivered else None,
+        "pending_agent_inputs",
+        lambda *_: {"user-event": "hosted-thread" if delivered else None},
     )
 
     prewarm = host.prewarm()
@@ -1217,11 +1298,10 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
     accepted = []
     start_calls = []
 
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
     monkeypatch.setattr(
         website_server,
-        "agent_event_thread",
-        lambda *_: accepted[0] if accepted else None,
+        "pending_agent_inputs",
+        lambda *_: {"user-event": accepted[0] if accepted else None},
     )
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
     monkeypatch.setattr(website_server, "page_claim", lambda page: None)
@@ -1959,6 +2039,9 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     # read carries a `seq` the freshly appended record does not.
     assert repeated is not None and repeated["id"] == reply["id"]
     assert repeated["parent"] == asked["id"]
+    assert (
+        website_server.WebsiteCodexHost("codex").attach(page_dir, chose["id"]) is None
+    )
     assert [
         event["id"] for event in read_events(page_dir) if event["kind"] == "reply"
     ] == [reply["id"]]
@@ -3039,7 +3122,7 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
     def faulting_state(*_args, **_kwargs):
         raise RuntimeError("the projection could not be read")
 
-    monkeypatch.setattr(served_page, "full_state", faulting_state)
+    monkeypatch.setattr(served_page, "read_served_page", faulting_state)
     with running_http_server(httpd):
         with pytest.raises(urllib.error.HTTPError) as refused:
             get(f"{origin}/examples/decision/api/state")
@@ -3103,7 +3186,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         capsys.readouterr()
-        monkeypatch.setattr(served_page, "full_state", faulting_state)
+        monkeypatch.setattr(served_page, "read_served_page", faulting_state)
         with pytest.raises(urllib.error.HTTPError) as refused:
             get(f"{origin}{child['url']}api/state")
         assert refused.value.code == 500
@@ -3845,6 +3928,7 @@ def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
     assert verify_site.startup_failed(replies) == (failure == "startup_failed")
     assert verify_site.deployment_answer(replies) is None
     assert not state["activity"]["obligations"]
+    assert host.attach(page_dir, comment["id"]) is None
 
 
 class _Read:
@@ -4091,6 +4175,45 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 
     assert "first contentful paint not observed" in line
     assert "first contentful paint 0 ms" not in line
+
+
+def test_startup_resources_outlive_the_browser_timing_buffer(browser):
+    """The real verifier counts every response, including beyond Chrome's 250 entries."""
+    count = 260
+    script = b"/* startup resource */"
+    document = (
+        "<!doctype html><html><head><title>Startup resources</title></head><body>"
+        + "".join(f'<script src="/resource-{n}.js"></script>' for n in range(count))
+        + "<script>document.body.setAttribute('data-lf-upgraded', '');"
+        "document.body.setAttribute('data-lf-presented', '');</script></body></html>"
+    ).encode()
+
+    class Resources(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = script if self.path.endswith(".js") else document
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header(
+                "Content-Type",
+                "text/javascript" if self.path.endswith(".js") else "text/html",
+            )
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_arguments):
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)
+    with running_http_server(httpd):
+        page = browser.new_page()
+        page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+        page.goto(f"http://127.0.0.1:{httpd.server_address[1]}/")
+        reading = page.evaluate("window.__leafVerifier.startupReading")
+        for milestone in ("upgraded", "presented"):
+            assert reading[milestone]["code_requests"] == count
+            assert reading[milestone]["code_bytes"] == count * len(script)
+        names = page.evaluate("window.__leafVerifier.resourceNames")
+        assert sum("/resource-" in name for name in names) == count
 
 
 @pytest.mark.parametrize(

@@ -109,7 +109,7 @@ def patch_manifest(patch: str) -> dict:
 
     It runs as a process, reading stdin and writing stdout as an agent's pipeline
     does, but under this project's interpreter rather than `leaf package run`: the
-    dev group carries the script's `unidiff` at the version `uv.lock` pins, so the
+    tooling package carries the script's `unidiff` (locked in the checkout), so the
     fixtures and the suite read the same manifest on every machine and fetch nothing.
     A refused patch raises with the script's stderr."""
     produced = subprocess.run(

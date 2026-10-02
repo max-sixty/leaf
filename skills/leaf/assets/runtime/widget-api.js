@@ -51,6 +51,9 @@ export { readThreads } from "./thread/state.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";
+// Holding a region's rows the log or the clock decides while their growth would be seen
+// (assets/AGENTS.md, "Stability").
+export { HeldReading } from "./thread/held-news.js";
 export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
@@ -83,6 +86,7 @@ export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 // Where two images differ, gathered into regions (image-difference.js).
 export {
   compareImages,
+  countAreas,
   describeDifference,
   differenceKind,
 } from "./image-difference.js";
@@ -144,6 +148,7 @@ export {
   targetCandidates,
 } from "./target-references.js";
 export { projectData } from "./application.js";
+export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {

@@ -28,6 +28,7 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import session_cleanup as cleanup_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -144,6 +145,76 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     assert preview.returncode == 130, output
     assert server_model.running_server(page) is None
     assert (page / "events.jsonl").is_file()
+    assert "Traceback" not in output
+
+
+@pytest.mark.parametrize("first_signal", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("next_signal", [signal.SIGINT, signal.SIGTERM])
+def test_a_second_stop_signal_leaves_preview_cleanup_running(
+    tmp_path, preview_slot, spawn, first_signal, next_signal
+):
+    """A forwarded or repeated stop cannot abandon the server's cleanup.
+
+    Hold the real worker at service cleanup, then deliver another signal before
+    releasing it. The ordinary launcher test covers uv's forwarding; this gate
+    establishes the ordering without depending on when uv forwards a signal.
+    """
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        """import sys
+from leaf_dev import preview
+
+stop = preview.PreviewService.stop
+
+def gated_stop(self):
+    print("Cleanup started", flush=True)
+    assert sys.stdin.readline() == "release\\n"
+    stop(self)
+    print("Cleanup finished", flush=True)
+
+preview.PreviewService.stop = gated_stop
+preview.preview.main(args=sys.argv[1:])
+""",
+        encoding="utf-8",
+    )
+    slot, page = preview_slot
+    log = tmp_path / "preview.log"
+    process, url = start_preview(
+        spawn,
+        [
+            sys.executable,
+            str(worker),
+            "--source",
+            str(ROOT / "examples" / "heat-loss.html"),
+            "--slot",
+            slot,
+            "--user",
+            "--worker",
+        ],
+        log,
+        stdin=subprocess.PIPE,
+    )
+    events = (page / "events.jsonl").read_bytes()
+    process.send_signal(first_signal)
+    try:
+        wait_for(
+            log.read_text,
+            lambda output: "Cleanup started" in output,
+            failure="the stop signal never reached service cleanup",
+            timeout=10,
+        )
+        process.send_signal(next_signal)
+    finally:
+        process.stdin.write("release\n")
+        process.stdin.flush()
+    process.wait(timeout=30)
+
+    output = log.read_text()
+    assert "Cleanup finished" in output, output
+    assert process.returncode in (130, 128 + first_signal), output
+    assert server_model.running_server(page) is None
+    assert not _reachable(url)
+    assert (page / "events.jsonl").read_bytes() == events
     assert "Traceback" not in output
 
 
@@ -889,7 +960,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # reload the recovery makes must find a server that answers.
         if not stopped:
             stopped.append(True)
-            paused.enter_context(events_model.flocked(directory / "events.jsonl"))
+            paused.enter_context(cleanup_model.flocked(directory / "events.jsonl"))
             theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
             with theme.open("a", encoding="utf-8") as stream:
                 stream.write("\nh1 { color: navy; }\n")
@@ -975,7 +1046,7 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
     """A SIGTERM during an update's stopped-service interval suppresses its restart."""
     source, runtime, directory, process, _, _ = served_preview
     # Real page-transaction contention pauses init after the watcher stops the service.
-    with events_model.flocked(directory / "events.jsonl"):
+    with cleanup_model.flocked(directory / "events.jsonl"):
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
@@ -1845,7 +1916,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
+    expect(thread.locator(".lf-msg-body")).to_be_visible()
     assert (
         thread.locator(
             "button:visible, leaf-text:visible, .lf-msg-sending:visible"

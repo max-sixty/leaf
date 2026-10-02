@@ -3,7 +3,7 @@
 A lease or lock file is the lock and nothing more, so it exists only while it is
 held or awaited, whoever it belongs to: its holder removes it on release, and a
 taker that locks a file already removed takes the lock again on whatever the path
-names now (`event_log.still_named`). That is what lets a session's files end with
+names now (`session_cleanup.still_named`). That is what lets a session's files end with
 the session: nothing reads them once they are released, so there is no later
 reader to retire them, and no signal that a session which can be resumed is over.
 A holder the kernel kills outright leaves its file behind, unheld; the next holder
@@ -17,14 +17,17 @@ import signal
 import sys
 from pathlib import Path
 
-from leaf.event_log import (
-    EventRefused,
-    require_cross_process_locking,
-    still_named,
-)
+from leaf.event_log import EventRefused
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
-from leaf.state_paths import HOOKS_SUFFIX, TITLES_SUFFIX, session_file
+from leaf.session_cleanup import (
+    HOOKS_SUFFIX,
+    STEP_HOOK_SUFFIX,
+    TITLES_SUFFIX,
+    require_cross_process_locking,
+    session_file,
+    still_named,
+)
 
 try:
     import fcntl
@@ -185,7 +188,7 @@ def adapter_lease_path(session_id: str) -> Path:
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:
-    """`state_paths.session_file`, with its directory created."""
+    """`session_cleanup.session_file`, with its directory created."""
     sessions_home()
     return session_file(session_id, suffix)
 
@@ -220,6 +223,19 @@ def hooks_ran(session_id: str) -> bool:
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""
     return hooks_path(session_id).exists()
+
+
+def mark_step_hook(session_id: str) -> None:
+    """Prove this session runs Leaf's Codex hook for delivery between tool steps.
+
+    A prompt or Stop hook proves no such capability. The mark lasts for the
+    session whose hook definitions were trusted, and SessionEnd removes it.
+    """
+    session_state_path(session_id, STEP_HOOK_SUFFIX).touch()
+
+
+def step_hook_ran(session_id: str) -> bool:
+    return session_file(session_id, STEP_HOOK_SUFFIX).exists()
 
 
 def adapter_is_live(session_id: str) -> bool:

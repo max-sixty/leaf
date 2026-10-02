@@ -477,12 +477,14 @@ source = { editable = "dev" }
 dependencies = [
     { name = "click" },
     { name = "pillow" },
+    { name = "unidiff" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8" },
     { name = "pillow", specifier = ">=12.1" },
+    { name = "unidiff", specifier = ">=1" },
 ]
 
 [[package]]

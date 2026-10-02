@@ -46,7 +46,6 @@ from .files import (
     stamped_version,
     version_num,
     version_revisions,
-    write_json,
 )
 from .interaction_log import append_interactions, client_records, now_iso
 from .layer import foreign_runtime
@@ -74,7 +73,6 @@ from .samples import Samples
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
-    KEY_COOKIE,
     KEY_COOKIE_MAX_AGE,
     NO_KEY,
     REVISION_NAME,
@@ -85,6 +83,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
+from .session_cleanup import write_json
 from .structure import FRAME_ANCESTORS_CSP
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
@@ -96,11 +95,35 @@ ALIVE_S = 5.0
 # servers. Each is cheap to read once and dear to read twenty times a second, and two
 # seconds is the staleness the poll gave every fact, so it is the staleness these keep.
 PRESENCE_S = presence_model.PRESENCE_CACHE_S
+# How deeply a POSTed body may nest its arrays and objects. What reads a body after the
+# parse recurses: schema validation runs into the interpreter's recursion limit a few
+# hundred levels down, and a log line is parsed again by every later reader, on
+# whatever stack that reader has. Past the bound one of them would raise rather than
+# answer, which the browser reads as a retryable fault and re-posts for the life of the
+# tab. Leaf's own events nest a handful of levels.
+MAX_POSTED_DEPTH = 64
+TOO_DEEP = f"event nests deeper than {MAX_POSTED_DEPTH} levels"
 
 
 def reject_json_constant(value: str) -> None:
     """Reject Python's non-standard NaN and infinity JSON extensions."""
     raise ValueError(f"invalid JSON constant {value}")
+
+
+def nests_deeper_than(value, limit: int) -> bool:
+    """Whether parsed JSON holds an array or object more than `limit` levels down.
+
+    Read a level at a time rather than by recursion, since the value has not been
+    bounded yet."""
+    level = [value]
+    for _ in range(limit):
+        level = [
+            child
+            for held in level
+            if isinstance(held, (dict, list))
+            for child in (held.values() if isinstance(held, dict) else held)
+        ]
+    return any(isinstance(held, (dict, list)) for held in level)
 
 
 def _query_int(raw, name: str, minimum: int) -> int:
@@ -384,12 +407,12 @@ class PageEndpoint:
                 raise ValueError(f"unknown view revision r{view_revision}")
             registry = self._registry(view_revision)
         elif self.page_snapshot is not None:
-            registry = self.page_snapshot.registry
+            registry = self.page_snapshot.context.registry
         else:
             registry = require_registry(self.page_dir)
         self.response_layer = registry["$layer"]["generation"]
         if self.page_snapshot is not None:
-            reading = self.page_snapshot.data["sources"].get(source)
+            reading = self.page_snapshot.context.data["sources"].get(source)
         elif contract := read_contracts(self.page_dir).get(source):
             reading = read_source(self.page_dir, source, contract, registry)
         else:
@@ -467,6 +490,17 @@ class PageEndpoint:
             # status left to say it with.
             return
 
+    @property
+    def key_cookie(self) -> str:
+        """One cookie per served origin, using the bound port rather than Host.
+
+        Cookies already distinguish hosts, but ignore ports and schemes. Naming
+        those here keeps independent listeners' keys from overwriting each other;
+        every same-host server still receives the cookies, so this is no access
+        boundary against a malicious server on another port.
+        """
+        return f"lf_key_{self.request.url.scheme}_{self.server.server_address[1]}"
+
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are
@@ -478,8 +512,8 @@ class PageEndpoint:
             self.set_cookie = True
         else:
             jar = SimpleCookie(self.headers.get("Cookie", ""))
-            if KEY_COOKIE not in jar or not secrets.compare_digest(
-                jar[KEY_COOKIE].value, self.token
+            if self.key_cookie not in jar or not secrets.compare_digest(
+                jar[self.key_cookie].value, self.token
             ):
                 return False
         return True
@@ -501,7 +535,7 @@ class PageEndpoint:
                 headers["Leaf-Release"] = self.release
         if self.set_cookie:
             headers["Set-Cookie"] = (
-                f"{KEY_COOKIE}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
+                f"{self.key_cookie}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
                 "HttpOnly; SameSite=Strict"
             )
         if self.body_unread:
@@ -566,8 +600,13 @@ class PageEndpoint:
             return {}, "event exceeds the 10 MiB limit"
         try:
             posted = json.loads(body, parse_constant=reject_json_constant)
-        except (ValueError, RecursionError):
+        except RecursionError:
+            # The parser's own stack ran out, far deeper than the bound.
+            return {}, TOO_DEEP
+        except ValueError:
             return {}, "invalid JSON"
+        if nests_deeper_than(posted, MAX_POSTED_DEPTH):
+            return {}, TOO_DEEP
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"
         return posted, None
@@ -689,9 +728,9 @@ class PageEndpoint:
 
     def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
-            revision = self.page_snapshot.active["revision"]
+            revision = self.page_snapshot.context.active["revision"]
             artifact = self.page_snapshot.artifacts[revision]
-            version = self.page_snapshot.active["version"]
+            version = self.page_snapshot.context.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir)
@@ -717,7 +756,7 @@ class PageEndpoint:
         """One revision's document under its captured vocabulary, without
         materializing its bundle."""
         if self.page_snapshot is not None:
-            return self.page_snapshot.readings[revision]
+            return self.page_snapshot.context.revision(revision)
         return read_revision(self.page_dir, revision)
 
     def _registry(self, revision: int) -> dict:
@@ -822,13 +861,13 @@ class PageEndpoint:
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
             events = (
-                list(self.page_snapshot.events)
+                list(self.page_snapshot.context.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
             mapping = version_revisions(events)
             published = (
-                {item["version"] for item in self.page_snapshot.versions}
+                {item["version"] for item in self.page_snapshot.context.versions}
                 if self.page_snapshot is not None
                 else set(published_versions(self.page_dir, events))
             )
@@ -845,7 +884,7 @@ class PageEndpoint:
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
-                set(self.page_snapshot.readings)
+                self.page_snapshot.context.revisions
                 if self.page_snapshot is not None
                 else set(list_revisions(self.page_dir))
             )
@@ -860,7 +899,7 @@ class PageEndpoint:
                 return self._json({"error": "unknown revision"}, 404)
             artifact = self._artifact(revision)
             events = (
-                list(self.page_snapshot.events)
+                list(self.page_snapshot.context.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
@@ -869,7 +908,7 @@ class PageEndpoint:
             )
         if path == "/registry.json":
             revision = (
-                self.page_snapshot.active["revision"]
+                self.page_snapshot.context.active["revision"]
                 if self.page_snapshot is not None
                 else latest_revision(self.page_dir)
             )
@@ -997,7 +1036,7 @@ class PageEndpoint:
             current_layer = self._registry(view_revision)["$layer"]["generation"]
         else:
             active_revision = (
-                self.page_snapshot.active["revision"]
+                self.page_snapshot.context.active["revision"]
                 if self.page_snapshot is not None
                 else latest_revision(self.page_dir)
             )
@@ -1030,8 +1069,8 @@ class PageEndpoint:
             try:
                 if self.page_snapshot is not None:
                     artifact = self._artifact(revision)
-                    events = list(self.page_snapshot.events)
-                    data = self.page_snapshot.data
+                    events = list(self.page_snapshot.context.events)
+                    data = self.page_snapshot.context.data
                     asset_root = self._sample_asset_root(revision)
                 else:
                     with PageTransaction(self.page_dir) as page:
@@ -1121,7 +1160,9 @@ def page_endpoint(
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
     identity = (
-        page_snapshot.layer if page_snapshot is not None else layer_metadata(page_dir)
+        page_snapshot.context.layer
+        if page_snapshot is not None
+        else layer_metadata(page_dir)
     )
     if refusal := foreign_runtime(page_dir, identity):
         sys.exit(refusal)

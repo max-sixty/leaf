@@ -1,10 +1,15 @@
 /* One synchronous Lit owner for complete panel, page, outlet and margin threads.
 
+   Every surface uses the same metadata, transcript, message and reply vocabulary.
+   Containers own navigation and placement, including whether their transcript scrolls;
+   shadow.css owns the conversation's appearance through widget shadow boundaries.
+
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
+import { nextRender } from "../rendering.js";
 import { TEXT_FIELD, holdFocus } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
@@ -14,7 +19,7 @@ import { offer, reachedForWords } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply } from "./replies.js";
+import { wireReply, replyHasWords } from "./replies.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -134,7 +139,7 @@ function navigationSummary(navigation, model) {
   const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
-  // title; the theme sweeps a highlight through them while the naming is under way.
+  // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
   // `data-lf-folded`: the draft stands in the reply box and the unread messages behind
   // their boundary, so typing or an arriving reply doesn't grow the row and move the
@@ -209,7 +214,9 @@ export class ThreadView {
   #model = null;
   #messages = new Map();
   #reply = null;
-  #summaryResolved = null;
+  #replyShown = false;
+  #draftFrame = 0;
+  #outletReplyShown = null;
   #keys = new WeakSet();
   #settlements = new Map();
   #metadataActions = document.createElement("span");
@@ -300,6 +307,8 @@ export class ThreadView {
       }
     }
     this.#model = model;
+    const reply = model.reply || replyHasWords(model.key);
+    this.#replyShown = reply;
     if (model.news) this.#news.set(model.news);
     const news = model.news ? this.#news.node : nothing;
     const panel = model.surface === "panel";
@@ -316,16 +325,16 @@ export class ThreadView {
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
     keeps(this.node, "data-attempt", model.attempt || null);
-    if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
-      this.node.toggleAttribute("open", !model.resolved);
-      this.#summaryResolved = model.resolved;
+    if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
+      this.node.toggleAttribute("open", reply);
+      this.#outletReplyShown = reply;
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = model.settlement ? this.#settlement(model) : nothing;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
-    if (!model.resolved || model.folding || marginControls) {
+    if (!model.resolved || reply || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement];
@@ -389,7 +398,47 @@ export class ThreadView {
     const hoistedRoot = headerActions ? messages[0]?.key : null;
     const markerFor = (key) =>
       readBoundary(key === hoistedRoot ? null : boundaries.get(key));
-    if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
+    const transcript = repeat(
+      ranges,
+      (range) => range.key,
+      (range) =>
+        range.kind === "message"
+          ? html`${markerFor(range.message.key)}${range.node}`
+          : this.#summaryRange(range, markerFor),
+    );
+    if (reply && !this.#reply) this.#reply = this.#createReply(model);
+    const body = html`
+      ${
+        model.quote
+          ? html`<header class="lf-thread-head">
+              <blockquote
+                class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
+                role=${model.quote.anchored ? "button" : nothing}
+                tabindex=${model.quote.anchored ? "0" : nothing}
+                aria-disabled=${model.quote.anchored ? String(!model.quote.found) : nothing}
+                title=${model.quote.title ?? nothing}
+                @click=${this.#returnToQuote}
+              >
+                <span class="lf-quote-label">${model.quote.label}</span>
+                ${
+                  model.quote.outdated
+                    ? html`<span class="lf-anchor-status">Earlier data</span>`
+                    : nothing
+                }
+              </blockquote>
+            </header>`
+          : nothing
+      }
+      ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
+      ${
+        headerActions && messages[0]
+          ? html`<div class="lf-thread-root-meta">
+              ${messages[0].header}${news} ${headerActions}
+            </div>`
+          : nothing
+      }
+      <div class="lf-thread-transcript">${transcript}</div>
+    `;
     render(
       html`
         ${navigationSummary(navigation, model)}
@@ -412,52 +461,10 @@ export class ThreadView {
               </summary>`
             : nothing
         }
+        ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
+        ${reply ? this.#reply.node : nothing}
         ${
-          model.quote
-            ? html`<header class="lf-thread-head">
-                ${
-                  model.quote
-                    ? html`<blockquote
-                        class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
-                        role=${model.quote.anchored ? "button" : nothing}
-                        tabindex=${model.quote.anchored ? "0" : nothing}
-                        aria-disabled=${
-                          model.quote.anchored ? String(!model.quote.found) : nothing
-                        }
-                        title=${model.quote.title ?? nothing}
-                        @click=${this.#returnToQuote}
-                      >
-                        <span class="lf-quote-label">${model.quote.label}</span>
-                        ${
-                          model.quote.outdated
-                            ? html`<span class="lf-anchor-status">Earlier data</span>`
-                            : nothing
-                        }
-                      </blockquote>`
-                    : nothing
-                }
-              </header>`
-            : nothing
-        }
-        ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
-        ${
-          headerActions && messages[0]
-            ? html`<div class="lf-thread-root-meta">
-                ${messages[0].header}${news} ${headerActions}
-              </div>`
-            : nothing
-        }
-        ${repeat(
-          ranges,
-          (range) => range.key,
-          (range) =>
-            range.kind === "message"
-              ? html`${markerFor(range.message.key)}${range.node}`
-              : this.#summaryRange(range, markerFor),
-        )}
-        ${model.reply ? this.#reply.node : nothing}
-        ${
-          model.resolved && !model.folding && !marginControls
+          model.resolved && !reply && !model.folding && !marginControls
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >
@@ -630,12 +637,15 @@ export class ThreadView {
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
-      land: () => travel.focusSurface(this.#model.id),
+      focus: "reply",
     });
   };
 
   #wireKeys() {
-    const quote = this.node.querySelector(":scope > .lf-thread-head > .lf-quote");
+    const quote = this.node.querySelector(
+      ":scope > .lf-thread-content > .lf-thread-head > .lf-quote, " +
+        ":scope > .lf-thread-head > .lf-quote",
+    );
     if (quote && !this.#keys.has(quote)) {
       this.#keys.add(quote);
       keys(quote, "On a comment's quoted passage", [
@@ -653,12 +663,12 @@ export class ThreadView {
 
   #createReply(model) {
     const panel = model.surface === "panel";
-    const row = offer("div", panel ? "lf-compose" : "lf-say");
+    const row = offer("div", "lf-thread-reply");
     // The reply is its editor on every surface, at rest too: `c`, its key badge and
     // landing all name this box, so nothing stands in for it on screen.
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
+    const send = offer("button", "lf-btn lf-thread-send", "Send");
     row.append(input, send);
     if (panel)
       input.lfRevealReply = () =>
@@ -668,7 +678,13 @@ export class ThreadView {
       onDraftLoaded: () => {
         // Initial construction is already painting this reading; mirrored edits
         // arrive later and must refresh the collapsed row's Draft indication.
-        if (panel && this.#reply) this.#navigation.draftChanged();
+        if (!this.#reply) return;
+        if (panel) this.#navigation.draftChanged();
+        else if (this.#replyShown !== (this.#model.reply || replyHasWords(model.key)))
+          this.#draftFrame ||= nextRender(() => {
+            this.#draftFrame = 0;
+            if (this.#reply) this.present(this.#model);
+          });
       },
     });
     return { node: row, dispose: lifetime.dispose };
@@ -737,7 +753,7 @@ export class ThreadView {
         this.#messages.delete(key);
       }
     }
-    if (!this.#model.reply && this.#reply) {
+    if (!this.#replyShown && this.#reply) {
       this.#reply.dispose();
       this.#reply = null;
     }

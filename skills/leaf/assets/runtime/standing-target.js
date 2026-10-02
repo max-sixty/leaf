@@ -13,14 +13,19 @@
    press made from it means the page whole.
 
    Each feature takes what it needs from that place by its own rule: the Ask view the
-   innermost Ask holding it, `c` and `e` the addressable element, the walks its document
+   innermost Ask holding it, `c` and `e` its semantic target, the walks its document
    position. The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every Ask and thread
-   there is; no reader measures from one that does not stand in an Ask. */
+   there is; no reader measures from one that does not stand in an Ask.
+
+   Page walks share `walkOrigin`: focus, then the selection's end, then the first
+   visible reading block. Every press reads the browser afresh; no walk remembers a
+   destination to use as the user's current place. */
 import { documentFocused } from "./keyboard/scopes.js";
 import { elementById, inChrome } from "./passages.js";
 import { allAsks } from "./asks/model.js";
-import { under } from "./shadow.js";
+import { hostIn, under } from "./shadow.js";
+import { readingBlock } from "./reading-place.js";
 
 const sides = [];
 
@@ -55,6 +60,10 @@ export function placeOf(node) {
 // they are.
 export const standingPlace = () =>
   placeOf(documentFocused()) ?? placeOf(getSelection()?.focusNode);
+
+// A page walk still has an origin when focus and selection name no page place. Order
+// is measured in the document's tree, where a shadow block stands at its host.
+export const walkOrigin = () => hostIn(standingPlace() ?? readingBlock(), document);
 
 // The Ask the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.

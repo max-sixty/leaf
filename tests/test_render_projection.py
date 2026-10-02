@@ -25,6 +25,7 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_cleanup as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -347,7 +348,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description stays unchanged.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -389,7 +390,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             "revision": "8f3b2cd",
             "status": "open",
             "description": "The description waits for Markdown.",
-            "observedAt": events_model.now_iso(),
+            "observedAt": cleanup_model.now_iso(),
             "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
             "checks": {"Unit suite": "passed"},
         },
@@ -582,10 +583,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(context).to_be_focused()
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -597,10 +595,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:40 in the exact patch"
     )
-    assert page.evaluate(
-        "() => document.querySelector('#patch').shadowRoot.activeElement"
-        ".matches('summary')"
-    )
+    expect(added).to_be_focused()
     # Each line already stood in the window once the diff revealed it, so neither
     # trip departed: no history entry, and the address kept no fragment.
     assert page.evaluate("history.length") == entries
@@ -1098,6 +1093,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
+    consume_browser_errors(
+        page,
+        "<lf-visual-review id=\"visual-run\"> failed: case 'run-list' focus 120,300",
+    )
     expect(case_select).to_be_visible()
     unequal_pair = changed | {
         "cases": [
@@ -1114,6 +1113,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-error")).to_contain_text(
         "before is 1800px wide and after is 780px"
     )
+    consume_browser_errors(page, "before is 1800px wide and after is 780px")
     corrected = changed | {
         "cases": [
             changed["cases"][0]
@@ -4540,21 +4540,10 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
 
 def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
-    """The ladder unwinds from where the user is, and out on the page the innermost
-    thing they are in is the decision they are standing on. There was no rung for it: `d`
-    brought them to a decision, ringed it, and no key took them out again — the one place in
-    the runtime where a press put the user somewhere with nothing to undo it, and the
-    line said nothing about Escape at all while they stood there.
-
-    What letting go is not is the walk forgetting: the ring says where the user is and
-    the walk keeps its own place, so the next press steps on rather than handing them
-    back the decision they just put down.
-
-    The landing is `body`, and a short page is where that stopped working. Chrome makes
-    a scroll container focusable so the keyboard can scroll it, which is the whole of
-    why `body.focus()` ever moved anything here — on a page that fits the window, the
-    call did nothing and the user stayed on the control the line had just promised to
-    take them off."""
+    """Escape closes the command reference, then lets go of the Ask and focuses body.
+    The next Ask walk reads the visible page place, returning to the first Ask before
+    advancing. Letting go also works on a page with no scroll range and after a Page
+    Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
     events_model.append_event(
@@ -4590,7 +4579,10 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
-    # The worklist keeps its place through that.
+    # The directional walk reads the user's current visible place after Escape.
+    # Reenter the first Ask from there, then move to the next one.
+    page.keyboard.press("a")
+    expect(page.locator("#live-question-decision")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -6410,9 +6402,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
-    expect(inline.locator(".lf-page-thread-body")).to_have_text(
-        "Half-empty by whose reading?"
-    )
+    expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-thread .lf-quote").first
@@ -7572,7 +7562,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
-    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose leaf-text")
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-thread-reply leaf-text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
@@ -7680,20 +7670,22 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
-    # the repeatable category walk and the thread-local reply route explicit.
+    # reaches Threads, on the title of the thread it shows open. A stray digit there
+    # neither travels nor picks; t then c makes the repeatable category walk and the
+    # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
-    # completion closes it and the second is the arrival on the list.
+    # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    title = page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")
+    expect(title).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(title).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()
@@ -8309,6 +8301,80 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     assert root_overflow(page) == 0
 
 
+def test_command_hub_lists_wait_behind_their_counts(browser, serve):
+    """No first paint can size the stopped and fleet lists, since the log and the clock
+    decide their rows, so on screen they stand once a count opens them and the outcome
+    alone holds the seat's room until then; paper prints them whole. Once open, a goal
+    stopping while the lists show waits: the list stands as drawn, its count says so,
+    and nothing below the seat moves, while the fleet, whose rows stay, repaints a
+    worker's new state in place. The new row shows once the seat leaves the window."""
+    url = serve(COMMAND_HUB_EXAMPLE)
+    d = serve.page_dir
+    page = open_page(browser, url)
+    seat = page.locator("#hub-readings")
+    lists = seat.locator(":scope > :is(.lf-stopped-view, .lf-fleet-view)")
+    record = page.locator("#hub-record")
+    expect(seat.locator(":scope > .lf-command-head")).to_be_visible()
+    expect(lists).to_have_count(2)
+    expect(lists.first).to_be_hidden()
+    expect(lists.last).to_be_hidden()
+    page.emulate_media(media="print")
+    expect(lists.first).to_be_visible()
+    expect(seat.locator(".lf-stopped-view li")).to_have_count(5)
+    page.emulate_media(media="screen")
+
+    count = seat.get_by_role("button", name="5 stopped")
+    count.click()
+    stopped = seat.locator(":scope > .lf-stopped-view")
+    expect(stopped.locator(":scope > h2")).to_be_focused()
+    expect(lists.last).to_be_visible()
+    page.evaluate("() => scrollTo(0, 0)")
+    expect(stopped).to_be_in_viewport()
+
+    def below():
+        return record.evaluate("node => node.getBoundingClientRect().top + scrollY")
+
+    standing = below()
+
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(d), "api-sdk", "status", "status=blocked"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    news = seat.get_by_role("button", name="6 stopped")
+    expect(news).to_have_attribute("data-lf-news", "")
+    expect(news).to_have_attribute("aria-description", re.compile("changed"))
+    expect(stopped.locator("li")).to_have_count(5)
+    expect(stopped.locator(":scope > h2")).to_have_text(
+        "Stopped work · 5, oldest first"
+    )
+    assert below() == standing
+
+    # The fleet keeps its rows, so a worker's new state repaints in place while the
+    # stopped list waits.
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(d), "w-1", "state", "state=waiting", "doing=parked"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    fleet = seat.locator(":scope > .lf-fleet-view")
+    expect(fleet.locator("li", has_text="§ w-1")).to_contain_text("waiting")
+    workers = seat.get_by_role("button", name="5 workers")
+    expect(workers).not_to_have_attribute("data-lf-news", "")
+    expect(stopped.locator("li")).to_have_count(5)
+    assert below() == standing
+
+    page.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
+    expect(stopped.locator("li")).to_have_count(6)
+    expect(news).not_to_have_attribute("data-lf-news", "")
+    page.evaluate("() => scrollTo(0, 0)")
+    expect(stopped.locator(":scope > h2")).to_have_text(
+        "Stopped work · 6, oldest first"
+    )
+
+
 def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     browser, serve
 ):
@@ -8383,6 +8449,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     medium that takes the press away. Read on paper because the loss is silent
     everywhere else: the rows say the same thing on screen either way."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page.locator("#hub-readings").get_by_role("button", name="5 stopped").click()
     fleet = page.locator("#hub-readings > .lf-fleet-view")
     stopped = page.locator("#hub-readings > .lf-stopped-view")
     names = page.locator("#hub-readings > :is(.lf-fleet-view, .lf-stopped-view) li > a")
@@ -8570,7 +8637,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
 def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, serve):
     """An exhibited choice is inert evidence. It cannot suppress the explicit
     request beside it in the same blocked goal."""
-    command = """<lf-command id="hub-plan" label="Quoted ask">
+    command = """<lf-command id="hub-plan" label="Quoted ask" readings="hub-readings">
       <lf-task id="goal" status="blocked" stopped-at="2026-08-21T08:00:00Z">
         <strong>Blocked goal</strong>
         <lf-sample id="sample"><lf-options id="example" choose>
@@ -8605,6 +8672,7 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
+    page.locator("#hub-readings").get_by_role("button", name="5 workers").click()
     fleet = page.locator("#hub-readings > .lf-fleet-view")
     worker = fleet.get_by_role("link", name="§ w-1", exact=True)
     worker.focus()
@@ -9028,59 +9096,58 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
 
 
 READING_PANELS = ":is(.lf-command-head, .lf-stopped-view, .lf-fleet-view)"
-READINGS_SEAT = (
-    '<lf-command-readings id="hub-readings" for="hub-plan"></lf-command-readings>'
-)
+READINGS_SEAT = '<lf-command-readings id="hub-readings"></lf-command-readings>'
+SEATED_PLAN = 'phase="week 3 of 6"\n          readings="hub-readings"\n'
+UNSEATED_PLAN = 'phase="week 3 of 6"\n'
 
 
 def test_command_hub_readings_follow_their_seat_across_revisions(browser, serve):
-    """The command's three readings stand in exactly one place: the seat when the page
-    has one, the command's head when it has none. A revision applied in place that adds
-    or removes the seat moves them there, rather than leaving one copy behind and
-    drawing another.
-
-    The seat stands directly in `main` and a second command keeps its own seat through
-    every revision, so no declared container around the command changes and the module
-    graph stays the same: each revision is applied to the standing command."""
+    """The command's three readings stand in exactly one place: the seat its `readings`
+    names when the page has one, the band at the command's own head when it has none.
+    A revision that adds or removes the seat moves them there, rather than leaving one
+    copy behind and drawing another, and the band stands in the command only while it
+    holds them. A second command keeps its own seat through every revision."""
     assert READINGS_SEAT in COMMAND_HUB_PAGE
-    base = COMMAND_HUB_PAGE.replace(READINGS_SEAT, "").replace(
+    assert SEATED_PLAN in COMMAND_HUB_PAGE
+    seated = COMMAND_HUB_PAGE.replace(READINGS_SEAT, "").replace(
         "    </main>",
-        '<lf-command id="side-plan" label="Side plan">'
+        '<lf-command id="side-plan" label="Side plan" readings="side-readings">'
         '<lf-task id="side-goal" status="active"><strong>Side goal</strong></lf-task>'
         "</lf-command>"
-        '<lf-command-readings id="side-readings" for="side-plan"></lf-command-readings>'
-        "\n    </main>",
+        '<lf-command-readings id="side-readings"></lf-command-readings>'
+        f"{READINGS_SEAT}\n    </main>",
     )
-    seated = base.replace("\n    </main>", f"{READINGS_SEAT}\n    </main>")
+    unseated = seated.replace(READINGS_SEAT, "").replace(SEATED_PLAN, UNSEATED_PLAN)
     url = serve(COMMAND_HUB_EXAMPLE)
     page = open_page(browser, live_url(url))
+    band = page.locator("#hub-plan > lf-command-readings")
     hub_panels = page.locator(
-        f"#hub-plan > {READING_PANELS}, #hub-readings > {READING_PANELS}"
+        f"#hub-plan > lf-command-readings > {READING_PANELS},"
+        f" #hub-readings > {READING_PANELS}"
     )
     stamp_page(serve.page_dir, seated, "the seat below the sheet")
     told(page)
     expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
     expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
-    page.evaluate("() => { window.__hubPlan = document.getElementById('hub-plan'); }")
+    expect(band).to_have_count(0)
 
-    stamp_page(serve.page_dir, base, "no seat")
+    stamp_page(serve.page_dir, unseated, "no seat")
     told(page)
     expect(page.locator("#hub-readings")).to_have_count(0)
-    expect(page.locator(f"#hub-plan > {READING_PANELS}")).to_have_count(3)
+    expect(band.locator(f":scope > {READING_PANELS}")).to_have_count(3)
     expect(hub_panels).to_have_count(3)
 
     stamp_page(serve.page_dir, seated, "seat again")
     told(page)
     expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    expect(band).to_have_count(0)
     expect(hub_panels).to_have_count(3)
     assert hub_panels.evaluate_all("nodes => nodes.map(node => node.classList[1])") == [
         "lf-command-head",
         "lf-stopped-view",
         "lf-fleet-view",
     ]
-    assert page.evaluate(
-        "() => window.__hubPlan === document.getElementById('hub-plan')"
-    ), "the revisions replaced the command rather than applying in place"
+    expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
 
 
 def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):
@@ -9094,24 +9161,22 @@ def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):
           const rail = seat.parentElement;
           seat.remove();
           const fresh = document.createElement('lf-command-readings');
-          fresh.id = 'hub-readings-2';
-          fresh.setAttribute('for', 'hub-plan');
+          fresh.id = 'hub-readings';
+          fresh.className = 'fresh';
           rail.prepend(fresh);
         }"""
     )
-    expect(page.locator(f"#hub-readings-2 > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(f"#hub-readings.fresh > {READING_PANELS}")).to_have_count(3)
     expect(page.locator(READING_PANELS)).to_have_count(3)
 
 
 def test_command_hub_readings_stay_in_their_own_document(browser, serve):
-    """A seat quoted in thread markup belongs to that message's document. The page's
-    command, which has no seat of its own on this page, keeps heading itself instead of
-    routing its readings into a message."""
+    """A command in thread markup fills the seat in that message's document, and the
+    page's seat keeps the page's command's readings."""
     url = serve(COMMAND_HUB_EXAMPLE)
-    stamp_page(serve.page_dir, COMMAND_HUB_PAGE.replace(READINGS_SEAT, ""), "no seat")
     root = events_model.append_event(
         serve.page_dir,
-        {"kind": "comment", "author": "user", "revision": 2, "text": "Status?"},
+        {"kind": "comment", "author": "user", "text": "Status?"},
     )
     events_model.append_event(
         serve.page_dir,
@@ -9120,18 +9185,25 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
             "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
-            "text": "Where the readings would stand.",
-            "markup": '<lf-command-readings id="quoted-readings" for="hub-plan">'
-            "</lf-command-readings>",
+            "text": "The plan as it stood.",
+            "markup": '<lf-command id="quoted-plan" label="Quoted plan"'
+            ' readings="quoted-readings">'
+            '<lf-task id="quoted-goal" status="active"><strong>Quoted goal</strong>'
+            "</lf-task></lf-command>"
+            '<lf-command-readings id="quoted-readings"></lf-command-readings>',
         },
     )
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
-    expect(page.locator("#quoted-readings")).to_be_attached()
-    expect(page.locator(f"#hub-plan > {READING_PANELS}")).to_have_count(3)
-    expect(page.locator(f"#quoted-readings > {READING_PANELS}")).to_have_count(0)
+    expect(page.locator("#quoted-plan > lf-command-readings")).to_have_count(0)
+    quoted = page.locator(f"#quoted-readings > {READING_PANELS}")
+    expect(quoted).to_have_count(3)
+    expect(quoted.first).to_contain_text("Quoted plan")
+    seat = page.locator(f"#hub-readings > {READING_PANELS}")
+    expect(seat).to_have_count(3)
+    expect(seat.first).to_contain_text("One clean shadow week")
 
 
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
@@ -9152,12 +9224,25 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
 
     page = open_page(browser, serve(command))
 
-    expect(page.locator("#outer > .lf-command-head")).to_contain_text("0/1 leaves")
-    expect(page.locator("#outer > .lf-command-head")).to_contain_text("1 workers")
-    expect(page.locator("#inner > .lf-command-head")).to_contain_text("1/1 leaves")
-    expect(page.locator("#inner > .lf-command-head")).to_contain_text("1 running")
+    expect(
+        page.locator("#outer > lf-command-readings > .lf-command-head")
+    ).to_contain_text("0/1 leaves")
+    expect(
+        page.locator("#outer > lf-command-readings > .lf-command-head")
+    ).to_contain_text("1 workers")
+    expect(
+        page.locator("#inner > lf-command-readings > .lf-command-head")
+    ).to_contain_text("1/1 leaves")
+    expect(
+        page.locator("#inner > lf-command-readings > .lf-command-head")
+    ).to_contain_text("1 running")
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
-    page.locator("#inner > .lf-command-head").click(position={"x": 5, "y": 5})
+    page.locator("#inner > lf-command-readings > .lf-command-head").click(
+        position={"x": 5, "y": 5}
+    )
+    page.locator("#inner > lf-command-readings").get_by_role(
+        "button", name="1 workers"
+    ).click()
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
 
@@ -9250,11 +9335,15 @@ customElements.define(\"lf-area\", class extends HTMLElement {
 
     page = open_page(browser, url)
 
-    expect(page.locator("#hub > .lf-command-head")).to_contain_text("0/1 leaves")
-    expect(page.locator("#hub > .lf-command-head")).to_contain_text("1 stopped")
-    expect(page.locator("#hub > .lf-stopped-view")).to_contain_text(
-        "Custom project goal"
-    )
+    expect(
+        page.locator("#hub > lf-command-readings > .lf-command-head")
+    ).to_contain_text("0/1 leaves")
+    expect(
+        page.locator("#hub > lf-command-readings > .lf-command-head")
+    ).to_contain_text("1 stopped")
+    expect(
+        page.locator("#hub > lf-command-readings > .lf-stopped-view")
+    ).to_contain_text("Custom project goal")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect_banner_control_offered(page.locator(".lf-asks"))
 

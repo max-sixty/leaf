@@ -6,11 +6,8 @@ from pathlib import Path
 
 import click
 
-from leaf.schema import (
-    EVENTS_FILE,
-    SKILL_ROOT,
-    WAIT_BATCH_OUTPUT_INSTRUCTION,
-)
+from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
+from leaf.session_cleanup import EVENTS_FILE
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -284,6 +281,7 @@ def check(dir: str, render: bool) -> None:
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+    A host with no browser gets a note in place of each browser check.
     """
     from leaf.validation.command import cmd_check
 
@@ -311,14 +309,23 @@ def media(dir: str, files) -> None:
         print(json.dumps({"path": url, "source": str(src)}, ensure_ascii=False))
 
 
-@page.command(short_help="List or print composed guidance by audience.")
+@page.command(short_help="Read instructions for selected components and audience.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("audience", required=False, metavar="AUDIENCE")
-def guidance(dir: str, audience: str | None) -> None:
-    """List audiences, or print the guidance for AUDIENCE."""
-    from leaf.page import cmd_guidance
+@click.option("--widget", "widgets", multiple=True, metavar="TAG")
+@click.option("--contract", "contracts", multiple=True, metavar="ID")
+def instructions(
+    dir: str, audience: str | None, widgets: tuple[str, ...], contracts: tuple[str, ...]
+) -> None:
+    """List audiences, or print AUDIENCE's selected-component instructions.
 
-    cmd_guidance(resolve_dir(dir), audience)
+    With no component selection, read only shared package instructions. Select
+    widgets before writing markup; their examples, required members, and data
+    contracts bring their own instructions into the same reading.
+    """
+    from leaf.page import cmd_instructions
+
+    cmd_instructions(resolve_dir(dir), audience, widgets=widgets, contracts=contracts)
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
@@ -440,7 +447,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     resumes from the last one a reader saw. This is read-only and does not
     acknowledge user events. `page state PAGE ID` reads one thread or widget.
     """
-    from leaf.transcript import cmd_events
+    from leaf.event_log import cmd_events
 
     cmd_events(resolve_dir(dir), after, follow=follow)
 
@@ -933,18 +940,14 @@ def thread_resolve(dir: str, thread: str) -> None:
 )
 def hook(watch: bool) -> None:
     """Answer an agent-host hook on stdin."""
-    from leaf.hooks import cmd_hook, cmd_watch
-    from leaf.leases import release_on_termination
+    from leaf.hooks import main
 
-    try:
-        payload = json.load(sys.stdin)
-    except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
-    if watch:
-        # The host stops a watch at the hook's timeout, which must release its
-        # lease the way a wait's does.
-        release_on_termination()
-        if woke := cmd_watch(payload):
-            print(woke, flush=True)
-        return
-    cmd_hook(payload)
+    main(watch=watch)
+
+
+@cli.command(hidden=True)
+def session_end() -> None:
+    """Release ownership for the host's SessionEnd payload on stdin."""
+    from leaf.session_cleanup import main
+
+    main()

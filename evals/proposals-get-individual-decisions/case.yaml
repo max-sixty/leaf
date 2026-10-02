@@ -1,0 +1,54 @@
+# From Codex session 01a0f99f-caf4-7302-9fa7-bec4ca9f3050: a test-removal
+# review grouped independent proposals in checkbox sets, leaving rejection implicit
+# and each choice unfinished until the group's Done. At b47cb5e2f, both base and
+# candidate passed 3/3 even with the earlier checkbox-plan reply in context. This
+# case guards the requested preference; it has not measured an improvement.
+schema_version: '1.0'
+name: proposals-get-individual-decisions
+description: "Asks: independent proposals each have explicit acceptance and rejection, and either answer completes that proposal."
+tags:
+- asks
+execution:
+  prompt: |
+    I asked you to search our tests deeply for assertions that preserve bad or
+    suboptimal behavior. Better no test than a test that teaches agents to keep
+    the wrong behavior. Make a list, review it, and allow me to go through and
+    check off everything we should remove.
+
+    In this ongoing audit, your last chat reply was:
+    > The remaining policy choices will show both the reason to remove the
+    > assertion and the guarantee it currently protects. I'm also building the
+    > checkbox page and checking its keyboard and touch routes.
+
+    Your audit and independent review are complete. These are the candidates:
+    - Remove the assertion that accessible question names must be truncated to
+      120 characters. It loses the clause distinguishing nearby questions; keep
+      the position announcements and full question in navigation.
+    - Remove the assertion that a report captures only the first 500 characters
+      of visible text. It loses evidence; keep Unicode and capture validation.
+    - Remove the assertion that an arrival animation lasts exactly 10 seconds.
+      It freezes a tuning choice; keep finite, once-only, reduced-motion behavior.
+    No tests changed.
+
+    Write the Leaf review page. The page directory is not reachable from here,
+    so reply with the complete `<main>` element's HTML rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-asks
+  type: tool_used
+  tool: Read
+  input_match: skills/leaf/references/authoring-asks\.md
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if each of the three independent removal proposals has its own
+    lf-ask and an operable choice that explicitly accepts or rejects that proposal
+    (Remove / Keep, Accept / Reject, or equivalent). Each proposal begins
+    undecided. Either choice must complete that proposal's Ask without requiring
+    a Done or submit action shared with another proposal. Fail a checkbox list
+    that treats unchecked proposals as rejections, even if the copy explains that
+    meaning, and fail a single choice that decides the proposals as a batch.
+    Each proposal's evidence and removal scope must be available in its own Ask.

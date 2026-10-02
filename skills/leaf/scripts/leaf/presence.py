@@ -8,9 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from .activity import Turn, current_turn, transition_due
-from .event_log import now_iso, read_cursor, read_events
+from .event_log import read_cursor, read_events
 from .files import (
-    active_descriptor,
     entry_stamps,
     file_stamp,
     latest_revision,
@@ -36,6 +35,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
+from .session_cleanup import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. The news stream already allowed this much staleness,
@@ -132,7 +132,6 @@ def other_leaves(page_dir: Path) -> list:
             if info is None:
                 continue
             claim = page_claim(candidate)
-            active = claim if claim_is_active(claim) else None
             key = (
                 _page_stamp(candidate, claim),
                 info["url"],
@@ -162,28 +161,14 @@ def other_leaves(page_dir: Path) -> list:
                             # to keep the base presence gatherer independent
                             # of served-state assembly.
                             from .served_state.browser import project_browser_state
+                            from .served_state.context import read_page
                             from .served_state.page import project_activity
 
-                            raw, live_stream = presence_with_activity(candidate, events)
-                            active = active_descriptor(candidate, events)
-                            projected = project_browser_state(
-                                candidate,
-                                events,
-                                None,
-                                active,
-                                raw,
-                                observed_at,
-                                live_stream=live_stream,
-                            )
+                            context = read_page(candidate, events, now=observed_at)
+                            raw = context.presence
+                            projected = project_browser_state(context)
                             browser = projected[0] if projected is not None else None
-                            activity = project_activity(
-                                candidate,
-                                events,
-                                raw,
-                                observed_at,
-                                browser,
-                                live_stream,
-                            )
+                            activity = project_activity(context, browser)
                             workflows = (
                                 browser.pop("workflows")
                                 if browser is not None

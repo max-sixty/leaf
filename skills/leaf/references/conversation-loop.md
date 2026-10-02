@@ -66,8 +66,8 @@ leaf status <page> waiting "<what you want back>"
 
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
-banner then invites the user to select text to comment. Every chat message
-from here on repeats the page's exact URL (the main skill, "Operate").
+banner then invites the user to select text to comment. Finish the turn by the
+handoff route in the main skill, "Operate".
 
 While the next move is yours the page is `working`. Name the local subject when
 the detail is about one open comment thread or page widget:
@@ -113,8 +113,8 @@ saying what changed and linking to it.
 You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
-role Leaf's guidance gives it, and only as that guidance directs: a command hub worker
-(`leaf page guidance <page> worker`), or a Codex watcher task
+role Leaf's instructions give it, and only as those instructions direct: a command hub worker
+(`leaf page instructions <page> worker`), or a Codex watcher task
 (`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
 inherits your conversation inherits the page with it and may otherwise treat the page
 as its own. Work that needs its own conversation with the user belongs to a session

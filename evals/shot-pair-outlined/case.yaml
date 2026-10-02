@@ -1,7 +1,7 @@
 # Added with lf-shot's `outlines`, which a pair must ask for. Against the PR's earlier
 # wording, where every pair drew outlines unless it set `no-outlines`, no base run
 # could write `outlines` (0 of 3) and every candidate run did (3 of 3); the judgment
-# passed in both arms. So it measures that the guidance names the attribute, which a
+# passed in both arms. So it measures that the instructions names the attribute, which a
 # page now needs for its outlines.
 schema_version: '1.0'
 name: shot-pair-outlined

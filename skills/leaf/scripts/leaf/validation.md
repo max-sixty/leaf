@@ -43,22 +43,39 @@ captured copy, which was validated when that revision activated; vendored sheets
 validated when `page init` composes them, not on each check.
 
 That half has one piece plain `page check` runs too. A page that runs code of its
-own, a module script or a page widget the document places, is served and run once at
-the render viewport through upgrade, presentation, and one frame after it, and fails on
-each `error` event its runtime posts in that time: the event `leaf wait` would deliver,
-intercepted rather than read off the browser's own error channels, so the check and the
-watcher fail on one set in one wording. A quick page never reaches `--render`, and no
-static reading says whether a module throws. `render_gate/page_code.py` owns the run.
+own, a module script or a page widget the document places, or places a data widget
+(`x-content: data`), is served and run once at the render viewport through upgrade,
+presentation, and one frame after it, and fails on each `error` event its runtime posts
+in that time: the event `leaf wait` would deliver, intercepted rather than read off the
+browser's own error channels, so the check and the watcher fail on one set in one
+wording. A widget that fails soft posts one too. A quick page never reaches `--render`,
+and no static reading says whether a module throws or whether a data body is one its
+module can read. Message markup that places a data or page widget is run the same way,
+as a page of its own, before the thread command that carries it takes the log: the log
+freezes it, and a chart in a shut thread has no room to draw in any later run. A run
+serves the page's log, so what earlier messages place runs in it too; the post-time run
+is what keeps those clean. Leaf runs without a browser, so where the host has none,
+every browser gate (these runs, `--render`, and `package check --render`) is skipped
+with a note and leaves the status alone: the page posts the same `error` events
+whenever a browser draws it, so a browserless host such as leaf.page's container loses
+the early reading, not the report.
+`render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
-namespace is its `data-sample-threads` declaration, so a first version may name
-threads whose seed log has not been written yet. Static validation applies the same
-child-document checks using the selected history currently available. Sample
-allocation copies that same available history and no more, so a thread the log does
-not hold leaves the child without it rather than refusing the page. Corpus
-generation selects against the shipped log it is composing from, where a declared
-thread the log lacks is a mistake in the declaration, and refuses it.
+namespace comes from its initial history. `sample_content.initial_sample_events`
+constructs it once for both static validation and allocation. `data-sample-events`
+names an inline inert JSON script in the captured parent document: its ordinary event
+commands are admitted against the child, including file-side anchor capture and the
+shared message-markup gate. The resulting history defines the child's thread namespace
+before presentation and never writes the parent's log.
+
+Alternatively, `data-sample-threads` selects from the parent's available history.
+A first version may name threads whose seed log has not been written yet; a thread
+the log does not hold leaves the child without it rather than refusing the page.
+Corpus generation selects against the shipped log it is composing from, where a
+declared thread the log lacks is a mistake in the declaration, and refuses it.
+The two history declarations are mutually exclusive.
 
 ## Delivery policy
 
@@ -83,7 +100,8 @@ Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and
 render invariants the static lint cannot reach run against it in both color schemes:
 no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
 image, a blocked or mixed-content request, a deprecated API) outside a form control's
-shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
+shadow tree, one in an embedded frame placed at that frame (a widget failing soft
+is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, or

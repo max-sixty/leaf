@@ -34,7 +34,7 @@ jq 'select(has("lf-shot"))."lf-shot"' \
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
 the user relies on, such as a gesture being recorded or nothing moving under the
-pointer. Taste, formatting and aesthetics go in the shipped guidance, as a goal and
+pointer. Taste, formatting and aesthetics go in the shipped instructions, as a goal and
 its reason, so the authoring agent weighs them against the page in front of it. How
 many tiles share a row, where a heading breaks, which column is wider: a rule in CSS,
 a validator or a Layout that fixes one of these for every page overrides the agent
@@ -62,7 +62,7 @@ A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
-(`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
+(`<root>/skills/leaf/packages/playground/instructions/author.md`) wrap the
 candidates: the controls and presets the user explores them with, the
 candidates in its preview, and an output saying what to build.
 
@@ -70,8 +70,12 @@ When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
 through a shipped example or fixture. A sketch without implementation is
 page-local markup derived from the current surface's controls, copy, and
-styling, shown beside that surface as the baseline, which a live `lf-sample`
-(`skills/leaf/references/page-authoring.md`) embeds operable.
+styling, shown beside that surface as the baseline. For a live Leaf interface,
+embed the baseline and candidates as `lf-sample window` children in the playground.
+The outer page carries the configuration and feedback; the children carry practice
+interactions. Start their fictional histories with `data-sample-events`, sharing
+one parent-local JSON fixture when the candidates need the same conversation
+(`skills/leaf/references/page-authoring.md`, "Live samples").
 
 ## Prove and hand off a visible change
 
@@ -120,7 +124,8 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
-`.tmp/previews/<example>-user` so the user's comments reach `leaf wait`, which
+the directory printed at startup (`.tmp/previews/<example>-user` by default;
+`--slot` chooses the directory name) so the user's comments reach the host, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -129,15 +134,15 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command. A restarted
-   preview is a new page and needs step 3 again.
-2. Call `mcp__codex_app__open_in_codex` with the fragment URL as a browser
-   target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so Leaf
-   comments return to the current task.
-4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
-   thread. Codex Annotation mode sends visual comments with their next chat
-   message; the review pane is for feedback on a source line.
+1. Start the preview with `--user` as a long-running command from the current
+   chat. It connects Leaf feedback to this Codex chat before printing the URL;
+   each restart reconnects the rebuilt page automatically.
+2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
+   block's fragment, as a browser target with `placement: "right"`.
+3. Tell the user to comment on the surrounding review page to steer this chat.
+   Comments inside a live sample are practice interactions in that child. Codex
+   Annotation mode sends visual comments with the next chat message; Leaf's text
+   selection and comment affordance send an anchored thread directly.
 
 ## Test the hosted website agent
 
@@ -159,10 +164,11 @@ production reading.
 
 ## Test a terminal Codex task
 
-`uv run --project <root> leaf-dev verify-codex-task` runs a real Codex task, with
-this working tree installed as its plugin, through the App Server adapter `leaf codex
-start` leaves running, and checks each comment it posts is answered once and each
-turn is closed under App Server's id. Run it after a change to `codex.py`,
+`uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
+this working tree installed as their plugin, through both transports of `leaf codex
+start`. It checks each comment is answered once, a comment during queue-backed
+work is picked up and answered in that same turn, and each turn is closed under
+App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
@@ -211,7 +217,7 @@ report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
 (`references/sample-explainers.md`).
 
-## Score a guidance change
+## Score an instruction change
 
 Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
 hands a headless Claude Code, with this checkout as its only plugin, so the child
@@ -219,19 +225,19 @@ loads `leaf:leaf` and reads the references as a real session does. Score a chang
 `skills/leaf/` on the cases it bears on:
 
 ```bash
-uv run leaf-dev guidance-eval [CASE]... [--base REF] [--runs N]
+uv run leaf-dev instructions-eval [CASE]... [--base REF] [--runs N]
 ```
 
-It runs the cases on the base's guidance (the merge base with `main` by
+It runs the cases on the base's instructions (the merge base with `main` by
 default) and the working tree's at once, and prints each case's passes per arm and the
 cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
-the skill and the references and every run answers with no guidance, while
+the skill and the references and every run answers with no instructions, while
 `loads-leaf` still passes on the attempt. So every case also grades that the child
 read the reference it tests, and a run that fails that check measured nothing. The
 grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
 refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
 
-The suite is a library that grows with the guidance, so a later edit, whether a fix
+The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
 where a change's behavior gives the library breadth, a behavior or kind of situation
 no case yet covers. First try to extend an existing case, with a grader, a

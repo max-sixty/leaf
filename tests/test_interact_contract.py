@@ -63,6 +63,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import data as data_model
+from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -83,6 +84,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
+from leaf.registry import schema as registry_schema
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
@@ -1593,44 +1595,6 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         assert vocabulary["lf-local"] == declaration
 
 
-def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
-    """A current thread remains usable in every immutable document showing it."""
-    publish(page_dir)
-    authored = page_dir / "page"
-    (authored / "registry.json").write_text(
-        json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)})
-    )
-    widgets = authored / "widgets"
-    widgets.mkdir(exist_ok=True)
-    (widgets / "lf-local.js").write_text(
-        "export function upgrade(element) { element.textContent = 'Loaded'; }\n"
-    )
-    (page_dir / "index.html").write_text(PAGE)
-    publish(page_dir, version=2)
-
-    posted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "open",
-            str(page_dir),
-            "--text",
-            "A later widget",
-            "--markup",
-            '<lf-local id="later-widget"></lf-local>',
-        ],
-    )
-
-    assert posted.exit_code == 1, posted.output
-    assert "pinned revision r1 cannot render this thread markup" in posted.output
-    assert "<lf-local>" in posted.output
-    assert (
-        "use vocabulary shared by the active registry and every pinned revision; "
-        "otherwise ask with --text" in posted.output
-    )
-    assert not events_model.read_events(page_dir)[-1].get("markup")
-
-
 def test_page_registry_cache_follows_layer_and_widget_files(page_dir):
     first = registry_storage.read_page_registry(page_dir)
     assert registry_storage.read_page_registry(page_dir) is first
@@ -1996,8 +1960,8 @@ def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
             "must be a canonical data source string",
         ),
         (
-            lambda entry: entry.update({"x-guidance": {"author": ""}}),
-            "should be non-empty",
+            lambda entry: entry.update({"x-instructions": ""}),
+            "registry extensions are invalid",
         ),
     ],
 )
@@ -2201,11 +2165,18 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
-def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
+@pytest.mark.parametrize("change", ["schema", "records"])
+def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
+    page_dir, change
+):
     """A same-named contract cannot redirect old readers to a different field."""
     authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
+    contract = declarations["$data"]["contracts"]["local-files"]
+    if change == "records":
+        contract["records"]["deferred"] = "body"
+    else:
+        contract["schema"]["properties"]["files"]["minItems"] = 1
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
@@ -2219,6 +2190,84 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
     assert "schema or record declaration" in revendored.output
+
+
+def test_data_history_is_held_across_the_incoming_layer_interpretation(
+    page_dir, monkeypatch, tmp_path
+):
+    """Re-vendoring reads each historical artifact once, retaining the registry
+    that makes frozen markup meaningful while judging incoming bindings separately.
+    """
+    authored = _page_owned_deferred_source(page_dir)
+    declarations = json.loads(authored.read_text())
+    inputs = declarations["lf-local-data"]["x-data"]
+    inputs["renamed"] = inputs.pop("document")
+    authored.write_text(json.dumps(declarations))
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace("</main>", "<p>Next version.</p></main>")
+    )
+    activation = revisioning_model.activate_source(page_dir)
+    assert activation.error is None and activation.created
+    registry = registry_storage.require_registry(page_dir)
+    events = [
+        {
+            "id": "frozen-feed",
+            "revision": 1,
+            "markup": '<lf-local-data id="reply-data" source="reply-feed"></lf-local-data>',
+        }
+    ]
+    reads = []
+    read_revision = data_contracts_model.read_revision
+
+    def capture_revision(directory, revision):
+        reads.append(revision)
+        return read_revision(directory, revision)
+
+    monkeypatch.setattr(data_contracts_model, "read_revision", capture_revision)
+    vendoring_model._refuse_data_contract_drift(page_dir, events, registry)
+    assert reads == files_model.list_revisions(page_dir)
+
+    inventory = data_contracts_model.page_data_binding_inventory(
+        page_dir, registry, events
+    )
+    assert inventory["reply-feed"]["consumers"] == [
+        {
+            "widget": "reply-data",
+            "input": "document",
+            "document": "event 'frozen-feed' markup",
+        }
+    ]
+
+    # Seeded markup on an unstamped page uses its initial registry.
+    bootstrap = data_contracts_model.page_data_binding_inventory(
+        tmp_path / "bootstrap", registry, [{**events[0], "revision": None}]
+    )
+    assert bootstrap == {
+        "reply-feed": {
+            "contract": "local-files",
+            "consumers": [
+                {
+                    "widget": "reply-data",
+                    "input": "renamed",
+                    "document": "event 'frozen-feed' markup",
+                }
+            ],
+        }
+    }
+
+    incoming = deepcopy(registry)
+    incoming["lf-local-data"]["x-data"] = {}
+    reads.clear()
+    with pytest.raises(SystemExit) as refused:
+        vendoring_model._refuse_data_contract_drift(page_dir, events, incoming)
+    assert reads == files_model.list_revisions(page_dir)
+    assert str(refused.value) == (
+        "this page's immutable documents do not keep one meaning for each data source:\n"
+        "  - source 'files' loses its contract 'local-files'\n"
+        "  - source 'reply-feed' loses its contract 'local-files'\n"
+        "preserve those bindings in the incoming registry before re-vendoring."
+    )
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
@@ -4733,7 +4782,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
 def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
-    assert registry_contract.json_validator(schema).is_valid(value) is valid
+    assert registry_schema.json_validator(schema).is_valid(value) is valid
 
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
@@ -5208,3 +5257,202 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert threads["c1"]["resolved"]["id"] == "accept1"
     memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
     assert memberships["label1"] == []
+
+
+@pytest.mark.parametrize(
+    ("history", "script_attrs", "template_attrs", "complaint"),
+    [
+        (
+            "[]",
+            'type="application/json"',
+            'data-sample-events="missing"',
+            "must name one script",
+        ),
+        (
+            "[]",
+            'type="text/plain"',
+            'data-sample-events="fixture"',
+            "inline application/json",
+        ),
+        (
+            "[]",
+            'type="application/json" src="/page/history.json"',
+            'data-sample-events="fixture"',
+            "inline application/json",
+        ),
+        (
+            '[{"kind":"comment","text":NaN}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "invalid JSON",
+        ),
+        (
+            "{",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "invalid JSON",
+        ),
+        (
+            "{}",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "array of event objects",
+        ),
+        (
+            "[1]",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "array of event objects",
+        ),
+        (
+            '[{"kind": []}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "kind must be one of",
+        ),
+        (
+            '[{"kind":"reply","parent":"absent","text":"Reply"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "unknown parent",
+        ),
+        (
+            '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "already exists",
+        ),
+        (
+            '[{"kind":"comment","id":"child","text":"Collision"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "document or message widget id",
+        ),
+        (
+            '[{"kind":"action","widget":"absent","action":"choose","detail":{"options":[]}}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "unknown action widget",
+        ),
+        (
+            '[{"kind":"action"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "event is invalid",
+        ),
+        (
+            '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "ISO timestamp",
+        ),
+        (
+            "[]",
+            'type="application/json"',
+            'data-sample-events="fixture" data-sample-threads="aabb0011"',
+            "not both",
+        ),
+    ],
+)
+def test_sample_fixture_refusals_reach_page_check(
+    page_dir, history, script_attrs, template_attrs, complaint
+):
+    source = (
+        f'<script id="fixture" {script_attrs}>{history}</script>'
+        f'<template id="practice" data-sample {template_attrs}>'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "sample 'practice'" in result.output
+    assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    ("markup", "complaint"),
+    [
+        ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown widget"),
+        (
+            '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
+            "already taken",
+        ),
+        ("<p>Just prose</p>", "carries no widget"),
+        (
+            '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
+            "stylesheet of the whole document",
+        ),
+    ],
+)
+def test_sample_fixture_message_markup_uses_the_message_gate(
+    page_dir, markup, complaint
+):
+    history = json.dumps(
+        [{"kind": "comment", "author": "agent", "text": "Example", "markup": markup}]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "sample 'practice'" in result.output
+    assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    ("anchor", "valid", "complaint"),
+    [
+        ({"section": "outer-only"}, False, "no element id 'outer-only'"),
+        ({"section": "missing"}, False, "no element id 'missing'"),
+        (
+            {"section": "child", "quote": "Words only in the parent"},
+            False,
+            "doesn't say",
+        ),
+        ({"section": "child", "quote": "Child passage"}, True, ""),
+        ({"section": "generated-option", "quote": "Generated passage"}, True, ""),
+        ({"section": "message-widget"}, True, ""),
+        (None, True, ""),
+    ],
+)
+def test_sample_fixture_anchors_are_captured_in_the_child_reading(
+    page_dir, anchor, valid, complaint
+):
+    history = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "text": "A widget example",
+            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" choose><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
+        },
+        {
+            "kind": "comment",
+            "text": "A fixture question",
+            **({"anchor": anchor} if anchor is not None else {}),
+        },
+    ]
+    if anchor and anchor.get("section") == "generated-option":
+        history.insert(
+            1,
+            {
+                "kind": "action",
+                "widget": "message-widget",
+                "action": "add",
+                "detail": {"option": "generated-option", "text": "Generated passage"},
+            },
+        )
+    source = (
+        '<p id="outer-only">Words only in the parent</p>'
+        f'<script id="fixture" type="application/json">{json.dumps(history)}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1>Sample</h1><p id="child">Child passage</p></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert (result.exit_code == 0) == valid, result.output
+    if not valid:
+        assert "sample 'practice'" in result.output
+        assert complaint in result.output

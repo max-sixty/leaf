@@ -512,6 +512,116 @@ sequenceDiagram
   </ul>
 </section>
 
+<section id="query">
+  <h2>Asked "what's on the user?", today's Leaf answers from three projections; C answers with one list of records</h2>
+  <p>Whatever shows you your list (the Asks drawer, a hub across pages, an agent checking before it hands over) runs one query. Under each model it reads a different record. The table says what that record is; the code below shows what the query returns at one moment: <a href="#flow-dispatch-compare">flow 2</a> after step 6, when the dispatched session has finished the sketches and the status Ask is still open.</p>
+  <table id="query-records" data-width="available">
+    <thead><tr><th scope="col"></th><th scope="col">Today</th><th scope="col">B · One queue</th><th scope="col">C · Loops</th><th scope="col">D · Ledger</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">The record</th><td>None of its own. Open Asks (<code>asks</code>), the agent's unsettled moves (<code>workflows</code>), and each thread's <code>attention</code></td><td>A queue item: an Ask, a thread to review, or a stalled promise</td><td>A loop: an ask (you owe it) or a request (the agent owes it)</td><td>An Ask, or a ledger entry in the page's markup</td></tr>
+      <tr><th scope="row">Where it lives</th><td>Derived from the log. <code>attention</code> is computed only for the browser (<code>served_state/browser.py</code>), so <code>leaf page state</code> doesn't carry it</td><td>Derived from the log: Asks, thread turns and claims</td><td>Derived from the log: <code>loop_open</code>, <code>loop_move</code> and <code>split</code> events</td><td>Asks in the log; entries in <code>index.html</code>, written only by the page's agent</td></tr>
+      <tr><th scope="row">What's on you</th><td>Open Asks, plus threads whose <code>attention</code> is <code>needs_user</code> (an Ask, an <code>--awaits</code> question, or a failed reply to recover)</td><td>Every queue item not blocked</td><td>Open asks not blocked or deferred, and requests that are ready, declined or stalled</td><td>Open Asks not blocked. Entries are the agent's, and you only contest them</td></tr>
+      <tr><th scope="row">What's on the agent</th><td><code>workflows</code> whose answer is owed. Work begun without a move to answer shows only as a claim in <code>updates</code>, which fades once the turn ends</td><td>Threads under a live claim</td><td>Requests that are open, taken or handed, each naming its holder</td><td>Entries marked owed</td></tr>
+      <tr><th scope="row">What you can do with each</th><td>Varies by surface: press an Ask, reply, resolve</td><td>Ask: answer. Review: <kbd>r</kbd>. Stalled: close, or reply to restart</td><td>Each record lists its verbs. Ask: answer, decline, later. Ready request: accept, reopen, drop, later</td><td>Ask: answer. Entry: contest</td></tr>
+      <tr><th scope="row">Across pages</th><td>Each page's lists, read one page at a time</td><td>The queues, concatenated</td><td>The loops, filtered by who owes them, so one walk handles every page</td><td>Each page's Asks; entries need reading each page's markup</td></tr>
+    </tbody>
+  </table>
+  <div class="layout-tiles" id="query-examples" data-width="available">
+    <div>
+      <p><strong>Today</strong>: from <code>leaf page state</code></p>
+      <lf-code id="query-today" language="json"><pre>
+{
+  "asks": [
+    {"id": "status",
+     "tag": "lf-ask",
+     "source": "status-pick",
+     "thread": null}
+  ],
+  "workflows": [],
+  "threads": [
+    {"id": "t1",
+     "title": "Sketch each first",
+     "resolved": {
+       "kind": "resolve",
+       "author": "user"},
+     "unread": []}
+  ]
+}
+</pre>
+        <lf-note at="12">Resolved, and "Dispatched" settled the comment, so nothing anywhere says sketches are owed.</lf-note>
+      </lf-code>
+    </div>
+    <div>
+      <p><strong>B</strong>: the queue</p>
+      <lf-code id="query-queue" language="json"><pre>
+{
+  "needs_you": [
+    {"kind": "stalled",
+     "thread": "t1",
+     "promise": "sketches",
+     "claimed_by": "s1",
+     "claimant_ended": true,
+     "verbs": ["close", "reply"]},
+    {"kind": "ask",
+     "id": "status",
+     "verbs": ["answer"]}
+  ],
+  "with_agent": []
+}
+</pre>
+        <lf-note at="6">A false alarm: session s2 has finished the sketches, but the claim was s1's.</lf-note>
+      </lf-code>
+    </div>
+    <div>
+      <p><strong>C</strong>: the loops</p>
+      <lf-code id="query-loops" language="json"><pre>
+{
+  "needs_you": [
+    {"id": "R7",
+     "kind": "request",
+     "state": "ready",
+     "title": "Sketch each placement",
+     "from": "t1",
+     "holder": "s2",
+     "cites": ["s2's page, v2"],
+     "verbs": ["accept", "reopen",
+               "drop", "later"]},
+    {"id": "status",
+     "kind": "ask",
+     "state": "open",
+     "blocked_by": null,
+     "verbs": ["answer",
+               "decline", "later"]}
+  ],
+  "with_agent": []
+}
+</pre>
+        <lf-note at="8">The holder is the dispatched session, which reported R7 ready from its own page.</lf-note>
+      </lf-code>
+    </div>
+    <div>
+      <p><strong>D</strong>: Asks, and the books</p>
+      <lf-code id="query-ledger" language="json"><pre>
+{
+  "needs_you": [],
+  "ledger": [
+    {"id": "e3",
+     "state": "owed",
+     "text": "Sketches, to s2",
+     "from": "t1",
+     "blocks": ["status"],
+     "link": null,
+     "verbs": ["contest"]}
+  ]
+}
+</pre>
+        <lf-note at="2">Empty: the status Ask is blocked by e3, which only the page's own agent can mark done, and s1 has ended.</lf-note>
+      </lf-code>
+    </div>
+  </div>
+  <p>Only B and C return one list whose items each say what they are and what you can do with them, which is what a structured walk needs: <kbd>a</kbd> today walks Asks only, and could walk every record on the list instead, offering each one's verbs. C's records also say who holds each request, so the same query answers "what's on the agent" and "which session". It would be one command, say <code>leaf needs</code>, run on one page or across all of them.</p>
+</section>
+
 <section id="ontology">
   <h2>What each direction changes in Leaf</h2>
   <lf-tabs id="ontology-tabs">

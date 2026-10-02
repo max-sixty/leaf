@@ -227,6 +227,13 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     expect(preview.get_by_text("Carry this comment into its thread.")).to_be_visible()
     expect(target).to_be_focused()
+    message = preview.locator(".lf-msg-body").first
+    expect(message).to_have_text("Carry this comment into its thread.")
+    full = message.evaluate(
+        "node => ({family: getComputedStyle(node).fontFamily, "
+        "size: getComputedStyle(node).fontSize})"
+    )
+    assert compact == full
     assert preview.get_attribute("data-lf-comment-frame") is not None
     motion = preview.evaluate(
         """card => {
@@ -265,12 +272,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     settled = preview.bounding_box()
     for dimension in ("x", "y", "width", "height"):
         assert settled[dimension] == pytest.approx(motion["card"][dimension], abs=1)
-    reply = preview.locator("leaf-text")
-    full = reply.evaluate(
-        "node => ({family: getComputedStyle(node).fontFamily, "
-        "size: getComputedStyle(node).fontSize})"
-    )
-    assert compact == full
+    expect(message).to_have_text("Carry this comment into its thread.")
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):

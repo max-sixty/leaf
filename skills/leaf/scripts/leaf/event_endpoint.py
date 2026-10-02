@@ -98,7 +98,7 @@ def accept_event(
         return event_rejection(event, f"kind must be one of {browser_kinds}")
     # The server owns the record envelope and agent identity. Removing client
     # copies before validation prevents them from entering attempt identity too.
-    for field in ("id", "author", "agent", "session", "ts", "seq"):
+    for field in ("id", "author", "agent", "session", "ts", "seq", "attention"):
         event.pop(field, None)
     if error := browser_command_error(contracts[kind], event):
         return event_rejection(event, f"{kind} event is invalid: {error}")
@@ -154,7 +154,7 @@ def _execute_event(
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
-            if requires_agent_attention(event):
+            if requires_agent_attention(admitted):
                 nudge_unwatched(page)
             if event["kind"] == "comment" and claim:
                 opened = admitted["id"], claim

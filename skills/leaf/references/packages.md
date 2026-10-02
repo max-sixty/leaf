@@ -101,8 +101,12 @@ package/
 
 No individual file is required. The kernel supplies the files every complete layer
 needs. Theme files concatenate into one cascade layer, `lf-base`; specificity,
-native scope proximity, then source order decide between its rules. Layouts and the
-page's own stylesheet rank above every package rule whatever its specificity.
+native scope proximity, then source order decide between its rules. Layouts and
+semantic state rank above package defaults; the page's unlayered stylesheet ranks
+above all of them. In declared shadow trees, shared `shadow.css` rules rank above
+widget defaults and below semantic state. A behavior module placing third-party
+CSS in a `<style>` uses `inBaseLayer(text)` from `/runtime/widget-api.js`: it puts
+the vendor's rules, including any nested layers, in the widget-default tier.
 Composition wraps each widget package's sheets in native `@scope`: the document
 roots are its declared widget tags, and shadow roots are their `:host`. Matching
 stays inside those roots automatically. Ordinary selectors name descendants;

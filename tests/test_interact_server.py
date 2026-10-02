@@ -3682,10 +3682,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     # ValueError. Uncaught, each left the request unanswered — which the outbox reads as
     # a lost connection and re-posts every poll for the life of the tab.
     #
-    # Each row names the refusal it must earn rather than asking for any refusal at all.
-    # The depth the parser gives up at is the interpreter's to choose, so a platform
-    # that got through this nesting would fall to the next gate, be refused as not an
-    # object, and pass a row that had proved nothing about the stack it was written for.
+    # Leave the deep array unfinished: a parser with enough stack to read it still
+    # rejects its syntax, so every supported interpreter exercises the parse refusal.
     unreadable = [
         (
             "a body that is not UTF-8",
@@ -3695,8 +3693,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ("a body that is not JSON", b"{not json", "invalid JSON"),
         ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
         (
-            "a body nested past the parser's stack",
-            b"[" * 100000 + b"]" * 100000,
+            "an unfinished body deeply nested inside arrays",
+            b"[" * 100000 + b"]" * 99999,
             "invalid JSON",
         ),
     ]

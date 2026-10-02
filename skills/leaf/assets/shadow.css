@@ -757,10 +757,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   opacity: 0;
 }
 pre:hover + .lf-code-copy,
+.lf-code-copy-hover,
+.lf-code-copy-focused,
 .lf-code-copy:is(:hover, :focus-within) { opacity: 1; }
 @media (pointer: coarse), (hover: none) {
   .lf-code-copy { opacity: 1; }
-  pre:focus + .lf-code-copy { opacity: 0; pointer-events: none; }
+  pre:focus + .lf-code-copy,
+  .lf-code-copy.lf-code-copy-focused { opacity: 0; pointer-events: none; }
 }
 .lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);

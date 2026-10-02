@@ -430,7 +430,7 @@
   const confinedReflowOnly = (entry, around) => {
     if (entry.sources.length < 5) return true;
     if (around.length !== 3) return false;
-    const visible = (node, rect, at) => {
+    const paintState = (node, rect, at) => {
       let left = Math.max(0, rect.left),
         top = Math.max(0, rect.top);
       let right = Math.min(innerWidth, rect.right),
@@ -445,10 +445,10 @@
           (parent === node && style.visibility !== "visible") ||
           style.opacity === "0"
         )
-          return false;
+          return { paintable: false, visible: false };
         if (parent === node) continue;
         const clip = boxAt(parent, at);
-        if (!clip) return false;
+        if (!clip) return { paintable: false, visible: false };
         if (style.overflowX !== "visible") {
           left = Math.max(left, clip.left);
           right = Math.min(right, clip.right);
@@ -458,7 +458,7 @@
           bottom = Math.min(bottom, clip.bottom);
         }
       }
-      return right > left && bottom > top;
+      return { paintable: true, visible: right > left && bottom > top };
     };
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
       const rects = around.map(({ at }) => boxAt(node, at));
@@ -483,11 +483,20 @@
         const from = layoutAt(node, around[before].at);
         const to = layoutAt(node, around[after].at);
         if (
-          (Math.abs(currentRect.left - previousRect.left) >= 1 ||
-            Math.abs(currentRect.top - previousRect.top) >= 1) &&
-          (Math.abs(to.left - from.left) >= 1 || Math.abs(to.top - from.top) >= 1) &&
-          (visible(node, previousRect, around[before].at) ||
-            visible(node, currentRect, around[after].at)) &&
+          (Math.abs(currentRect.left - previousRect.left) < 1 &&
+            Math.abs(currentRect.top - previousRect.top) < 1) ||
+          (Math.abs(to.left - from.left) < 1 && Math.abs(to.top - from.top) < 1)
+        )
+          continue;
+        const fromPaint = paintState(node, previousRect, around[before].at);
+        const toPaint = paintState(node, currentRect, around[after].at);
+        if (
+          // Hidden-to-shown placement is appearance, not motion. A shown box moving
+          // out of the viewport or its clip still moves; the other frame pairs catch
+          // a move that painted before the node was hidden or removed.
+          fromPaint.paintable &&
+          toPaint.paintable &&
+          (fromPaint.visible || toPaint.visible) &&
           !permittedReflow({ node, previousRect, currentRect }, around)
         )
           return false;

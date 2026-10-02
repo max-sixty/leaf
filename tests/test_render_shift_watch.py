@@ -235,6 +235,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         "scroll",
         "sticky",
         "visible_child",
+        "revealed",
+        "moving_offscreen",
         "withdrawn",
         "withdrawn_with_control",
         "moved_then_withdrawn",
@@ -259,8 +261,13 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         + ("position:sticky;top:0;" if motion == "sticky" else "")
         + ("visibility:visible;" if motion == "visible_child" else "")
         + (
+            "visibility:hidden;position:absolute;left:-9999px;top:220px;"
+            if motion == "revealed"
+            else ""
+        )
+        + (
             "position:absolute;left:400px;top:220px;"
-            if motion.startswith("moved_then_")
+            if motion.startswith("moved_then_") or motion == "moving_offscreen"
             else ""
         )
         + '">Act</button>'
@@ -316,6 +323,10 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
           }
           if (motion === 'scroll') document.getElementById('scroller').scrollTop = 6;
           if (motion === 'sticky') document.getElementById('scroller').scrollTop = 36;
+          if (motion === 'revealed') {
+            button.style.left = '400px'; button.style.visibility = 'visible';
+          }
+          if (motion === 'moving_offscreen') button.style.left = '1406px';
           if (motion.startsWith('withdrawn')) button.style.display = 'none';
           if (motion === 'withdrawn_with_control')
             document.getElementById('survivor').style.left = '406px';
@@ -327,6 +338,11 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
     sources = page.evaluate("window.sources")
     assert len(sources) == 1 and len(sources[0]) == 5, sources
     assert all(source.startswith("receipt") for source in sources[0]), sources
+    if motion == "revealed":
+        expect(page.locator("#action")).to_be_visible()
+        assert page.locator("#action").bounding_box()["x"] == 400
+    if motion == "moving_offscreen":
+        assert page.locator("#action").bounding_box()["x"] == 1406
     if motion.startswith("withdrawn"):
         assert page.locator("#action").bounding_box() is None
     if motion.startswith("moved_then_"):
@@ -342,6 +358,7 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         "control",
         "resize",
         "visible_child",
+        "moving_offscreen",
         "withdrawn_with_control",
         "moved_then_withdrawn",
         "moved_then_hidden",

@@ -851,33 +851,54 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
         expect(surround).to_have_css("background-color", surface["color"])
 
 
+@pytest.mark.parametrize("asked", [False, True], ids=["waiting", "asked"])
 def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
-    browser, serve
+    browser, serve, asked
 ):
     """Under Open, the agent resolving the thread the user is reading used to fold its
     card away, and every card after it rose. The card stays where it stands, drawn
     resolved, with Reopen in Resolve's place and face, and the news taking the
     resolution back draws it open again; the browser fixture's shift watch fails
-    anything that moves. The news lands well after the user's last input, past the half
-    second in which Chrome credits a frame to that input.
+    anything that moves. Its summary's status row neither comes nor goes: a thread
+    waiting on the agent says so in its message, and one that asked the user says it in
+    the summary, which comes to say Resolved. The news lands well after the user's last
+    input, past the half second in which Chrome credits a frame to that input.
 
     The card leaves the Open list once its going moves nothing the user sees. As the
     open card it stays while they scroll it away, since another card would open in its
     place. Once they have opened another card, it goes as they scroll it out of the
     window, and scrolling back does not bring it back."""
-    page = open_page(browser, serve(LONG_PAGE, comments=16))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    url = serve(LONG_PAGE, comments=16)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ][:2]
+    if asked:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": first,
+                "text": "Which of the two should stay?",
+                "awaits": True,
+            },
+        )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     card = page.locator(f'.lf-threads > .lf-thread[data-id="{first}"]')
     after = page.locator(f'.lf-threads > .lf-thread[data-id="{second}"]')
     expect(card).to_have_attribute("open", "")
     control = card.get_by_role("button", name="Resolve thread").bounding_box()
     below = after.bounding_box()
+    status = card.locator(".lf-thread-status")
+    if asked:
+        expect(status).to_be_visible()
+    else:
+        expect(status).to_be_hidden()
     page.wait_for_function(
         "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
     )
@@ -893,6 +914,8 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         assert after.bounding_box() == below
     reopen = card.get_by_role("button", name="Reopen", exact=True)
     assert reopen.bounding_box() == control
+    if asked:
+        expect(status).to_have_text("Resolved")
 
     threads = page.locator(".lf-threads")
     threads.hover()

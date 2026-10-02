@@ -100,6 +100,11 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
+    // A card the panel keeps though its view no longer admits it (thread-list-view.js,
+    // `keepsShown`) keeps the shape it stood in, so the news that changed it moves
+    // nothing: its reply box, on which an open card's room rests; the control row above
+    // its first message, where Reopen wears Resolve's face, done; and its summary's
+    // status row (ThreadView).
     kept,
     grow,
     folding: false,
@@ -111,15 +116,9 @@ export function threadReading(
     // message already draws in its own header. The summary repeats it only for the
     // folded row, where no message shows; whose turn it is stays, since no message
     // says that.
-    // A card the panel keeps though its view no longer admits it (thread-list-view.js,
-    // `keepsShown`) keeps the shape it stood in, so the news that changed it moves
-    // nothing: its reply box, on which an open card's room rests, and the control row
-    // above its first message, where Reopen wears Resolve's face, done, and says what
-    // happened, which the summary's status would say again in a row of its own.
     statusFolded:
-      kept ||
-      (attention?.kind === "waiting" &&
-        messages.some((message) => message.workflow?.id === attention.workflow?.id)),
+      attention?.kind === "waiting" &&
+      messages.some((message) => message.workflow?.id === attention.workflow?.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -139,12 +138,17 @@ export function threadReading(
   });
 }
 
-function navigationSummary(navigation, model) {
+// The words a card's summary gives its status, and whether the open card folds them.
+const summaryStatus = (model) => ({
+  text: model.resolved ? "Resolved" : model.attention?.label || "",
+  folded: model.statusFolded,
+});
+
+function navigationSummary(navigation, model, { text: status, folded }) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
-  const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
   // While a title is on its way, the title slot says so in words drawn apart from any
@@ -167,7 +171,7 @@ function navigationSummary(navigation, model) {
           ? html`<span
               class="lf-thread-status"
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
-              data-lf-folded=${model.statusFolded ? "" : nothing}
+              data-lf-folded=${folded ? "" : nothing}
               title=${
                 model.attention?.secondary
                   ? `${status} · ${model.attention.secondary}`
@@ -231,6 +235,7 @@ export class ThreadView {
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
   #growing = false;
+  #status = null;
   #navigation = null;
   #marginControls = null;
   #viewId = ++nextViewId;
@@ -316,6 +321,13 @@ export class ThreadView {
       }
     }
     this.#model = model;
+    // A kept card's summary keeps the status row it stood with: its words say what the
+    // news did, but the row neither comes nor goes, nor folds or unfolds.
+    const status = summaryStatus(model);
+    this.#status =
+      model.kept && this.#status
+        ? { text: this.#status.text && status.text, folded: this.#status.folded }
+        : status;
     const reply = model.reply || replyHasWords(model.key);
     this.#replyShown = reply;
     if (model.news) this.#news.set(model.news);
@@ -418,7 +430,7 @@ export class ThreadView {
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     render(
       html`
-        ${navigationSummary(navigation, model)}
+        ${navigationSummary(navigation, model, this.#status)}
         ${
           model.surface === "outlet"
             ? html`<summary

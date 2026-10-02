@@ -113,30 +113,43 @@ lf-task[status="done"] > strong { color: var(--muted); }
 
 /* Command tree: the plan is canonical; these are projections generated around it.
  *
- * The three readings are panels (the layer's section.panel) in a seat. They stand open:
- * each is a count the operator reads at a glance, and a disclosure put its rows one
- * press away from the question it answers. The outcome reads top to bottom — its name, the done fraction as a length,
- * the fraction and horizon in words — over one tile per count. */
+ * The three readings are panels (the layer's section.panel) in a seat. The outcome
+ * reads top to bottom — its name, the done fraction as a length, the fraction and
+ * horizon in words — over one tile per count, each a number the operator reads at a
+ * glance and the control that opens its list. */
 /* The apparatus voice for this package's words (packages/default/theme.css says why
  * every package states its own). */
 .lf-state, .lf-heard, .lf-cold {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 /* The seat stacks its panels the way a rail's own grid stacks its cells: the gap is the
  * grid's, so a panel the command drew and one the page authored stand the same distance
- * apart. A seat, the one the page places or the one the command draws at its head
- * (lf-command.js, `band`), stands at one fixed height, the most any bounded block
- * takes, and scrolls inside it (data-lf-bound), so readings arriving move nothing below
- * it. Until a command with no `readings` draws its band, it holds the band's room at its
- * head. Without a runtime nothing fills a seat, so it holds no room. */
+ * apart. The outcome is the one panel the first paint can size: its rows are set by
+ * line heights rather than by what the log says, so a seat holds its room until the
+ * command fills it, the one the page places and, at the head of a command with no
+ * `readings`, the one the command draws there (lf-command.js, `band`). The lists under
+ * it stand on screen once the reader opens one through its count (`data-lf-open`). The
+ * room is the
+ * sum of the outcome's rules below, which `leaf package check --render`'s
+ * keeps-first-box reads against the panel drawn. Without a runtime nothing fills a
+ * seat, so it holds no room. */
 lf-command-readings { display: grid; align-content: start; gap: var(--sp-4); }
+lf-command, lf-command-readings {
+  --lf-command-outcome-size: calc(
+    2px + 14px + 16px                              /* section.panel's border, padding */
+    + var(--t-6) * 1.3 + 10px                      /* its title */
+    + var(--t-3) * 1.25 + 6px + var(--t-6) * 1.3 + 2 * var(--sp-2) /* .lf-command-outcome */
+    + var(--sp-3) + 2px + 2 * var(--sp-2)          /* .lf-command-facts, a tile's frame */
+    + var(--t-2) * 1.1 + 2px + var(--t-6) * 1.2); }  /* a tile's count and word */
 lf-command-readings > section.panel { margin: 0; }
 lf-command > lf-command-readings { margin-bottom: var(--sp-4); }
 @media screen {
-  html[data-lf-interactive] lf-command-readings {
-    box-sizing: border-box; block-size: var(--lf-bound, 28rem); }
+  html[data-lf-interactive] lf-command-readings:not(:has(> .lf-command-head))::before {
+    content: ""; display: block; block-size: var(--lf-command-outcome-size); }
   html[data-lf-interactive] lf-command:not([readings], :has(> lf-command-readings))::before {
-    content: ""; display: block; block-size: var(--lf-bound, 28rem);
-    margin-bottom: var(--sp-4); }
+    content: ""; display: block; margin-bottom: var(--sp-4);
+    block-size: var(--lf-command-outcome-size); }
+  lf-command-readings:not([data-lf-open]) > :is(.lf-stopped-view, .lf-fleet-view) {
+    display: none; }
 }
 .lf-command-outcome { display: grid; gap: var(--sp-2); }
 .lf-command-outcome > strong { font: 600 var(--t-3)/1.25 var(--sans); }
@@ -164,6 +177,12 @@ lf-command > lf-command-readings { margin-bottom: var(--sp-4); }
 .lf-command-facts > .danger { border-color: color-mix(in srgb, var(--danger) 40%, var(--rule));
   background: var(--danger-tint); color: var(--danger-ink); }
 .lf-command-facts > :is(.warn, .danger) > .lf-command-count { color: inherit; }
+/* A count whose list holds rows not yet drawn (lf-command.js, `markNews`): a mark in the
+ * tile's corner, so the tile keeps its size. */
+.lf-command-facts > [data-lf-news] { position: relative; }
+.lf-command-facts > [data-lf-news]::after { content: ""; position: absolute;
+  inset-block-start: var(--sp-2); inset-inline-end: var(--sp-2);
+  inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--accent); }
 
 /* The two lists: one hairline between rows, the name leading and the reason or remit
  * on the line under it. */

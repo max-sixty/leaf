@@ -83,8 +83,12 @@ open it: in a seat in the page's flow, an agent's reply, the reopening it brings
 thread the agent starts wait behind a notice in a row the seat already draws, and a
 thread that would open a seat of its own, as on a diff line with no thread, waits in
 the margin behind its marker (`thread/held-news.js`). A region whose rows only the
-log or the clock decides, so no first paint can size it, stands at a fixed height
-and scrolls inside it, as a command's readings do (command-hub's `lf-command.js`).
+log or the clock decides, so no first paint can size it, shows none of them until the
+reader opens them through a control of fixed size the widget already draws, as a
+command's counts open its lists; after that a change to its rows waits the same way
+while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+fixed-height box that scrolls them is no answer: nothing tells the reader a row is
+cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing

@@ -283,8 +283,8 @@
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\" talk>\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
-    "description": "A separate placement for a command’s progress, stopped work, and live worker readings, at one fixed height that scrolls inside it.",
-    "x-instructions": "Author it empty, with an id, and name that id in the readings of the one command it presents. Place it in the rail of a wide page when the tree belongs in the body; otherwise the command presents the same readings at its head, in a band of the same height.",
+    "description": "A separate placement for a command’s progress, stopped work, and live worker readings.",
+    "x-instructions": "Author it empty, with an id, and name that id in the readings of the one command it presents. Place it in the rail of a wide page when the tree belongs in the body; otherwise the command presents the same readings at its head.",
     "type": "object",
     "properties": {
       "id": {
@@ -297,7 +297,6 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-bound": "start",
     "x-upgrade": true,
     "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\" readings=\"garden-readings\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings id=\"garden-readings\"></lf-command-readings></aside>\n</div>"
   },

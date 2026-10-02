@@ -39,7 +39,7 @@ import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
-import { scheduleResidency } from "./margin-layout.js";
+import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since

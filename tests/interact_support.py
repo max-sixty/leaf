@@ -1269,6 +1269,39 @@ def codex_program(tmp_path_factory):
 
 
 @pytest.fixture
+def codex_queue(tmp_path):
+    """Replace the external queue CLI while exercising real preview delivery.
+
+    The executable acknowledges help and records submitted arguments. Tests may
+    set PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation.
+    This is separate from codex_program, which models kernel process ancestry.
+    """
+    executable = tmp_path / "queue-bin" / "codex"
+    executable.parent.mkdir()
+    queued = tmp_path / "queued.json"
+    executable.write_text(
+        f"""#!{sys.executable}
+import json
+import os
+import sys
+from pathlib import Path
+
+if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
+    print("queue unsupported", file=sys.stderr)
+    sys.exit(1)
+if sys.argv[1:] != ["queue", "--help"]:
+    Path(os.environ["PREVIEW_QUEUE_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+print("queued")
+"""
+    )
+    executable.chmod(0o755)
+    return {
+        "PATH": f"{executable.parent}{os.pathsep}{os.environ['PATH']}",
+        "PREVIEW_QUEUE_RECORD": str(queued),
+    }
+
+
+@pytest.fixture
 def under_codex(spawn, codex_program):
     """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what

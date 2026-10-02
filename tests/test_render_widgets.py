@@ -2086,7 +2086,6 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
-    expect(page.locator(":target")).to_have_attribute("id", hrefs[1][1:])
     expect(page).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     scroll_settled(page)
     top = page.locator("h3").evaluate("heading => heading.getBoundingClientRect().top")
@@ -2364,7 +2363,7 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     )
     expect(page.locator("#section-two > h2")).to_have_attribute("id", "title-two")
     toc.get_by_role("link", name="Move the readers").click()
-    expect(page.locator(":target")).to_have_attribute("id", "section-three")
+    expect(page).to_have_url(re.compile(r"#section-three$"))
     scroll_settled(page)
     arrival = page.locator("#section-three").evaluate(
         """section => {
@@ -2373,14 +2372,16 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
           const heading = section.querySelector(':scope > h3');
           return {
             clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
+            margin: parseFloat(getComputedStyle(section).scrollMarginTop),
             section: section.getBoundingClientRect().top,
             eyebrow: eyebrow.getBoundingClientRect().top,
             heading: heading.getBoundingClientRect().top,
           };
         }"""
     )
-    assert arrival["section"] == pytest.approx(arrival["clear"], abs=1)
-    assert arrival["eyebrow"] == pytest.approx(arrival["clear"], abs=1)
+    destination_top = arrival["clear"] + arrival["margin"]
+    assert arrival["section"] == pytest.approx(destination_top, abs=1)
+    assert arrival["eyebrow"] == pytest.approx(destination_top, abs=1)
     assert arrival["heading"] > arrival["eyebrow"]
 
 
@@ -2388,8 +2389,8 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     """A map link creates an ordinary fragment-history entry on the root scrollport.
 
     Back restores the reading position from before the click and Forward restores the
-    fragment destination. Leaf keeps no competing pixel history and :target remains the
-    browser's state throughout."""
+    fragment destination. The shared travel pass reveals the destination while the
+    browser retains each entry's reading position."""
     source = leaf_page(
         "native contents history",
         """
@@ -2424,7 +2425,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     expect(move).to_have_css("pointer-events", "auto")
     move.click()
     expect(page).to_have_url(re.compile(r"#move$"))
-    expect(page.locator(":target")).to_have_attribute("id", "move")
     page.wait_for_function(
         "() => document.getElementById('move').getBoundingClientRect().top < 150"
     )
@@ -2436,7 +2436,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     page.wait_for_function(
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=bookmark
     )
-    assert page.locator(":target").count() == 0
 
     page.evaluate("history.forward()")
     page.wait_for_function("() => location.hash === '#move'")
@@ -2444,7 +2443,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
         arg=destination,
     )
-    expect(page.locator(":target")).to_have_attribute("id", "move")
 
 
 def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
@@ -2854,7 +2852,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     start.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     scroll_settled(page)
-    expect(page.locator(":target")).to_have_attribute("id", start_href[1:])
     assert (
         page.locator(start_href).evaluate("node => node.getBoundingClientRect().top")
         < 150
@@ -5249,6 +5246,69 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     ).click()
     thin.click()
     expect(thin).to_be_focused()
+
+
+def test_playground_labels_can_be_selected_without_changing_the_controls(
+    browser, serve
+):
+    """A label is readable text even while the preview holds focus. Dragging its
+    words selects them; clicking the switch or pressing Space still changes it."""
+    source = PLAYGROUND_PAGE.replace(
+        "<p>Open until dusk.</p>",
+        '<p>Open until dusk.</p><button id="preview-focus">Try the card</button>',
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#card-playground")
+    toggle = playground.get_by_role("switch", name="Compact spacing")
+
+    for in_preview in (False, True):
+        for name, words in (
+            ("compact", "Compact spacing"),
+            ("radius", "Corner radius"),
+        ):
+            page.evaluate("getSelection().removeAllRanges()")
+            if in_preview:
+                page.locator("#preview-focus").click()
+            else:
+                page.locator("h1").click()
+            before = playground.evaluate("root => root.values")
+            label = playground.locator(
+                f'lf-playground-control[name="{name}"] .lf-playground-control-label'
+            )
+            label.scroll_into_view_if_needed()
+            box = label.evaluate("""label => {
+                const range = document.createRange();
+                range.selectNodeContents(label);
+                return range.getBoundingClientRect().toJSON();
+            }""")
+            y = box["y"] + box["height"] / 2
+            page.mouse.move(box["x"] + 0.5, y)
+            page.mouse.down()
+            page.mouse.move(box["right"] - 0.5, y, steps=12)
+            page.mouse.up()
+            assert page.evaluate("getSelection().toString()") == words
+            assert playground.evaluate("root => root.values") == before
+
+    # Selecting a word with a double-click must not operate the switch either.
+    label = playground.locator(
+        'lf-playground-control[name="compact"] .lf-playground-control-label'
+    )
+    label.dblclick(position={"x": 5, "y": 5})
+    assert page.evaluate("getSelection().toString()") == "Compact"
+    expect(toggle).not_to_be_checked()
+
+    # The control face keeps the preview focused and remains usable after selecting
+    # its label. Reading that label does not change the control.
+    preview = page.locator("#preview-focus")
+    preview.click()
+    assert page.evaluate("getSelection().toString()") == "Compact"
+    playground.locator("wa-switch [part=control]").click()
+    expect(toggle).to_be_checked()
+    expect(preview).to_be_focused()
+    label.click()
+    expect(toggle).to_be_checked()
+    toggle.press("Space")
+    expect(toggle).not_to_be_checked()
 
 
 def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(

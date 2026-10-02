@@ -165,7 +165,8 @@ import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scope
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { layoutMarginRows, openResidency } from "./runtime/margin-layout.js";
+import { layoutMarginRows, syncMarginResidency } from "./runtime/margin-layout.js";
+import { openResidency } from "./runtime/content-layout.js";
 import {
   createNavigation,
   placeThreadEdge,
@@ -541,6 +542,7 @@ selectionComposer = createSelectionComposer({
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   fabPointAt: (...args) => responseSurface.fabPointAt(...args),
+  fabFrameAt: () => responseSurface.fabFrameAt(),
   fabPositioned: (...args) => responseSurface.fabPositioned(...args),
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
@@ -834,6 +836,7 @@ const replayReady = passiveSample
         setPanel: threadPanelController.setPanel,
         detachComposer: selectionComposer.detachComposer,
         fabInput,
+        fabFrameAt: () => responseSurface.fabFrameAt(),
         openComposer: selectionComposer.openComposer,
         closePreview: app.margin.closePreview,
         openInlineThread: app.margin.openInlineThread,
@@ -950,8 +953,8 @@ async function startPage() {
   ]);
   if (!upgraded) return;
   if (!offlineInteractive) {
-    // The margin's residents are read from the upgraded document (margin-layout.js).
-    openResidency();
+    // Authored residents are read from the upgraded document (content-layout.js).
+    openResidency({ rail: true, onRead: syncMarginResidency });
     layout.syncLayout();
     asks.buildBulkAnswers();
     asks.syncAsks();

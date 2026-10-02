@@ -95,9 +95,9 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const dot = document.querySelector(".lf-dot");
-        dot.classList.toggle("working", true);
-        const runtimeAnimation = dot.getAnimations()[0];
+        const control = document.querySelector(".lf-threads-toggle");
+        control.setAttribute("aria-busy", "true");
+        const runtimeAnimation = control.getAnimations()[0];
         return {
             pageDistance: transform === "none" ? null : new DOMMatrix(transform).m41,
             runtimeName: runtimeAnimation?.animationName ?? null,
@@ -107,7 +107,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         f"the runtime replaced the page's lf-pulse keyframes: {sampled}"
     )
     assert sampled["runtimeName"] and sampled["runtimeName"] != "lf-pulse", (
-        f"the chrome lost its own private pulse animation: {sampled}"
+        f"the chrome lost its own private delivery animation: {sampled}"
     )
 
 

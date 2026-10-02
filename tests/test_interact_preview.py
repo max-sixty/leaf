@@ -12,7 +12,6 @@ in a nightly module runs nowhere near the change that breaks it.
 """
 
 import json
-import os
 import shlex
 import subprocess
 import sys
@@ -243,7 +242,7 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
 
 @pytest.mark.parametrize("delivery_available", [True, False])
 def test_a_user_preview_connects_codex_feedback_before_handing_over_its_url(
-    page_dir, tmp_path, under_codex, codex_env, delivery_available
+    page_dir, tmp_path, under_codex, codex_env, codex_queue, delivery_available
 ):
     """HTTP feedback reaches the current task without a second `codex start`.
 
@@ -252,24 +251,7 @@ def test_a_user_preview_connects_codex_feedback_before_handing_over_its_url(
     task and delivery pointer instead of starting a model turn.
     """
     stamp(page_dir)
-    executable = tmp_path / "codex"
-    queued = tmp_path / "queued.json"
-    executable.write_text(
-        f"""#!{sys.executable}
-import json
-import os
-import sys
-from pathlib import Path
-
-if os.environ["PREVIEW_QUEUE_AVAILABLE"] == "False":
-    print("queue unsupported", file=sys.stderr)
-    sys.exit(1)
-if sys.argv[1:] != ["queue", "--help"]:
-    Path(os.environ["PREVIEW_QUEUE_RECORD"]).write_text(json.dumps(sys.argv[1:]))
-print("queued")
-"""
-    )
-    executable.chmod(0o755)
+    queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
     program = """
@@ -297,10 +279,9 @@ finally:
             [sys.executable, "-c", program, str(page_dir), str(ready), str(done)]
         ),
         codex_env
+        | codex_queue
         | {
             "CODEX_THREAD_ID": "preview-thread",
-            "PATH": f"{tmp_path}{os.pathsep}{codex_env['PATH']}",
-            "PREVIEW_QUEUE_RECORD": str(queued),
             "PREVIEW_QUEUE_AVAILABLE": str(delivery_available),
         },
         stdout=subprocess.PIPE,

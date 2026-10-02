@@ -833,7 +833,9 @@ def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
     page.keyboard.press("Tab")
     choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
     expect(choices).to_have_count(7)
-    bar.evaluate("element => { element.style.maxWidth = '280px'; }")
+    bar.evaluate("""element => {
+      element.style.minWidth = element.style.maxWidth = '280px';
+    }""")
     rendered(page)
     row = bar.evaluate("""bar => {
       const box = bar.getBoundingClientRect();

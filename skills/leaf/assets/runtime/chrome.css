@@ -1185,7 +1185,34 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      The shadow is the one thing this control adds, and it earns it: this response
      control floats over the page's own content rather than standing in the empty rail,
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
-  :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
+  :is(.lf-fab-bar, .lf-margin-preview) {
+    --lf-comment-inset: 12px;
+    --lf-comment-text-size: var(--t-5);
+    --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
+    --lf-comment-text-pad-end: calc(max(28px, var(--aim-floor)) + var(--lf-thread-text-inset));
+    --lf-comment-head: max(28px, var(--aim-floor));
+    --lf-comment-body-gap: 4px;
+    --lf-comment-foot-gap: var(--sp-3);
+    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-comment-head) + var(--lf-comment-body-gap));
+    --lf-comment-frame-bottom: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + var(--lf-comment-inset) + 1px);
+  }
+  :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 32px; }
+  /* The editor and its sent message share text metrics. The borderless message uses
+     the full inset; the field subtracts its border. */
+  leaf-text.lf-fab-input,
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
+    font: var(--lf-comment-text-size)/1.5 var(--sans); color: var(--ink-2); }
+  /* Placement fits the finished thread before typing. Only the editor paints; the
+     transparent header/reply slots neither take document flow nor intercept presses. */
+  .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
+    box-sizing: border-box;
+    min-width: min(var(--thread-card-min), var(--lf-float-w, 100vw));
+    max-width: min(var(--lf-float-w, calc(100vw - 16px)), var(--thread-card));
+    padding: var(--lf-comment-frame-top) calc(var(--lf-comment-inset) + 1px)
+      var(--lf-comment-frame-bottom);
+    pointer-events: none;
+  }
+  .lf-fab-bar > * { pointer-events: auto; }
   .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
@@ -1197,12 +1224,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      their height, vertical padding, type, border, corners, and elevation. Tab extends
      the control at its trailing edge without replacing or moving the field.
      The field can grow with its words without changing its corner. The shared UI
-     supplies the thread's 14px face; this control tightens only its line height so
-     that face keeps the 32px resting box. */
+     supplies the thread’s 14px face and line height; vertical padding keeps
+     that face in the 32px resting box. */
   .lf-response-control { box-sizing: border-box; min-height: var(--lf-response-height);
     border: 1px solid var(--border-2); background: var(--card);
     border-radius: var(--r);
-    color: var(--ink-2); font-weight: 400; line-height: 1.3;
+    color: var(--ink-2); font-weight: 400; line-height: 1.5;
     padding-block: var(--lf-compose-pad-block, calc((var(--lf-response-height) - 1lh - 2px) / 2));
     box-shadow: 0 2px 8px var(--shade); }
   /* The bar keeps one silhouette through every state it has, so the focus ring is cast
@@ -1222,17 +1249,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      one-line minimum, so content cannot re-seat the bar. The room's width caps the
      whole bar, and the field is the flex item that shrinks, so on a narrow screen the
      words wrap sooner and the ellipsis keeps its room. */
-  leaf-text.lf-fab-input { --lf-response-min-width: 216px; width: auto;
-    min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
-    max-width: min(80ch, var(--lf-response-room, 100vw));
+  .lf-fab-bar { --lf-response-min-width: 216px; }
+  leaf-text.lf-fab-input { width: auto; min-width: 0;
+    max-width: var(--lf-response-room, calc(var(--thread-card) - 60px));
     max-height: var(--lf-float-h, 60vh);
-    padding-inline: var(--lf-compose-pad-inline-start) calc(max(28px, var(--aim-floor)) + 12px);
+    padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
-    --lf-compose-pad-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
-    --lf-compose-pad-inline-start: 12px;
+    --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
+    --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
     flex: 0 1 auto; }
-  .lf-fab-bar .lf-compose-placeholder { line-height: 1.3; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
+    min-width: var(--lf-response-min-width); }
+  .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
     inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
@@ -1329,6 +1358,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: none !important; }
   .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
     max-width: 148px; padding: 0; overflow-x: auto; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
+    flex: 0 1 auto; min-width: 42px; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
@@ -1428,7 +1459,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px));
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
-    margin: 0; padding: 12px;
+    margin: 0; padding: var(--lf-comment-inset);
     border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
@@ -1445,10 +1476,23 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview:has(.lf-page-thread:is(:focus-visible, .lf-focus-visible)) {
     outline: var(--focus-ring); --lf-focus-ring: page-thread;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
-    padding-inline: 12px; overflow: hidden; pointer-events: none;
-    white-space: pre-wrap; }
-  .lf-thread-transition-text { display: block; }
+  /* A newly submitted message keeps its editor's wrapping measure and viewport.
+     Receipt updates preserve these mechanical dimensions until the card is put away. */
+  .lf-margin-preview[data-lf-comment-frame] {
+    width: min(var(--lf-comment-width), var(--lf-thread-width));
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
+    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-thread-text-inset)));
+    max-height: var(--lf-comment-message-height); overflow-y: auto; margin-top: var(--lf-comment-body-gap);
+    padding-block: var(--lf-comment-text-pad-block);
+    padding-inline: 0 var(--lf-comment-text-pad-end);
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p {
+    font: inherit; white-space: break-spaces; overflow-wrap: anywhere;
+    margin-block: 1lh;
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:first-child { margin-top: 0; }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:last-child { margin-bottom: 0; }
   .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
@@ -1469,7 +1513,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-page-thread { display: flex; flex-direction: column;
     min-height: 0; min-width: 0; }
   .lf-margin-thread .lf-thread-transcript { min-height: 0; overflow-y: auto;
-    overscroll-behavior: contain; padding-inline: var(--sp-2);
+    overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper);
@@ -1482,13 +1526,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      a draft from widening the card. */
   .lf-margin-thread .lf-thread-reply { contain: inline-size;
     flex: none; align-items: stretch; margin: 0;
-    padding-block: var(--sp-3) 0;
+    padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }
   .lf-margin-thread .lf-thread-reply leaf-text { min-width: 0;
     max-height: var(--lf-thread-editor-room, 50vh); }
   .lf-margin-preview .lf-thread-root-meta { flex: none;
-    align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
-    padding-inline: var(--sp-2) 0; }
+    align-items: center; gap: 4px; min-height: var(--lf-comment-head); }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r);
@@ -1838,7 +1881,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @media (pointer: coarse) {
     /* What is left here is what a finger changes besides the floor, which reads
        --aim-floor (shadow.css) and so needs no rule here. */
-    :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 44px; }
+    :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 44px; }
+    :is(.lf-fab-bar, .lf-margin-preview) {
+      --lf-comment-text-size: max(var(--entry-floor), var(--t-5)); }
     .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
       transform: translateY(-50%); }

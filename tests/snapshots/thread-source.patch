@@ -714,7 +714,7 @@ index 000000000..f03260ebd
 +  }
 +}
 diff --git a/skills/leaf/assets/runtime/thread/thread-card.js b/skills/leaf/assets/runtime/thread/thread-card.js
-index bbc5308aa..956b4eb0e 100644
+index bbc5308aa..1bbc084c7 100644
 --- a/skills/leaf/assets/runtime/thread/thread-card.js
 +++ b/skills/leaf/assets/runtime/thread/thread-card.js
 @@ -34,6 +34,7 @@ import { ago, shortAgo } from "../presence.js";
@@ -748,15 +748,26 @@ index bbc5308aa..956b4eb0e 100644
      // A panel card's disclosure is the thread list's to write, from its one choice.
      if (surface !== "panel") {
        this.node.tabIndex = -1;
-@@ -261,7 +264,6 @@ export class ThreadView {
+@@ -255,13 +258,14 @@ export class ThreadView {
+       this.node.dataset.lfOffer = "";
+     }
+     this.#metadataActions.className = "lf-thread-meta-actions";
+-    // A folded outlet's summary is its control row: opening it shows what it holds.
++    // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
++    // after paint. Release held news here so the first opened body is current,
++    // whether a summary or a programmatic native open revealed it.
+     if (surface === "outlet")
+-      this.node.addEventListener("toggle", () => {
++      new MutationObserver(() => {
          if (this.node.open) this.#model?.news?.open();
-       });
+-      });
++      }).observe(this.node, { attributeFilter: ["open"] });
      this.node.addEventListener("animationend", () => {
 -      this.#growing = false;
        this.node.classList.toggle("grow", false);
      });
      this.node.addEventListener("lf-reveal", (event) => {
-@@ -294,6 +296,7 @@ export class ThreadView {
+@@ -294,6 +298,7 @@ export class ThreadView {
    }
  
    present(model) {
@@ -764,7 +775,7 @@ index bbc5308aa..956b4eb0e 100644
      const prior = this.#model;
      const restoreFocus = holdFocus(this.node);
      const standing = focused();
-@@ -329,10 +332,12 @@ export class ThreadView {
+@@ -329,10 +334,12 @@ export class ThreadView {
      const hiding = !model.visible && !model.folding && !this.node.hidden;
      if (hiding) this.retire();
      keepsHidden(this.node, !model.visible && !model.folding);
@@ -779,7 +790,7 @@ index bbc5308aa..956b4eb0e 100644
      this.node.toggleAttribute("inert", model.folding);
      keeps(this.node, panel ? "data-id" : "data-thread", model.id);
      keeps(this.node, "data-resolved", model.resolved);
-@@ -474,6 +479,7 @@ export class ThreadView {
+@@ -474,6 +481,7 @@ export class ThreadView {
              : nothing
          }
          ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
@@ -787,7 +798,7 @@ index bbc5308aa..956b4eb0e 100644
          ${reply ? this.#reply.node : nothing}
          ${
            model.resolved && !reply && !model.folding && !marginControls
-@@ -496,6 +502,7 @@ export class ThreadView {
+@@ -496,6 +504,7 @@ export class ThreadView {
        `,
        this.node,
      );
@@ -795,7 +806,7 @@ index bbc5308aa..956b4eb0e 100644
      this.#wireKeys();
      // A summary gathering the message the user stands on moves it; a page thread whose
      // render took their place puts them in its reply, or on the thread itself.
-@@ -777,6 +784,7 @@ export class ThreadView {
+@@ -777,6 +786,7 @@ export class ThreadView {
    }
  
    dispose() {

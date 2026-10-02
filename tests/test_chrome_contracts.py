@@ -1039,10 +1039,9 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser, serve
 ):
     """Under "Waiting on you", the user's answer from another tab takes the thread out
-    of the view. Its card, open in front of them, stays where it stands, and its
-    summary keeps the status row the question drew, now with nothing to say in it; the
-    browser fixture's shift watch fails anything that moves. The news lands well after
-    the user's last input."""
+    of the view. Its card, open in front of them, stays where it stands, its summary
+    with it; the browser fixture's shift watch fails anything that moves. The news
+    lands well after the user's last input."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Is forty enough?", author="agent")
     other = panel_comment(serve.page_dir, "A thread waiting on nobody.")

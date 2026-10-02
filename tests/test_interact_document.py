@@ -1,5 +1,6 @@
 """Static document, version, and page-state tests."""
 
+import gc
 import hashlib
 import json
 import math
@@ -7,9 +8,11 @@ import os
 import queue
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import threading
+import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -36,6 +39,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
+    fresh_process,
     model_layer,
     publish,
     read_page_data,
@@ -52,6 +56,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import leases as leases_model
+from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -5373,16 +5378,6 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     revisions = files_model.list_revisions(page_dir)
     assert len(revisions) == 12  # more revisions than any bundle cache retains
 
-    for cache in (
-        artifact_model._read_stamped,
-        artifact_model._read_artifact_stamped,
-        artifact_model._shared_registry,
-    ):
-        cache.cache_clear()
-    artifact_model._captures.clear()
-    artifact_model._readings.clear()
-    revisioning_model._held.clear()
-
     opens = Counter()
     native_open = Path.open
 
@@ -5392,7 +5387,9 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
         return native_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counted_open)
-    activated = revisioning_model.activate_source(page_dir)
+    # A server started now: it holds none of this test's readings.
+    with fresh_process():
+        activated = revisioning_model.activate_source(page_dir)
     monkeypatch.undo()
     assert activated.error is None, activated.error
     assert not activated.created
@@ -5406,7 +5403,8 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
 
 def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
-    """A revision is immutable, so what its words say is read once per process.
+    """A revision is immutable, so what its words say is read once while its page
+    is held.
 
     Every state read folds the log against the active revision's words, and
     walking a large page for them was most of what a read cost. The first read
@@ -5414,7 +5412,6 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
     never saw a walk cannot pass the second assertion on its own."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    artifact_model._readings.clear()
     walks = []
     native = passages_model.page_passages
 
@@ -5423,10 +5420,11 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
         return native(*args, **kwargs)
 
     monkeypatch.setattr(passages_model, "page_passages", counted)
-    read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
-    assert walks
-    walks.clear()
-    read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
+    with fresh_process():
+        read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
+        assert walks
+        walks.clear()
+        read_served_page(read_page(page_dir, events_model.read_events(page_dir)))
     assert walks == []
 
 
@@ -5437,15 +5435,14 @@ def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
     (page_dir / "index.html").write_bytes(PAGE.replace("\n", "\r\n").encode())
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    artifact_model._readings.clear()
     events = events_model.read_events(page_dir)
-    checked = check_source(page_dir, events, allow_transition=False)
-    data = (page_dir / "index.html").read_bytes()
-    assert b"\r\n" in data
-    assert (
-        artifact_model.read_revision(page_dir, activated.revision).document.data == data
-    )
-    assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
+    with fresh_process():
+        checked = check_source(page_dir, events, allow_transition=False)
+        data = (page_dir / "index.html").read_bytes()
+        assert b"\r\n" in data
+        reading = artifact_model.read_revision(page_dir, activated.revision)
+        assert reading.document.data == data
+        assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
 
 
 def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monkeypatch):
@@ -5488,18 +5485,43 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert revisioning_model.activate_source(page_dir).error is None
     revisions = files_model.list_revisions(page_dir)
     size = files_model.revision_path(page_dir, revisions[-1]).stat().st_size
-    artifact_model._readings.clear()
-    artifact_model._readings_bytes = 0
-    monkeypatch.setattr(artifact_model, "_READINGS_BUDGET", 2 * size + size // 2)
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 2 * size + size // 2)
+    with fresh_process():
+        readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
+        kept = page_memory_model.memo(page_dir, artifact_model._Readings)
+        assert [reading for _stamp, reading in kept.held.values()] == readings[-2:]
+        assert kept.size <= kept.BUDGET
+        # Reading an evicted revision again takes a fresh reading, and one still
+        # held answers with the same object.
+        assert artifact_model.read_revision(page_dir, revisions[-1]) is readings[-1]
+        assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
-    readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
-    held = [reading for _stamp, reading in artifact_model._readings.values()]
-    assert held == readings[-2:]
-    assert artifact_model._readings_bytes <= artifact_model._READINGS_BUDGET
-    # Reading an evicted revision again takes a fresh reading, and one still held
-    # answers with the same object.
-    assert artifact_model.read_revision(page_dir, revisions[-1]) is readings[-1]
-    assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
+
+def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
+    """A process keeps what it read of the last few pages it read, so one that reads
+    many, such as the website or a test worker, holds a bounded amount however many
+    it has read. A page read again while kept answers with the same reading; one
+    dropped is read afresh and its old reading is freed. A memory something still
+    holds, as a sample holds its own, outlives being pushed out."""
+    revision = revisioning_model.activate_source(page_dir).revision
+    held_page = page_dir.parent / "held"
+    shutil.copytree(page_dir, held_page)
+    with fresh_process():
+        held = artifact_model.read_revision(page_dir, revision)
+        assert artifact_model.read_revision(page_dir, revision) is held
+        kept = weakref.ref(held)
+        del held
+        holder = page_memory_model.memory_of(held_page)
+        sample_reading = artifact_model.read_revision(held_page, revision)
+        for n in range(page_memory_model.PageMemories.LIMIT):
+            other = page_dir.parent / f"other-{n}"
+            shutil.copytree(page_dir, other)
+            artifact_model.read_revision(other, revision)
+        gc.collect()
+        assert kept() is None
+        assert artifact_model.read_revision(page_dir, revision).document.title
+        assert artifact_model.read_revision(held_page, revision) is sample_reading
+        assert page_memory_model.memory_of(held_page) is holder
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

@@ -42,6 +42,7 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -1144,6 +1145,17 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
+
+
+@contextmanager
+def fresh_process():
+    """What a newly started process holds of every page: nothing (`page_memory`)."""
+    kept = page_memory_model._memories
+    page_memory_model._memories = page_memory_model.PageMemories()
+    try:
+        yield
+    finally:
+        page_memory_model._memories = kept
 
 
 def neighbour_page(directory, title=None, dead=False, published=True):

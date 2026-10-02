@@ -246,13 +246,14 @@ itself, under the identity that replacement already keys on, or the user loses i
 
 Python derives page-wide `activity` and exact-input `workflows` from the agent's
 status declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner and neighboring-page rows describe page activity. Messages,
-thread attention, and margin entries consume the canonical workflows; thread
-attention also retains outstanding user Asks. Page activity does not imply work
-on every message. JavaScript adds unresolved local sends through the application
-publisher and may schedule a read at `next_transition_at`; it does not age or
-independently reclassify accepted workflow evidence. The stop guard consumes the
-same underlying response obligations.
+evidence. The banner describes page activity; a neighboring-page row, for now,
+describes only that page's declaration, in the same shape (`presence.other_leaves`).
+Messages, thread attention, and margin entries consume the canonical workflows;
+thread attention also retains outstanding user Asks. Page activity does not imply
+work on every message. JavaScript adds unresolved local sends through the
+application publisher and may schedule a read at `next_transition_at`; it does not
+age or independently reclassify accepted workflow evidence. The stop guard consumes
+the same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
 immutable revisions, an append-only event log, and one replaceable JSON file per

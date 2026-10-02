@@ -4,15 +4,21 @@ import re
 import sys
 from collections.abc import Collection
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 
 from leaf.files import file_stamp, latest_revision, read_json
+from leaf.page_memory import Slot, memo
 
 from .contract import RegistryError, read_registry_declarations
 from .layer import required_layer_declarations, validate_event_contracts
 
-_registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
+
+class _Layer(Slot):
+    """The page's vendored layer, by its file's stamp."""
+
+
+class _Candidate(Slot):
+    """The page's candidate vocabulary, by its inputs' stamps and active revision."""
 
 
 def load_registry(page_dir: Path):
@@ -24,12 +30,16 @@ def load_registry(page_dir: Path):
     vendored by an earlier Leaf may carry in an older form; `read_page_registry`
     validates the vocabulary where it is new.
 
-    Held once per vendored file, because an action POST asks for the whole vocabulary
-    before it can check a single press."""
+    Kept in the page's memory while the file's stamp holds, because an action POST
+    asks for the whole vocabulary before it can check a single press."""
     path = page_dir / "registry.json"
     stamp = file_stamp(path)
-    if stamp and (held := _registries.get(path)) and held[0] == stamp:
-        return held[1]
+    if not stamp:
+        return _read_layer(page_dir, path)
+    return memo(page_dir, _Layer).get(stamp, lambda: _read_layer(page_dir, path))
+
+
+def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
         if registry is not None:
@@ -37,8 +47,6 @@ def load_registry(page_dir: Path):
             validate_event_contracts(kinds, path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
-    if stamp:
-        _registries[path] = (stamp, registry)
     return registry
 
 
@@ -51,44 +59,37 @@ def read_page_registry(page_dir: Path):
 
     The candidate is validated where it differs from the active revision's
     vocabulary, which was validated when its revision activated: a page whose layer
-    and declarations have not moved is not validated again.
+    and declarations have not moved is not validated again. The page keeps the
+    composition until any input file or the active revision changes.
     """
+    from leaf.revision_artifact import read_revision
+
     page_dir = page_dir.absolute()
     widgets = tuple(
         (path, file_stamp(page_dir / path))
         for directory in ("widgets", "page/widgets")
         for path in widget_paths(page_dir, directory)
     )
-    return _read_page_registry_stamped(
-        page_dir,
+    active = latest_revision(page_dir)
+    key = (
         file_stamp(page_dir / "registry.json"),
         file_stamp(page_dir / "page" / "registry.json"),
         widgets,
-        latest_revision(page_dir),
+        active,
     )
 
+    def compose():
+        layer = load_registry(page_dir)
+        if layer is None:
+            return None
+        return compose_candidate(
+            page_dir,
+            layer,
+            [path for path, _stamp in widgets],
+            validated=read_revision(page_dir, active).registry if active else None,
+        )
 
-@lru_cache(maxsize=128)
-def _read_page_registry_stamped(
-    page_dir: Path,
-    layer_stamp: tuple | None,
-    declaration_stamp: tuple | None,
-    widgets: tuple[tuple[str, tuple], ...],
-    active: int | None,
-):
-    """Compose one candidate vocabulary until any input file or the active revision
-    changes."""
-    from leaf.revision_artifact import read_revision
-
-    layer = load_registry(page_dir)
-    if layer is None:
-        return None
-    return compose_candidate(
-        page_dir,
-        layer,
-        [path for path, _stamp in widgets],
-        validated=read_revision(page_dir, active).registry if active else None,
-    )
+    return memo(page_dir, _Candidate).get(key, compose)
 
 
 def widget_paths(page_dir: Path, directory: str) -> list[str]:

@@ -5061,7 +5061,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Shared conversation faces belong to the theme. Chrome rules only position
         # the transcript, messages, and metadata within their containing surfaces.
         "lf-msg-body",
+        # A shared message's text wrapper and the thread's reading inset are
+        # defined in shadow.css so inline and panel conversations agree.
+        "lf-msg-text",
         "lf-thread-transcript",
+        "lf-thread",
         "detached",
         "lf-thread-root-meta",
         "lf-msg",
@@ -8383,7 +8387,7 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
             document.querySelector(end).getBoundingClientRect().right,
           ];
           return {
-            message: box('.lf-thread[open] .lf-msg'),
+            message: box('.lf-thread[open] .lf-thread-transcript'),
             reply: box('.lf-thread[open] > .lf-thread-reply .lf-compose-field'),
             find: box('.lf-find-box', '.lf-thread-filter-toggle'),
             general: box('.lf-general .lf-compose-field'),
@@ -8396,6 +8400,21 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
         # boxes one transparent border inside the list's; a pixel is that border.
         assert at == pytest.approx(left, abs=1.01), (name, boxes)
         assert to == pytest.approx(right, abs=1.01), (name, boxes)
+    message_start = page.evaluate(
+        """() => {
+          const message = document.querySelector('.lf-thread[open] .lf-msg');
+          const reply = document.querySelector('.lf-thread[open] > .lf-thread-reply .lf-compose-field');
+          const field = reply.querySelector('leaf-text');
+          const style = getComputedStyle(field);
+          return {
+            message: message.getBoundingClientRect().left,
+            reply: field.getBoundingClientRect().left + parseFloat(style.paddingLeft),
+          };
+        }"""
+    )
+    assert message_start["message"] == pytest.approx(message_start["reply"], abs=1), (
+        message_start
+    )
     faces = page.evaluate(
         """() => ['.lf-thread-filter-toggle', '.lf-threads-toggle'].map((selector) => {
           const style = getComputedStyle(document.querySelector(selector));

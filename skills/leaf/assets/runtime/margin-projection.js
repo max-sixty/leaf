@@ -2607,8 +2607,8 @@ export function createMarginProjection({
     return thread ? threadFocusDestination(thread, { focus: focus ?? "thread" }) : null;
   };
   // The page target this owner's chrome shows (standing-target.js): a margin cluster
-  // control's, the card's — its threads and its own controls — and a thread's in the
-  // Threads panel. `threadHere` is the same relation read the other way.
+  // control's and the card's — its threads and its own controls. `threadHere` is
+  // the same relation read the other way.
   declareSide((node) => {
     const projected = marginTargetAt(node);
     if (projected) return projected;

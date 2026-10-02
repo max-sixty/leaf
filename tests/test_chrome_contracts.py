@@ -1489,7 +1489,7 @@ PHONE_READING_PAGE = leaf_page(
 
 
 def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
-    """Phone fields keep their text size and stand below a selected paragraph.
+    """Phone fields keep their text size and stand clear of a selected paragraph.
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the user panning
@@ -1497,8 +1497,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
     one set in a sidenote's smaller type opens a size larger than it showed.
 
-    The field goes below this paragraph even though it has more room above and too
-    little below: the page makes the room. This emulation cannot show the native iOS
+    With too little room below, the field stands above without scrolling the page.
+    This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
     # Every field in the composed tree, the vendored controls' own native fields in
@@ -1548,15 +1548,18 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     )
     box = comment.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    before_scroll = page.evaluate("scrollY")
     comment.tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     placed = page.evaluate("""() => {
       const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
       const paragraph = document.getElementById('p6').getBoundingClientRect();
-      return {barTop: bar.top, barBottom: bar.bottom, paragraphBottom: paragraph.bottom};
+      return {barTop: bar.top, barBottom: bar.bottom, paragraphTop: paragraph.top};
     }""")
-    assert placed["barTop"] >= placed["paragraphBottom"], placed
+    assert page.evaluate("scrollY") == before_scroll
+    assert placed["barBottom"] <= placed["paragraphTop"], placed
+    assert placed["barTop"] >= 0, placed
     assert placed["barBottom"] <= page.evaluate("innerHeight"), placed
 
 

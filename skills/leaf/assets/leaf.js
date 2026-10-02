@@ -327,7 +327,6 @@ const anchorTravel = createAnchorTravel({
 landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  scrollToThread: anchorTravel.scrollToThread,
   revealThread: narrowing.revealThread,
   cardTarget: (thread) => app.margin.cardTarget(thread),
 });
@@ -562,7 +561,6 @@ responseSurface = createResponseSurface({
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
-  scrollRevealedElement: anchorTravel.scrollRevealedElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,

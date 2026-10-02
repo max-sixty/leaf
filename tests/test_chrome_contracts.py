@@ -990,7 +990,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
-    stands on the messages' column, and its draft words keep their inset as the
+    puts its words on the messages' reading edge, and keeps their inset as the
     field grows and scrolls, leaving room for Submit in the same row.
     Resolve aligns with the root author and time instead of the quoted target. The
     same layout holds at narrow and wide panel widths in both palettes."""
@@ -1058,6 +1058,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
                           message: rect('.lf-msg-body'),
+                          author: rect('.lf-thread-root-meta b'),
                           messageFont: messageStyle.font,
                           inputFont: inputStyle.font,
                           textStart: rect('.lf-thread-reply leaf-text').x +
@@ -1072,7 +1073,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 
     short = geometry()
     text_inset = short["textStart"] - short["field"]["x"]
-    assert short["field"]["x"] == pytest.approx(short["message"]["x"], abs=1)
+    assert short["textStart"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
         short["thread"]["right"] - short["field"]["right"], abs=1
@@ -1090,7 +1091,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert short["resolve"]["right"] == pytest.approx(
         short["metadataActions"]["right"], abs=1
     )
-    assert short["metadata"]["x"] == pytest.approx(short["message"]["x"], abs=1)
+    assert short["author"]["x"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["resolve"]["bottom"] <= short["metadata"]["bottom"] + 1
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0

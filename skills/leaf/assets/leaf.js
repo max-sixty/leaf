@@ -20,10 +20,10 @@ import {
   pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
-  PAGE_PAINT_ATTRIBUTE,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { renderingSettled } from "./runtime/rendering.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
+import { nextFrame, renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
@@ -56,6 +56,7 @@ import {
   reactionTokens,
   sendReaction,
 } from "./runtime/reactions.js";
+import { createAnchorPlacement } from "./runtime/anchor-placement.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
 import { createAnchorControls } from "./runtime/anchor-controls.js";
 import { createAnchorTravel } from "./runtime/anchor-travel.js";
@@ -221,7 +222,7 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
-    app.margin.renderMargin();
+    app.renderAnnotations();
     paintKeys();
     repaint();
     anchorPaint.refreshHover();
@@ -258,6 +259,7 @@ const hintChrome = {
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
+const anchorPlacement = createAnchorPlacement();
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
@@ -273,7 +275,7 @@ const anchorPaint = createAnchorPaint({
       : null,
 });
 const drawingPaint = createDrawingPaint({
-  anchors: anchorPaint,
+  anchors: anchorPlacement,
   activeDrawing: () => drawing.activeDrawing(),
   draftDrawings: () => drawing.draftDrawings(),
 });
@@ -320,7 +322,7 @@ pageGeometry = createPageGeometry({
   refreshActionBar: () => responseSurface.refreshFab(),
 });
 const anchorTravel = createAnchorTravel({
-  anchors: anchorPaint,
+  anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
@@ -349,6 +351,9 @@ const anchorControls = createAnchorControls({
 });
 
 const version = createVersionController({
+  compositionInput: fabInput,
+  openThread: (id, options) =>
+    app.margin.openPageThread(id, { ...options, travel: false }),
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
@@ -377,6 +382,7 @@ app = mountApplication({
   targetPickerOpen: () => targets.targetPickerOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
+  anchorPlacement,
   anchorPaint,
   anchorControls,
   drawingPaint,
@@ -487,11 +493,10 @@ declareStanding({
 });
 
 pageMapDialog = createPageMapDialog({
-  activeInMargin: app.margin.pageMapActive,
-  activateItem: app.margin.activateMapItem,
-  faceFor: app.margin.faceForMap,
-  mapControlPlaces: app.margin.mapControlPlaces,
-  targetFor: app.margin.targetFor,
+  inventory: app.annotations,
+  activeInAnnotations: app.margin.pageMapActive,
+  releaseAnnotations: app.margin.releaseForMap,
+  annotationFocus: app.margin.mapFocusTarget,
 });
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
@@ -533,6 +538,7 @@ selectionComposer = createSelectionComposer({
   reactionTokens,
   designModeActive: designMode.active,
   marginOpenInlineThread: app.margin.openInlineThread,
+  threadFocusTarget: app.margin.threadFocusTarget,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
@@ -618,7 +624,7 @@ targets = createTargetPicker({
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPaint.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
@@ -667,6 +673,7 @@ threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
   threadHere: app.margin.threadHere,
+  placedAt: anchorPlacement.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
@@ -711,7 +718,7 @@ const standing = createStanding({
       { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
-        target: anchorPaint.placedAt(standingThreadId())?.element,
+        target: anchorPlacement.placedAt(standingThreadId())?.place,
       },
     ]),
   paintTouchControls,
@@ -789,6 +796,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  app.mountAnnotations();
   app.margin.mount();
   app.mountThread();
   app.mountRead();
@@ -897,16 +905,32 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
+    const draftOpened =
+      !offlineInteractive && selectionComposer.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a
     // malformed page that the unanchored provisional pass could not yet inspect.
     await whenApplicationPresented();
+    if (draftOpened) {
+      await responseSurface.fabPositioned();
+      paintKeys();
+    }
   } catch (error) {
     setAnchoringReady(false);
     throw error;
   }
   markPagePresented();
+  // Optional author context begins after the presented frame. It neither imports
+  // checks nor takes geometry on the path that gives the reader the page.
+  if (!offlineInteractive && !passiveSample)
+    nextFrame(() =>
+      setTimeout(() => {
+        void import("./runtime/user-view.js")
+          .then(({ observeUserView }) => observeUserView())
+          .catch(() => {});
+      }, 0),
+    );
   void whenArrived().then(landFragment);
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
@@ -923,10 +947,9 @@ async function presentPage() {
   repaint();
   layoutMarginRows();
   landFragment();
-  landArrival();
+  await landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  selectionComposer.openDraft(savedComposer);
   document.dispatchEvent(new Event(PRESENTATION));
 }
 

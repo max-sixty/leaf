@@ -79,13 +79,12 @@ class LeafHTTPServer:
     uvicorn a duplicate: the two halves then close their own, and a caller that
     releases the socket cannot pull it out from under a loop still winding down.
 
-    `server_id` is this incarnation, which every answer names and a tab watches: a
-    replaced server has a log that starts again, so the old DOM has to go. `viewed_at`
-    is when a news stream last wrote the page's user recency, throttled because it
-    needs a recency rather than a request log. `stopping` is the state a held-open news
-    stream reads. A stop has to reach a response that is deliberately never finishing,
-    and the stream looks at this between its own looks; uvicorn's graceful shutdown
-    then has nothing left to wait for.
+    `server_id` names the serving process on every answer. Startup recovery uses it
+    to detect a replacement after failure. An ordinary page's durable record survives
+    that replacement; only an active private website session loses its record and
+    needs an already-presented document to reload. Uvicorn owns shutdown and its
+    signal handling; every page response completes, so no
+    held-open response needs a second stop flag or an application signal wrapper.
     """
 
     def __init__(self, address, endpoint) -> None:
@@ -97,8 +96,6 @@ class LeafHTTPServer:
         self.socket = listening_socket(address[0], address[1])
         self.server_address = self.socket.getsockname()[:2]
         self.server_id = secrets.token_hex(16)
-        self.viewed_at = 0.0
-        self.stopping = False
         # Leaf says what it has to say on its own streams: the URL, the lifetime
         # note, and the page's own errors. A server with a logging voice of its own
         # would write a line per refused request into the streams a foreground
@@ -126,22 +123,12 @@ class LeafHTTPServer:
 
     def serve_forever(self) -> None:
         """Serve on the current thread until `shutdown` or a handled signal."""
-        # A signal reaches uvicorn alone, and its graceful shutdown has no bound:
-        # a news stream that never learns of the stop holds the process open.
-        handled_exit = self._uvicorn.handle_exit
-
-        def stop(sig, frame):
-            self.stopping = True
-            handled_exit(sig, frame)
-
-        self._uvicorn.handle_exit = stop
-        if self.stopping:
+        if self._uvicorn.should_exit:
             return
         self._uvicorn.run(sockets=[self.socket.dup()])
 
     def shutdown(self) -> None:
-        """Ask the serving loop to stop, and tell open streams to end."""
-        self.stopping = True
+        """Ask the serving loop to stop."""
         self._uvicorn.should_exit = True
 
     def server_close(self) -> None:

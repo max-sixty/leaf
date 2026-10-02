@@ -110,10 +110,31 @@ def append_command(page_dir, command):
     """Seed a widget command through the real append door.
 
     A test of raw storage or retired vocabulary passes an explicitly admitted
-    event, including meaning, to event_log.append_event instead.
+    event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)
+
+
+def append_carried_log_record(page_dir, event):
+    """Seed already-interpreted input for a storage or transport test.
+
+    These tests declare input the carrier must deliver, without a document that
+    could decide its meaning. Semantic attention cases use `append_command`.
+    A raw fixture can explicitly declare `attention=False` for quiet input.
+    """
+    from leaf.registry.kernel import bookkeeping_kinds
+
+    return events_model.append_event(
+        page_dir,
+        {
+            "attention": (
+                event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
+            )
+            or event["kind"] in {"report", "error"},
+            **event,
+        },
+    )
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -214,6 +235,10 @@ class ModelPage:
             "what a page still owes is read from its claims and its deliveries, "
             "which a stated page has none of: put that refusal on `page_dir`"
         )
+
+    @property
+    def claims(self) -> list:
+        return []
 
 
 def spawn_probe(spawn, page_dir, body, **environment):
@@ -503,7 +528,7 @@ def publish(d, version=1):
     can only ever be made against one the server exposed."""
     activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "note",
@@ -793,18 +818,28 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    A re-vendor decides twice: once in a dry run, with the page still served and
-    its log read as it stands, and again under the page transaction before it
-    writes. The dry run may pass the held writer; the decision that writes may not,
-    so the init waits for the append and refuses what it wrote."""
+    Re-vendoring waits for the admitted writer, then refuses the incoming
+    vocabulary when it cannot replay that event. Release the writer before
+    joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
+    init_waiting = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
+    original_page_locked = vendoring_model.page_locked
+
+    @contextmanager
+    def observed_page_locked(locked):
+        if locked == page_dir:
+            init_waiting.set()
+        with original_page_locked(locked) as held:
+            yield held
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
-            assert resume.wait(timeout=10), "re-vendor never observed the writer"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "re-vendor never observed the writer"
+            )
         return original_append_record(page, event)
 
     def init_result():
@@ -817,16 +852,28 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
+    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        writing = executor.submit(write)
-        assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
-        vendoring = executor.submit(init_result)
-        # A re-vendor that writes without the page transaction finishes here, with
-        # the writer still held.
-        passed_writer, _ = wait([vendoring], timeout=2)
-        resume.set()
-        written = writing.result(timeout=10)
-        refusal = vendoring.result(timeout=10)
+        try:
+            writing = executor.submit(write)
+            wait_for(
+                entering.is_set,
+                bool,
+                failure=f"{kind} never passed old-layer validation",
+            )
+            vendoring = executor.submit(init_result)
+            wait_for(
+                init_waiting.is_set,
+                bool,
+                failure="Re-vendoring did not attempt the page lock",
+            )
+            # A re-vendor that writes without serialization finishes here, with
+            # the writer still held.
+            passed_writer, _ = wait([vendoring], timeout=2)
+        finally:
+            resume.set()
+        written = writing.result(timeout=STATED_TIMEOUT)
+        refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
     assert refusal is not None
@@ -1193,7 +1240,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         {"state": "idle", "detail": "", "ts": None, "after": 0},
     )
     if published:
-        events_model.append_event(
+        append_carried_log_record(
             directory,
             {
                 "kind": "note",
@@ -1243,7 +1290,7 @@ def comment_once_served():
         def post():
             while not stopped.wait(0.1):
                 if server_model.running_server(page_dir):
-                    events_model.append_event(
+                    append_carried_log_record(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )
                     return

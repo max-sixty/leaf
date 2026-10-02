@@ -219,49 +219,56 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
-hands a headless Claude Code, with this checkout as its only plugin, so the child
-loads `leaf:leaf` and reads the references as a real session does. Score a change to
-`skills/leaf/` on the cases it bears on:
+Each `evals/<case>/case.yaml` is a native Promptfoo test. The runner gives Claude
+Code and Codex the same task, the same assertions, and a staged copy of Leaf's
+instructions. Install the separate eval dependencies once, then select the cases
+that bear on an instruction change:
 
 ```bash
-uv run leaf-dev instructions-eval [CASE]... [--base REF] [--runs N]
+npm ci --prefix evals
+uv run leaf-dev instructions-eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
 ```
 
-It runs the cases on the base's instructions (the merge base with `main` by
-default) and the working tree's at once, and prints each case's passes per arm and the
-cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
-the skill and the references and every run answers with no instructions, while
-`loads-leaf` still passes on the attempt. So every case also grades that the child
-read the reference it tests, and a run that fails that check measured nothing. The
-grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
-refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
+The defaults are both hosts, one run, and the merge base with `main`. Each sample
+has a fresh workspace and home with the host's account login. Promptfoo owns the
+assertions, judgments, traces, and HTML report under `.tmp/instructions-eval/`;
+the runner prints passes separately for each host and base/candidate arm. Read
+`evals/README.md` for the provider models and case format.
+
+A reference-read assertion requires successful tool output, rather than counting
+a denied attempt. Claude exposes Read/Skill results; Codex shell evidence requires
+a completed successful command naming the file and returning text. Shell matching
+is a heuristic, so inspect traces before treating a reference-read pass as proof.
+These static cases test instruction use, while `leaf-dev verify-codex-task` owns
+plugin installation, discovery, and hooks.
 
 The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
 where a change's behavior gives the library breadth, a behavior or kind of situation
-no case yet covers. First try to extend an existing case, with a grader, a
+no case yet covers. First try to extend an existing case, with an assertion, a
 criterion, or context in its prompt, so coverage grows without the cases
 proliferating; add a new case only where no existing one can carry the behavior.
 Keep a case small: one prompt carrying only the context the behavior needs, and a
-few graders. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The comment above
-`schema_version` says where the case came from and what it measured, so a reader can
-tell a case that told two wordings apart from one that has only guarded;
-`description` names the clause it pins, and `tags` its area.
+few assertions. Measure with whatever scenarios and guardrails the change needs, and
+keep what you add whether or not it separated the arms. The leading comment says where the case came from and what it measured, so a
+reader can tell a case that told two wordings apart from one that has only guarded;
+`metadata.purpose` names the clause it pins, and `metadata.tags` its area.
 
 A prompt ends by asking for the HTML in the reply, since the child has no page
-directory. It cannot search the plugin either, so it answers from the references
-without the registry, and a prompt that points it at a file beyond the references
-names that file from the skill's base directory. The prompt never states the behavior under test.
-Grade a fixed form with a `regex` grader, and a judgment with an `llm` grader whose
-`criteria` state the passing reading without requiring particular wording.
+directory. It can read the staged skill and its references. A prompt pointing at
+a file beyond the references names that file from the skill's base directory. The
+prompt never states the behavior under test. Grade a fixed form with a `regex`
+assertion, and a judgment with an `llm-rubric` assertion whose `value` states the
+passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
 session's context needs a replay of that session instead.
-`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
+`leaf-dev scenario-eval usability [CASE]...` runs cases that need a page directory
+and `leaf`, through the same Promptfoo reporting and assertion framework.
+`scenario-eval arrangement` owns paired composition studies, and `scenario-eval
+delivery` owns live feedback timing. Those existing trajectories use Claude Code.
 No grader has been checked against a person's judgment, so a pass is weak evidence.
 
 ## Refresh the public catalog stills

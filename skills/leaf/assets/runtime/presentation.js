@@ -89,11 +89,8 @@
    runtime words do not become authored or user content. */
 
 import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
-import {
-  applicationPresented,
-  attachApplicationPresentation,
-  whenApplicationPresented,
-} from "./semantic-state.js";
+import { applicationPresented } from "./semantic-state.js";
+import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
 import { watchArrivals } from "./arrivals.js";
 import { renderingSettled } from "./rendering.js";
@@ -101,40 +98,8 @@ import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { keeps } from "./keeps.js";
 
-// Attributes the runtime may paint onto elements the page owns: the source each runtime
-// writer uses, and with the declared marks (`$marks`) the replay signature's exclusion
-// vocabulary (`isPagePaint`), so a new kind of paint has one place to join. The rest of
-// data-lf-* is not implicitly ours — a widget can carry real state there, and replay
-// must see it.
-export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
-  class: "class",
-  ask: "data-lf-ask",
-  done: "data-lf-done",
-  restated: "data-lf-restated",
-  retired: "data-lf-retired",
-  settlement: "data-lf-state",
-  applied: "data-lf-applied",
-  reading: "data-lf-reading",
-  dataVersion: "data-lf-data-version",
-  source: "data-lf-source",
-  sourceRevision: "data-lf-source-revision",
-  userOverride: "data-lf-user-override",
-  presented: "data-lf-presented",
-  reported: "data-lf-reported",
-  upgraded: "data-lf-upgraded",
-  holds: "data-lf-holds",
-  moreBefore: "data-lf-more-before",
-  moreAfter: "data-lf-more-after",
-  scrollDirection: "data-lf-scroll-direction",
-  moreBelow: "data-lf-more-below",
-  goto: "data-lf-go-to-active",
-  traffic: "data-lf-traffic",
-  indicated: "data-lf-indicated",
-  // Delivery's, not a runtime writer's: the size of the page media an element names
-  // (revision_delivery.py, `mark_declared`).
-  mediaWidth: "data-lf-media-width",
-  mediaHeight: "data-lf-media-height",
-});
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
 // runtime's, or a declared mark, which delivery paints into the served document and
@@ -254,27 +219,23 @@ export const PRESENTATION = "lf-presentation";
 // pass here, so a dynamically imported surface cannot appear after either page is
 // already in front of the user.
 export const PAGE_INTERFACE = "lf-page-interface";
-// `presented` is the wait the caller owes once the interface has settled: the whole
-// application at startup, and for a live revision patched in place only this region,
-// since that install runs inside the state turn whose answer may still owe a standing
-// widget its data — a wait on the whole application there is a wait on itself.
-export async function settlePageInterface(presented = whenApplicationPresented) {
+// Prepare optional interface owners over the current DOM. This joins their imports and
+// installation, separately from the semantic document's canonical presentation proof.
+// A gallery's contained sample documents remain deliberately deferred arrivals.
+export async function settlePageInterface() {
   const pending = [];
-  const presentation = attachApplicationPresentation("page-interface", document);
   const present = (promise) => {
     if (!promise?.then)
       throw new TypeError("Page interface presentation must be a promise");
     pending.push(promise);
     return promise;
   };
-  try {
-    document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { present } }));
-    // Each optional owner reports its own failure. One rejected surface must not keep
-    // every generated control on the page behind the upgrade boundary.
-    await presentation.present(pending, Promise.allSettled(pending));
-    await presented();
-  } finally {
-    presentation.disconnect();
+  document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { present } }));
+  // Owners can report and recover locally. An unhandled preparation failure is still
+  // visible, but must not keep every generated control behind the upgrade boundary.
+  for (const result of await Promise.allSettled(pending)) {
+    if (result.status === "rejected")
+      reportPageError(`Page interface failed: ${result.reason}`);
   }
 }
 

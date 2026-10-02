@@ -259,7 +259,7 @@ const runtimeName = (file) =>
 let pagePaintAttributeValues;
 function pagePaintAttributesFrom(parser) {
   if (pagePaintAttributeValues) return pagePaintAttributeValues;
-  const file = path.join(runtimeRoot, "presentation.js");
+  const file = path.join(runtimeRoot, "page-paint.js");
   const ast = parser.parse(fs.readFileSync(file, "utf8"), {
     ecmaVersion: "latest",
     sourceType: "module",
@@ -465,7 +465,7 @@ const architecturePlugin = {
                 definition.type === "ImportBinding" &&
                 definition.node.type === "ImportSpecifier" &&
                 definition.node.imported.name === "PAGE_PAINT_ATTRIBUTE" &&
-                /(?:^|\/)presentation\.js$/u.test(definition.parent.source.value),
+                /(?:^|\/)page-paint\.js$/u.test(definition.parent.source.value),
             ),
           );
         };

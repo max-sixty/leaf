@@ -8,10 +8,9 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command, record_claim
+from interact_support import append_carried_log_record, append_command, record_claim
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
@@ -51,8 +50,10 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
+    admit_before_presenting_comment,
     any_owner_entry,
     example_media,
+    hold_pending_thread_presentation,
     holding,
     leaf_page,
     open_page,
@@ -203,7 +204,7 @@ def summarize_thread(page_dir, first, last, text):
 
 
 def append_user_reply(page_dir, parent, text):
-    return events_model.append_event(
+    return append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -227,7 +228,7 @@ def append_agent_reply(page_dir, parent, text, markup=None):
     }
     if markup is not None:
         event["markup"] = markup
-    return events_model.append_event(page_dir, event)
+    return append_carried_log_record(page_dir, event)
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
@@ -277,7 +278,7 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     # An answer that names the attempt it was reserved under and nothing else. The
     # attempt is the identity the placeholder was opened on and the one the panel
     # draws by, so this is the whole of what says the draft is finished.
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -373,7 +374,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         "'#stream-reply-choice'); }"
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "edit",
@@ -414,7 +415,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
         for_event=root,
     )
     for i in range(8):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -425,7 +426,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
             },
         )
     if resolved:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
         )
     page = open_page(browser, url)
@@ -624,10 +625,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     summary = summarize_thread(
         serve.page_dir, root, reply["id"], "The constraint was confirmed."
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "unresolve", "author": "user", "parent": root}
     )
 
@@ -646,7 +647,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     )
     resolve = card.get_by_role("button", name="Resolve thread")
     resolve.focus()
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "edit",
@@ -724,7 +725,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
           }
         }"""
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "edit",
@@ -809,7 +810,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
         "</lf-options></lf-ask>",
         for_event=root,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
     page = open_page(browser, url)
@@ -1022,7 +1023,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     never left it, and taking the resolve back moves them nowhere either: not to
     Threads, and not to a margin card for the same thread."""
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1055,7 +1056,7 @@ def test_z_takes_a_reopen_back_to_the_resolved_list_it_came_from(browser, serve)
     reopened it from, as a refusal of the reopen would."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Reopen this one, then think better of it.")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
     page = open_page(browser, url)
@@ -1103,7 +1104,7 @@ def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gestu
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Settle this one, then think better of it.")
     if gesture == "reopen":
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
         )
     page = open_page(browser, url)
@@ -1331,7 +1332,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     browser, held = held_events
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Keep the later search in view.")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
     page = open_page(browser, url)
@@ -1372,7 +1373,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     browser, held = held_events
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Keep the restoration search in view.")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
     )
     page = open_page(browser, url)
@@ -1417,7 +1418,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     """Mirrored controls share optimistic resolution, delivery, and reopening."""
     browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1483,7 +1484,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     """
     browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1783,7 +1784,7 @@ def test_an_arriving_reply_leaves_the_list_where_the_user_put_it(browser, serve)
     first = next(
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     )
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1857,7 +1858,7 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     began = page.evaluate(reading, [*point, target])
     assert began["same"], f"the press did not begin on Resolve: {began}"
 
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2013,7 +2014,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     panel_settled(page)
     status = page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     expect(status).to_have_text("Working")
-    later = events_model.append_event(
+    later = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2037,12 +2038,12 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     browser, serve
 ):
     """A board the agent sent in a reply takes a moved card as a page board does: the
-    reply carrying the board reports the move's delivery, and the thread stays nobody's
-    turn, since the move answers no Ask. The agent's next turn in the thread takes the
-    move in, and the receipt leaves."""
+    reply carrying the board reports the saved move, and the thread stays nobody's
+    turn, since the move answers no Ask and wakes nobody. The agent's next turn in
+    the thread takes the move in, and the receipt leaves."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Lay the work out.", {"section": "how-cap"})
-    board = events_model.append_event(
+    board = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2076,13 +2077,12 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        delivery_model.record_pickup(transaction, [moved])
-    told(page)
-    expect(receipt).to_have_text("Picked up")
-    expect(status).to_have_count(0)
+    assert not moved["attention"]
+    assert moved not in service_model.unacknowledged(
+        events_model.read_events(serve.page_dir), 0
+    )
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2120,7 +2120,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     first = next(
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     )
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2155,7 +2155,7 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
     first = panel_comment(
         serve.page_dir, "Keep the route visible.", {"section": "how-store"}
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2253,7 +2253,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     ta3.click()
     ta3.type("held mid-sentence")
     page.evaluate("() => document.activeElement.setSelectionRange(4, 4)")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": c2}
     )
     told(page)
@@ -2273,7 +2273,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "user", "parent": roots[0]},
     )
@@ -2537,7 +2537,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "user", "parent": root},
     )
@@ -2642,7 +2642,7 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
         thread.evaluate("node => getComputedStyle(node).borderBottomColor") != separator
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "done",
@@ -2662,7 +2662,7 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
 def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
     url = serve(LONG_PAGE, comments=1)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "done",
@@ -2742,7 +2742,7 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     written. The list is threads alone: no heading stands among them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    whole = events_model.append_event(
+    whole = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2917,7 +2917,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
         }"""
     )
 
-    later = events_model.append_event(
+    later = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Gamma thread"},
     )
@@ -2953,7 +2953,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     expect(first_b).to_have_attribute("open", "")
 
     page.evaluate("() => window.__testThreadPanels[1].handle.unregister()")
-    after_removal = events_model.append_event(
+    after_removal = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Delta thread"},
     )
@@ -2977,7 +2977,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
         if anchor:
             event["anchor"] = anchor
         event["ts"] = (now - timedelta(days=days_ago)).isoformat(timespec="seconds")
-        return events_model.append_event(d, event)["id"]
+        return append_carried_log_record(d, event)["id"]
 
     lede = comment("Six weeks reads long.", {"section": "lede"}, 10)
     cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
@@ -3066,7 +3066,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
         )
     )
     for section in ("near", "also"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3450,7 +3450,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     waiting = panel_comment(
         d, "Which local wording is right?", {"section": "lede"}, "agent"
     )
-    design = events_model.append_event(
+    design = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3463,7 +3463,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     )["id"]
     gone = panel_comment(d, "The removed section still matters.", {"section": "gone"})
     resolved = panel_comment(d, "This local note is done.", {"section": "how-cap"})
-    events_model.append_event(
+    append_carried_log_record(
         d, {"kind": "resolve", "author": "user", "parent": resolved}
     )
 
@@ -3777,7 +3777,7 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     """
     url = serve(THREAD_DIFF_PAGE)
     answered, unanswered = (
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3893,7 +3893,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
         if e["kind"] == "comment"
     ]
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "Indexer", "parent": c1},
     )
@@ -4065,14 +4065,14 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_be_hidden()
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4245,7 +4245,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     ), "the pointer did not begin over the target card"
 
     before = page.evaluate("() => window.__lfHeld.length")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "user", "parent": source},
     )
@@ -4435,7 +4435,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
 
     # Far enough down the list that its own card cannot move the target, so what the
     # arrival costs is the hold and nothing else.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4482,7 +4482,7 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
     reply.evaluate("ta => ta.setSelectionRange(8, 8)")
     expect(reply).to_be_focused()
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
@@ -4705,7 +4705,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going).to_have_count(0)
     # News the thread takes while it is open again, which the node the first fold was
     # carrying away has never held — so what folds the second time says which node it is.
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -5212,7 +5212,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
     reaches on its own, so a centring assertion over one asserts nothing.
     """
     for n in range(chatter):
-        events_model.append_event(
+        append_carried_log_record(
             d,
             {
                 "kind": "comment",
@@ -5222,7 +5222,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
                 "text": f"Aside {n}. " + "Long enough to wrap in the panel. " * 4,
             },
         )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -5232,7 +5232,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "text": "Which store?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -5243,7 +5243,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "markup": markup,
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -5255,7 +5255,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
         },
     )
     for n in range(after):
-        events_model.append_event(
+        append_carried_log_record(
             d,
             {
                 "kind": "comment",
@@ -5299,7 +5299,7 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     )
     # A second thread, on the document, whose travel is the one that must still move
     # the page. Written after the first so the panel holds both.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5439,7 +5439,7 @@ def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
     url = serve(REPLY_TRAVEL_PAGE)
     d = serve.page_dir
     for n in range(14):
-        events_model.append_event(
+        append_carried_log_record(
             d,
             {
                 "kind": "comment",
@@ -5451,7 +5451,7 @@ def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
         )
     # The shape design mode writes about design: `about` says which, and the anchor
     # names the part the runtime gave an id.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -5463,7 +5463,7 @@ def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
             "anchor": {"section": "lf-shortcut-bar"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -5544,7 +5544,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
         if wid.startswith("tv-msg"):
             seed_reply(d, REPLY_CHANGE, wid)
         else:
-            events_model.append_event(
+            append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -5615,7 +5615,7 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
         "</lf-options></lf-ask>",
         "tv-decision",
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5773,7 +5773,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     stays visible after a later plain reply."""
     url = serve(REPLY_TRAVEL_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -5783,7 +5783,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "text": "the question nobody can read any more",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -5801,7 +5801,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             ),
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -6774,7 +6774,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
     d = serve.page_dir
     for i in range(3):
         panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -6887,7 +6887,7 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
 def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "A question with a reply.")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -6939,7 +6939,7 @@ def seed_panel_threads(page_dir, threads, long_index=None, messages=12):
         roots.append(root)
         for turn in range(1, messages if i == long_index else 2):
             agent = turn % 2 == 1
-            events_model.append_event(
+            append_carried_log_record(
                 page_dir,
                 {
                     "kind": "reply",
@@ -6966,7 +6966,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     scrolling its lines until some later revision swept the page."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What did the deploy do?")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7052,7 +7052,7 @@ def test_an_agent_turn_arriving_while_the_user_writes_keeps_their_box_in_view(
     before = editor.bounding_box()
     send = card.locator(".lf-thread-send")
     assert send.evaluate(IN_LANDING_BAND)["inside"], "Send starts outside the band"
-    arrived = events_model.append_event(
+    arrived = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7180,7 +7180,7 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
     )
     for turn in range(12):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -7211,9 +7211,15 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
         reading = card.locator(":scope > .lf-thread-transcript")
         reading.evaluate("transcript => { transcript.scrollTop = 0; }")
         latest = card.locator(".lf-msg").last
+    reading_selector = (
+        ".lf-threads"
+        if view == "panel"
+        else f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] > .lf-thread-transcript'
+    )
+
     rendered(page)
     scroll_settled(page)
-    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    scroll_settled(page, reading_selector)
     assert reading.evaluate("box => box.scrollHeight > box.clientHeight")
     assert (
         latest.bounding_box()["y"]
@@ -7228,7 +7234,7 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
     expect(reply).to_be_focused()
     rendered(page)
     scroll_settled(page)
-    scroll_settled(page, ".lf-threads" if view == "panel" else ".lf-thread-transcript")
+    scroll_settled(page, reading_selector)
     assert [
         page.evaluate("scrollY"),
         reading.evaluate("box => box.scrollTop"),
@@ -7354,7 +7360,7 @@ def seated_thread(serve, kind, messages):
     else:
         url, host = seated_page(serve, kind)
         anchor = {"section": host[1:]}
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7365,7 +7371,7 @@ def seated_thread(serve, kind, messages):
         },
     )["id"]
     for n in range(messages - 1):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -7444,6 +7450,27 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "composer-widget":
+        url = serve(
+            leaf_page(
+                "diff",
+                '<h1 id="title">Review</h1><lf-diff id="patch" '
+                'source="review-patch"><pre></pre></lf-diff>',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page = open_page(browser, url)
+        line = page.locator(
+            'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+        )
+        line.hover()
+        page.get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        box = page.locator(".lf-fab-input")
+        send = page.locator(".lf-composer .lf-compose-submit")
+        after = page.locator("lf-diff .lf-page-thread")
+        reply = after.locator(".lf-thread-reply leaf-text")
     else:
         url = serve(PANEL_PAGE)
         root = panel_comment(
@@ -7456,7 +7483,10 @@ def pressed_send_surface(browser, serve, surface):
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-thread-reply leaf-text")
-        elif surface == "composer":
+        elif surface in {"composer", "composer-panel"}:
+            if surface == "composer-panel":
+                page.locator(".lf-threads-toggle").click()
+                panel_settled(page)
             page.locator("#how-cap").click(click_count=3)
             page.locator(".lf-fab-input").click()
             holder = page.locator(".lf-composer")
@@ -7478,12 +7508,19 @@ def pressed_send_surface(browser, serve, surface):
         after = {
             "card": page.locator("#how-store"),
             "composer": page.locator("#how-cap"),
+            "composer-panel": page.locator(
+                ".lf-thread", has_text="Sent from the box."
+            ).locator(":scope > .lf-thread-summary"),
             "panel": holder.locator(".lf-thread-summary"),
             "general": box,
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
             if surface in {"card", "composer"}
+            else page.locator(".lf-thread", has_text="Sent from the box.").locator(
+                ":scope > .lf-thread-reply leaf-text"
+            )
+            if surface == "composer-panel"
             else box
         )
     write(box, "Sent from the box.")
@@ -7495,11 +7532,20 @@ def pressed_send_surface(browser, serve, surface):
     ("surface", "how"),
     [
         (surface, how)
-        for surface in ["card", "panel", "general", "pause", "handoff", "composer"]
+        for surface in [
+            "card",
+            "panel",
+            "general",
+            "pause",
+            "handoff",
+            "composer",
+            "composer-widget",
+            "composer-panel",
+        ]
         for how in ["pointer", "keyboard"]
         # The anchored composer's Tab walks its field and response options
         # (`response.tab`), so its Send takes no keyboard press; Enter is that route.
-        if (surface, how) != ("composer", "keyboard")
+        if not (surface.startswith("composer") and how == "keyboard")
     ],
 )
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
@@ -7510,6 +7556,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     thread, or on the element the margin card is about with the card still up, and `c`
     writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
+    if surface.startswith("composer"):
+        hold_pending_thread_presentation(page)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -7526,6 +7574,26 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # The press never takes the focus, so the box never hears it leave.
             expect(box).to_be_focused()
             page.mouse.up()
+    if surface.startswith("composer"):
+        sent = admit_before_presenting_comment(
+            page, serve.page_dir, "Sent from the box."
+        )
+        thread = page.locator(
+            f'.lf-thread[data-id="{sent["id"]}"]'
+            if surface == "composer-panel"
+            else f'.lf-page-thread[data-thread="{sent["id"]}"]'
+        )
+        expect(thread).to_be_visible()
+        if surface == "composer-widget":
+            # Exact message navigation belongs to Threads, not the local reply box.
+            assert page.evaluate(
+                """async id => {
+                  const {surfaceFocusTarget} = await window.__lfRuntimeImport(
+                    '/runtime/thread/surfaces.js');
+                  return surfaceFocusTarget(id, {focus: 'message'}) === null;
+                }""",
+                sent["id"],
+            )
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()
@@ -7723,7 +7791,7 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     to_window_foot(page, box, 50)
     before = box.evaluate("box => box.getBoundingClientRect().top")
     page_before = page.evaluate("() => document.scrollingElement.scrollTop")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7826,7 +7894,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     scroll_settled(page)
     expect(box).to_be_focused()
     before = page.evaluate("() => document.scrollingElement.scrollTop")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7862,7 +7930,7 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     write(box, "Half a thought")
     box.evaluate("box => box.setSelectionRange(4, 4)")
     if resolved:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
         )
@@ -7926,7 +7994,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
     box.evaluate("box => box.setSelectionRange(4, 4)")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
     )
@@ -8208,7 +8276,7 @@ def test_an_answer_without_a_title_leaves_the_opening_words(browser, serve):
     panel_settled(page)
     topic = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"] .lf-thread-topic')
     expect(topic).to_have_text("Generating title")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -8231,7 +8299,7 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     it, so its row reads the comment rather than a placeholder."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

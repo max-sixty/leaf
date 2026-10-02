@@ -37,7 +37,10 @@ reaches a module by importing it from this package, never through `sys.path`,
   command that reads one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
   steps, and prints what a JavaScript expression returns, the console errors, and
-  optionally a screenshot; `--base` does the same on the merge base.
+  optionally a screenshot; `--base` does the same on the merge base. Its startup
+  evidence uses the same recorder as site verification: phases, resources, and
+  native initial layout shifts with affected nodes and before/after rectangles.
+  Those shifts are diagnostic, never a stability gate.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
@@ -58,12 +61,12 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time.
-- `leaf-dev delivery-eval [BASE_REF]` compares how a live Claude Code agent handles a
-  comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
-  a dollar each.
-- `leaf-dev instructions-eval [CASE]...` runs the instructions cases in `evals/` on the merge
-  base's instructions and the working tree's at once, and prints each case's passes per
-  arm (`/developing-leaf`, "Score an instruction change").
+- `leaf-dev scenario-eval SUITE [CASE]...` scores complete usability, arrangement
+  and live delivery trajectories through Promptfoo. Scenario modules own execution;
+  `promptfoo.py` owns the native runner and reports, shared with instruction evals.
+- `leaf-dev instructions-eval [CASE]...` runs native Promptfoo cases in `evals/` on
+  Claude Code and Codex, against the merge base and working tree, and prints passes
+  per host and arm (`/developing-leaf`, "Score an instruction change").
 
 ## Examples and previews
 

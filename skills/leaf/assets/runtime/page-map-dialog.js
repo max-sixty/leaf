@@ -1,7 +1,7 @@
 /* The complete searchable Page Map dialog.
 
-   The margin projection supplies its current target entries and activates core reading
-   items. One keyed Lit projection renders its groups and contributed records, filters
+   The neutral annotation inventory supplies current target entries and live activation.
+   One keyed Lit projection renders its groups and contributed records, filters
    them, and returns focus through the route that opened it. Retained nodes keep a state
    refresh from cancelling a held pointer or moving focus.
    Compact clusters use this same complete dialog for overflow.
@@ -17,13 +17,13 @@
    A finger opens the map on its first row rather than in the search, since focusing the
    search raises a soft keyboard over the list the finger came to tap.
 
-   Boot supplies margin commands and readings to one constructed map owner. Its
+   Boot supplies the inventory and current annotation focus capabilities. Its
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { handBack, holdFocus, letGo } from "./focus.js";
+import { focusDestination, handBack, holdFocus, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
@@ -47,7 +47,8 @@ import {
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
 
-import { contributionItemKey } from "./contribution-model.js";
+import { contributionItemKey, KINDS } from "./contribution-model.js";
+import { versionBtn } from "./version-picker.js";
 import { marginMapGroups } from "./margin-map-model.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
@@ -102,19 +103,31 @@ const mapRows = () =>
   );
 
 export function createPageMapDialog({
-  activeInMargin,
-  activateItem,
-  faceFor,
-  mapControlPlaces,
-  targetFor,
+  inventory,
+  activeInAnnotations,
+  releaseAnnotations,
+  annotationFocus,
 }) {
+  const { targetFor } = inventory;
   let entries = [];
   let closeOwnsFocus = false;
   let from = null;
   let target = null;
   let trackedOffers = new Set();
 
-  const pageMapIsActive = () => dialog.open || activeInMargin();
+  const pageMapIsActive = () => dialog.open || activeInAnnotations();
+
+  function activateItem(item, entry) {
+    releaseAnnotations(entry);
+    const destination = annotationFocus(entry);
+    leavePageMap();
+    handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
+    inventory.activate(item);
+    // A location without a presented annotation lands on its exact authored target.
+    // Commands that open a Thread or Ask retain their own navigation capability.
+    if (!destination && targetFor(entry)?.isConnected)
+      focusDestination(targetFor(entry));
+  }
 
   function pageMapDialogContains(candidate, node) {
     return dialog.open && target === candidate && dialog.contains(node);
@@ -273,7 +286,11 @@ export function createPageMapDialog({
         return [entry.key, passage ? says(passage) : ""];
       }),
     );
-    const groups = marginMapGroups(entries, faceFor, searchTextByKey);
+    const groups = marginMapGroups(
+      entries,
+      (item) => KINDS[item.kind],
+      searchTextByKey,
+    );
     render(
       html`${repeat(
         groups,
@@ -422,7 +439,12 @@ export function createPageMapDialog({
       target = null;
       paintKeys();
       if (focusOwned) return;
-      handBack(returnTo, ...mapControlPlaces());
+      handBack(
+        returnTo,
+        pageMapInvoker(),
+        annotationFocus(null),
+        bannerControlDoor(versionBtn),
+      );
     });
     dialogClose.onclick = () => dialog.close();
     root.append(dialog);

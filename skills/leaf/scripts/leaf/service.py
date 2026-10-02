@@ -142,12 +142,12 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     The page directory is the record of its own use, and it already holds both
     halves. The session appends events and writes status there; the server
     writes `viewed.json` every thirty seconds for as long as a tab holds the
-    page's news stream, so a user looking at the page is a touch too. Neither
+    page's freshness requests, so a user looking at the page is a touch too. Neither
     side has to stamp a heartbeat for this, and one shallow `iterdir` reads both
     — shallow because every file a touch moves sits at the top level, and this is
     read on the serving watchdog's poll.
 
-    Only a *visible* tab, though: `state-feed.js` closes the stream from its
+    Only a *visible* tab, though: `state-feed.js` stops freshness requests from its
     `visibilitychange` listener, so a page sitting in a background tab goes
     untouched until the user returns to it. That gap, not the agent's, is what
     ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
@@ -155,7 +155,7 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     Diagnostic `interactions.jsonl` is excluded: a request alone does not prove
     a visible reader or active agent. `served_state/reading.py` excludes both it
     and `viewed.json` from the page's own reading token, where counting either
-    would make a stream answer its own question. There is no such loop here:
+    would make freshness answer its own question. There is no such loop here:
     ownership feeds the watchdog, not the token.
 
     The claim's own timestamp joins the files for the page that has been served
@@ -762,34 +762,21 @@ def owned_pages(session_id: str | None) -> list:
 
 
 def unacknowledged(events: list, cursor: int) -> list:
-    """The events past the acknowledgement cursor that the page's watcher owes a
-    reading: the user's own, and workers' reports — a report moves the page the
-    way a user's action does, and the watcher is the one who can absorb it into
-    a version. One cursor and one predicate for the whole batch, so `leaf
-    wait`'s output, the Stop hook's count, and the idle gate cannot disagree
-    about what is still owed. The user's banner counts only the user half
-    (full_state's `pending`): a report is news the agent owes the page, not
-    something the user owes an answer. A session that reports to a page it
-    also watches reads its own report back once — rare enough (workers report,
-    the watcher publishes) that a session-keyed carve-out would cost a second,
-    parameterized predicate for no failure anyone has hit."""
-    return [
-        e
-        for e in events
-        if e["seq"] > cursor
-        # The user's own, a worker's report, and the page reporting itself
-        # broken — the last is the agent's debt exactly as a report is.
-        and requires_agent_attention(e)
-    ]
+    """Attention-marked events past the page's acknowledgement cursor.
+
+    Carriers, the unpicked-input Stop guard and the idle gate read the same
+    admission decision. The user-facing pending count includes only user input;
+    workers' reports and page errors wake the agent without increasing that count.
+    """
+    return [e for e in events if e["seq"] > cursor and requires_agent_attention(e)]
 
 
 def requires_agent_attention(event: dict) -> bool:
-    """Whether a log event creates host work, rather than user bookkeeping."""
-    from leaf.registry.kernel import bookkeeping_kinds
+    """Admission's decision that this event changes work the agent owes.
 
-    return (
-        event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
-    ) or event["kind"] in {"report", "error"}
+    A record without the admitted decision is absent input.
+    """
+    return event.get("attention") is True
 
 
 # The fields every stored work claim carries (`PageService.set_status`).

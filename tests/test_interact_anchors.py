@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     SUGGESTED,
     SUGGESTION,
+    append_carried_log_record,
     append_command,
     before_choice,
     check,
@@ -172,7 +173,7 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     reaches for `--section`, and `no element id` alone leaves it guessing at the page's
     markup for an id that was never going to be there. So the refusal names the writer
     that settles what the log still owes for the value."""
-    root = events_model.append_event(
+    root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "how long?"},
     )
@@ -227,7 +228,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
-    asked = events_model.append_event(
+    asked = append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "user", "parent": own["id"], "text": "how long?"},
     )
@@ -258,7 +259,7 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     writer takes is what the log still owes, not the event's kind: a resolve is owed
     nothing, so sending the agent to `--for` with it hands it a second refusal with no
     route at all."""
-    root = events_model.append_event(
+    root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "how long?"},
     )
@@ -284,7 +285,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     agent needed. The recourse names `--for` for every kind the log holds, and reserves
     naming the thread for the kinds a message id also answers to."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
@@ -694,7 +695,7 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -704,7 +705,7 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
             "anchor": {"section": "flow"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "undo", "author": "user", "undoes": root["id"]},
     )
@@ -751,7 +752,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -983,7 +984,7 @@ def test_a_bare_reaction_holds_no_visual_part(page_dir):
     a version — the rule `anchored_ids` already states for the section id. It has no
     turn to reply with either, so holding the part would leave the author no move
     that releases it."""
-    events_model.append_event(
+    append_carried_log_record(
         parted(page_dir),
         {
             "kind": "comment",
@@ -1023,7 +1024,7 @@ def test_reopening_a_thread_does_not_reclaim_a_released_visual_part(page_dir):
     assert drop_node_a(page_dir).exit_code == 0
     publish(page_dir, version=2)
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
     reopened = check(page_dir)
@@ -1197,7 +1198,7 @@ def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
     The door admitted everything logged against the active revision, so the next
     revision is where history is checked against the vocabulary again."""
     drafted(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1392,7 +1393,7 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
     result = comment(page_dir, *retired)
@@ -1421,7 +1422,7 @@ def test_a_version_may_not_honor_a_decision_the_user_took_back(page_dir):
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
     assert check(page_dir).exit_code == 1
@@ -1473,7 +1474,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1532,7 +1533,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
     """The agent-side fold reads the inverse transition from the same log as the
     browser, so page state and the transcript both show the thread open again."""
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1541,10 +1542,10 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
             "text": "Still relevant?",
         },
     )
-    resolved = events_model.append_event(
+    resolved = append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
-    reopened = events_model.append_event(
+    reopened = append_carried_log_record(
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
 
@@ -1568,7 +1569,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     closed threads live in."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1591,7 +1592,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "thread": root["id"],
         }
     ]
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
     assert state_json(page_dir)["asks"] == []
@@ -1603,7 +1604,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     roots = []
     for suffix in ("a", "b"):
         roots.append(
-            events_model.append_event(
+            append_carried_log_record(
                 page_dir,
                 {
                     "kind": "comment",
@@ -1792,7 +1793,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         ).exit_code
         == 0
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     clash = CliRunner().invoke(

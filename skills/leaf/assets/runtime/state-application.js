@@ -7,7 +7,10 @@
    document region claims this epoch, so what remains here is to wait for their proof
    rather than to name renderers or order them. Accepted truth never rolls back when a
    view fails. Failed presentation reports visibly and leaves pending receipt accounting
-   untouched, so another reading can retry from that same semantic root. */
+   untouched, so another reading can retry from that same semantic root. A revision's
+   install returns only its immutable document capture and a mechanical landing. After
+   adoption, optional interface installation and the canonical document proof both
+   finish before that landing; declining stale focus never retracts accepted truth. */
 import { LIVE_ROOT } from "./storage.js";
 import { runtime } from "./context.js";
 import {
@@ -20,7 +23,7 @@ import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
-import { markStateApplied } from "./presentation.js";
+import { markStateApplied, settlePageInterface } from "./presentation.js";
 import { loadMarked, prepareAuthoredMessage, messageText } from "./thread/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
@@ -140,7 +143,7 @@ export function createStateApplication({
       // does, and adoption is where the revision it installed becomes current, so the
       // document and the state that speaks for it reach the page in one reading.
       const installed = following !== null ? await activation.install() : null;
-      const prior = installed ?? readApplication().document;
+      const prior = installed?.document ?? readApplication().document;
       let authored = prior.authored;
       let descriptors = prior.descriptors;
       for (const frozen of frozenDocuments) {
@@ -175,10 +178,16 @@ export function createStateApplication({
         renderVersions(state);
         stateSignoff(isSignoffDeclared());
         renderOthers(state);
-        // Adoption already claimed every document region for this epoch, and frozen
+        // Optional interface preparation joins imports and installation, without
+        // pretending to be a semantic renderer. Adoption already claimed every document
+        // region for this epoch, and frozen
         // thread widgets joining the document reopen the ones they change. Waiting for
         // that proof is what replaces naming the renderers and the order they run in.
+        if (installed) await settlePageInterface();
         await whenDocumentPresented();
+        // Version-owned mechanical landing follows proof and reports its own failures;
+        // it cannot turn accepted truth into a refusal or strand proved receipts.
+        if (installed) await installed.land();
         await notifyDataSubscribers();
         markStateApplied(state);
         accountPending(state.browser.receipts);

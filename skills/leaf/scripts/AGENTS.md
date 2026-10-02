@@ -53,6 +53,7 @@ subpackage's initializer is only a marker, never a second API.
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;
 - `presence`: page, claim, and neighboring-leaf presence;
+- `user_views`: disposable per-document browser observations and passive check context;
 - `samples`, `sample_content`: disposable child pages built from captured templates,
   and their initial histories admitted from parent threads or authored fixture commands;
 - `http`: HTTP transport;
@@ -77,7 +78,7 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
-the served response, `reading` names filesystem changes for the news stream, and
+the served response, `reading` names filesystem changes for freshness reads, and
 `service` owns the page transaction every route reads through.
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns

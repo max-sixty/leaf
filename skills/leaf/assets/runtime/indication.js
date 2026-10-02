@@ -25,7 +25,7 @@ import {
   referencedProjection,
   requireReference,
 } from "./anchor-resolution.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { LAYOUT } from "./widget-elements.js";
 
 const INDICATED = PAGE_PAINT_ATTRIBUTE.indicated;

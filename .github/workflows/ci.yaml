@@ -78,6 +78,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             worker/package-lock.json
+            evals/package-lock.json
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
@@ -101,6 +102,9 @@ jobs:
 
       - name: 🧪 Runtime folds
         run: npm run test:runtime
+
+      - name: Check eval assertions without model calls
+        run: npm ci --prefix evals && npm test --prefix evals
 
       # Cheap gates fail before the complete Python suite spends its runner time.
       - name: 🧪 Python tests

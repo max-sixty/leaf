@@ -92,6 +92,7 @@ export {
   differenceKind,
 } from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
+export { scrollIntoReadingBand } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -124,6 +125,7 @@ export {
 export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
+export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";

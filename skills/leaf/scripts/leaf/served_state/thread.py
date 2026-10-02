@@ -1,70 +1,19 @@
 """Thread-scoped browser projection."""
 
-from ..asks import local_ask_entry, thread_ask_readings
+from ..asks import thread_ask_readings, thread_awaits_user
 from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
-    is_reaction,
     seat_root,
     spoken_turns,
     standing_approvals,
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
-from ..read_state import content_version, unread_content
+from ..read_state import unread_content
 from ..schema import agent_name
 from .wire import browser_projection
-
-
-def _thread_awaits_user(
-    thread_id: str,
-    thread: dict,
-    registry: dict,
-    awaiting: dict[str, bool],
-    structure,
-    open_ask_threads: set[str],
-) -> tuple[bool, dict | None]:
-    if thread["resolved"]:
-        return False, None
-    if thread_id in open_ask_threads:
-        return True, None
-    turns = spoken_turns(thread)
-    tokens = registry.get("$reactions", {}).get("tokens", {})
-    for index in range(len(turns) - 1, -1, -1):
-        message = turns[index]
-        if message["author"] != "agent":
-            continue
-        later = turns[index + 1 :]
-        if any(entry["author"] != "agent" for entry in later):
-            continue
-        fragment = structure.fragments.get(message["id"])
-        asks = [
-            rec["attrs"].get("id")
-            for rec in (fragment.lf_elements if fragment else [])
-            if local_ask_entry(registry.get(rec["tag"]) or {})
-        ]
-        structural = (
-            any(awaiting.get(identity, False) for identity in asks) if asks else None
-        )
-        settled = any(
-            is_reaction(reaction)
-            and reaction["author"] == "user"
-            and reaction.get("parent") == message["id"]
-            and (tokens.get(reaction["token"]) or {}).get("settles")
-            for reaction in thread["msgs"]
-        )
-        if message["kind"] != "reply":
-            if structural is False:
-                continue
-        elif structural is False or (structural is None and not message.get("awaits")):
-            continue
-        if not settled:
-            return True, {
-                "message": message["id"],
-                "version": content_version(message),
-            }
-    return False, None
 
 
 def _answers_live_reply(event: dict, live_reply: dict) -> bool:
@@ -110,7 +59,7 @@ def browser_thread(
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
-        awaits_user, user_prompt = _thread_awaits_user(
+        awaits_user, user_prompt = thread_awaits_user(
             thread_id,
             thread,
             registry,

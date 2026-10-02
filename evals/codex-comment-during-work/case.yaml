@@ -2,15 +2,13 @@
 # the running turn; reading its pointer confirms pickup, and its plain reply is
 # still written explicitly to the page. Baseline and candidate each passed 2/2
 # on 2026-10-01; this guards behavior without separating the instructions versions.
-# Extended to cover a normal server handoff, which connects Codex delivery itself.
-# On 2026-10-02, base passed 0/2 and candidate 2/2; the new handoff grader separated
-# them while both arms still handled the mid-turn comment correctly.
-schema_version: '1.0'
-name: codex-comment-during-work
-description: "Codex delivery: handle a mid-turn comment and hand the served page over without a separate adapter start, waiter, or acknowledgement."
-tags:
-- wait-loop
-execution:
+description: codex-comment-during-work
+metadata:
+  purpose: 'Codex delivery: read and answer a comment offered between tool steps in the current turn without
+    starting another waiter or acknowledgement.'
+  tags:
+  - wait-loop
+vars:
   prompt: |
     You are a Codex desktop task implementing a session cache. You own a live Leaf
     page at ~/.local/state/leaf/pages/cache-plan, served with `leaf server start`.
@@ -29,18 +27,20 @@ execution:
     when you would handle the comment relative to finishing the implementation.
     After that work, prepare this same page for another review and finish your
     turn with its URL.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-codex-host
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/host-codex\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-codex-host
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/host-codex\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Pass only if the reply reads the pointer with `leaf delivery read 3fa1c2d9`
     and writes an explicit `leaf thread reply` to the page's thread, addressing
     event 7c41d0e2 and confirming the layout will be kept, before finishing the
@@ -51,9 +51,9 @@ graders:
     final chat response. Fail if it waits for another turn, starts
     `leaf wait`, runs any delivery acknowledgement command, queues or forwards
     the comment, or treats its final Codex chat message as the page reply.
-- name: handoff
-  type: llm
-  criteria: |
+- type: llm-rubric
+  metric: handoff
+  value: |
     Pass if the agent sets the page to waiting and hands over its URL after
     answering the comment and finishing the work. Re-running `leaf server start`
     is optional. Fail if it adds a separate `leaf codex start` to prepare this

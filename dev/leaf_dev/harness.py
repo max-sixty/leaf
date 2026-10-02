@@ -257,7 +257,10 @@ def claude_child(
     if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
         (home / "Library").mkdir(parents=True, exist_ok=True)
         (home / "Library/Keychains").symlink_to(keychains)
-    credentials = Path.home() / ".claude/.credentials.json"
+    credentials = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        / ".credentials.json"
+    )
     if credentials.is_file():
         (home / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, home / ".claude/.credentials.json")
@@ -460,3 +463,53 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error."""
     return trace_result(trace).get("is_error") is False
+
+
+def accepted_thread_claims(trace: list[dict], thread: str) -> dict[str, int]:
+    """Bash call ids whose successful status result declares work on THREAD.
+
+    Status writes one JSON line. Compound Bash output may contain other lines;
+    only its canonical `work` subjects count, never an attempted command or a
+    page-wide declaration. Values are the result's trace index.
+    """
+    calls = {
+        block["id"]
+        for block in blocks(trace)
+        if block.get("type") == "tool_use"
+        and block["name"] == "Bash"
+        and re.search(
+            r"\bstatus\b[^|;&]*\bworking\b", block["input"].get("command", "")
+        )
+    }
+    accepted = {}
+    for index, record in enumerate(trace):
+        for block in blocks([record]):
+            if (
+                block.get("type") != "tool_result"
+                or block.get("is_error") is not False
+                or block["tool_use_id"] not in calls
+            ):
+                continue
+            content = block["content"]
+            text = (
+                content
+                if isinstance(content, str)
+                else "\n".join(
+                    part["text"] for part in content if part.get("type") == "text"
+                )
+            )
+            for line in text.splitlines():
+                try:
+                    status = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(status, dict)
+                    and status.get("state") == "working"
+                    and any(
+                        work["subject"] == {"kind": "thread", "id": thread}
+                        for work in status.get("work", [])
+                    )
+                ):
+                    accepted[block["tool_use_id"]] = index
+    return accepted

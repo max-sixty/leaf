@@ -2,13 +2,14 @@
 # between two messages differs only in wording, so its options stay words. With the
 # child reading the registry entries, base 4c29f3003 and the drawn-option entry both
 # kept every option words (3 of 3).
-schema_version: '1.0'
-name: options-stay-words-for-wording
-description: "Asks: when the alternatives differ only in wording, each lf-option stays a title and a sentence, with no drawing."
-tags:
-- asks
-- drawing
-execution:
+description: options-stay-words-for-wording
+metadata:
+  purpose: 'Asks: when the alternatives differ only in wording, each lf-option stays a title and a sentence,
+    with no drawing.'
+  tags:
+  - asks
+  - drawing
+vars:
   prompt: |
     You are writing a Leaf page that records the layout shifts left in Leaf's
     widgets, one section per item, each ending in a question for the user. Write
@@ -28,21 +29,28 @@ execution:
 
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-registry
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/default/registry\.json
-- name: has-options
-  type: regex
-  pattern: <lf-option\b
-  flags: i
-- name: options-draw-nothing
-  type: regex
-  pattern: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
-  flags: i
-  match: not_contains
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-registry
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/default/registry\.json
+- type: javascript
+  metric: has-options
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-option\b
+    flags: i
+    negate: false
+- type: javascript
+  metric: options-draw-nothing
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
+    flags: i
+    negate: true

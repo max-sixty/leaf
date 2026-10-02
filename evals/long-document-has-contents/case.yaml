@@ -1,13 +1,14 @@
 # Added when restoring the contents default after its advice was removed (#1242).
 # Measures whether the main authoring route supplies navigation for a long report.
 # Before restoration, the outline appeared in 1 of 3 runs; afterward, in 3 of 3.
-schema_version: '1.0'
-name: long-document-has-contents
-description: "A long scrolling report includes an opening contents sidebar so the reader can move between sections and see their position."
-tags:
-- layout
-- navigation
-execution:
+description: long-document-has-contents
+metadata:
+  purpose: A long scrolling report includes an opening contents sidebar so the reader can move between
+    sections and see their position.
+  tags:
+  - layout
+  - navigation
+vars:
   prompt: |
     Write a Leaf report for the user explaining a service migration from Redis to
     Postgres. They will read it on a desktop and return to different parts during the
@@ -18,18 +19,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if the report is one scrolling column document with a
     contents outline: main has class layout-column, and an aside with class sidebar
     is a direct child near its opening, before the report's substantive sections.

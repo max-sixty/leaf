@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
@@ -136,7 +137,7 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -482,8 +483,8 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
 
     Each declared emoji is its own margin entry, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
-    dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
-    in Threads.
+    dismissed, `e` is no longer a live page command. Opening Threads does not add an
+    unanchored page-wide reaction target.
     """
     page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
     select_paragraph(page, "#how-cap")
@@ -686,7 +687,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     working in the panel with their own `…` open out on the page."""
     url = serve(SUGGESTION_PAGE)
     root = panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1250,7 +1251,7 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
     """Whole and part anchors differ in both directions: a reaction on the diagram
     must not read pressed when the action bar moves to one declared node."""
     url = serve(PART_DIAGRAM_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2114,15 +2115,15 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     list and returns focus to the overlaid control."""
     url = serve(PANEL_PAGE)
     root, first = _thread(serve.page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": first, "token": "clarify"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": root, "text": "Which device?"},
     )
-    latest = events_model.append_event(
+    latest = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2133,7 +2134,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         },
     )["id"]
     quiet_root, quiet_first = _thread(serve.page_dir)
-    quiet_latest = events_model.append_event(
+    quiet_latest = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2261,7 +2262,7 @@ def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
     end of the first line, so the head row holds the trigger's height instead."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2305,7 +2306,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     its press still reacts."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2443,7 +2444,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
             "source_revision": source_revision(serve.page_dir, "patch"),
         },
     )
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2497,7 +2498,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
 def _thread(page_dir):
     """A thread the agent spoke in last: the user's question and Claude's answer."""
     root = panel_comment(page_dir, "Why forty?", {"section": "how-cap"})
-    reply = events_model.append_event(
+    reply = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -2609,7 +2610,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     Resolving it — the agent's, once it has acted — is the floor: the paint clears and
     nothing new is invented to absorb it."""
     url = serve(PANEL_PAGE)
-    reaction = events_model.append_event(
+    reaction = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

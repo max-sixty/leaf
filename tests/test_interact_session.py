@@ -9826,7 +9826,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
 
 @pytest.mark.parametrize("ending", ["Stop", "Interrupt"])
 def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
-    page_dir, codex_loop, capsys, ending
+    page_dir, codex_loop, capsys, ending, monkeypatch
 ):
     """No step-hook completion is needed to end a page acquired mid-turn."""
     hooks_model.cmd_hook(
@@ -9836,8 +9836,12 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
             "turn_id": "user-turn",
         }
     )
-    codex_loop(page_dir)
-    assert service_model.page_claim(page_dir)["turn"] != "user-turn"
+    monkeypatch.setattr(
+        host_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(host_model.session_harness())
+    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
     # A preview owes no watcher, so Stop may end without a carrier lease.
     (page_dir / "preview.json").write_text("{}")
     hooks_model.cmd_hook(
@@ -9849,6 +9853,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     )
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
+    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
     assert not codex_state_model.hook_turn("codex-thread")["running"]
     hooks_model.cmd_hook(
         {
@@ -9859,6 +9864,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     )
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
+    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
 
 
 def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop):

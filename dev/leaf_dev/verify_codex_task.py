@@ -54,7 +54,7 @@ import psutil
 from leaf.codex import app_server_connect, app_server_handshake, app_server_request
 from leaf.codex_adapter import private_app_server
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live
+from leaf.leases import adapter_is_live, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
 
@@ -66,6 +66,7 @@ from leaf_dev.harness import (
     extract_payload,
     run_leaf,
 )
+from leaf_dev.preview import preview_lease
 
 # How long one step may take, and how long it has to stay settled before its
 # checks count: a second reply lands after the turn that wrote the first.
@@ -105,6 +106,7 @@ class Task:
         self.started: list[str] = []
         self.running: set[str] = set()
         self.commands: list[str] = []
+        self.hooks: list[dict] = []
         self.running_commands: dict[str, str] = {}
         self.on_final: Callable[[str], None] | None = None
         app_server_handshake(
@@ -113,6 +115,8 @@ class Task:
 
     def _hear(self, message: dict) -> None:
         method, params = message.get("method"), message.get("params") or {}
+        if method in {"hook/started", "hook/completed"}:
+            self.hooks.append(message)
         if method == "turn/started":
             self.started.append(params["turn"]["id"])
             self.running.add(params["turn"]["id"])
@@ -297,6 +301,28 @@ def journey(
 ) -> None:
     def step(name: str, started: float) -> None:
         click.echo(f"{transport}/{name}: passed in {time.monotonic() - started:.0f} s")
+        if preview:
+            claim = page_claim(page)
+            click.echo(
+                json.dumps(
+                    {
+                        "transport": transport,
+                        "step": name,
+                        "url": running_server(page)["url"],
+                        "thread": task.thread,
+                        "turn": claim["turn"],
+                        "turn_closed": claim["turn_closed"],
+                        "answers": {
+                            name: len(answers(page, name))
+                            for name in COMMENTS
+                            if any(
+                                event.get("attempt") == attempt(name)
+                                for event in read_events(page)
+                            )
+                        },
+                    }
+                )
+            )
 
     started = time.monotonic()
     isolated_adapter = f"leaf codex start ./page --codex-path {shlex.quote(codex)}"
@@ -426,9 +452,11 @@ def journey(
     started = time.monotonic()
     for process in adapter_processes(codex):
         process.kill()
-        process.wait(10)
-    require(
-        not adapter_is_live(task.thread), "the killed adapter still holds its lease"
+    # The preview may retain its killed child as a zombie until its next spawn.
+    # The kernel-backed lease proves execution ended before that parent reaps it.
+    task.settle(
+        lambda: not adapter_is_live(task.thread),
+        "the killed adapter still holds its lease",
     )
     task.say(
         f"The isolated test's delivery adapter stopped. Start it again with "
@@ -454,11 +482,10 @@ def journey(
             for process in psutil.process_iter(["cmdline"])
             if (cmdline := process.info["cmdline"] or [])
             and "_serve" in cmdline
-            and str(page) in cmdline
+            and str(page.resolve()) in cmdline
         ]
         require(len(servers) == 1, "the isolated preview has no unique page server")
         servers[0].kill()
-        servers[0].wait(10)
         task.settle(
             lambda: running_server(page) is not None,
             "the idle preview did not restore its server without an edit",
@@ -546,12 +573,21 @@ def verify_transport(codex: str, transport: str, *, preview: bool = False) -> No
                     },
                 )["thread"]["id"]
                 journey(task, page, executable, transport, preview=preview)
-                passed = True
             finally:
+                (root / "hooks.json").write_text(json.dumps(task.hooks, indent=2))
                 task.socket.close()
                 for process in adapter_processes(executable):
                     process.kill()
                 run_leaf(ROOT, state, "server", "stop", str(page))
+                if preview:
+                    deadline = time.monotonic() + 30
+                    while lock_is_held(preview_lease(page)):
+                        require(
+                            time.monotonic() < deadline,
+                            "the isolated preview outlived its stopped service",
+                        )
+                        time.sleep(0.05)
+            passed = True
     finally:
         os.environ.clear()
         os.environ.update(inherited)

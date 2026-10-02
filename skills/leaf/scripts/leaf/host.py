@@ -18,7 +18,8 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -155,6 +156,15 @@ class Harness:
         Server carrier names the thread instead, as it starts the turn answering
         it, since the page server cannot reach that server."""
         return None
+
+    @contextmanager
+    def claiming_turn(self) -> Iterator[str | None]:
+        """Hold the host's current turn observation while a page claims it.
+
+        Hosts that name no turn leave its identity for Leaf to mint. The scope
+        covers the claim write so a concurrent ending cannot miss that page.
+        """
+        yield None
 
     def live_turn(self) -> dict | None:
         """What the host itself says about this session right now, or None where it
@@ -399,6 +409,15 @@ class CodexHarness(EnvironmentHarness):
             "LEAF_SESSION_ID names a Codex session but no codex process runs "
             f"above this one ({chain}); leaf takes the session's lifetime from it"
         )
+
+    @contextmanager
+    def claiming_turn(self) -> Iterator[str | None]:
+        from .codex_state import delivery_lock_path, hook_turn
+        from .session_cleanup import flocked
+
+        with flocked(delivery_lock_path(self.session)):
+            observed = hook_turn(self.session)
+            yield observed["turn"] if observed and observed["running"] else None
 
     def carrier_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The

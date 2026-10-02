@@ -243,38 +243,43 @@ class PageTransaction:
         later reader — the page server, the append door, the Stop hook, none of
         them necessarily the claimant's own process — rebuilds what the claimant
         declared instead of reading its own environment."""
-        previous = self.claim
-        path = claim_path(self.page_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        same_open_turn = bool(
-            previous
-            and claim_is_active(previous)
-            and previous["released"] is None
-            and previous["id"] == harness.session
-            and previous.get("turn_closed") is None
-        )
-        claim = {
-            **claim_lifetime(self.page_dir, harness),
-            "id": harness.session,
-            "harness": harness.name,
-            "agent": harness.agent,
-            "cwd": os.getcwd(),
-            # Identity of the currently open agent turn on this page: its host's
-            # id where the host names one, and an opaque one Leaf mints otherwise
-            # (`open_turn`). Delivery transitions name it, so an unresolved pickup
-            # from an old turn cannot become "being handled" merely because a
-            # later prompt opened another turn in the same session.
-            "turn": previous["turn"] if same_open_turn else secrets.token_hex(8),
-            # When that turn opened, which is how long an open turn can be taken
-            # for one still running when no Stop ever closes it.
-            "turn_opened": previous.get("turn_opened") if same_open_turn else now_iso(),
-            # When this session's last turn ended. None until one has, and
-            # cleared again when a batch delivered to this session opens the
-            # next turn. See close_turn and open_turn.
-            "turn_closed": None,
-        }
-        write_json(path, claim)
-        return previous, claim
+        with harness.claiming_turn() as provider_turn:
+            previous = self.claim
+            path = claim_path(self.page_dir)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            same_open_turn = bool(
+                previous
+                and claim_is_active(previous)
+                and previous["released"] is None
+                and claimant_matches(previous, harness)
+                and previous.get("turn_closed") is None
+                and (provider_turn is None or previous["turn"] == provider_turn)
+            )
+            claim = {
+                **claim_lifetime(self.page_dir, harness),
+                "id": harness.session,
+                "harness": harness.name,
+                "agent": harness.agent,
+                "cwd": os.getcwd(),
+                # Identity of the currently open agent turn on this page: its host's
+                # id where the host names one, and an opaque one Leaf mints otherwise
+                # (`open_turn`). Delivery transitions name it, so an unresolved pickup
+                # from an old turn cannot become "being handled" merely because a
+                # later prompt opened another turn in the same session.
+                "turn": provider_turn
+                or (previous["turn"] if same_open_turn else secrets.token_hex(8)),
+                # When that turn opened, which is how long an open turn can be taken
+                # for one still running when no Stop ever closes it.
+                "turn_opened": previous.get("turn_opened")
+                if same_open_turn
+                else now_iso(),
+                # When this session's last turn ended. None until one has, and
+                # cleared again when a batch delivered to this session opens the
+                # next turn. See close_turn and open_turn.
+                "turn_closed": None,
+            }
+            write_json(path, claim)
+            return previous, claim
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""

@@ -64,9 +64,9 @@ def start_hook_turn(session_id: str, turn_id: str) -> None:
 def end_hook_turn(session_id: str, turn_id: str) -> None:
     """Close the current observed turn, including pages acquired mid-turn.
 
-    A newly claimed page can still have a minted turn id if no tool hook bound
-    it. The synchronous observation authorizes closing those claims too, while
-    a newer prompt prevents this ending from touching that prompt's pages.
+    Claim creation consumes the synchronous provider observation under this
+    same lock, so ending also closes a page acquired before any tool completes.
+    A newer prompt prevents this ending from touching that prompt's pages.
     """
     lock = delivery_lock_path(session_id)
     with flocked(lock):
@@ -90,11 +90,9 @@ def step_delivery_turn(session_id: str) -> str | None:
     """The observed provider turn a proven step hook can deliver into.
 
     Use the same dated activity reading as the page, so an interrupted or stale
-    turn never holds the idle queue indefinitely. A page claimed during this turn
-    may still have a local turn id: the next tool hook binds it to the observed
-    provider turn. Route eligibility therefore requires a running claimant, not
-    prior binding. Read outside the delivery lock: capture takes a page transaction
-    before that lock.
+    turn never holds the idle queue indefinitely. Claim creation records the
+    running provider turn; tool hooks renew it and offer feedback. Read outside
+    the delivery lock: capture takes a page transaction before that lock.
     """
     observed = hook_turn(session_id)
     if not step_hook_ran(session_id) or not observed or not observed["running"]:

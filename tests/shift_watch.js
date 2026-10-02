@@ -10,13 +10,20 @@
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. Layout coordinates remove scrolling; sticky descendants retain their
-// mechanical scroller's ownership.
+// mechanical scroller's ownership. Portals with one unique same-tree anchor and
+// a direct native anchor inset retain that scroller too; nested CSS expressions
+// and ambiguous names receive no inferred ownership.
 //
 // Each trusted gesture owns its bounded rendering, including geometry motion it
 // began. News starts passive rendering except the first frame shared with the
 // gesture or continuing motion already owned by it. A typing field is observed at
 // beforeinput, independently of Chrome's clipped/shadowed source rectangles. Motion
 // already running on its ancestors belongs to the gesture that began that motion.
+// Continuing translation is credited from sampled animated property values, not
+// the ancestor's whole box: independent movement of it or its children still fails.
+// This proof supports unique replace effects with pure transform translation or
+// pixel left/top/marginLeft/marginTop. Scale, rotation and composed effects receive
+// no inferred translation credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
@@ -54,10 +61,6 @@
       if (at.getAttribute("aria-hidden") === "true") return false;
     return true;
   };
-  const holds = (node, field) => {
-    for (let at = field; at; at = up(at)) if (at === node) return true;
-    return false;
-  };
   // What the API names, which it does not once the node is gone.
   const name = (node) => (node ? window.lfPlace(node) : "a node since removed");
   // Both edges moved the same way. A box that grew moved one edge, or both apart, as
@@ -91,6 +94,18 @@
           (animation.startTime ?? Infinity) >= start &&
           moves(animation),
       );
+  // A direct native anchor inset, not an unused var() fallback or a named
+  // different anchor inside the expression. Floating placement writes this form.
+  const anchorInset = (value, axis) => {
+    const side =
+      axis === "left"
+        ? "(?:left|right|center|start|end)"
+        : "(?:top|bottom|center|start|end)";
+    const anchor = `anchor\\(${side}(?:,\\s*-?[\\d.]+px)?\\)`;
+    return new RegExp(
+      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
+    ).test(value);
+  };
   const boxes = (nodes) =>
     new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
   // Every shadow root, a closed one included, so a reading reaches every element.
@@ -120,11 +135,82 @@
   const frames = [];
   const placed = new WeakMap();
   const scrolled = new WeakMap();
+  const animated = new WeakMap();
+  const animationProperties = (animation) => [
+    ...new Set(
+      animation.effect
+        .getKeyframes()
+        .flatMap((frame) => Object.keys(frame).filter((key) => GEOMETRY.test(key))),
+    ),
+  ];
+  const animationTranslation = (property, value) => {
+    if (property === "transform") {
+      const matrix = new DOMMatrixReadOnly(value === "none" ? undefined : value);
+      return matrix.is2D &&
+        matrix.a === 1 &&
+        matrix.b === 0 &&
+        matrix.c === 0 &&
+        matrix.d === 1
+        ? { left: matrix.e, top: matrix.f }
+        : null;
+    }
+    if (
+      ["left", "top", "marginLeft", "marginTop"].includes(property) &&
+      /^-?[\d.]+px$/.test(value)
+    )
+      return {
+        left: property.endsWith("Left") || property === "left" ? parseFloat(value) : 0,
+        top: property.endsWith("Top") || property === "top" ? parseFloat(value) : 0,
+      };
+    return null;
+  };
   const read = (time, frame = true) => {
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
     const at = performance.now();
+    const effects = document.getAnimations().filter(moves);
+    const uses = new Map();
+    for (const animation of effects) {
+      if (animation.effect.getComputedTiming().progress === null) continue;
+      const properties = uses.get(animation.effect.target) ?? new Map();
+      for (const property of animationProperties(animation))
+        properties.set(property, (properties.get(property) ?? 0) + 1);
+      uses.set(animation.effect.target, properties);
+    }
+    for (const animation of effects) {
+      const effect = animation.effect,
+        style = getComputedStyle(effect.target);
+      const replace =
+        effect.composite === "replace" &&
+        effect
+          .getKeyframes()
+          .every(
+            (frame) =>
+              !frame.composite || ["auto", "replace"].includes(frame.composite),
+          );
+      const values = Object.fromEntries(
+        animationProperties(animation)
+          .filter((property) => replace && uses.get(effect.target)?.get(property) === 1)
+          .map((property) => [property, style[property]]),
+      );
+      const readings = animated.get(animation) ?? [];
+      readings.push({ at, values });
+      prune(readings, (reading) => reading.at);
+      animated.set(animation, readings);
+    }
     const nodes = everything();
+    const anchors = new Map();
+    for (const node of nodes.filter((node) => node instanceof Element)) {
+      const tree = node.getRootNode();
+      if (!anchors.has(tree)) anchors.set(tree, new Map());
+      const names = anchors.get(tree);
+      for (const name of getComputedStyle(node)
+        .anchorName.split(",")
+        .map((name) => name.trim())) {
+        if (!name || name === "none") continue;
+        names.set(name, names.has(name) ? null : node);
+      }
+    }
     const modal = document
       .querySelector("script[data-lf-entry]")
       ?.lfNativeLayers?.()
@@ -139,7 +225,7 @@
       return !modal;
     };
     if (frame) {
-      frames.push({ at, start: time, nodes });
+      frames.push({ at, start: time, nodes, motion: [] });
       prune(frames, (frame) => frame.at);
     }
     for (const node of nodes) {
@@ -169,6 +255,21 @@
         paintedElement.checkVisibility({ checkOpacity: true });
       const paint = {
         parent: up(node),
+        anchor: range
+          ? null
+          : (anchors.get(node.getRootNode())?.get(style.positionAnchor) ?? null),
+        anchorX:
+          !range &&
+          ["fixed", "absolute"].includes(style.position) &&
+          [node.style.left, node.style.right].some((value) =>
+            anchorInset(value, "left"),
+          ),
+        anchorY:
+          !range &&
+          ["fixed", "absolute"].includes(style.position) &&
+          [node.style.top, node.style.bottom].some((value) =>
+            anchorInset(value, "top"),
+          ),
         position: range ? "static" : style.position,
         visibility: style.visibility,
         opacity: style.opacity,
@@ -283,19 +384,17 @@
       const motion = [...open.own].some(({ playState }) => playState === "running");
       if (motion || open.motion) open.moved = at;
       open.motion = motion;
-      // Motion the key found under way carries the field for the gesture that began
-      // it, so a rendering whose first frame finds it still running is no one's to
-      // judge: its frames are that motion's.
-      if (open.first) {
-        if (open.typing?.moving.some(({ playState }) => playState === "running"))
-          open.typing.free = true;
-      } else if (open.second === Infinity) open.second = at;
+      if (!open.first && open.second === Infinity) open.second = at;
       open.first = false;
       if (open.last || at - open.start > WINDOW) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled() && !motion;
     }
+    const motion = frames.at(-1).motion;
+    for (const rendering of renderings)
+      for (const animation of rendering.own)
+        if (animation.playState === "running") motion.push(animation);
     audit();
     judge(waiting.splice(0));
     requestAnimationFrame(tick);
@@ -313,8 +412,9 @@
         field,
         at,
         found: boxes(holding),
-        moving: holding.flatMap((node) => node.getAnimations()).filter(moves),
-        free: false,
+        moving: holding
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => animation.playState === "running" && moves(animation)),
         until: Infinity,
       });
     },
@@ -466,7 +566,7 @@
   // Chrome signals a changed painted frame; actual reading/control geometry decides
   // motion. A container can grow at one edge while all protected landmarks stand.
   // Null or decorative pseudo sources do not override those landmark readings.
-  const scrollMotion = (node, from, to) => {
+  const nativeScrollMotion = (node, from, to) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const sticky = ancestryAt(element, to).find(
       (owner) => paintAt(owner, to)?.position === "sticky",
@@ -494,6 +594,64 @@
     }
     return motion;
   };
+  const scrollMotion = (node, from, to) => {
+    const motion = nativeScrollMotion(node, from, to);
+    const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+    const anchored = { left: false, top: false };
+    for (const owner of ancestryAt(element, to)) {
+      const prior = paintAt(owner, from),
+        next = paintAt(owner, to);
+      const anchor = prior?.anchor;
+      if (!anchor || anchor !== next?.anchor) continue;
+      // Native anchor layout can follow its scroller in the next frame. Credit
+      // source scrolling since this retained portal pose was first observed.
+      const start = readingAt(owner, from).at;
+      const before = boxAt(anchor, start),
+        after = boxAt(anchor, to);
+      const beforeLayout = layoutAt(anchor, start),
+        afterLayout = layoutAt(anchor, to);
+      if (!before || !after || !beforeLayout || !afterLayout) continue;
+      const carried = nativeScrollMotion(anchor, start, to);
+      for (const [axis, held] of [
+        ["left", "anchorX"],
+        ["top", "anchorY"],
+      ]) {
+        if (!prior[held] || !next[held] || anchored[axis]) continue;
+        anchored[axis] = true;
+        motion[axis] +=
+          Math.abs(afterLayout[axis] - beforeLayout[axis]) < 1
+            ? after[axis] - before[axis]
+            : carried[axis];
+      }
+    }
+    return motion;
+  };
+  const animationMotion = (node, from, to, animations) => {
+    const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+    const motion = { left: 0, top: 0 };
+    const seen = new Map();
+    for (const animation of new Set(animations)) {
+      const target = animation.effect.target;
+      if (!ancestryAt(element, to).includes(target)) continue;
+      const readings = animated.get(animation);
+      const before = readings?.findLast((reading) => reading.at <= from);
+      const after = readings?.findLast((reading) => reading.at <= to);
+      if (!before || !after) continue;
+      const properties = seen.get(target) ?? new Set();
+      for (const property of animationProperties(animation)) {
+        if (properties.has(property)) continue;
+        properties.add(property);
+        if (!(property in before.values) || !(property in after.values)) continue;
+        const prior = animationTranslation(property, before.values[property]);
+        const next = animationTranslation(property, after.values[property]);
+        if (!prior || !next) continue;
+        motion.left += next.left - prior.left;
+        motion.top += next.top - prior.top;
+      }
+      seen.set(target, properties);
+    }
+    return motion;
+  };
   const pendingMotion = [];
   const protectedMotion = (around) => {
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
@@ -505,6 +663,12 @@
         const prior = readings[before],
           next = readings[after];
         const scroll = scrollMotion(node, around[before].at, around[after].at);
+        const motion = animationMotion(
+          node,
+          around[before].at,
+          around[after].at,
+          around.flatMap((frame) => frame.motion),
+        );
         for (
           let i = 0;
           i < Math.min(prior.fragments.length, next.fragments.length);
@@ -533,11 +697,13 @@
           const x =
             carried(previousRect, currentRect, "left", "right") &&
             Math.abs(layoutLeft - nextLeft) >= 1 &&
-            Math.abs(currentRect.left - previousRect.left - scroll.left) >= 1;
+            Math.abs(
+              currentRect.left - previousRect.left - scroll.left - motion.left,
+            ) >= 1;
           const y =
             carried(previousRect, currentRect, "top", "bottom") &&
             Math.abs(layoutTop - nextTop) >= 1 &&
-            Math.abs(currentRect.top - previousRect.top - scroll.top) >= 1;
+            Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
           if (!x && !y) continue;
           const fromPaint = paintState(node, previousRect, around[before].at);
           const toPaint = paintState(node, currentRect, around[after].at);
@@ -585,14 +751,8 @@
     const admitted = pendingMotion.filter(
       (move) => move.before <= entry.startTime && move.after <= next,
     );
-    const inherited = rendering?.typing;
-    const belongsToPriorMotion = (move) =>
-      inherited?.free &&
-      entry.startTime <= inherited.until &&
-      inherited.moving.some((animation) => holds(animation.effect.target, move.node));
     const groups = new Map();
     for (const move of admitted) {
-      if (belongsToPriorMotion(move)) continue;
       const byFragment = groups.get(move.node) ?? new Map();
       const chain = byFragment.get(move.fragment) ?? [];
       chain.push(move);
@@ -649,14 +809,15 @@
         to = layoutAt(node, painted);
       if (!from || !to) continue;
       const scroll = scrollMotion(node, typing.at, painted);
+      const motion = animationMotion(node, typing.at, painted, typing.moving);
       const x =
         carried(before, after, "left", "right") &&
         Math.abs(from.left - to.left) >= 1 &&
-        Math.abs(after.left - before.left - scroll.left) >= 1;
+        Math.abs(after.left - before.left - scroll.left - motion.left) >= 1;
       const y =
         carried(before, after, "top", "bottom") &&
         Math.abs(from.top - to.top) >= 1 &&
-        Math.abs(after.top - before.top - scroll.top) >= 1;
+        Math.abs(after.top - before.top - scroll.top - motion.top) >= 1;
       if (!x && !y) continue;
       report(
         `typing in ${window.lfPlace(typing.field)} moved ${window.lfPlace(node)}`,
@@ -682,7 +843,7 @@
       if (typing && at <= typing.until) {
         // A later frame may include the next gesture; typed() caps its reading at
         // the closing pose captured before that gesture began.
-        if (!typing.free && frame !== -1) typed(entry, typing, next);
+        if (frame !== -1) typed(entry, typing, next);
       }
       admittedMotion(entry, next ?? performance.now(), rendering);
     }

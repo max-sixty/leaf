@@ -1097,3 +1097,143 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
     judge_watches()
     if carry:
         consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+
+
+@pytest.mark.parametrize(
+    "fault", ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused"]
+)
+def test_native_anchor_scroll_retains_local_motion_proof(browser, fault):
+    field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
+    if fault == "declared_unused":
+        field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    change = {
+        "": "",
+        "portal_x": 'field.style.left="calc(anchor(left) + 110px)"',
+        "portal_y": 'field.style.top="calc(anchor(top) + 20px)"',
+        "anchor_x": 'target.style.marginLeft="10px"',
+        "anchor_y": 'target.style.marginTop="70px"',
+        "declared_unused": 'field.style.top="40px"',
+    }[fault]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<div id="scroller" style="height:140px;width:300px;overflow:auto">
+<div style="height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div>
+<textarea id="field" style="{field_style}"></textarea>
+<p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
+<script>field.addEventListener('beforeinput',()=>{{scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
+    )
+    page.evaluate("scroller.scrollTop=20")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    before = page.locator("#field").bounding_box()
+    page.locator("#field").fill("a")
+    page.screenshot()
+    page.evaluate(PAINTED)
+    after = page.locator("#field").bounding_box()
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert any(
+            "typing in textarea#field moved textarea#field" in error for error in errors
+        ), (fault, before, after, errors)
+    else:
+        assert errors == [], (before, after, errors)
+
+
+@pytest.mark.parametrize(
+    "fault", ["", "passive", "finished", "local", "ancestor_x", "ancestor_y"]
+)
+def test_owned_animation_retains_local_motion_through_next_gesture(browser, fault):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="open">Open</button><button id="other">Another gesture</button>
+<div id="panel" style="margin-left:350px"><textarea id="field"></textarea><p>Retained reading</p></div>
+<script>function move(){window.motion=panel.animate([{marginLeft:'350px'},{marginLeft:'0px'}],{duration:700,fill:'forwards'})}document.getElementById('open').addEventListener('click',move)</script>""")
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    if fault == "passive":
+        page.evaluate("move()")
+    else:
+        page.locator("#open").click()
+    page.wait_for_function("window.motion && motion.playState === 'running'")
+    if fault == "local":
+        page.evaluate(
+            "field.addEventListener('beforeinput',()=>field.style.marginLeft='10px')"
+        )
+    page.locator("#field").fill("Type during opening")
+    page.locator("#other").click()
+    page.evaluate(PAINTED)
+    assert page.evaluate("motion.playState") == "running"
+    if fault == "ancestor_x":
+        page.evaluate("panel.style.position='relative';panel.style.left='80px'")
+    if fault == "ancestor_y":
+        page.evaluate("panel.style.marginTop='80px'")
+    page.evaluate("() => motion.finished")
+    page.screenshot()
+    page.evaluate(PAINTED)
+    if fault == "finished":
+        judge_watches()
+        assert not take_browser_errors(page)
+        page.evaluate("field.style.marginLeft='10px'")
+        page.screenshot()
+        page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert any(
+            (
+                "typing in textarea#field moved textarea#field"
+                if fault == "local"
+                else "textarea#field moved without input"
+            )
+            in error
+            for error in errors
+        ), errors
+    else:
+        assert not errors, errors
+
+
+@pytest.mark.parametrize("mode", ["static", "fallback"])
+def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
+    page = browser.new_page()
+    style = (
+        "position:static;position-anchor:--target;top:calc(anchor(top) + 10px)"
+        if mode == "static"
+        else "position:fixed;position-anchor:--target;--fixed:200px;top:var(--fixed,calc(anchor(top) + 10px));left:0px"
+    )
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body style="margin:0"><div id="scroller" style="height:140px;width:300px;overflow:auto"><div style="height:400px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">Target</div></div></div><textarea id="field" style="FIELD_STYLE"></textarea><p id="evidence" style="position:absolute;left:10px;top:400px">Paint evidence</p></body>""".replace(
+                "FIELD_STYLE", style
+            )
+        )
+    )
+    page.evaluate(PAINTED)
+    page.screenshot()
+    before = page.locator("#field").bounding_box()
+    page.evaluate("scroller.scrollTop=20")
+    page.evaluate(PAINTED)
+    page.screenshot()
+    assert page.locator("#field").bounding_box() == before
+    change = "field.style.marginTop='-20px'"
+    page.evaluate(
+        "field.addEventListener('beforeinput',()=>{"
+        + change
+        + ";evidence.style.left='30px'})"
+    )
+    page.locator("#field").fill("a")
+    page.screenshot()
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert any("typing in textarea#field moved textarea#field" in e for e in errors), (
+        before,
+        page.locator("#field").bounding_box(),
+        errors,
+    )

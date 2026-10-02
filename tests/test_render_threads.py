@@ -5702,9 +5702,7 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     )
 
 
-def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
-    browser, serve, tmp_path, monkeypatch
-):
+def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, serve):
     """A wrapper that generates no box shows as what its contents paint — in either
     document.
 
@@ -5716,19 +5714,16 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     widget showed as nothing at all. Bounded at the widget, the panel above it is no
     longer its own apparatus and the parts come back.
 
-    `display: contents` on a widget is a project's line to write — the shipped
-    vocabulary has none today, and `shownParts` exists because any layer can — so a
-    project theme is what puts one here. The page's own copy is the control."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".leaf").mkdir(exist_ok=True)
-    (tmp_path / ".leaf" / "theme.css").write_text(
-        "/* a project styling a wrapper away, which is any layer's to do */\n"
-        "lf-options { display: contents }\n"
+    `display: contents` on a widget is a page's line to write — the shipped vocabulary
+    has none today, and `shownParts` exists because any layer can. Page CSS is the
+    unlayered author stylesheet, above the package-scoped widget rules."""
+    page_source = REPLY_TRAVEL_PAGE.replace(
+        "</head>",
+        "<style>lf-options { display: contents }</style>\n</head>",
     )
-    url = serve(REPLY_TRAVEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    # A group reporting rather than asking: the joined control the layer draws for
-    # `choose` states its own display at a weight a project's bare tag rule does not
-    # reach, and the subject here is a boxless wrapper rather than a cascade fight.
+    url = serve(page_source, packages=EXAMPLE_PACKAGES)
+    # The page's unlayered style puts a reporting group's wrapper in `contents`; the
+    # subject is the boxless wrapper fallback, not package-theme precedence.
     seed_reply(
         serve.page_dir,
         '<lf-options id="tv-decision">'

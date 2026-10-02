@@ -805,11 +805,11 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         "button", name="1 new reply"
     )
     expect(news).to_be_visible()
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(1)
+    expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     assert not _read_events(serve.page_dir)
 
-    thread.locator(":scope > .lf-say leaf-text").focus()
+    thread.locator(":scope > .lf-thread-reply leaf-text").focus()
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
     page.keyboard.press("Tab")
@@ -817,9 +817,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     page.keyboard.press("Enter")
     expect(news).to_have_count(0)
     expect(thread).to_be_focused()
-    body = thread.locator(
-        f'.lf-page-thread-msg[data-event="{reply["id"]}"] .lf-page-thread-body'
-    )
+    body = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-msg-body')
     expect(body).to_be_visible()
     assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
     body.scroll_into_view_if_needed()
@@ -896,13 +894,16 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         "button", name="2 new replies"
     )
     expect(news).to_be_visible()
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(1)
+    expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
 
     if end == "opened":
         news.click()
     elif end == "replied":
-        write(thread.locator(":scope > .lf-say leaf-text"), "Then the roof first.")
+        write(
+            thread.locator(":scope > .lf-thread-reply leaf-text"),
+            "Then the roof first.",
+        )
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
     else:
@@ -911,7 +912,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
               top: thread.getBoundingClientRect().top - innerHeight - 400,
               behavior: 'instant'})"""
         )
-    shown = thread.locator(".lf-page-thread-msg")
+    shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(4 if end == "replied" else 3)
     expect(news).to_have_count(0)
     events = shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)")
@@ -991,7 +992,7 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     news = row.get_by_role("button", name="Reopened · 1 new reply")
     expect(news).to_be_visible()
     expect(row.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(2)
+    expect(thread.locator(".lf-msg")).to_have_count(2)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
 
     if pointer == "coarse":
@@ -1002,14 +1003,14 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
         thread.focus()
         page.keyboard.press("r")
     expect(row).to_have_count(0)
-    shown = thread.locator(".lf-page-thread-msg")
+    shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(3)
     assert shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)") == [
         root,
         first,
         second,
     ]
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_visible()
+    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
 
 def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve):
@@ -1055,10 +1056,8 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve
     page.keyboard.press("Enter")
     expect(thread).to_have_attribute("open", "")
     expect(summary).to_be_hidden()
-    expect(
-        thread.locator(f'.lf-page-thread-msg[data-event="{reply["id"]}"]')
-    ).to_be_visible()
-    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
 
 @pytest.mark.parametrize(
@@ -1245,7 +1244,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         page.keyboard.press("t")
         card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
         expect(card).to_be_focused()
-        box = card.locator(":scope > .lf-say leaf-text")
+        box = card.locator(":scope > .lf-thread-reply leaf-text")
         write(box, "Only if")
         line.evaluate(
             """line => document.scrollingElement.scrollBy({
@@ -1301,7 +1300,9 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         page.keyboard.press("t")
         card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
         expect(card).to_be_focused()
-        write(card.locator(":scope > .lf-say leaf-text"), "Yes, for one release.")
+        write(
+            card.locator(":scope > .lf-thread-reply leaf-text"), "Yes, for one release."
+        )
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
     elif end == "resolved":
@@ -1388,8 +1389,8 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         "button", name="1 new reply"
     ).click()
     body = page.locator(
-        f'lf-diff .lf-diff-thread-outlet .lf-page-thread-msg[data-event="{reply["id"]}"]'
-        " .lf-page-thread-body"
+        f'lf-diff .lf-diff-thread-outlet .lf-msg[data-event="{reply["id"]}"]'
+        " .lf-msg-body"
     )
     expect(body).to_be_visible()
     body.scroll_into_view_if_needed()

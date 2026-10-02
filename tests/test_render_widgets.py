@@ -5197,7 +5197,9 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     playground = page.locator("#ring-playground")
     child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
     standing = "button => button.matches(':focus') && document.hasFocus()"
-    values = lambda: playground.evaluate("root => root.values")
+
+    def values():
+        return playground.evaluate("root => root.values")
 
     child_button.focus()
     assert child_button.evaluate(standing)
@@ -8908,7 +8910,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
     resized(page, 1200, 900)
     # The seat is filled before the diff runs, or this asserts over a page that never
     # had the blocks in question.
-    expect(page.locator("#cd-q .lf-page-thread-msg")).to_have_count(2)
+    expect(page.locator("#cd-q .lf-msg")).to_have_count(2)
 
     stamp_page(
         d,
@@ -8920,7 +8922,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
         "two",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("#cd-q .lf-page-thread-msg")).to_have_count(2)
+    expect(page.locator("#cd-q .lf-msg")).to_have_count(2)
 
     compare_with(page)
     page.wait_for_function(
@@ -8960,13 +8962,11 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    inline = page.locator(f'#cd-q .lf-page-thread-msg[data-event="{message["id"]}"]')
+    inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
     inline_thread = page.locator(
-        f'#cd-q .lf-page-thread:has(.lf-page-thread-msg[data-event="{message["id"]}"])'
+        f'#cd-q .lf-page-thread:has(.lf-msg[data-event="{message["id"]}"])'
     )
-    expect(inline.locator(".lf-page-thread-body")).to_have_text(
-        "The north bracket fit."
-    )
+    expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
     panel_thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{message["id"]}"])')
@@ -8974,7 +8974,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page.evaluate(
         """([message]) => {
           window.__editedInline = document.querySelector(
-            `#cd-q .lf-page-thread-msg[data-event="${message}"]`);
+            `#cd-q .lf-msg[data-event="${message}"]`);
           window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
           window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
@@ -9000,9 +9000,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
 
-    expect(inline.locator(".lf-page-thread-body")).to_contain_text(
-        "The north bracket fits."
-    )
+    expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
     expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
     # The disclosure is on the head, and a thread's first message lends its head to the
@@ -9017,7 +9015,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
-          '#cd-q .lf-page-thread-msg[data-event="{message["id"]}"]')
+          '#cd-q .lf-msg[data-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""

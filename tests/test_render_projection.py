@@ -6402,9 +6402,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
-    expect(inline.locator(".lf-page-thread-body")).to_have_text(
-        "Half-empty by whose reading?"
-    )
+    expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-thread .lf-quote").first
@@ -7564,7 +7562,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
-    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose leaf-text")
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-thread-reply leaf-text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)

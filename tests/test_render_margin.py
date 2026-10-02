@@ -1559,7 +1559,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
         [
             "Rank and behavior",
-            "Agent workflow",
+            "Turn and agent workflow",
             "Face anatomy",
             "User interaction",
             "Projection",
@@ -1597,14 +1597,17 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(picked_up).to_have_css("box-shadow", "none")
     picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
     expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
-    expect(picked_up_icon).to_have_css("color", token_colour(page, "--ok-ink"))
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
     for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-workflow", "working")
         expect(control).to_have_css(
             "border-top-color",
             resting.evaluate("node => getComputedStyle(node).borderTopColor"),
         )
-        expect(control).to_have_css("background-color", token_colour(page, "--ok-wash"))
+        expect(control).to_have_css(
+            "background-color",
+            resting.evaluate("node => getComputedStyle(node).backgroundColor"),
+        )
         expect(control).to_have_css("box-shadow", "none")
     expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -1647,6 +1650,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
             "Reject",
             "Thread",
             "More",
+            "On you",
             "Sent",
             "Waiting for pickup",
             "Queued",
@@ -1665,7 +1669,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         ]
     )
     expect(working.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", token_colour(page, "--ok-ink")
+        "color", token_colour(page, "--accent")
     )
     expect(
         page.locator("#bg-margin-controls > .eyebrow.bg-feature-elements")
@@ -3372,25 +3376,24 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     ordinary = [button.evaluate(read) for button in buttons]
     page.evaluate("() => window.setToneReceiptPhase('picked_up')")
     picked_up = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"][1] for reading in picked_up] == [
-        ordinary[0]["shell"][1],
-        token_colour(page, "--ok-ink"),
-        token_colour(page, "--danger-ink"),
+    assert [reading["shell"] for reading in picked_up] == [
+        reading["shell"] for reading in ordinary
     ]
-    assert {reading["icon"] for reading in picked_up} == {
-        token_colour(page, "--ok-ink")
-    }
+    assert [reading["icon"] for reading in picked_up] == [
+        token_colour(page, "--accent"),
+        ordinary[1]["icon"],
+        ordinary[2]["icon"],
+    ]
     page.evaluate("() => window.setToneReceiptPhase('working')")
     working = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"][1] for reading in working] == [
-        ordinary[0]["shell"][1],
-        token_colour(page, "--ok-ink"),
-        token_colour(page, "--danger-ink"),
+    assert [reading["shell"] for reading in working] == [
+        reading["shell"] for reading in ordinary
     ]
-    assert {reading["icon"] for reading in working} == {token_colour(page, "--ok-ink")}
-    assert {reading["shell"][2] for reading in working} == {
-        token_colour(page, "--ok-wash")
-    }
+    assert [reading["icon"] for reading in working] == [
+        token_colour(page, "--accent"),
+        ordinary[1]["icon"],
+        ordinary[2]["icon"],
+    ]
     page.evaluate("() => window.setToneReceiptPhase(null)")
 
     hovered = []
@@ -3836,7 +3839,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       const probe = document.createElement('span');
       document.body.append(probe);
       const result = {};
-      for (const name of ['--ok-ink', '--ok-wash']) {
+      for (const name of ['--accent']) {
         probe.style.color = `var(${name})`;
         result[name] = getComputedStyle(probe).color;
       }
@@ -3856,8 +3859,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     assert picked_up == {
         **initial,
-        "icon": colors["--ok-ink"],
-    }, "pickup did not color only the Thread icon green"
+        "icon": colors["--accent"],
+    }, "pickup did not color only the Thread icon blue"
     page.evaluate("""() => {
       window.agentArrivals = [];
       window.agentArrivalEnds = 0;
@@ -3893,9 +3896,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     assert working == {
         **initial,
-        "background": colors["--ok-wash"],
-        "icon": colors["--ok-ink"],
-    }, "work did not keep the Thread icon green with its green interior"
+        "icon": colors["--accent"],
+    }, "work did not keep the Thread icon blue on its resting interior"
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -3964,13 +3966,15 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         "data-lf-icon", "comment"
     )
     expect(working_row.locator(".lf-margin-kind")).to_have_css(
-        "color", colors["--ok-ink"]
+        "color", colors["--accent"]
     )
-    expect(working_row).to_have_css("background-color", colors["--ok-wash"])
+    working_row.evaluate("node => node.blur()")
+    page.mouse.move(0, 0)
+    expect(working_row).to_have_css("background-color", "rgba(0, 0, 0, 0)")
     picked_up_row = dialog.locator('[data-lf-agent-workflow="picked_up"]')
     expect(picked_up_row).to_have_count(1)
     expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
-        "color", colors["--ok-ink"]
+        "color", colors["--accent"]
     )
     page.keyboard.press("Escape")
     # Two contributed actions fold the Thread control behind More. The visible
@@ -3999,7 +4003,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(carrier).to_have_attribute(
         "aria-description", f"Edit the proposed bracket · Working · {detail}"
     )
-    expect(carrier).to_have_css("background-color", colors["--ok-wash"])
+    expect(carrier).to_have_css("background-color", initial["background"])
     expect(carrier).to_have_css("box-shadow", "none")
     expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
@@ -4046,25 +4050,35 @@ def _margin_entry_paint(control):
     }""")
 
 
-def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("target", ["bracket", "bracket-decision"])
+def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
+    browser, serve, scheme, target
+):
     """Whose turn a thread is reaches the margin as colour and as a word.
 
     The user's own comment is the control: one target, one retained marker, and the
-    only thing that changes between the two readings is who spoke last. Pickup is the
-    second contrast — the agent taking the work restores its green, because one interior
-    cannot carry two washes and live work is what the user needs first.
+    only thing that changes between the two readings is who spoke last. Pickup and work
+    remain secondary when another thread on the same target still needs the user.
+    Rails and pins keep that priority in both color schemes, including a target
+    whose marker also carries the authored Ask.
     """
-    page = open_page(browser, live_url(serve(ASK_PAGE, events=[COMMENT_ON_ASK])))
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
+    page = open_page(
+        browser, live_url(serve(ASK_PAGE, events=[comment])), color_scheme=scheme
+    )
     resized(page, 1440, 900)
-    cluster = page.locator('[data-lf-margin-for="bracket"]')
+    cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
-    expect(marker).to_have_attribute("data-lf-kinds", "comment")
+    expect(marker).to_have_attribute(
+        "data-lf-kinds", "comment ask" if target == "bracket-decision" else "comment"
+    )
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
     with_agent = _margin_entry_paint(marker)
     expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
 
-    events_model.append_event(
+    agent_comment = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4072,7 +4086,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
             "agent": "Claude",
             "revision": 1,
             "text": "Two of them can share a visit; the third cannot.",
-            "anchor": {"section": "bracket"},
+            "anchor": {"section": target},
         },
     )
     told(page)
@@ -4088,6 +4102,38 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
         "icon": token_colour(page, "--turn-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
+
+    # A reply returns the thread to the agent before pickup adds any workflow cue.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": agent_comment["id"],
+            "text": "Answering the visit question.",
+        },
+    )
+    told(page)
+    expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(marker).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    assert _margin_entry_paint(marker) == {
+        "background": with_agent["background"],
+        "icon": token_colour(page, "--accent"),
+    }, "the answered thread lost its blue cue beside the authored Ask"
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": agent_comment["id"],
+            "text": "Which visit should we choose?",
+            "awaits": True,
+        },
+    )
+    told(page)
+    expect(marker).to_have_attribute("data-lf-turn", "user")
+    assert _margin_entry_paint(marker) == on_user
 
     # Page Map lists each thread on its own row, so the user's own thread is the
     # control for the agent's beside it.
@@ -4117,10 +4163,48 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(marker).to_have_attribute("data-lf-turn", "user")
-    assert _margin_entry_paint(marker) == {
-        "background": with_agent["background"],
-        "icon": token_colour(page, "--ok-ink"),
-    }, "pickup did not take the carrier back from the user's turn"
+    assert _margin_entry_paint(marker) == on_user, (
+        "pickup hid the user's turn on the shared carrier"
+    )
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "Checking the user comment.",
+            "--on",
+            roots[0]["id"],
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "working")
+    expect(marker).to_have_attribute("data-lf-turn", "user")
+    assert _margin_entry_paint(marker) == on_user, (
+        "work on one thread hid the user's turn on another"
+    )
+
+    resized(page, 390, 760)
+    expect(cluster).to_have_attribute("data-lf-place", "pin")
+    expect(marker).to_have_css("background-color", token_colour(page, "--pin-on-user"))
+    expect(marker.locator(".lf-margin-entry-icon")).to_have_css(
+        "color", "rgb(255, 255, 255)"
+    )
+    pin_contrast = marker.evaluate("""node => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext('2d', {willReadFrequently: true});
+      ctx.fillStyle = getComputedStyle(node).backgroundColor;
+      ctx.fillRect(0, 0, 1, 1);
+      const channels = [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+        .map(value => value / 255)
+        .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+      const luminance = channels.reduce(
+        (sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+      return 1.05 / (luminance + .05);
+    }""")
+    assert pin_contrast >= 3, f"the white thread glyph lacks contrast: {pin_contrast}"
 
     # Answering is what ends the user's turn, and the gallery tells a developer to
     # watch for exactly that. Both agent threads have to be answered, because the
@@ -4138,6 +4222,12 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
     told(page)
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
+    expect(marker).to_have_css("background-color", token_colour(page, "--pin-fill"))
+    resized(page, 1440, 900)
+    assert _margin_entry_paint(marker) == {
+        "background": with_agent["background"],
+        "icon": token_colour(page, "--accent"),
+    }
 
 
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):

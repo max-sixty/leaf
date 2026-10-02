@@ -5288,3 +5288,134 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     )
     assert resolved.exit_code == 0, resolved.output
     assert json.loads(resolved.output)["parent"] == "r-kept"
+
+
+def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
+    server, page_dir
+):
+    history = [
+        {
+            "id": "aabb0011",
+            "kind": "comment",
+            "text": "Review the room",
+            "anchor": {"section": "room"},
+        },
+        {
+            "id": "aabb0012",
+            "kind": "reply",
+            "parent": "aabb0011",
+            "author": "agent",
+            "text": "A sample answer",
+            "markup": '<lf-code id="answer-code" language="python"><pre>1</pre></lf-code>',
+        },
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "choose",
+            "detail": {"options": ["fast"]},
+            "revision": 27,
+        },
+    ]
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-ask id="route-ask"><h2>Route</h2><lf-options id="route" choose><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-ask>'
+
+    def template(identity):
+        return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'
+
+    source = PAGE.replace(
+        "</main>",
+        '<script id="fixture" type="application/json">'
+        + json.dumps(history)
+        + "</script>"
+        + template("first")
+        + template("second")
+        + "</main>",
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+    parent_before = event_model.read_events(page_dir)
+    generation = json.loads(fetch(server + "/api/state")[1])["layer"]["generation"]
+    # Allocations pinned to the reviewed revision read its fixture bytes, even
+    # after the mutable source is edited to a different fixture.
+    (page_dir / "index.html").write_text(
+        source.replace("Review the room", "Changed fixture")
+    )
+
+    def allocate(identity):
+        status, raw = fetch(
+            server + "/api/samples",
+            layer=generation,
+            headers={"Leaf-View-Revision": "1"},
+            data=json.dumps({"template": identity}).encode(),
+        )
+        assert status == 200, raw
+        return server + json.loads(raw)["url"]
+
+    def events(child):
+        # Each fresh practice page stamps its omitted fixture times at setup.
+        return [
+            {key: value for key, value in event.items() if key != "ts"}
+            for event in json.loads(fetch(child + "api/state")[1])["events"]
+        ]
+
+    first = allocate("first")
+    second = allocate("second")
+    initial = events(first)
+    assert initial[0]["text"] == "Review the room"
+    assert initial[1]["markup"].startswith('<lf-code id="answer-code"')
+    assert initial[2]["revision"] == 1
+    assert initial[2]["meaning"]["scope"] == "page"
+    assert events(second) == initial
+    status, raw = fetch(
+        first + "api/event",
+        layer=generation,
+        data=json.dumps(
+            {
+                "kind": "reply",
+                "revision": 1,
+                "parent": "aabb0011",
+                "text": "Only the first child",
+                "attempt": "fixture-child-reply",
+            }
+        ).encode(),
+    )
+    assert status == 200, raw
+    assert len(events(first)) == 4
+    assert events(second) == initial
+    assert event_model.read_events(page_dir) == parent_before
+    assert fetch(first + "api/release", layer=generation, data=b"{}")[0] == 200
+    reset = allocate("first")
+    assert events(reset) == initial
+
+
+def test_nested_sample_fixtures_resolve_in_the_immediate_parent_document(
+    server, page_dir
+):
+    template = """<script id="fixture" type="application/json">[{"kind":"comment","text":"Outer fixture"}]</script>
+<template id="outer" data-sample data-sample-events="fixture">
+<h1>Outer</h1>
+<script id="fixture" type="application/json">[{"kind":"comment","text":"Nested fixture"}]</script>
+<template id="inner" data-sample data-sample-events="fixture"><h1>Inner</h1></template>
+</template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    parent_before = event_model.read_events(page_dir)
+    generation = json.loads(fetch(server + "/api/state")[1])["layer"]["generation"]
+
+    def allocate(parent, identity):
+        status, raw = fetch(
+            parent + "api/samples",
+            layer=generation,
+            data=json.dumps({"template": identity}).encode(),
+        )
+        assert status == 200, raw
+        return server + json.loads(raw)["url"]
+
+    outer = allocate(server + "/", "outer")
+    inner = allocate(outer, "inner")
+    assert [
+        event["text"] for event in json.loads(fetch(outer + "api/state")[1])["events"]
+    ] == ["Outer fixture"]
+    assert [
+        event["text"] for event in json.loads(fetch(inner + "api/state")[1])["events"]
+    ] == ["Nested fixture"]
+    assert event_model.read_events(page_dir) == parent_before

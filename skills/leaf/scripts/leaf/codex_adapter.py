@@ -68,12 +68,11 @@ from .codex import (
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    step_delivery_turn,
     stop_app_server,
     stream_reply_target,
     write_record,
 )
-from .codex_state import delivery_lock_path, hook_turn
+from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
 from .detached import Handshake, start_detached
 from .event_log import read_cursor
 from .host import CodexHarness, session_harness

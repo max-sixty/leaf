@@ -152,11 +152,15 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than a colored edge: pickup colors its icon green, and working also colors
-the interior and pulses once on arrival, which a repaint never replays. User attention wears
-the same two channels in blue. Reading is bookkeeping and never moves the user.
+rather than competing with attention for color. Green marks a move the user owes;
+other thread controls stay blue. Pickup and work use status words, with one brief
+pulse when work begins that a repaint never replays. Reading is bookkeeping and
+never moves the user.
 
 ### Motion
+
+Use restrained, finite animations to acknowledge state changes. Do not animate
+continuously while a state remains unchanged.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be

@@ -135,7 +135,7 @@ function navigationSummary(navigation, model) {
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
   // While a title is on its way, the title slot says so in words drawn apart from any
-  // title; the theme sweeps a highlight through them while the naming is under way.
+  // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
   // `data-lf-folded`: the draft stands in the reply box and the unread messages behind
   // their boundary, so typing or an arriving reply doesn't grow the row and move the

@@ -2121,10 +2121,9 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
 def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     claimed, capsys, tmp_path
 ):
-    """Envelopes and a Codex task's archived records are read one id at a time, so
-    the writer that adds one removes those whose pages are all gone, and those
-    this version does not read; a task's live records go at the scan that reads
-    them. Pages are deleted from outside leaf, so nothing sees the moment."""
+    """Readable delivery records disappear once their pages do. Other versions'
+    records survive every shared-directory scan, because their sessions may
+    still need them."""
     gone = tmp_path / "gone"
 
     def record(path, value):
@@ -2140,8 +2139,8 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         )
 
     kept = envelope("0000000a", claimed)
-    retired = [
-        envelope("0000000b", gone),
+    retired = envelope("0000000b", gone)
+    unreadable = [
         envelope("0000000c", claimed, "v2"),
         record(delivery_model.delivery_path("00000012"), {"batches": []}),
         record(
@@ -2157,14 +2156,23 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     payload, _, _ = delivered(capsys)
     frozen = delivery_model.delivery_path(payload["id"])
     assert kept.exists() and frozen.exists()
-    assert not any(path.exists() for path in retired)
+    assert not retired.exists()
+    assert all(path.exists() for path in unreadable)
 
     def task_record(delivery_id, page, **fields):
         return {
             "format": codex_model.RECORD_FORMAT,
-            "state": "collecting",
+            "state": "accepted",
             "created_at": 0,
-            "batches": [{"page": str(page), "receipted": True}],
+            "transport": {"phase": "queued", "turn": None},
+            "batches": [
+                {
+                    "page": str(page),
+                    "session": "t",
+                    "receipted": True,
+                    "events": [{"id": "captured", "seq": 1}],
+                }
+            ],
             **fields,
         }
 
@@ -2177,13 +2185,34 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         history / "00000012.json", {"format": codex_model.RECORD_FORMAT}
     )
     archived_kept = record(history / "00000011.json", task_record("g", claimed))
+    archived_foreign = record(
+        history / "00000014.json",
+        task_record("h", claimed, format="another-version"),
+    )
     with cleanup_model.flocked(codex_state_model.delivery_lock_path("t")):
         assert [path for path, _ in codex_model.delivery_records("t")] == [live]
         assert not stale.exists()
         codex_model.archive_record(live, task_record("d", claimed, state="accepted"))
-    assert sorted(history.iterdir()) == [history / live.name, archived_kept]
-    assert not archived_gone.exists() and not archived_other.exists()
-    assert not archived_incomplete.exists()
+    assert sorted(history.iterdir()) == sorted(
+        [
+            history / live.name,
+            archived_kept,
+            archived_other,
+            archived_incomplete,
+            archived_foreign,
+        ]
+    )
+    assert not archived_gone.exists()
+    codex_model.retire_gone_task_records()
+    assert all(
+        path.exists()
+        for path in (
+            archived_kept,
+            archived_foreign,
+            archived_other,
+            archived_incomplete,
+        )
+    )
 
 
 def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
@@ -8927,8 +8956,9 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         )
         assert codex_adapter_model.capture_batch("original", reading)
     epoch_path, epoch = current_codex_record("original")
-    epoch["state"] = "accepted"
-    cleanup_model.write_json(epoch_path, epoch)
+    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
+    codex_model.write_record(epoch_path, epoch)
     batch = epoch["batches"][0]
 
     codex_model.finish_codex_batch(epoch_path, 0, batch)
@@ -9002,6 +9032,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
             "format": codex_model.RECORD_FORMAT,
             "state": "accepted",
             "created_at": created_at,
+            "transport": {"phase": "queued", "turn": None},
             "batches": [
                 {
                     "page": str(page),
@@ -9058,8 +9089,8 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
     epoch_path, epoch = current_codex_record("codex-thread")
     codex_model.offer_delivery(epoch_path, epoch, "queue")
     epoch = files_model.read_json(epoch_path)
-    epoch["state"] = "accepted"
-    cleanup_model.write_json(epoch_path, epoch)
+    epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
+    codex_model.write_record(epoch_path, epoch)
 
     shutil.rmtree(replaced)
     vendoring_model.cmd_init(replaced)
@@ -9125,8 +9156,8 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     epoch_path, epoch = current_codex_record("codex-thread")
     codex_model.offer_delivery(epoch_path, epoch, "queue")
     epoch = files_model.read_json(epoch_path)
-    epoch["state"] = "accepted"
-    cleanup_model.write_json(epoch_path, epoch)
+    epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
+    codex_model.write_record(epoch_path, epoch)
 
     assert codex_adapter_model._recover_receipt("codex-thread")
     batches = files_model.read_json(epoch_path)["batches"]
@@ -9252,11 +9283,9 @@ def test_a_connection_failure_in_the_delivery_loop_is_retried(
 def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     monkeypatch, tmp_path
 ):
-    """Once a task owns no page, its adapter removes the log it wrote, and its
-    leases and locks go with their holders. Retiring, it reads every task's
-    delivery records and removes those whose pages are gone, so an ended task
-    leaves nothing; a record over a standing page stays for a later adapter of
-    its task."""
+    """Retiring removes readable records whose pages are gone and its own log.
+    A standing page's records survive, and stable coordination files stay unheld
+    for the next holder."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
         leases_model.hooks_path(session).unlink()
@@ -9268,18 +9297,39 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     standing = tmp_path / "standing"
     standing.mkdir()
     for task, page in (("ended-task", tmp_path / "gone"), ("codex-thread", standing)):
-        history = codex_state_model.delivery_dir(task) / "history"
-        history.mkdir(parents=True)
-        cleanup_model.write_json(
-            history / "delivered.json",
-            {"format": codex_model.RECORD_FORMAT, "batches": [{"page": str(page)}]},
+        path = codex_model.record_path(task, "eeeeeeee")
+        path.parent.mkdir(parents=True)
+        codex_model.write_record(
+            path,
+            {
+                "format": codex_model.RECORD_FORMAT,
+                "state": "accepted",
+                "created_at": 0,
+                "transport": {"phase": "queued", "turn": None},
+                "batches": [
+                    {
+                        "page": str(page),
+                        "session": task,
+                        "events": [{"id": "delivered", "seq": 1}],
+                        "receipted": True,
+                    }
+                ],
+            },
         )
     codex_adapter_model.adapter_log_path("codex-thread").write_text("started\n")
 
     assert codex_adapter_model.run_adapter("codex") == 0
     kept = codex_state_model.delivery_dir("codex-thread")
-    assert list(leases_model.sessions_home().iterdir()) == [kept]
-    assert [path.name for path in kept.rglob("*.json")] == ["delivered.json"]
+    assert not codex_state_model.delivery_dir("ended-task").exists()
+    assert not codex_adapter_model.adapter_log_path("codex-thread").exists()
+    coordination = [
+        path for path in leases_model.sessions_home().iterdir() if path != kept
+    ]
+    assert leases_model.adapter_lease_path("codex-thread") in coordination
+    assert all(
+        path.is_file() and not leases_model.lock_is_held(path) for path in coordination
+    )
+    assert [path.name for path in kept.rglob("*.json")] == ["eeeeeeee.json"]
 
 
 def test_a_delivery_already_being_carried_holds_back_the_next_one(
@@ -10087,8 +10137,8 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     record_path, queue = current_codex_record("codex-thread")
     codex_model.offer_delivery(record_path, queue, "queue")
     queue = files_model.read_json(record_path)
-    queue["state"] = "accepted"
-    cleanup_model.write_json(record_path, queue)
+    queue.update(state="accepted", transport={"phase": "queued", "turn": None})
+    codex_model.write_record(record_path, queue)
     started = under_codex(
         shlex.join(
             [
@@ -11471,12 +11521,11 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert second.returncode == 2
     assert "another `leaf wait` is already active" in second.stderr
 
-    # Stopping a background command sends SIGTERM, which the wait unwinds from,
-    # so its lease file goes with it rather than outliving the session.
+    # SIGTERM unwinds the wait's application cleanup and releases its kernel lease.
     first.terminate()
     first.communicate(timeout=10)
-    assert not lease_path.exists()
-    assert not any(leases_model.sessions_home().iterdir())
+    assert lease_path.exists()
+    assert not leases_model.lock_is_held(lease_path)
 
 
 def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
@@ -11487,6 +11536,7 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     path.touch()
     with open(path, "rb") as question:
         fcntl.flock(question, fcntl.LOCK_SH)
+        assert not leases_model.lock_is_held(path)
         threading.Timer(0.05, fcntl.flock, (question, fcntl.LOCK_UN)).start()
         lease = leases_model.take_lease(path)
     assert lease is not None
@@ -11494,31 +11544,75 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     lease.close()
 
 
-def test_a_lock_file_ends_with_its_holder_and_a_waiting_taker_follows_the_name(
+def test_a_stable_lock_serializes_waiting_takers_and_retains_its_file(
     tmp_path,
 ):
-    """A purpose lock's holder removes its file on the way out, so a session's
-    locks leave nothing behind. A taker already waiting on that file wakes holding
-    a lock on nothing anyone can find, so it takes the lock again on the name, and
-    excludes the next taker as a lock should."""
+    """Every taker coordinates on one stable inode, including across release."""
     path = tmp_path / "purpose.lock"
     entered = threading.Event()
     release = threading.Event()
+    attempting = threading.Event()
 
     def take():
+        attempting.set()
         with cleanup_model.flocked(path):
             entered.set()
             assert release.wait(10)
 
     taker = threading.Thread(target=take)
     with cleanup_model.flocked(path):
+        identity = path.stat()
         taker.start()
-        time.sleep(0.2)  # the taker opens the file and waits on this lock
+        assert attempting.wait(10)
+        assert not entered.is_set()
     assert entered.wait(10)
     assert leases_model.lock_is_held(path)
+    assert leases_model.take_lease(path) is None
     release.set()
     taker.join(10)
-    assert not path.exists()
+    assert not taker.is_alive()
+    assert os.path.samestat(identity, path.stat())
+    assert not leases_model.lock_is_held(path)
+    with cleanup_model.flocked(path):
+        assert leases_model.lock_is_held(path)
+
+
+def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
+    tmp_path, spawn
+):
+    """Process death releases liveness without deleting the coordination inode."""
+    path = tmp_path / "lease"
+    holder = spawn(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "from leaf.leases import take_lease; "
+                "lease = take_lease(Path(sys.argv[1])); "
+                "assert lease is not None; print('held', flush=True); sys.stdin.read()"
+            ),
+            str(path),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert holder.stdout.readline() == "held\n"
+    identity = path.stat()
+    assert leases_model.lock_is_held(path)
+    assert leases_model.take_lease(path) is None
+    holder.kill()
+    holder.communicate(timeout=10)
+    assert not leases_model.lock_is_held(path)
+    assert os.path.samestat(identity, path.stat())
+    lease = leases_model.take_lease(path)
+    assert lease is not None
+    assert leases_model.take_lease(path) is None
+    leases_model.release_lease(lease)
+    assert not leases_model.lock_is_held(path)
+    assert os.path.samestat(identity, path.stat())
 
 
 def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):

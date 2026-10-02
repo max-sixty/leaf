@@ -87,16 +87,25 @@ thread/start:
     independent and no fixed port or separate server tab remains. Observed activity ends
     with that server.
 
-    To run the two processes separately instead, start a loopback WebSocket listener
-    and pass the same endpoint to both clients:
+    To run the two processes separately, create a private socket directory and print
+    its endpoint before starting App Server:
 
     ```sh
-    codex app-server --listen ws://127.0.0.1:4500
-    codex --remote ws://127.0.0.1:4500
+    socket_dir=$(mktemp -d /tmp/leaf-codex.XXXXXX)
+    endpoint="unix://$socket_dir/app-server.sock"
+    printf '%s\n' "$endpoint"
+    codex app-server --listen "$endpoint"
     ```
 
-    From that remote CLI task, pass the same endpoint to `leaf codex start` with
-    `--app-server ws://127.0.0.1:4500`.
+    In the terminal client's shell, copy that printed endpoint:
+
+    ```sh
+    export LEAF_CODEX_APP_SERVER="<printed endpoint>"
+    codex --remote "$LEAF_CODEX_APP_SERVER"
+    ```
+
+    The task inherits the endpoint, so `leaf codex start` connects to that App Server.
+    Each pair of processes has its own socket; parallel versions need no port assignment.
 
     Only `unix://<absolute path>` sockets and unauthenticated loopback `ws://` endpoints
     are accepted; keep a socket you supply in a directory only you can reach, as

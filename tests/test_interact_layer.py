@@ -3728,6 +3728,134 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     assert helper.read_text() == "export const existing = true;\n"
 
 
+def test_package_writers_only_wait_for_contract_destinations_they_share(
+    tmp_path, monkeypatch, spawn
+):
+    """An unrelated package proceeds while registry aliases and installs wait,
+    even from environments with different state and temporary homes. Observe the
+    real child lock's nonblocking refusal rather than infer waiting from a delay.
+    """
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+    packages_model.cmd_package_init(package)
+    alias = tmp_path / "alias"
+    alias.symlink_to(package, target_is_directory=True)
+    registry_alias = tmp_path / "registry-alias"
+    packages_model.cmd_package_init(registry_alias)
+    (registry_alias / "registry.json").unlink()
+    (registry_alias / "registry.json").symlink_to(package / "registry.json")
+    (registry_alias / "widgets").rmdir()
+    (registry_alias / "widgets").symlink_to(
+        package / "widgets", target_is_directory=True
+    )
+    other_state = tmp_path / "other-state"
+    other_tmp = tmp_path / "other-tmp"
+    other_tmp.mkdir()
+    environment = os.environ | {
+        "XDG_STATE_HOME": str(other_state),
+        "TMPDIR": str(other_tmp),
+    }
+    observe = """
+import contextlib
+import fcntl
+import sys
+from leaf import cli, packages
+real_lock = packages.flocked
+@contextlib.contextmanager
+def observed(path):
+    with open(path, "a+b") as probe:
+        try:
+            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("waiting on shared destination", flush=True)
+    with real_lock(path) as held:
+        yield held
+packages.flocked = observed
+cli.cli.main(args=sys.argv[1:], standalone_mode=False)
+"""
+    routes = [package, alias, registry_alias]
+    case_path = package.with_name(package.name.swapcase())
+    if case_path.exists() and package.samefile(case_path):
+        routes.append(case_path)
+    for index, destination in enumerate(routes):
+        widget = f"lf-parallel-{index}"
+        with packages_model.package_write_lock(package):
+            other = (
+                package / "runtime" / "nested"
+                if index == 0
+                else tmp_path / f"other-{index}"
+            )
+            independent = subprocess.run(
+                [*LEAF_COMMAND, "package", "init", str(other)],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert independent.returncode == 0, independent.stdout + independent.stderr
+            child = spawn(
+                [
+                    sys.executable,
+                    "-c",
+                    observe,
+                    "package",
+                    "init",
+                    str(destination),
+                    "--widget",
+                    widget,
+                ],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            assert child.stdout.readline().strip() == "waiting on shared destination"
+        out, err = child.communicate(timeout=10)
+        assert child.returncode == 0, out + err
+    assert set(json.loads((package / "registry.json").read_text())) == {
+        f"lf-parallel-{index}" for index in range(len(routes))
+    }
+
+    for held_package in (package, other_state / "leaf" / "packages" / package.name):
+        with packages_model.package_write_lock(held_package):
+            installing = spawn(
+                [sys.executable, "-c", observe, "package", "install", str(package)],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            assert (
+                installing.stdout.readline().strip() == "waiting on shared destination"
+            )
+        out, err = installing.communicate(timeout=10)
+        if held_package == package:
+            assert installing.returncode == 0, out + err
+        else:
+            assert installing.returncode != 0
+            assert "already resolves to" in err
+
+
+def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
+    """Source admission precedes copying; an editor changing it in between must
+    not publish an invalid package under a name pages can select.
+    """
+    source = tmp_path / "package"
+    packages_model.cmd_package_init(source)
+    copy_contract = packages_model.copy_package_contract
+
+    def changed_during_copy(package, staged):
+        (package / "theme.css").write_text(".bad { color red; }\n")
+        copy_contract(package, staged)
+
+    monkeypatch.setattr(packages_model, "copy_package_contract", changed_during_copy)
+    result = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
+    assert result.exit_code != 0
+    assert "syntax error" in result.output
+    assert not (machine_model.package_store() / source.name).exists()
+
+
 def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     unrelated = tmp_path / "unrelated"

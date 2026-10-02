@@ -44,6 +44,7 @@ from leaf_dev.harness import (
     build_source,
     environment,
     load_average,
+    run_directory,
     run_leaf,
     serving,
 )
@@ -495,6 +496,7 @@ def bench_latency(base_ref: str | None) -> None:
     to the painted frame, with the requests and bytes each caused; every run lands
     in .tmp/bench-latency/.
     """
+    out = run_directory(OUT)
     load_before = load_average()
     results = []
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
@@ -523,8 +525,7 @@ def bench_latency(base_ref: str | None) -> None:
                                     err=True,
                                 )
             version = browser.version
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "results.json").write_text(
+    (out / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
     click.echo(
@@ -545,4 +546,4 @@ def bench_latency(base_ref: str | None) -> None:
                     == (source, transition, arm)
                 ]
                 click.echo(row(source, transition, arm, runs))
-    click.echo(f"details: {OUT / 'results.json'}")
+    click.echo(f"details: {out / 'results.json'}")

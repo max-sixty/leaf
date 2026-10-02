@@ -21,7 +21,8 @@ delivery and its claim, which should be nothing.
 
 There are no statistics: two rounds, one page, fixed comments, the default model, and
 timings that include model latency. Read the table, not the means. Each session costs
-about a dollar. Streams, page logs and `results.json` land in `.tmp/delivery-eval/`.
+about a dollar. Streams, page logs and `results.json` land in an invocation's own
+run directory under `.tmp/delivery-eval/`.
 """
 
 import json
@@ -47,6 +48,7 @@ from leaf_dev.harness import (
     hook_delivered,
     now,
     read_trace,
+    run_directory,
     run_leaf,
     scratch,
     waits_started,
@@ -112,7 +114,6 @@ def stop_blocked(record: dict) -> bool:
 
 def run_session(arm: Path, case: str, run: Path) -> None:
     """One Claude Code session: serve, wait, receive the case's comments, handle them."""
-    shutil.rmtree(run, ignore_errors=True)
     run.mkdir(parents=True)
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
@@ -299,26 +300,26 @@ def delivery_eval(base_ref: str | None) -> None:
     a dollar each, and prints per comment how it reached the agent and how long each
     step took; every stream and page log lands in .tmp/delivery-eval/.
     """
+    out = run_directory(OUT)
     with tempfile.TemporaryDirectory() as built:
         arms, commits = build_pair(base_ref, Path(built))
-        OUT.mkdir(parents=True, exist_ok=True)
         runs = []
         for i in range(1, ROUNDS + 1):
             batch = [(arm, case, i) for case in CASES for arm in arms]
             with ThreadPoolExecutor(len(batch)) as pool:
                 for future in [
-                    pool.submit(run_session, arms[arm], case, OUT / f"{arm}-{case}-{i}")
+                    pool.submit(run_session, arms[arm], case, out / f"{arm}-{case}-{i}")
                     for arm, case, i in batch
                 ]:
                     future.result()
             runs += batch
     results = {
-        f"{arm}-{case}-{i}": score(OUT / f"{arm}-{case}-{i}")
+        f"{arm}-{case}-{i}": score(out / f"{arm}-{case}-{i}")
         for arm, case, i in sorted(runs)
     }
-    (OUT / "results.json").write_text(
+    (out / "results.json").write_text(
         json.dumps({"arms": commits, "runs": results}, indent=1)
     )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     report(results)
-    click.echo(f"details: {OUT}/results.json")
+    click.echo(f"details: {out / 'results.json'}")

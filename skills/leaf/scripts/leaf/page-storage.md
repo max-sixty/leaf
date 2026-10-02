@@ -94,7 +94,7 @@ other page files and the external state listed below.
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
-- `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
+- `waiter.lock` — stable bare-shell wait lease file; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
@@ -119,12 +119,13 @@ other page files and the external state listed below.
   writes nothing and ends with the page.
 
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
-  after the server has closed its sockets.
+  after the server has closed its sockets. The file remains after release; its
+  exclusive kernel lock, rather than its existence, proves a live server.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory, and removed by the first scan that finds that directory gone
-  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
-  identity, release, harness, and lifetime.
+  directory. Scans ignore claims for missing pages; fresh page initialization clears
+  the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
+  claimant identity, release, harness, and lifetime.
 
 ## Revision delivery
 

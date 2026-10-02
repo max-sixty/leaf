@@ -1262,13 +1262,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     /* Every turn, author and field starts its words on this shared reading edge.
        Fields subtract their border; messages inherit the transcript's inset. */
     --lf-comment-text-inset: 13px;
+    --lf-comment-text-size: var(--t-5);
+    --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
+    --lf-comment-text-pad-end: calc(max(28px, var(--aim-floor)) + var(--lf-comment-text-inset));
     --lf-comment-head: max(28px, var(--aim-floor));
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
     --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-comment-head) + var(--lf-comment-body-gap));
     --lf-comment-frame-bottom: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + var(--lf-comment-inset) + 1px);
   }
-  :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
+  :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 32px; }
+  /* The editor and its sent message share text metrics. The borderless message uses
+     the full inset; the field subtracts its border. */
+  leaf-text.lf-fab-input,
+  .lf-margin-preview[data-lf-comment-frame] .lf-page-thread-msg:first-of-type > .lf-page-thread-body {
+    font: var(--lf-comment-text-size)/1.5 var(--sans); color: var(--ink-2); }
   /* Placement fits the finished thread before typing. Only the editor paints; the
      transparent header/reply slots neither take document flow nor intercept presses. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
@@ -1319,10 +1327,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: var(--lf-response-room, calc(var(--thread-card) - 60px));
     max-height: var(--lf-float-h, 60vh);
-    padding-inline: var(--lf-compose-pad-inline-start) calc(max(28px, var(--aim-floor)) + 12px);
+    padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
-    --lf-compose-pad-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
+    --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
     --lf-compose-pad-inline-start: calc(var(--lf-comment-text-inset) - 1px);
     flex: 0 1 auto; }
   .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
@@ -1554,9 +1562,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-comment-frame] .lf-page-thread-msg:first-of-type > .lf-page-thread-body {
     box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-comment-text-inset)));
     max-height: var(--lf-comment-message-height); overflow-y: auto; margin-top: var(--lf-comment-body-gap);
-    padding-block: var(--lf-comment-message-pad-block);
-    padding-inline: 0 var(--lf-comment-message-pad-end);
-    font: var(--lf-comment-message-font); color: var(--ink-2);
+    padding-block: var(--lf-comment-text-pad-block);
+    padding-inline: 0 var(--lf-comment-text-pad-end);
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-page-thread-msg:first-of-type > .lf-page-thread-body > p {
     font: inherit; white-space: break-spaces; overflow-wrap: anywhere;
@@ -1966,7 +1973,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @media (pointer: coarse) {
     /* What is left here is what a finger changes besides the floor, which reads
        --aim-floor (shadow.css) and so needs no rule here. */
-    :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 44px; }
+    :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 44px; }
+    :is(.lf-fab-bar, .lf-margin-preview) {
+      --lf-comment-text-size: max(var(--entry-floor), var(--t-5)); }
     .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
       transform: translateY(-50%); }

@@ -3,11 +3,12 @@
 # Replays its pre-review draft to measure whether the author separates those roles.
 # On 015b1b9c2: 0/2 baseline outputs separated the case; the configuration/case
 # paragraph passed 2/2. Both arms read the package instructions.
-schema_version: '1.0'
-name: playground-case-is-independent
-description: "Playground: switch test cases independently of the configuration being chosen."
-tags: [playground]
-execution:
+description: playground-case-is-independent
+metadata:
+  purpose: 'Playground: switch test cases independently of the configuration being chosen.'
+  tags:
+  - playground
+vars:
   prompt: |
     The user asked: "Threads in the threads panel and the threads anchored on the
     page are quite different. Research how we could unify them much more.
@@ -30,18 +31,20 @@ execution:
     at packages/playground/instructions/author.md inside the leaf skill's base
     directory. Reply with the HTML and page module; the page directory is not
     reachable here. You can use placeholders for the live sample bodies.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-playground-instructions
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/playground/instructions/author\.md
-- name: independent-case
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: llm-rubric
+  metric: independent-case
+  value: |
     Pass only if the resulting authored UI and behavior separate the conversation
     case selector from the design configuration controls, changing the case
     preserves the selected design, and choosing a design preset preserves the

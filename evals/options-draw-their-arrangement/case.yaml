@@ -4,13 +4,14 @@
 # before held a drawing; the lf-option entry and the lf-options example both showed
 # text faces. With the child reading those entries, base 4c29f3003 drew the options
 # in 0 of 3 runs and the rewritten entry and example in 3 of 3.
-schema_version: '1.0'
-name: options-draw-their-arrangement
-description: "Asks: when the alternatives differ in arrangement, each lf-option shows its own arrangement in a drawing, not only in words."
-tags:
-- asks
-- drawing
-execution:
+description: options-draw-their-arrangement
+metadata:
+  purpose: 'Asks: when the alternatives differ in arrangement, each lf-option shows its own arrangement
+    in a drawing, not only in words.'
+  tags:
+  - asks
+  - drawing
+vars:
   prompt: |
     You are writing a Leaf page that records the layout shifts left in Leaf's thread
     panel, one section per item, each ending in a question for the user. Write the
@@ -32,22 +33,23 @@ execution:
 
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-registry
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/default/registry\.json
-- name: has-options
-  type: regex
-  pattern: <lf-option\b
-  flags: i
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-registry
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/default/registry\.json
+- type: regex
+  metric: has-options
+  value: <lf-option\b
+- type: llm-rubric
+  metric: judgment
+  value: |
     Find the `lf-options` group that asks where the reply box sits. Pass only if
     every `lf-option` in it contains its own drawing (an inline `<svg>`, an `<img>`,
     or an `lf-diagram`) that shows where the reply box sits under that option.

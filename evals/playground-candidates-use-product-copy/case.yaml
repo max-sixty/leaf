@@ -5,95 +5,63 @@
 # so it is a guardrail. Copy-inventory replays of the full pre-authoring Codex
 # context produced prototype-status labels in 2/2 baseline outputs and 0/2 with
 # the final paragraph. These score authored strings, not animation behavior.
-schema_version: '1.0'
-name: playground-candidates-use-product-copy
-description: "Playground: candidates use realistic product content; exploration commentary stays around the interface."
-tags:
-- playground
-execution:
-  prompt: |
-    The user asks:
-    "Can you try playing with an animation where, when we submit a comment box,
-    instead of transitioning (with a bit of a jump often), we build / grow the
-    surrounding UI around the message in the comment box, a bit like some Factorio
-    animations where something grows? The idea is to reduce the jitter in the text
-    in the comment box while allowing it to start small but a thread to have
-    decorations.
-
-    Try to sketch this out. It doesn't need to work on the site; the UI should be
-    similar to what we have now, but it doesn't need to work on our existing pages
-    nor obey the layouts. Seeing the sketch will help me think about where it's
-    viable to try further."
-
-    Leaf's current composer has an editable message and Send. Its thread has the
-    passage being discussed, the message, a reaction, Undo, Resolve, and Reply.
-    Try smooth outward growth and a piece-by-piece build, with slow motion and
-    replay so the user can inspect the transition.
-
-    The page uses the playground package; read its author instructions at
-    `packages/playground/instructions/author.md` inside the leaf skill's base
-    directory, the directory that holds its `references/`.
-    The first draft has been written. The two motions work and a browser check
-    measured zero text movement. Its preview markup is:
-
-    <lf-playground-preview>
-      <div class="stage" id="animation-stage">
-        <p class="passage">A comment starts small.
-          <mark>The thread needs room for context and replies.</mark></p>
-        <div class="seat" id="comment-seat">
-          <div class="shell" aria-hidden="true"></div>
-          <div class="draft-frame" aria-hidden="true"></div>
-          <div class="header" inert>
-            <div class="context">
-              <span>“The thread needs room for context and replies.”</span>
-              <button class="resolve" aria-label="Resolve sketch thread">✓</button>
-            </div>
-            <div class="author"><strong>Max</strong><span>just now</span></div>
-          </div>
-          <div class="message" id="sketch-message" role="textbox"
-               aria-label="Sketch comment" contenteditable="plaintext-only"
-               aria-multiline="true">Can the text stay right here while the thread grows around it?</div>
-          <button class="send" aria-label="Send sketch comment">↑</button>
-          <div class="footer" inert>
-            <div class="actions">
-              <button class="reaction" aria-label="React to sketch comment">☺ +</button>
-              <button class="undo">Undo</button>
-            </div>
-            <button class="reply">Reply…</button>
-            <div class="tail" role="status">Illustrative thread · no comment sent to the agent</div>
-          </div>
-          <div class="guides" hidden aria-hidden="true"></div>
-        </div>
-      </div>
-      <div class="transport">
-        <button class="replay">Replay</button>
-        <button class="reset-draft">Edit again</button>
-        <label>Progress <input aria-label="Animation progress" type="range"
-          min="0" max="100" value="0"></label>
-      </div>
-    </lf-playground-preview>
-
-    Its Resolve handler currently sets:
-    seat.querySelector('.tail').textContent = on
-      ? 'Resolved · sketch only'
-      : 'Illustrative thread · no comment sent to the agent';
-
-    Finish the draft for handoff. Keep the working motions and simplify copy
-    that does not help the user understand or operate it. The page directory is
-    not reachable here, so reply with the revised playground HTML and the relevant
-    script handlers. You can omit the unchanged animation implementation and CSS.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-playground-instructions
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/playground/instructions/author\.md
-- name: judgment
-  type: llm
-  criteria: |
+description: playground-candidates-use-product-copy
+metadata:
+  purpose: 'Playground: candidates use realistic product content; exploration commentary stays around
+    the interface.'
+  tags:
+  - playground
+vars:
+  prompt: "The user asks:\n\"Can you try playing with an animation where, when we submit a comment box,\n\
+    instead of transitioning (with a bit of a jump often), we build / grow the\nsurrounding UI around\
+    \ the message in the comment box, a bit like some Factorio\nanimations where something grows? The\
+    \ idea is to reduce the jitter in the text\nin the comment box while allowing it to start small but\
+    \ a thread to have\ndecorations.\n\nTry to sketch this out. It doesn't need to work on the site; the\
+    \ UI should be\nsimilar to what we have now, but it doesn't need to work on our existing pages\nnor\
+    \ obey the layouts. Seeing the sketch will help me think about where it's\nviable to try further.\"\
+    \n\nLeaf's current composer has an editable message and Send. Its thread has the\npassage being discussed,\
+    \ the message, a reaction, Undo, Resolve, and Reply.\nTry smooth outward growth and a piece-by-piece\
+    \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe page uses the\
+    \ playground package; read its author instructions at\n`packages/playground/instructions/author.md`\
+    \ inside the leaf skill's base\ndirectory, the directory that holds its `references/`.\nThe first\
+    \ draft has been written. The two motions work and a browser check\nmeasured zero text movement. Its\
+    \ preview markup is:\n\n<lf-playground-preview>\n  <div class=\"stage\" id=\"animation-stage\">\n\
+    \    <p class=\"passage\">A comment starts small.\n      <mark>The thread needs room for context and\
+    \ replies.</mark></p>\n    <div class=\"seat\" id=\"comment-seat\">\n      <div class=\"shell\" aria-hidden=\"\
+    true\"></div>\n      <div class=\"draft-frame\" aria-hidden=\"true\"></div>\n      <div class=\"header\"\
+    \ inert>\n        <div class=\"context\">\n          <span>\u201CThe thread needs room for context\
+    \ and replies.\u201D</span>\n          <button class=\"resolve\" aria-label=\"Resolve sketch thread\"\
+    >\u2713</button>\n        </div>\n        <div class=\"author\"><strong>Max</strong><span>just now</span></div>\n\
+    \      </div>\n      <div class=\"message\" id=\"sketch-message\" role=\"textbox\"\n           aria-label=\"\
+    Sketch comment\" contenteditable=\"plaintext-only\"\n           aria-multiline=\"true\">Can the text\
+    \ stay right here while the thread grows around it?</div>\n      <button class=\"send\" aria-label=\"\
+    Send sketch comment\">\u2191</button>\n      <div class=\"footer\" inert>\n        <div class=\"actions\"\
+    >\n          <button class=\"reaction\" aria-label=\"React to sketch comment\">\u263A +</button>\n\
+    \          <button class=\"undo\">Undo</button>\n        </div>\n        <button class=\"reply\">Reply\u2026\
+    </button>\n        <div class=\"tail\" role=\"status\">Illustrative thread \xB7 no comment sent to\
+    \ the agent</div>\n      </div>\n      <div class=\"guides\" hidden aria-hidden=\"true\"></div>\n\
+    \    </div>\n  </div>\n  <div class=\"transport\">\n    <button class=\"replay\">Replay</button>\n\
+    \    <button class=\"reset-draft\">Edit again</button>\n    <label>Progress <input aria-label=\"Animation\
+    \ progress\" type=\"range\"\n      min=\"0\" max=\"100\" value=\"0\"></label>\n  </div>\n</lf-playground-preview>\n\
+    \nIts Resolve handler currently sets:\nseat.querySelector('.tail').textContent = on\n  ? 'Resolved\
+    \ \xB7 sketch only'\n  : 'Illustrative thread \xB7 no comment sent to the agent';\n\nFinish the draft\
+    \ for handoff. Keep the working motions and simplify copy\nthat does not help the user understand\
+    \ or operate it. The page directory is\nnot reachable here, so reply with the revised playground HTML\
+    \ and the relevant\nscript handlers. You can omit the unchanged animation implementation and CSS.\n"
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the complete authored HTML and any strings the script renders. Pass only
     if both hold:
     1. Inside the simulated composer and thread, control labels and status text,

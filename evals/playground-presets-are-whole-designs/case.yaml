@@ -10,12 +10,13 @@
 # read in 6 of 6 runs of the change, which passed 4.
 # Also guards realistic candidate copy for the comment-growth guidance repair:
 # comparison labels belong around the diff, while the diff retains product text.
-schema_version: '1.0'
-name: playground-presets-are-whole-designs
-description: "Playground: controls span every part the user may vary, and each preset is one composed design that sets every control, not a tuple of per-part picks."
-tags:
-- playground
-execution:
+description: playground-presets-are-whole-designs
+metadata:
+  purpose: 'Playground: controls span every part the user may vary, and each preset is one composed design
+    that sets every control, not a tuple of per-part picks.'
+  tags:
+  - playground
+vars:
   prompt: |
     You are in a Leaf design session for a code-review tool. Its diff view marks a
     changed line in four places at once: a `+`/`-` sign in the gutter, a tint on the
@@ -34,30 +35,31 @@ execution:
     element with the candidates' CSS. The preview can be a short static diff of about
     six lines. The page directory is not reachable from here, so reply with the HTML
     rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-playground-instructions
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/playground/instructions/author\.md
-- name: has-presets
-  type: regex
-  pattern: <lf-playground-preset\b
-  flags: i
-- name: realistic-product-copy
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: regex
+  metric: has-presets
+  value: <lf-playground-preset\b
+- type: llm-rubric
+  metric: realistic-product-copy
+  value: |
     Pass if the simulated diff uses plausible product content and copy,
     without text describing its demo/mock/sketch status or the design
     exercise. Comparison labels, tuning controls, and explanations outside the
     simulated diff are fine. Example code and ordinary code comments are fine.
     Fail if authoring commentary replaces or augments the simulated product UI.
-- name: judgment
-  type: llm
-  criteria: |
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the playground's controls, its presets, and the CSS they switch. Pass only
     if all of these hold:
     1. There are at least three controls, and together they let the user vary at

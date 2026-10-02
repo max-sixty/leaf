@@ -5,12 +5,13 @@
 # With successful reference reads, baseline passed 0/3 and candidate 3/3; both
 # static sketch guardrails passed before and after. An earlier path-confused run
 # could not read the package guidance in either arm and measured nothing.
-schema_version: '1.0'
-name: playground-isolates-fixture-history
-description: "Playground: live Leaf candidates own fictional history and practice interactions; the outer page owns feedback."
-tags:
-- playground
-execution:
+description: playground-isolates-fixture-history
+metadata:
+  purpose: 'Playground: live Leaf candidates own fictional history and practice interactions; the outer
+    page owns feedback.'
+  tags:
+  - playground
+vars:
   prompt: |
     We are studying two thread-panel treatments in Leaf. The user says:
     "Put both in a playground in Codex so I can try replies and resolve a thread.
@@ -29,22 +30,25 @@ execution:
     `references/page-authoring.md` from that same skill directory.
     Write the playground HTML with real operable Leaf candidates, including their
     initial exchange. The page directory is not reachable, so reply with the HTML.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-playground-instructions
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/playground/instructions/author\.md
-- name: reads-live-samples
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: authored-isolation
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: javascript
+  metric: reads-live-samples
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: authored-isolation
+  value: |
     Pass only if the HTML uses two lf-sample window elements with data-sample
     templates inside an lf-playground-preview, and each template names the same
     inline application/json script through data-sample-events. The script holds

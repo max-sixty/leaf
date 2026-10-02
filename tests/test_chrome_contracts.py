@@ -990,8 +990,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
-    stands on the messages' column, and its draft words start as far inside it as the
-    page composer's do, leaving room for Submit in the same row.
+    stands on the messages' column, and its draft words keep their inset as the
+    field grows and scrolls, leaving room for Submit in the same row.
     Resolve aligns with the root author and time instead of the quoted target. The
     same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
@@ -1063,16 +1063,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                           textStart: rect('.lf-thread-reply leaf-text').x +
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
-                          // How far the page composer's words start inside its field.
-                          generalInset: (() => {
-                            const field = document.querySelector('.lf-general .lf-compose-field');
-                            const text = field.querySelector('leaf-text');
-                            const style = getComputedStyle(text);
-                            return text.getBoundingClientRect().x +
-                              parseFloat(style.borderInlineStartWidth) +
-                              parseFloat(style.paddingInlineStart) -
-                              field.getBoundingClientRect().x;
-                          })(),
                           textEnd: rect('.lf-thread-reply leaf-text').right -
                             parseFloat(inputStyle.borderInlineEndWidth) - padding,
                           padding,
@@ -1081,6 +1071,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         )
 
     short = geometry()
+    text_inset = short["textStart"] - short["field"]["x"]
     assert short["field"]["x"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
@@ -1115,9 +1106,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     write(field_box, "First line.\nSecond line.\nThird line.\nFourth line.")
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
-    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(
-        grown["generalInset"], abs=1
-    )
+    assert grown["textStart"] - grown["field"]["x"] == pytest.approx(text_inset, abs=1)
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
     assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
@@ -1135,7 +1124,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         scrolling = geometry()
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
-            scrolling["generalInset"], abs=1
+            text_inset, abs=1
         )
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
 

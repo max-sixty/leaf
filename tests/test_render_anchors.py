@@ -5611,7 +5611,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         """thread => {
           const style = getComputedStyle(thread);
           const outlet = getComputedStyle(thread.parentElement);
-          const reply = getComputedStyle(thread.querySelector('leaf-text'));
+          const reply = getComputedStyle(thread.querySelector('.lf-thread-reply .lf-compose-field'));
           return {
             card: style.backgroundColor,
             cardBorder: style.borderTopColor,
@@ -5721,16 +5721,15 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     # The reply is a text box in either seat, so it wears the text box's one band:
     # the ring replaces the resting border rather than standing a second edge off
-    # it. The panel's copy takes that from the chrome stylesheet, and the inline
-    # copy — inside a declared shadow tree no document rule reaches — takes it from
-    # the layer's own shadow sheet, which is why the two readings can be compared.
-    ring = """(el, compact) => { el.focus();
-      const s = getComputedStyle(compact ? el.parentElement : el); return {
+    # it. The shared field wrapper carries that band in the panel and inside the
+    # diff's declared shadow tree, so both readings measure the same painted owner.
+    ring = """el => { el.focus();
+      const s = getComputedStyle(el.parentElement); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
       border: s.borderColor, name: s.getPropertyValue('--lf-focus-ring').trim(),
     }; }"""
-    band = thread.locator("leaf-text").evaluate(ring, False)
-    assert band == panel_thread.locator("leaf-text").evaluate(ring, True)
+    band = thread.locator("leaf-text").evaluate(ring)
+    assert band == panel_thread.locator("leaf-text").evaluate(ring)
     assert band == {
         "style": "solid",
         "width": "2px",

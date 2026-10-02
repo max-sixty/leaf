@@ -793,13 +793,15 @@ pre:hover + .lf-code-copy,
 /* A thread's reply is one field on every surface; its container decides where it stands.
    The wrapper wears the border and focus band around the editor and its Send action. */
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field { border: 1px solid var(--border-2);
+.lf-thread-reply .lf-compose-field { --lf-compose-pad-inline-start: 7px;
+          border: 1px solid var(--border-2);
           border-radius: 6px; background: var(--card); }
 .lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
 .lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
-          padding: 8px 10px; padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
+          padding: 8px var(--lf-compose-pad-inline-start);
+          padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }

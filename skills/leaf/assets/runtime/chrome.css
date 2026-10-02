@@ -1058,8 +1058,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline: var(--focus-ring); --lf-focus-ring: summary-fold;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The reply box stands on the inset the quote and messages share, the column the
-     find box and the page composer also stand on, and its words start inside it as the
-     page composer's do. Standing wider so its draft began at the sent messages' text
+     find box and the page composer also stand on. Standing wider so its draft began
+     at the sent messages' text
      edge put the one bordered field in the list 7px past every other box on both sides.
      Send shares the field's row; right padding keeps draft text clear of it as the
      field grows.

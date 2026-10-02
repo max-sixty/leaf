@@ -5557,7 +5557,7 @@ def open_long_thread(browser, serve):
     page.wait_for_function(
         "list => list.scrollTop > 100", arg=transcript.element_handle()
     )
-    scroll_settled(page, ".lf-thread-transcript")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     return page, preview, transcript
 
 
@@ -5621,7 +5621,7 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
         """(card) => {
         const thread = card.querySelector('.lf-page-thread');
         const words = thread.querySelector('.lf-msg-body');
-        const field = thread.querySelector('leaf-text');
+        const field = thread.querySelector('.lf-thread-reply .lf-compose-field');
         const x = (node) => {
             const box = node.getBoundingClientRect();
             return [Math.round(box.left), Math.round(box.right)];
@@ -5749,7 +5749,7 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     latest = transcript.locator(".lf-msg").last
     visible = latest.evaluate(
         """message => {
-          const list = document.querySelector('.lf-thread-transcript');
+          const list = message.closest('.lf-thread-transcript');
           const band = list.getBoundingClientRect();
           const editor = list.closest('.lf-page-thread').querySelector('leaf-text').getBoundingClientRect();
           return {
@@ -5779,7 +5779,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
     resized(page, 1440, 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
-    transcript = page.locator(".lf-thread-transcript")
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     before = transcript.evaluate("list => list.scrollTop")
     newest = events_model.append_event(
@@ -5798,13 +5798,13 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
     incoming = transcript.locator(f'[data-event="{newest["id"]}"]')
     expect(incoming).to_be_visible()
     page.wait_for_function(
-        "before => document.querySelector('.lf-thread-transcript').scrollTop > before",
+        "before => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > before",
         arg=before,
     )
-    scroll_settled(page, ".lf-thread-transcript")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     assert incoming.evaluate(
         """message => {
-          const list = document.querySelector('.lf-thread-transcript');
+          const list = message.closest('.lf-thread-transcript');
           return message.getBoundingClientRect().bottom <=
             list.getBoundingClientRect().bottom;
         }"""
@@ -5837,10 +5837,10 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
     page.wait_for_function(
-        "before => document.querySelector('.lf-thread-transcript').scrollTop > before",
+        "before => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > before",
         arg=at_tail,
     )
-    scroll_settled(page, ".lf-thread-transcript")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     assert (
         transcript.evaluate(
             "list => list.scrollHeight - list.clientHeight - list.scrollTop"
@@ -5848,7 +5848,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
         <= 2
     )
     assert incoming.evaluate(
-        "message => message.getBoundingClientRect().bottom <= document.querySelector('.lf-thread-reply').getBoundingClientRect().top"
+        "message => message.getBoundingClientRect().bottom <= message.closest('.lf-page-thread').querySelector('.lf-thread-reply').getBoundingClientRect().top"
     )
 
     transcript.evaluate("list => list.scrollTop -= 10")
@@ -5938,6 +5938,8 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
     resting_box = reply.bounding_box()
+    field = preview.locator(".lf-thread-reply .lf-compose-field")
+    resting_field_box = field.bounding_box()
     message_left = preview.locator(".lf-msg").first.bounding_box()["x"]
 
     def text_left(control):
@@ -5946,8 +5948,22 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
               + parseFloat(getComputedStyle(node).paddingInlineStart)"""
         )
 
-    assert text_left(reply) == pytest.approx(message_left, abs=0.5)
-    resting_face = reply.evaluate(
+    resting_text_left = text_left(reply)
+    # The field owns the border. Its words share the message column and start at
+    # the same inset inside the field as the panel's words.
+    shared_inset = page.locator(
+        ".lf-threads .lf-thread-reply leaf-text"
+    ).first.evaluate(
+        """node => parseFloat(getComputedStyle(node.parentElement).borderInlineStartWidth)
+          + parseFloat(getComputedStyle(node).borderInlineStartWidth)
+          + parseFloat(getComputedStyle(node).paddingInlineStart)"""
+    )
+    assert resting_text_left == pytest.approx(message_left, abs=0.5)
+    assert resting_text_left - resting_field_box["x"] == pytest.approx(
+        shared_inset, abs=0.5
+    )
+    expect(field).to_have_css("border-top-style", "solid")
+    resting_face = field.evaluate(
         """node => {
           const style = getComputedStyle(node);
           return [style.backgroundColor, style.borderRadius];
@@ -5955,16 +5971,17 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     )
 
     reply.hover()
-    expect(reply).to_have_css("background-color", resting_face[0])
+    expect(field).to_have_css("background-color", resting_face[0])
     reply.click()
     expect(reply).to_be_focused()
     assert reply.bounding_box() == pytest.approx(resting_box, abs=0.5)
-    assert text_left(reply) == pytest.approx(message_left, abs=0.5)
+    assert field.bounding_box() == pytest.approx(resting_field_box, abs=0.5)
+    assert text_left(reply) == pytest.approx(resting_text_left, abs=0.5)
     assert preview.locator(".lf-thread-transcript").evaluate(
         "list => list.scrollWidth === list.clientWidth"
     )
     assert (
-        reply.evaluate(
+        field.evaluate(
             """node => {
           const style = getComputedStyle(node);
           return [style.backgroundColor, style.borderRadius];
@@ -6176,7 +6193,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     resized(page, 1440, 700)
     scroller = """async () => {
       const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
-      const list = document.querySelector('.lf-thread-transcript');
+      const list = document.querySelector('.lf-margin-preview .lf-thread-transcript');
       const box = regions.effectiveScroller('lf-margin-preview');
       return list && box === list ? 'transcript'
         : box === document.scrollingElement ? 'page' : box?.className;
@@ -6192,7 +6209,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     }""")
 
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
-    transcript = page.locator(".lf-thread-transcript")
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
     expect(transcript).to_be_visible()
     # A shift is announced from the resize observer's delivery, after the layout that
     # opened the card; two frames later it has been heard if it is coming.
@@ -6208,7 +6225,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, 400)
     page.wait_for_function(
-        "() => document.querySelector('.lf-thread-transcript').scrollTop > 0"
+        "() => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > 0"
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 

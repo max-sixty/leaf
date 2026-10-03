@@ -1507,10 +1507,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Only the turns scroll: the metadata and reply keep their own rows, so the
      scrollbar describes the content it moves. The card grows to its content until
      placement exhausts the room; every intervening holder can then shrink. */
-  .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body,
-  .lf-margin-thread .lf-page-thread { display: flex; flex-direction: column;
+  .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body {
+    display: flex; flex-direction: column;
     min-height: 0; min-width: 0; }
-  .lf-margin-thread .lf-thread-transcript { min-height: 0; overflow-y: auto;
+  /* Both tracks grow to their words and share the room beyond their minimums.
+     A short transcript leaves its unused share to the editor. The reading owner
+     retains a complete turn's visible span after news extended the card above a
+     draft, so continued typing leaves the first input line where news held it. */
+  .lf-margin-thread .lf-page-thread { display: grid;
+    grid-template-rows: auto minmax(var(--lf-thread-reading-height, auto), max-content)
+      minmax(auto, max-content);
+    min-height: 0; min-width: 0; }
+  .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
     overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
@@ -1522,11 +1530,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The row's ring has room in the card's common inset. Its inline containment keeps
      a draft from widening the card. */
   .lf-margin-thread .lf-thread-reply { contain: inline-size;
-    flex: none; align-items: stretch; margin: 0;
+    display: grid; grid-template-rows: auto minmax(0, max-content);
+    box-sizing: border-box;
+    min-height: calc(var(--lf-compose-h) + var(--lf-comment-foot-gap) + 2px);
+    align-items: stretch; margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }
+  .lf-margin-thread .lf-thread-reply .lf-composer-media { grid-row: 1; }
+  .lf-margin-thread .lf-thread-reply .lf-compose-field { grid-row: 2; min-height: 0;
+    grid-template-rows: minmax(0, max-content); }
   .lf-margin-thread .lf-thread-reply leaf-text { min-width: 0;
-    max-height: var(--lf-thread-editor-room, 50vh); }
+    max-height: none; }
   .lf-margin-preview .lf-thread-root-meta { flex: none;
     align-items: center; gap: 4px; min-height: var(--lf-comment-head); }
   .lf-page-map-action { width: 100%; min-width: 0;

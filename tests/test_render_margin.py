@@ -7271,11 +7271,16 @@ def send_anchored_comment(page, text):
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    write(page.locator(".lf-composer leaf-text"), text)
+    editor = page.locator(".lf-composer leaf-text")
+    write(editor, text)
+    inline_start = editor.evaluate(
+        "box => box.closest('.lf-fab-bar').getBoundingClientRect().left"
+    )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    return inline_start
 
 
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
@@ -7287,7 +7292,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
-    send_anchored_comment(page, "Check the January failure mode.")
+    editor_start = send_anchored_comment(page, "Check the January failure mode.")
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
     ).click()
@@ -7300,9 +7305,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert narrow["replyWidth"] >= 160, narrow
     # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
-    assert narrow["cardLeft"] == pytest.approx(
-        narrow["wordsRight"] - narrow["minimum"], abs=0.5
-    ), narrow
+    assert narrow["cardLeft"] == pytest.approx(editor_start, abs=0.5), narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     # Clear of its words under or over them, the card leaves its cluster uncovered.
     assert (
@@ -7316,7 +7319,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
 
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1920, 900)
-    send_anchored_comment(page, "Check the January failure mode.")
+    editor_start = send_anchored_comment(page, "Check the January failure mode.")
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
     ).click()
@@ -7325,6 +7328,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
+    assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
     assert wide["cardLeft"] > wide["controlsRight"], wide
 
 

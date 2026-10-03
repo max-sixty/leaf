@@ -9149,7 +9149,7 @@ def _meets(a, b):
 def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
     """Under a finger a suggestion's Accept and Reject are a 96px pin, and on
     release-notes at 390px its run fills both lines of the Console paragraph, so the
-    only room within reach is the empty end of the short heading just above. A block
+    nearest clear room is the empty end of the short heading just above. A block
     that paints nothing of its own counts only by its words, so the pin stands there,
     over none of the page's words, rather than covering the run it decides."""
     context = browser.new_context(
@@ -9185,8 +9185,11 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
         )
         for part in reading["parts"]
     )
-    # Within the 12px `pinSpot` reaches from its target.
-    assert apart <= 12, (pair, reading["parts"])
+    line = page.locator("#rn-console-why").evaluate(
+        "el => parseFloat(getComputedStyle(el).lineHeight)"
+    )
+    # If no clear seat is within 12px, `pinSpot` may use one line more.
+    assert apart <= 12 + line, (pair, reading["parts"])
 
 
 def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, serve):

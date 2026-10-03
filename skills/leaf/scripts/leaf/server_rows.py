@@ -6,14 +6,15 @@ working directory. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look.
 
-A per-page producer checks this page's file stamps every 100 ms and live host/process/
-waiter facts every presence-cache interval. Changed inputs or the fold's next
+A per-page producer checks this page's file stamps every 100 ms and live host,
+process and waiter facts every presence-cache interval. Changed inputs or the fold's next
 transition trigger a local transaction and fold; quiet looks never reread the
 log or document. Only changed row content is replaced. Neighbor consumers read
 this small output and server liveness, without folding any neighboring page.
 The lifetime supervisor runs independently: a page writer holding the transaction
-must never prevent a stop. A failed producer ends the serving process, so its lease withdraws the row.
-The enabled service remains eligible for the existing server revival path.
+must never prevent a stop. A failed producer ends the serving process, so its
+lease withdraws the row. The enabled service remains eligible for the existing
+server revival path.
 """
 
 import os
@@ -28,6 +29,28 @@ from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .service import page_claim
 from .state import page_key, state_home_path, write_json
+
+ACTIVITY_FIELDS = frozenset(
+    {
+        "kind",
+        "held",
+        "dropped",
+        "detail",
+        "observed",
+        "observed_kind",
+        "counts",
+        "ts",
+        "next_transition_at",
+    }
+)
+COUNT_FIELDS = frozenset(
+    {"active", "handling", "queued", "picked_up", "pending", "overdue", "total"}
+)
+
+
+def compact_activity(activity: dict) -> dict:
+    """The bounded presentation contract; owed moves and reply bodies stay local."""
+    return {key: activity[key] for key in ACTIVITY_FIELDS}
 
 
 def row_path(page_dir: Path) -> Path:
@@ -45,6 +68,15 @@ def read_row(page_dir: Path, service: dict) -> dict | None:
         or record["server_id"] != service.get("server_id")
         or not isinstance(row, dict)
         or not {"title", "session_cwd", "activity"} <= row.keys()
+    ):
+        return None
+    activity = row["activity"]
+    if (
+        not isinstance(row["title"], str)
+        or not isinstance(activity, dict)
+        or not ACTIVITY_FIELDS <= activity.keys()
+        or not isinstance(activity["counts"], dict)
+        or not COUNT_FIELDS <= activity["counts"].keys()
     ):
         return None
     return row

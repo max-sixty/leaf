@@ -87,6 +87,8 @@ class PageStateService:
         this publication on its next look. Owed moves and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
         """
+        from ..server_rows import compact_activity
+
         with self._read(with_token=True) as (context, reading, source_error):
             state = served_page.read_served_page(
                 context, source_error=source_error
@@ -99,11 +101,7 @@ class PageStateService:
             row = {
                 "title": title or self.page_dir.name,
                 "session_cwd": state["session_cwd"],
-                "activity": {
-                    key: value
-                    for key, value in state["activity"].items()
-                    if key not in {"obligations", "reply"}
-                },
+                "activity": compact_activity(state["activity"]),
             }
             live = {
                 key: state[key] for key in ("listening", "session_alive", "live_turn")

@@ -636,6 +636,23 @@ def record_claim(page, /, harness="claude-code", **fields):
     return service_model.page_claim(page)
 
 
+def bind_task_lifetime_to_worker(page):
+    """Keep a synthetic task standing after its one-command host exits.
+
+    The worker stands for the real host process that survives tool calls. This
+    changes only that existing task's lifetime provenance, under its session
+    lock: its generation, turn, provider observation, and page acquisition stay
+    intact. Recording another claim would create a replacement generation and
+    briefly leave the already-running carrier with no pages to own.
+    """
+    claim = service_model.page_claim(page)
+    with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
+        record = cleanup_model.session_record(claim["id"])
+        assert record["generation"] == claim["generation"]
+        assert record["ended"] is None
+        cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
+
+
 def live_versions(d):
     events = events_model.read_events(d)
     return files_model.published_versions(d, events)
@@ -1453,8 +1470,7 @@ print(json.dumps({"url": url}))
     # The fake codex wrapper exits with this one command; a real Codex session
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
-    claim = service_model.page_claim(page)
-    record_claim(page, **{**claim, "pid": os.getpid()})
+    bind_task_lifetime_to_worker(page)
     return page
 
 

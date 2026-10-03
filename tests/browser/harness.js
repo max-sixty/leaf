@@ -23,12 +23,17 @@
         if (node.closest("[inert]")) continue;
         const field =
           typeof node.selectionStart === "number" && typeof node.value === "string";
+        const editable =
+          node.isContentEditable && !node.parentElement?.isContentEditable;
         const stop =
           !node.matches(":disabled") &&
           (node.tabIndex >= 0 ||
             node.hasAttribute("tabindex") ||
             (node.isContentEditable && node.hasAttribute("contenteditable")));
-        if ((field || stop) && node.checkVisibility({ visibilityProperty: true })) {
+        if (
+          (field || editable || stop) &&
+          node.checkVisibility({ visibilityProperty: true })
+        ) {
           const rect = node.getBoundingClientRect();
           const box = [rect.x, rect.y, rect.width, rect.height].map(Math.round);
           if (field)
@@ -39,6 +44,81 @@
               node.selectionDirection,
               ...box,
             ]);
+          if (editable) {
+            const selection = root.getSelection();
+            // Range text omits explicit breaks; count them to distinguish the
+            // caret on either side, while permitting equivalent text wrappers.
+            const offset = (at, index) => {
+              const range = document.createRange();
+              range.setStart(node, 0);
+              range.setEnd(at, index);
+              const text =
+                range.toString().length +
+                range.cloneContents().querySelectorAll("br").length;
+              // Text endpoints also have a native caret box, distinguishing
+              // the end of one block line from the start of the next.
+              // An element boundary has no native box; read the equivalent
+              // adjacent text endpoint so anonymous wrappers remain irrelevant.
+              const edge = (branch, last) => {
+                if (
+                  !branch ||
+                  branch.nodeType === Node.TEXT_NODE ||
+                  branch.localName === "br"
+                )
+                  return branch;
+                const children = [...branch.childNodes];
+                if (last) children.reverse();
+                for (const child of children) {
+                  const found = edge(child, last);
+                  if (found) return found;
+                }
+                return null;
+              };
+              let caretAt = at;
+              let caretIndex = index;
+              if (at.nodeType === Node.ELEMENT_NODE) {
+                const children = [...at.childNodes];
+                const next = children
+                  .slice(index)
+                  .map((child) => edge(child, false))
+                  .find(Boolean);
+                const previous = children
+                  .slice(0, index)
+                  .reverse()
+                  .map((child) => edge(child, true))
+                  .find(Boolean);
+                if (next?.nodeType === Node.TEXT_NODE) {
+                  caretAt = next;
+                  caretIndex = 0;
+                } else if (previous?.nodeType === Node.TEXT_NODE) {
+                  caretAt = previous;
+                  caretIndex = previous.length;
+                }
+              }
+              range.setStart(caretAt, caretIndex);
+              range.collapse(true);
+              const caret = range.getBoundingClientRect();
+              return [
+                text,
+                ...[caret.x, caret.y, caret.width, caret.height].map(Math.round),
+              ];
+            };
+            const selected =
+              node.contains(selection.anchorNode) && node.contains(selection.focusNode);
+            const anchor = selected
+              ? offset(selection.anchorNode, selection.anchorOffset)
+              : null;
+            const focus = selected
+              ? offset(selection.focusNode, selection.focusOffset)
+              : null;
+            fields.push([
+              node.innerText,
+              anchor,
+              focus,
+              selected ? selection.direction : null,
+              ...box,
+            ]);
+          }
           if (stop) stops.push([node.tabIndex, ...box]);
         }
         if (node.shadowRoot) walk(node.shadowRoot);

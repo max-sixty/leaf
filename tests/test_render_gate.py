@@ -2838,6 +2838,138 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
     page.locator("main").evaluate("node => node.style.paddingLeft = '20px'")
     assert reader_state(page) != first, "layout history must be observable"
 
+    # A labeled native editable can omit its words from accessibility's reading.
+    # Its text and native Selection still matter, independently of focus.
+    page.set_content(
+        '<button>Continue</button><div contenteditable role="textbox" '
+        'aria-label="Editable draft">kept words</div>'
+    )
+    editable = page.get_by_role("textbox", name="Editable draft")
+    button = page.get_by_role("button", name="Continue")
+    button.focus()
+    page.evaluate("() => getSelection().removeAllRanges()")
+    before = reader_state(page)
+    editable.evaluate("node => node.textContent = 'lost words'")
+    assert reader_state(page) != before, "editable source loss alone must be observable"
+    editable.evaluate("node => node.textContent = 'kept words'")
+    assert reader_state(page) == before
+    editable.evaluate("node => node.innerHTML = '<span>kept words</span>'")
+    assert reader_state(page) == before, "an editable wrapper has no user effect"
+
+    select_words = (
+        "(node, [anchor, focus]) => { const text = node.querySelector('span').firstChild; "
+        "getSelection().setBaseAndExtent(text, anchor, text, focus); }"
+    )
+    editable.evaluate(select_words, [5, 2])
+    before = reader_state(page)
+    editable.evaluate(select_words, [0, 0])
+    assert reader_state(page) != before, "editable selection loss must be observable"
+    editable.evaluate(select_words, [5, 2])
+    assert reader_state(page) == before
+    editable.evaluate("node => node.innerHTML = '<span><span>kept words</span></span>'")
+    editable.evaluate(
+        "node => { const text = node.querySelector('span span').firstChild; "
+        "getSelection().setBaseAndExtent(text, 5, text, 2); }"
+    )
+    assert reader_state(page) == before, (
+        "selection coordinates must survive equivalent wrappers"
+    )
+
+    for text_offset, element_offset in ((0, 0), (10, 1)):
+        editable.evaluate(
+            "(node, offset) => getSelection().collapse(node.querySelector('span span').firstChild, offset)",
+            text_offset,
+        )
+        text_endpoint = reader_state(page)
+        editable.evaluate(
+            "(node, offset) => getSelection().collapse(node, offset)", element_offset
+        )
+        assert reader_state(page) == text_endpoint, (
+            "equivalent element and text endpoints must have the same caret reading"
+        )
+    editable.evaluate(
+        "node => { const text = node.querySelector('span span').firstChild; "
+        "getSelection().setBaseAndExtent(text, 5, text, 2); }"
+    )
+
+    button.focus()
+    assert page.evaluate("() => getSelection().toString()") == "pt "
+    before = reader_state(page)
+    editable.evaluate(
+        "node => { const text = node.querySelector('span span').firstChild; "
+        "text.data = 'lost words'; getSelection().setBaseAndExtent(text, 5, text, 2); }"
+    )
+    button.focus()
+    assert reader_state(page) != before, (
+        "an unfocused editable source loss must be observable"
+    )
+    editable.evaluate(
+        "node => { const text = node.querySelector('span span').firstChild; "
+        "text.data = 'kept words'; getSelection().setBaseAndExtent(text, 5, text, 2); }"
+    )
+    button.focus()
+    assert reader_state(page) == before
+    page.evaluate("() => getSelection().collapseToStart()")
+    button.focus()
+    assert reader_state(page) != before, (
+        "an unfocused editable caret loss must be observable"
+    )
+
+    page.set_content(
+        '<div contenteditable role="textbox" aria-label="Multiline draft">'
+        "first<br>second</div>"
+    )
+    editable = page.get_by_role("textbox", name="Multiline draft")
+    editable.focus()
+    editable.evaluate("node => getSelection().collapse(node, 1)")
+    before = reader_state(page)
+    editable.evaluate("node => getSelection().collapse(node, 2)")
+    assert reader_state(page) != before, (
+        "a caret crossing an explicit break must be observable"
+    )
+    after = reader_state(page)
+    editable.evaluate(
+        "node => { node.innerHTML = '<span>first</span><br><span>second</span>'; "
+        "getSelection().collapse(node, 2); }"
+    )
+    assert reader_state(page) == after, (
+        "linebreak offsets must permit equivalent wrappers"
+    )
+    editable.evaluate("node => getSelection().collapse(node, 1)")
+    assert reader_state(page) == before
+
+    editable.evaluate("node => node.innerHTML = 'first<br><br><br>second'")
+    editable.evaluate("node => getSelection().collapse(node, 2)")
+    before = reader_state(page)
+    editable.evaluate("node => getSelection().collapse(node, 3)")
+    assert reader_state(page) != before, (
+        "a caret crossing an empty line must be observable"
+    )
+
+    page.set_content(
+        '<div contenteditable role="textbox" aria-label="Multiline draft">'
+        "<div>first</div><div>second</div></div>"
+    )
+    editable = page.get_by_role("textbox", name="Multiline draft")
+    editable.focus()
+    editable.evaluate("node => getSelection().collapse(node.firstChild.firstChild, 5)")
+    before = reader_state(page)
+    editable.evaluate("node => getSelection().collapse(node.lastChild.firstChild, 0)")
+    assert reader_state(page) != before, (
+        "a caret crossing a block line must be observable"
+    )
+    after = reader_state(page)
+    editable.evaluate(
+        "node => { node.firstChild.innerHTML = '<span>first</span>'; "
+        "node.lastChild.innerHTML = '<span>second</span>'; "
+        "getSelection().collapse(node.lastChild.firstChild.firstChild, 0); }"
+    )
+    assert reader_state(page) == after, "caret geometry must permit equivalent wrappers"
+    editable.evaluate(
+        "node => getSelection().collapse(node.firstChild.firstChild.firstChild, 5)"
+    )
+    assert reader_state(page) == before
+
     # A real closed-root editor exposes its source through its public field API,
     # even while focus is elsewhere and accessibility only reports the host.
     page.goto(serve(leaf_page("Reader state", "<button>Continue</button>")))
@@ -2955,7 +3087,9 @@ RESIZE_PATH = tuple(range(1200, 439, -80))
 def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     """What a page says at a width depends on the width, not on the widths it passed
     through: a page taken through a resize and back says at each width on the way back
-    what it said there on the way out, including accessible controls and their layout.
+    what it said there on the way out, including accessible controls and their layout,
+    read from the same document scroll position. Native scroll anchoring can move the
+    viewpoint during a resize; this journey holds that independent input fixed.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths.
 
@@ -2964,18 +3098,20 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     failed wherever it happens (`write_watch.js`)."""
     url = serve(source)
     findings = []
+
+    def at_width(page, width):
+        resized(page, width, 900)
+        page.evaluate("() => window.scrollTo({left: 0, top: 0, behavior: 'instant'})")
+        scroll_settled(page)
+        rendered(page)
+        return reader_state(page)
+
     for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
         page = still_page(browser, url, width=path[0])
         left_alone(page)
-        said = {path[0]: reader_state(page)}
-        for width in path[1:]:
-            resized(page, width, 900)
-            rendered(page)
-            said[width] = reader_state(page)
+        said = {width: at_width(page, width) for width in path}
         for width in path[-2::-1]:
-            resized(page, width, 900)
-            rendered(page)
-            if changes := state_changes(said[width], reader_state(page)):
+            if changes := state_changes(said[width], at_width(page, width)):
                 findings.append(
                     f"opened at {path[0]}px, taken to {path[-1]}px and back to {width}px:\n"
                     + "\n".join(changes[:12])

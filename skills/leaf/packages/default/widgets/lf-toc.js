@@ -82,6 +82,9 @@ customElements.define(
     #renamed;
     #measureFrame = 0;
     #paintFrame = 0;
+    #navHeight = 0;
+    #focusedLink = null;
+    #focusedVisible = false;
 
     #onScroll = () => this.#schedulePaint();
     #onResize = () => this.#scheduleMeasure();
@@ -89,6 +92,12 @@ customElements.define(
     #onLoad = () => this.#scheduleMeasure();
     #onLayout = () => this.#scheduleMeasure();
     #onPresentation = () => this.#measure();
+    #onNavScroll = () => {
+      // A resize may clamp scrollTop before the measurement that restores focus.
+      if (this.#nav.getBoundingClientRect().height === this.#navHeight)
+        this.#rememberFocus();
+    };
+    #onFocus = () => this.#rememberFocus();
 
     connectedCallback() {
       if (once(this)) this.#build();
@@ -102,6 +111,8 @@ customElements.define(
       this.#renamed?.disconnect();
       this.#renamed = null;
       this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
+      this.#nav?.removeEventListener("scroll", this.#onNavScroll);
+      this.#nav?.removeEventListener("focusin", this.#onFocus);
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
@@ -233,6 +244,8 @@ customElements.define(
       for (const { destination } of this.#sections)
         this.#renamed.observe(destination, { attributeFilter: ["id"] });
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
+      this.#nav.addEventListener("scroll", this.#onNavScroll, { passive: true });
+      this.#nav.addEventListener("focusin", this.#onFocus);
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
       this.#main.addEventListener(LAYOUT, this.#onLayout);
@@ -279,6 +292,7 @@ customElements.define(
         );
       });
       this.#fitRows();
+      this.#rememberFocus();
       this.#lensInputs = "";
       this.#paint();
     }
@@ -293,6 +307,16 @@ customElements.define(
           row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
         else row.style.removeProperty("--lf-toc-row-shift");
       });
+    }
+
+    #rememberFocus() {
+      const viewport = this.#nav.getBoundingClientRect();
+      const active = document.activeElement;
+      const focused = this.#nav.contains(active) ? active.getBoundingClientRect() : null;
+      this.#navHeight = viewport.height;
+      this.#focusedLink = active;
+      this.#focusedVisible = !!focused && focused.top >= viewport.top - 1 &&
+        focused.bottom <= viewport.bottom + 1;
     }
 
     // Each fitted row's shift, by section index.
@@ -341,7 +365,9 @@ customElements.define(
       if (layout.labelHeight > track.height + 1) {
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
-        if (this.#nav.contains(document.activeElement)) {
+        if (this.#nav.contains(document.activeElement) &&
+            this.#focusedLink === document.activeElement && this.#focusedVisible &&
+            this.#nav.getBoundingClientRect().height < this.#navHeight - 1) {
           const focused = document.activeElement.getBoundingClientRect();
           const viewport = this.#nav.getBoundingClientRect();
           if (focused.bottom > viewport.bottom)

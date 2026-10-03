@@ -707,6 +707,9 @@ export function createGoToSequence({
         // owner that can keep them true.
         ...directDestinations().map((destination) => ({
           ...destination,
+          // A direct destination's finger route is its standing page command in
+          // More. Arming this keyboard sequence doesn't seat another gesture control.
+          touch: false,
           when: () => atGoToTargets() && live(destination),
           run: (binding) => {
             setGoToSequence(false);

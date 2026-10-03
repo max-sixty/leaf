@@ -198,6 +198,10 @@ import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
 
+// Automatic recovery belongs to this arrival. A press made while its presentation
+// waits owns the page; recovery must not capture a fresh focus intent after that wait.
+const recoverComposer = retainUserIntent();
+
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
 // module graph through the ordinary document replacement and draft carry owners.
@@ -971,7 +975,9 @@ async function presentPage() {
   setAnchoringReady(true);
   try {
     const draftOpened =
-      !offlineInteractive && selectionComposer.openDraft(savedComposer);
+      !offlineInteractive &&
+      recoverComposer() &&
+      selectionComposer.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a

@@ -369,7 +369,7 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator(".lf-notice")).to_have_text("Draft kept — g i resumes writing")
     page.keyboard.press("g")
-    assert "your draft" in shortcut_bar_text(page)
+    assert "Resume writing" in shortcut_bar_text(page)
     page.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", draft)

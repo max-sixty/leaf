@@ -288,10 +288,23 @@ export const clearDraft = (ctx) => {
 // that value durably before settling the exact source generation, so a later source
 // edit is never discarded. A failed destination write keeps its local branch and the
 // persisted source. Every live destination view reads the same transferred draft.
+// This explicit content move also moves Resume writing, with the source's caret.
 export function transferDraft(from, to, text) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
+  const editor =
+    [...draftEditors].find((view) => view.ctx === from) ??
+    [...draftEditors].find((view) => view.ctx === to);
+  const selection =
+    writingPlace?.context === from
+      ? writingPlace.selection
+      : readCaret(editor && editorInput(editor));
   const durable = saveDraft(to, text);
+  keepWritingPlace({
+    context: to,
+    selection: selection ?? [0, 0],
+    generation: newAttempt(),
+  });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
   tellDraft(to, text);

@@ -3155,6 +3155,8 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     words = "Carry these unfinished words to the item I am at now."
     choose_comment_target(page, "#p3")
     write(page.locator(".lf-fab-input"), words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
     page.keyboard.press("Shift+Tab")
     page.locator("#later-link").scroll_into_view_if_needed()
     go_to_address(page, "Link", "later-link")
@@ -3170,6 +3172,13 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", words)
     expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
+    expect(field).to_have_js_property("selectionStart", 1)
     with sending(page, "comment"):
         page.keyboard.press("Enter")
     sent = [
@@ -3197,6 +3206,8 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     words = "These words belong to my earlier unfinished comment."
     choose_comment_target(page, "#p3")
     write(page.locator(".lf-fab-input"), words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -3216,6 +3227,13 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
         expect(page.locator(".lf-fab-input")).to_be_focused()
         expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     else:
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        reply = page.locator("leaf-text[name=reply]:focus")
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", words)
+        expect(reply).to_have_js_property("selectionStart", 1)
         with sending(page, "carried reply"):
             page.keyboard.press("Enter")
         replies = [
@@ -4840,13 +4858,22 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     page.keyboard.type("gi")
     expect(box).to_have_js_property("value", "Mygi original comment")
     page.keyboard.press("Escape")
+    held = []
+    page.route("**/api/state", lambda route: held.append(route))
     page.reload()
-    rendered(page)
-    page.locator("h1").click()
+    holding(page, held, 1, "the reloaded page's initial state")
+    # A user gesture while presentation waits supersedes automatic draft recovery.
+    # It must not later steal focus and turn the page shortcut into typed letters.
+    page.keyboard.press("Escape")
+    held[0].continue_()
+    page.unroute("**/api/state")
+    wait_until_ready(page)
+    expect(box).not_to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(box).to_be_focused()
-    assert box.evaluate("el => el.selectionStart") == caret + 2
+    expect(box).to_have_js_property("value", "Mygi original comment")
+    expect(box).to_have_js_property("selectionStart", caret + 2)
     with sending(page, "first comment"):
         page.keyboard.press("Enter")
     page.keyboard.press("Escape")

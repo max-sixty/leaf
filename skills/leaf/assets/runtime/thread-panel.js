@@ -10,6 +10,7 @@
 import { handBack, letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";
+import { retainUserIntent } from "./user-intent.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { closestAcross } from "./passages.js";
 import { declareSide } from "./standing-target.js";
@@ -54,6 +55,19 @@ export function createThreadPanelController({
   function setPanel(open, options) {
     if (open || panelIsOpen()) auxiliarySurfaces.select(open ? key : null, options);
   }
+  let viewRequest = 0;
+  async function showView({ status, waiting, thread, signal } = {}) {
+    const request = ++viewRequest;
+    const intent = retainUserIntent({
+      available: () => request === viewRequest && !signal.aborted && panel.isConnected,
+      fallback: threadsBox,
+    });
+    intent.handoff(() => setPanel(true));
+    await narrowing.select({ status, waiting });
+    if (!intent() || !panelIsOpen()) return false;
+    return thread ? Boolean(await showThread(thread, { focus: false, intent })) : true;
+  }
+
   function paintPanel(open, phase) {
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
@@ -73,12 +87,13 @@ export function createThreadPanelController({
       refreshThread();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) {
+      ++viewRequest;
       // Closed at once, with no slide out: the panel is a dialog that the thread list,
       // the walks and placement all read as open while it shows, so a panel still on
       // screen after the press would take the next key the user meant for the page.
       panel.close();
     }
-    if (open) closePreview();
+    if (open) closePreview?.();
   }
   const stopSurface = auxiliarySurfaces.registerAuxiliarySurface({
     key,
@@ -171,5 +186,5 @@ export function createThreadPanelController({
     stopNarrowingRung();
     stopSurface?.();
   }
-  return { panelIsOpen, setPanel, mountThreadPanel, dispose };
+  return { panelIsOpen, setPanel, showView, mountThreadPanel, dispose };
 }

@@ -43,10 +43,9 @@ def step_delivery_turn(session_id: str) -> str | None:
     """The observed provider turn a proven step hook can deliver into.
 
     Use the same dated activity reading as the page, so an interrupted or stale
-    turn never holds the idle queue indefinitely. A page claimed during this turn
-    may still have a local turn id: the next tool hook binds it to the observed
-    provider turn. Route eligibility therefore requires a running claimant, not
-    prior binding. Read outside the delivery lock: capture takes a page transaction
+    turn never holds the idle queue indefinitely. Claims derive the current
+    provider turn from the session lifecycle; tool hooks renew it and offer
+    feedback. Read outside the delivery lock: capture takes a page transaction
     before that lock.
     """
     observed = hook_turn(session_id)

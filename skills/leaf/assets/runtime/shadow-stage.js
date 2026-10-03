@@ -6,8 +6,8 @@
 
    The two sheets arrive differently on purpose. The theme's rules go in as a <style>
    element, because they are the page's look and a project overrides them with the
-   page's stylesheet; the marks are adopted, because they are the live comment layer,
-   shared by the document and every stage.
+   page's stylesheet; marks are adopted, shared by the document and every stage.
+   Passage annotation paint joins them only when the selected renderer owns it.
 
    It takes the nodes rather than handing back a root to fill, so the style cannot be
    left out: a module that wrote its own children would replace the one thing holding its
@@ -15,7 +15,12 @@
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it. */
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
-import { constructSheet, inBaseLayer, marksSheet } from "./stylesheets.js";
+import {
+  annotationMarkSheets,
+  constructSheet,
+  inBaseLayer,
+  marksSheet,
+} from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
@@ -44,7 +49,11 @@ export function shadowStage(host, nodes) {
   // The stages' one registry (arrivals.js), and the watch over what stands in them: no
   // observer crosses the boundary on its own.
   watchArrivalsIn(root);
-  root.adoptedStyleSheets = [marksSheet, ...widgetSheets.values()];
+  root.adoptedStyleSheets = [
+    ...annotationMarkSheets,
+    marksSheet,
+    ...widgetSheets.values(),
+  ];
   // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the
   // boundary either.

@@ -325,11 +325,11 @@ export function createReactionController({
   function raiseMarginSurface() {
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
-    if (!pageCommands || !target) return false;
+    if (!pageCommands || !target || !openMarginEntryOptions) return false;
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const standing = unfoldedMarginEntries()?.lfTarget === target;
+    const standing = unfoldedMarginEntries?.()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
     marginOffer = registerContribution({
       key: "responses",
@@ -625,7 +625,7 @@ export function createReactionController({
   const reactionContextContains = (node) =>
     reactArmed &&
     reactSurface === marginSurface &&
-    marginEntryContextContains(fabTargetAt(), node);
+    marginEntryContextContains?.(fabTargetAt(), node);
 
   function mount() {
     holdToRead();

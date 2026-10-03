@@ -13,6 +13,7 @@ import http.cookiejar
 import json
 import os
 import secrets
+import select
 import shlex
 import shutil
 import socket
@@ -1151,7 +1152,7 @@ HELD_LEASES = []
 
 
 def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the same contentless lease as a live `server run`."""
+    """Hold the serving incarnation lease of a live `server run`."""
     directory.mkdir(parents=True, exist_ok=True)
     service = {
         "host": "127.0.0.1",
@@ -1164,6 +1165,9 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
     cleanup_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    handle.truncate(0)
+    handle.write(service["server_id"].encode())
+    handle.flush()
     HELD_LEASES.append(handle)
 
 
@@ -1449,26 +1453,34 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
 import json, sys
 from pathlib import Path
 from leaf.hosting import start_server
-from leaf.service import starting_claim
+from leaf.service import claim_page
 page = Path(sys.argv[1])
-with starting_claim(page):
-    url, _ = start_server(page)
-print(json.dumps({"url": url}))
+claim_page(page)
+started = start_server(page)
+print(json.dumps({"url": started.url}))
 """
+    release_start = tmp_path / "release-page-host"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    try:
+        assert select.select([started.stdout], [], [], 30)[0], (
+            "Page start did not finish"
+        )
+        announcement = started.stdout.readline()
+        assert json.loads(announcement)["url"].startswith("http://127.0.0.1:")
+        # Transfer the fixture lifetime while its original host is still alive;
+        # a session-bound server may retire as soon as that host exits.
+        bind_task_lifetime_to_worker(page)
+    finally:
+        release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
-    assert json.loads(out)["url"].startswith("http://127.0.0.1:")
-    # The fake codex wrapper exits with this one command; a real Codex session
-    # stays above later hook calls. Keep that session lifetime true for tests
-    # using this fixture after the launch itself has been verified.
-    bind_task_lifetime_to_worker(page)
     return page
 
 

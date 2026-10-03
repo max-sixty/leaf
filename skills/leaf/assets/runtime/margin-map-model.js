@@ -9,6 +9,7 @@ import {
 } from "./contribution-model.js";
 
 import { contributionItemKey } from "./contribution-model.js";
+import { annotationItems } from "./margin-model.js";
 
 function dialogControls(entry) {
   const records = entry.offers
@@ -35,10 +36,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
   return Object.freeze(
     entries.map((entry) => {
       const controls = dialogControls(entry);
-      const controlOwners = new Set(controls.map(({ record }) => record.owner));
-      const items = entry.items.filter(
-        (item) => !item.owner || !controlOwners.has(item.owner),
-      );
+      const items = annotationItems(entry);
       const actions = [
         ...items.map((item) => {
           const face = faceFor(item);

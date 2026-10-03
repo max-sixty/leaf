@@ -42,6 +42,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
@@ -74,6 +75,9 @@ WATCHER_PACKAGE = "watchfiles>=1.1.0"
 # The quiet gap that closes an editor's save batch (`step`), and the idle wake-up at
 # which the watcher re-reads the server's liveness (`rust_timeout`).
 WATCH_INTERVAL_MS = 250
+# A refused bind is retried without requiring the author to edit the page. Keep
+# starts apart while the port is occupied; repeat diagnostics only when they change.
+REVIVE_INTERVAL_SECS = 1
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
@@ -246,6 +250,9 @@ class PreviewService:
         self.user = user
         self.temporary = None
         self.address: dict = {}
+        self.revive_at = 0.0
+        self.revive_refusal: str | None = None
+        self.claim: dict | None = None
 
     def start(self) -> tuple[str, str]:
         """Put the server up for the first time and report its URL and lifetime
@@ -255,23 +262,34 @@ class PreviewService:
 
         if not self.user:
             return self._serve_temporary()
-        return claim_and_start(self.page)
+        with claim_and_start(self.page) as started:
+            self.claim = started.claim
+        return started.url, started.note
 
     def serve_again(self) -> None:
-        """Put a `--user` service that is down but still wanted back up, or say
-        why not.
+        """Put a `--user` service that is down but still wanted back up.
 
         A revival: it claims nothing, since the claim the first start took is
         still this session's and taking it again would reopen a turn the Stop hook
         closed, and it starts only a service still enabled, so a stop that lands
-        first is kept."""
+        first is kept. A refused start is retried on later watcher polls; the same
+        refusal is printed once while it stands."""
         from leaf.detached import StartRefused
         from leaf.hosting import start_server
 
+        if time.monotonic() < self.revive_at:
+            return
         try:
             start_server(self.page, revive=True)
         except StartRefused as error:
-            print(error, file=sys.stderr, flush=True)
+            refusal = str(error)
+            if refusal != self.revive_refusal:
+                print(refusal, file=sys.stderr, flush=True)
+            self.revive_refusal = refusal
+            self.revive_at = time.monotonic() + REVIVE_INTERVAL_SECS
+        else:
+            self.revive_refusal = None
+            self.revive_at = 0.0
 
     @contextlib.contextmanager
     def replacing(self):
@@ -309,7 +327,7 @@ class PreviewService:
         from leaf.hosting import cmd_stop
 
         if self.user:
-            cmd_stop(self.page)
+            cmd_stop(self.page, owner=self.claim)
         else:
             self._close_temporary()
 
@@ -330,18 +348,19 @@ class PreviewService:
 
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` re-vendored but could not start again (the
-        recorded port was taken), and the next update tries it again."""
+        recorded port was taken), and the watcher tries it again."""
         from leaf.files import read_json
-        from leaf.host import session_harness
-        from leaf.service import PageTransaction
+        from leaf.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
         service = read_json(self.page / "service.json")
         if not service or not service["enabled"]:
             return True
-        with PageTransaction(self.page) as transaction:
-            return not transaction.owned_by(session_harness())
+        claim = page_claim(self.page)
+        return not same_claim(claim, self.claim) or (
+            claim is not None and not claim_is_active(claim)
+        )
 
 
 def refresh_preview(
@@ -598,8 +617,10 @@ def serve_preview(
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = {path for _, path in next(changes)}
-            if not service.running and service.ended:
+            if service.ended:
                 return  # the service was stopped, or the owning session ended
+            if service.user and not service.running:
+                service.serve_again()
             if not reported:
                 continue  # the idle wake-up that carried the check above
             # An added input is only in the reading taken after it arrived, and a
@@ -628,7 +649,7 @@ def serve_preview(
             watched = rebuilt
             if service.user and not service.running:
                 # A server that died, or that a re-vendor could not start again,
-                # which said why. Each later update is another try.
+                # which said why. The next watcher poll is another try.
                 service.serve_again()
             if refreshed and service.running:
                 print(f"Reloaded {source.stem}", flush=True)

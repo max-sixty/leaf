@@ -5,16 +5,16 @@
  * supply target existence, surface admission, drawing placement or travel.
  */
 
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "/runtime/rendering.js";
 import {
   targetElement,
   targetParts,
   targetSegments,
   targetSurface,
-} from "./resolved-target.js";
-import { elementFromPointAcross, pageWords, rangeOf } from "./passages.js";
-import { bareReaction } from "./thread/model.js";
-import { under } from "./shadow.js";
+} from "/runtime/resolved-target.js";
+import { elementFromPointAcross, pageWords, rangeOf } from "/runtime/passages.js";
+import { bareReaction } from "/runtime/thread/model.js";
+import { under } from "/runtime/shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";

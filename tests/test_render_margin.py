@@ -227,7 +227,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     page.evaluate(
         """async () => {
           const {layoutMarginRows} =
-            await window.__lfRuntimeImport('/runtime/margin-layout.js');
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
           layoutMarginRows();
         }"""
     )
@@ -239,7 +239,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/margin-layout.js');
+          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -7711,8 +7711,9 @@ def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, ser
     )
 
 
-def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, serve):
-    """News preserves the reading edge; scrolling into room releases its old cap."""
+@pytest.mark.parametrize("repeats", [2, 12])
+def test_a_thread_uses_room_the_page_gives_it(browser, serve, repeats):
+    """A scroll into room expands clipped turns, whether or not the whole thread fits."""
     source = leaf_page(
         "Room for a conversation",
         '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
@@ -7740,7 +7741,7 @@ def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, ser
             "parent": LONG_THREAD_ROOT["id"],
             "text": "One shared geometry reading can simplify the render gate while "
             "individual tests keep their assertions. The experiment checks that "
-            "taking those readings together still detects known faults. " * 2,
+            "taking those readings together still detects known faults. " * repeats,
         },
     )
     told(page)
@@ -7748,9 +7749,14 @@ def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, ser
     rendered(page)
     assert preview.bounding_box()["y"] == pytest.approx(top, abs=0.5)
     assert transcript.evaluate("node => node.scrollHeight > node.clientHeight")
+    cramped = transcript.evaluate("node => node.clientHeight")
     page.evaluate("scrollBy(0, 400)")
     rendered(page)
-    assert transcript.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    assert transcript.evaluate("node => node.clientHeight") > cramped + (
+        150 if repeats == 2 else 300
+    )
+    if repeats == 2:
+        assert transcript.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     assert preview.bounding_box()["y"] == pytest.approx(top - 400, abs=0.5)
 
 
@@ -10436,3 +10442,257 @@ def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
         page.locator("#row-1").evaluate("node => node.getBoundingClientRect().top")
         < 150
     )
+
+
+def page_annotation_rail_source():
+    return leaf_page(
+        "Authored annotations",
+        """
+      <h1>Authored annotations</h1>
+      <p id="subject">An exact passage remains here.</p>
+      <lf-annotation-rail id="annotations"></lf-annotation-rail>
+      <textarea id="elsewhere" aria-label="Elsewhere"></textarea>
+    """,
+        head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
+    ).replace("<body>", '<body data-annotations="page">')
+
+
+def test_rail_native_comment_and_retained_reply(browser, serve):
+    page = open_page(browser, serve(page_annotation_rail_source()))
+    rail = page.locator("lf-annotation-rail")
+    page.locator("#subject").click(modifiers=["Alt"])
+    editor = rail.locator(".lf-fab-input")
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    page.evaluate('window.nativeComposer=document.querySelector(".lf-fab-input")')
+    editor.press_sequentially("A comment in the authored rail")
+    page.keyboard.press("Control+Enter")
+    card = rail.locator(".lf-page-thread")
+    expect(card).to_have_count(1)
+    expect(card).to_be_visible()
+    page.evaluate(
+        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{focus:'reply',travel:false});}"""
+    )
+    reply = card.locator("leaf-text")
+    expect(reply).to_be_focused()
+    reply.press_sequentially("A retained rail reply")
+    page.evaluate("""() => {
+      window.railBefore={rail:document.querySelector('lf-annotation-rail'),
+        row:document.querySelector('.lf-ar-entry'),group:document.querySelector('.lf-ar-group'),
+        outlet:document.querySelector('.lf-ar-entry .lf-ar-outlet'),
+        input:document.activeElement};
+      document.activeElement.setSelectionRange(2,7,'backward');
+    }""")
+    page.evaluate("""async () => {
+      const {repaint}=await __lfRuntimeImport('/runtime/repaint.js');
+      repaint();
+      const {whenDocumentPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');
+      await whenDocumentPresented();
+    }""")
+    assert page.evaluate("""() => {
+      const b=railBefore, input=document.activeElement;
+      return b.rail===document.querySelector('lf-annotation-rail') &&
+        b.row===document.querySelector('.lf-ar-entry') && b.row.querySelector('.lf-page-thread').open &&
+        b.group===document.querySelector('.lf-ar-group') &&
+        b.outlet===document.querySelector('.lf-ar-entry .lf-ar-outlet') &&
+        input===b.input && input.value==='A retained rail reply' &&
+        input.selectionStart===2 && input.selectionEnd===7 && input.selectionDirection==='backward';
+    }""")
+    assert (
+        page.evaluate(
+            "document.querySelector('lf-annotation-rail').getBoundingClientRect().height"
+        )
+        == 360
+    )
+    assert page.locator(".lf-margin-projection,.lf-margin-preview").count() == 0
+    resources = page.evaluate(
+        "() => performance.getEntriesByType('resource').map(e=>new URL(e.name).pathname)"
+    )
+    assert not [path for path in resources if "/annotation-overlay/" in path]
+    print(
+        {
+            "rail_height": 360,
+            "native_reply_caret": [2, 7, "backward"],
+            "outlet_identity": "retained",
+        }
+    )
+
+
+def page_annotation_action_source():
+    return leaf_page(
+        "Canonical action rail",
+        """
+      <h1>Canonical action rail</h1><p id="subject">A source for contributed actions.</p>
+      <lf-ask id="choice-question"><h2>Which route?</h2>
+        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-option id="route-b">Route B</lf-option></lf-options>
+      </lf-ask>
+      <lf-draft id="draft"><pre>A draft to revise.</pre></lf-draft>
+      <lf-annotation-rail id="annotations"></lf-annotation-rail>
+    """,
+        head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
+    ).replace("<body>", '<body data-annotations="page">')
+
+
+def test_rail_ask_draft_and_optimistic_undo(browser, serve):
+    page = open_page(browser, serve(page_annotation_action_source()))
+    rail = page.locator("lf-annotation-rail")
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+
+    ask.click()
+    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
+    rail.get_by_role("button", name="Edit draft", exact=True).click()
+    expect(rail.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    editor = page.locator("#draft textarea")
+    expect(editor).to_be_focused()
+    editor.fill("A canonical rail saved this draft.")
+    rail.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator("#draft .lf-draft-body")).to_have_text(
+        "A canonical rail saved this draft."
+    )
+    expect(rail.get_by_role("button", name="Edit draft", exact=True)).to_be_visible()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#route-a .lf-pick").click()
+    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(ask).to_be_visible()
+    holding(page, held, 1, "the optimistic rail choice")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    expect(ask).to_have_count(0)
+    undo(page)
+    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(ask).to_be_visible()
+
+
+def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
+    page = open_page(browser, serve(page_annotation_action_source()))
+    rail = page.locator("lf-annotation-rail")
+    page.locator("#subject").hover()
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    edit = rail.get_by_role("button", name="Edit draft", exact=True)
+    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    edit.click()
+    expect(page.locator("#draft textarea")).to_be_focused()
+    rail.get_by_role("button", name="Cancel", exact=True).click()
+    expect(edit).to_be_visible()
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator(".lf-drawing-pending")).to_have_count(0)
+
+
+def test_rail_holds_foreign_thread_layout_before_existing_actions(browser, serve):
+    """A new conversation cannot push the rail's existing Ask out from under a reader."""
+    page = open_page(browser, serve(page_annotation_action_source()))
+    rail = page.locator("lf-annotation-rail")
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+    before = ask.bounding_box()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-rail-news",
+            "revision": 1,
+            "text": "A new thought about the source",
+            "anchor": {"section": "subject"},
+        },
+    )
+    told(page)
+    expect(rail.locator(".lf-page-thread")).to_have_count(0)
+    expect(
+        rail.get_by_role("button", name="Show updated annotations", exact=True)
+    ).to_be_enabled()
+    assert ask.bounding_box() == before
+    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    expect(rail.locator(".lf-page-thread")).to_have_count(1)
+    expect(rail).to_contain_text("A new thought about the source")
+
+
+def test_rail_holds_source_group_changes_before_existing_actions(browser, serve):
+    """A relocated conversation keeps its source-group allocation until the reader opens it."""
+    source = page_annotation_action_source().replace("height:360px", "height:700px")
+    root = {
+        "id": "0123456789abcdef0123456789abcdef",
+        "kind": "comment",
+        "author": "agent",
+        "agent": "Codex",
+        "session": "pytest-rail-news",
+        "revision": 1,
+        "text": "A current source conversation",
+        "anchor": {"section": "subject"},
+    }
+    page = open_page(browser, serve(source, events=[root]))
+    resized(page, 1400, 1100)
+    rail = page.locator("lf-annotation-rail")
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+    before = ask.bounding_box()
+    page.evaluate("window.railGroup = document.querySelector('.lf-ar-group')")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-rail-news",
+            "revision": 1,
+            "parent": root["id"],
+            "text": "Move the conversation to the decision",
+            "anchor": {"section": "choice-question"},
+        },
+    )
+    told(page)
+    expect(
+        rail.get_by_role("button", name="Show updated annotations", exact=True)
+    ).to_be_enabled()
+    assert ask.bounding_box() == before
+    assert page.evaluate(
+        "document.querySelector('.lf-ar-entry').parentElement.parentElement === railGroup"
+    )
+    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    page.wait_for_function(
+        "document.querySelector('.lf-ar-entry').parentElement.parentElement !== railGroup"
+    )
+    expect(rail.locator(".lf-page-thread")).to_have_count(1)
+
+
+def test_rail_refused_comment_retires_native_thread_and_restores_words(browser, serve):
+    source = page_annotation_action_source().replace("height:360px", "height:700px")
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 1100)
+    rail = page.locator("lf-annotation-rail")
+    page.locator("#subject").click(modifiers=["Alt"])
+    editor = rail.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    editor.press_sequentially("A comment whose words must come back")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("Control+Enter")
+    holding(page, held, 1, "the refused rail comment")
+    expect(rail.locator(".lf-page-thread")).to_have_count(1)
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+    before = ask.bounding_box()
+    held[0].fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "refused rail comment",
+        },
+    )
+    expect(rail.locator(".lf-page-thread")).to_have_count(0)
+    expect(rail.get_by_role("button", name="Open thread", exact=False)).to_have_count(0)
+    assert ask.bounding_box() == before
+    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    expect(rail.locator(".lf-ar-entry")).to_have_count(0)
+    page.locator("#subject").click(modifiers=["Alt"])
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "A comment whose words must come back")
+    consume_browser_errors(page, "400")

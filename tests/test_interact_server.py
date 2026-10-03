@@ -1210,7 +1210,7 @@ def test_server_round_trip(server, page_dir):
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
     assert marker in body
-    assert body.index(marker) < body.index(entry) < body.index(b"</style>")
+    assert body.index(marker) < body.index(entry) < body.index(b"<style>.probe::before")
     # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
@@ -4425,17 +4425,8 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     assert server_model.page_access(page_dir) == service
 
 
-def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spawn):
-    """A serving child whose caller goes away before committing its start
-    withdraws it, and that withdrawal is a transition of its own. A stop arriving
-    after the child took its lease must wait for the lease without holding the
-    transition, or the two block each other forever.
-
-    A caller that reads the announcement and never acknowledges it holds the child
-    there with its lease taken and its record enabled; closing its end of the
-    handshake is the caller leaving.
-    """
-    assert service_model.claim_page(page_dir)
+def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spawn):
+    """Another start cannot adopt a listener its caller has not accepted."""
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -4443,6 +4434,79 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
             "server",
             "_serve",
             str(page_dir),
+            "--standing",
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    end.close()
+    caller.settimeout(30)
+    successor = []
+    attempting = threading.Event()
+
+    def start():
+        attempting.set()
+        successor.append(hosting_model.start_server(page_dir, standing=True))
+
+    starting = threading.Thread(target=start, daemon=True)
+    try:
+        assert "url" in json.loads(caller.makefile("rb").readline())
+        assert files_model.read_json(page_dir / "service.json") is None
+        assert not server_rows_model.row_path(page_dir).exists()
+        starting.start()
+        assert attempting.wait(10)
+        assert leases_model.lock_is_held(page_dir / "server.lock")
+        caller.close()  # Abandon the private listener; the successor must bind its own.
+        assert child.wait(timeout=10) == 0
+        starting.join(timeout=30)
+        assert len(successor) == 1
+        assert fetch(successor[0].url)[0] == 200
+        wait_for(
+            lambda: server_rows_model.read_row(
+                page_dir, server_model.running_server(page_dir)
+            ),
+            bool,
+            failure="the accepted successor did not publish its own serving row",
+        )
+    finally:
+        caller.close()
+        starting.join(timeout=30)
+        hosting_model.cmd_stop(page_dir)
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+def test_private_revival_cannot_advertise_the_previous_serving_row(
+    page_dir, spawn, accepted
+):
+    """The held reservation cannot impersonate a dead committed incarnation."""
+    neighbor = machine_model.state_home() / "pages" / "private-revival"
+    neighbour_page(neighbor, title="Private revival", dead=True, port=0)
+    record_claim(neighbor, id="private-revival")
+    hosting_model.start_server(neighbor, standing=True)
+    previous = server_model.running_server(neighbor)
+    wait_for(
+        lambda: server_rows_model.read_row(neighbor, previous),
+        bool,
+        failure="the original server did not publish its row",
+    )
+    hosting_model.cmd_stop(neighbor)
+    desired = {**files_model.read_json(neighbor / "service.json"), "enabled": True}
+    cleanup_model.write_json(neighbor / "service.json", desired)
+    row_before = server_rows_model.row_path(neighbor).read_bytes()
+    assert presence_model.other_leaves(page_dir) == []
+    caller, end = socket.socketpair()
+    child = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(neighbor),
+            "--standing",
+            "--revive",
             "--handshake",
             str(end.fileno()),
         ],
@@ -4454,26 +4518,105 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     end.close()
     caller.settimeout(30)
     try:
+        with caller.makefile("rb") as announcements:
+            assert json.loads(announcements.readline())["url"] == previous["url"]
+            assert leases_model.lock_is_held(neighbor / "server.lock")
+            assert files_model.read_json(neighbor / "service.json") == desired
+            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert server_model.running_server(neighbor) is None
+            assert presence_model.other_leaves(page_dir) == []
+            if accepted:
+                caller.sendall(b"\n")
+                assert json.loads(announcements.readline())["url"] == previous["url"]
+                rows = wait_for(
+                    lambda: presence_model.other_leaves(page_dir),
+                    lambda rows: len(rows) == 1,
+                    failure="the accepted revival did not publish its own row",
+                )
+                assert rows[0]["title"] == "Private revival"
+                current = server_model.running_server(neighbor)
+                assert current["server_id"] != previous["server_id"]
+                assert (
+                    files_model.read_json(server_rows_model.row_path(neighbor))[
+                        "server_id"
+                    ]
+                    == current["server_id"]
+                )
+        if not accepted:
+            caller.close()
+            assert child.wait(timeout=10) == 0
+            assert files_model.read_json(neighbor / "service.json") == desired
+            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert presence_model.other_leaves(page_dir) == []
+    finally:
+        caller.close()
+        hosting_model.cmd_stop(neighbor)
+        assert child.wait(timeout=10) == 0
+
+
+def test_failed_row_preparation_preserves_the_previous_desired_service(
+    page_dir, monkeypatch
+):
+    """A producer constructor failure publishes neither service nor acquisition."""
+    hosting_model.start_server(page_dir, standing=True)
+    previous = server_model.running_server(page_dir)
+    wait_for(
+        lambda: server_rows_model.read_row(page_dir, previous),
+        bool,
+        failure="the original server did not publish its row",
+    )
+    hosting_model.cmd_stop(page_dir)
+    desired = {**files_model.read_json(page_dir / "service.json"), "enabled": True}
+    cleanup_model.write_json(page_dir / "service.json", desired)
+    row_before = server_rows_model.row_path(page_dir).read_bytes()
+
+    def failed_constructor(*_args):
+        assert server_model.running_server(page_dir) is None
+        raise RuntimeError("row producer cannot be prepared")
+
+    monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
+    with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
+        hosting_model.cmd_serve(page_dir, standing=True, revive=True)
+    assert files_model.read_json(page_dir / "service.json") == desired
+    assert server_rows_model.row_path(page_dir).read_bytes() == row_before
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+    assert server_model.running_server(page_dir) is None
+
+
+def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
+    caller, end = socket.socketpair()
+    child = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page_dir),
+            "--standing",
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    end.close()
+    caller.settimeout(30)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
+        daemon=True,
+    )
+    try:
         assert "url" in json.loads(caller.makefile("rb").readline())
-        service = page_dir / "service.json"
-        assert json.loads(service.read_text())["enabled"]
-        stopped = []
-        stopping = threading.Thread(
-            target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
-            daemon=True,
-        )
         stopping.start()
-        wait_for(
-            lambda: not json.loads(service.read_text())["enabled"],
-            bool,
-            failure="the stop did not disable the record",
-        )
+        assert files_model.read_json(page_dir / "service.json") is None
     finally:
         caller.close()
     stopping.join(timeout=30)
-    assert stopped == [True]
-    assert child.wait(timeout=10) is not None
-    assert not json.loads(service.read_text())["enabled"]
+    assert stopped == [False]
+    assert child.wait(timeout=10) == 0
+    assert files_model.read_json(page_dir / "service.json") is None
 
 
 def test_a_start_whose_caller_left_before_committing_leaves_no_service(
@@ -4492,8 +4635,8 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
 
     with monkeypatch.context() as patched:
         patched.setattr(detached_model.socket.socket, "sendall", interrupted)
-        with pytest.raises(KeyboardInterrupt):
-            hosting_model.claim_and_start(page_dir)
+        with pytest.raises(KeyboardInterrupt), hosting_model.claim_and_start(page_dir):
+            pass
 
     assert not claim_file.exists(), "the uncommitted start kept its claim"
     wait_for(
@@ -4501,13 +4644,18 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
         bool,
         failure="the server stayed up after its caller left uncommitted",
     )
-    assert not json.loads((page_dir / "service.json").read_text())["enabled"]
+    assert files_model.read_json(page_dir / "service.json") is None
 
 
+@pytest.mark.parametrize(
+    "owned,same_session", [(False, False), (True, False), (True, True)]
+)
 def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, owned, same_session
 ):
+    """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
+    owner = service_model.page_claim(page_dir) if owned else None
     assert hosting_model.start_server(page_dir, standing=True)
     transitioned = threading.Event()
     resume = threading.Event()
@@ -4525,7 +4673,10 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
     stopped = []
     stopping = threading.Thread(
-        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
+        target=lambda: stopped.append(
+            hosting_model.cmd_stop(page_dir, **({"owner": owner} if owned else {}))
+        ),
+        daemon=True,
     )
     try:
         stopping.start()
@@ -4535,10 +4686,18 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             bool,
             failure="the first server did not release its lease",
         )
+        if owned:
+            with service_model.PageTransaction(page_dir) as transaction:
+                transaction.take_claim(
+                    host_model.session_harness()
+                    if same_session
+                    else host_model.ClaudeCodeHarness("successor", "Claude")
+                )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
         stopping.join(timeout=3)
         assert stopped == [True]
+        assert bool(server_model.running_server(page_dir)) == owned
     finally:
         resume.set()
         cleanup_model.write_json(
@@ -4692,11 +4851,12 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
 def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
     calls = []
 
-    def start_detached(arguments, **options):
+    @contextmanager
+    def starting_detached(arguments, **options):
         calls.append(arguments)
-        return {"url": "http://127.0.0.1:41234/?t=test"}
+        yield {"url": "http://127.0.0.1:41234/?t=test", "claim": None}
 
-    monkeypatch.setattr(hosting_model, "start_detached", start_detached)
+    monkeypatch.setattr(hosting_model, "starting_detached", starting_detached)
 
     started = hosting_model.start_server(
         page_dir,
@@ -4705,7 +4865,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
         revive=True,
     )
 
-    assert started[0] == "http://127.0.0.1:41234/?t=test"
+    assert started.url == "http://127.0.0.1:41234/?t=test"
     assert calls == [
         [
             "server",
@@ -4731,6 +4891,9 @@ from pathlib import Path
 page = Path(sys.argv[1])
 lease = open(page / "server.lock", "a+b")
 fcntl.flock(lease, fcntl.LOCK_EX)
+lease.truncate(0)
+lease.write(json.loads((page / "service.json").read_text())["server_id"].encode())
+lease.flush()
 print("held", flush=True)
 deadline = time.monotonic() + 60
 while json.loads((page / "service.json").read_text())["enabled"]:
@@ -4751,6 +4914,7 @@ def hold_standing(page: Path, start) -> subprocess.Popen:
             "port": 1,
             "enabled": True,
             "lifetime": "standing",
+            "server_id": "fixture-standing",
         },
     )
     holder = start(
@@ -4981,6 +5145,8 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     assert service_model.claim_path(stopped).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
+    lease.write(files_model.read_json(stopped / "service.json")["server_id"].encode())
+    lease.flush()
     assert titles() == ["Scratch", "Starts later"]
     lease.close()
     assert titles() == ["Scratch"]

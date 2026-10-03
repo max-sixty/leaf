@@ -118,18 +118,18 @@ export function createPageMapDialog({
   let target = null;
   let trackedOffers = new Set();
 
-  const pageMapIsActive = () => dialog.open || activeInAnnotations();
+  const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
 
   function activateItem(item, entry) {
-    releaseAnnotations(entry);
-    const destination = annotationFocus(entry);
+    releaseAnnotations?.(entry);
+    const destination = annotationFocus?.(entry);
     leavePageMap();
     handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
-    inventory.activate(item);
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or Ask retain their own navigation capability.
     if (!destination && targetFor(entry)?.isConnected)
       focusDestination(targetFor(entry));
+    inventory.activate(item);
   }
 
   function pageMapDialogContains(candidate, node) {
@@ -447,7 +447,7 @@ export function createPageMapDialog({
       handBack(
         returnTo,
         pageMapInvoker(),
-        annotationFocus(null),
+        annotationFocus?.(null),
         bannerControlDoor(versionBtn),
       );
     });

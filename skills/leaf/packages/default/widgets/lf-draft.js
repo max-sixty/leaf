@@ -50,8 +50,10 @@
  * the log attempt makes two tabs' Save presses one action, while the instance flag closes
  * this tab's other edit doors during the request.
  *
- * Once an edit exists, a native disclosure compares the authored body with the
- * standing one and lists the widget's absolute edit actions in log order. The runtime
+ * A native disclosure compares the authored body with the standing one and lists
+ * the widget's absolute edit actions in log order. It keeps its allocated summary
+ * from the first reading, including zero edits, so first Save and refusal never add
+ * or remove room after the gesture. The runtime
  * owns that sequence and version boundary; the module owns only
  * its presentation. Restoring a row sends its text as one more ordinary edit, which
  * keeps one state model and lets another tab converge without knowing that the gesture
@@ -501,8 +503,6 @@ customElements.define(
     }
 
     #renderHistory(reading) {
-      this.#paintAvailability();
-      if (this.#sending) return;
       const authored = reading.authored.edit.value;
       const actions = reading.actions.edit.history;
       const standing = reading.state.edit.value;
@@ -513,12 +513,6 @@ customElements.define(
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
-      if (!actions.length && standing === authored) {
-        this.#history?.remove();
-        this.#history = null;
-        return;
-      }
-
       const wasOpen = this.#history?.open ?? false;
       const restoreFocus = this.#history && holdFocus(this.#history);
       const history = offer("details", "lf-draft-history");
@@ -595,7 +589,6 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read());
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
@@ -683,7 +676,6 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read());
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {

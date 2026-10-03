@@ -42,7 +42,6 @@ from interact_support import (
     fifo_writer,
     hold_status_read,
     install_payload,
-    keep_session_alive,
     let_a_pick_settle_a_thread,
     owed,
     page_state,
@@ -10340,7 +10339,8 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
 
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     try:
         wait_for(
             lambda: files_model.read_json(page / "cursor.json"),
@@ -10427,7 +10427,8 @@ def test_a_later_codex_start_names_the_running_transport(
             bool,
             failure="the detached Codex carrier did not start",
         )
-        keep_session_alive(page)
+        claim = service_model.page_claim(page)
+        record_claim(page, **{**claim, "pid": os.getpid()})
         release_start.touch()
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{out}{err}"
@@ -10504,7 +10505,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         bool,
         failure="the detached Codex carrier did not start",
     )
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
+    assert service_model.page_claim(page)["generation"] == claim["generation"]
     release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
@@ -10670,7 +10673,8 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         bool,
         failure="the detached Codex carrier did not start",
     )
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
@@ -10768,7 +10772,8 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
         bool,
         failure="the detached Codex carrier did not start",
     )
-    keep_session_alive(live)
+    claim = service_model.page_claim(live)
+    record_claim(live, **{**claim, "pid": os.getpid()})
     release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
@@ -10832,8 +10837,9 @@ def test_a_codex_adapter_whose_start_was_never_committed_exits(
     and a caller that leaves instead ends it with its leases released."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
+    claim = service_model.page_claim(page)
     # A live owner, so the only thing that can end this adapter is the handshake.
-    keep_session_alive(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     caller, end = socket.socketpair()
     adapter = spawn(
         [
@@ -10869,7 +10875,8 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     adapter = spawn(
         [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
         env=codex_env
@@ -10928,7 +10935,8 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     queue_wait = tmp_path / "held-queue"
     adapter = spawn(
         [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
@@ -11004,7 +11012,8 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         bool,
         failure="the detached Codex carrier did not start",
     )
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
@@ -11157,7 +11166,8 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
             )
             # The starter's process is short lived. Keep the claim active before
             # the adapter can take the exit lock and recheck its watched pages.
-            keep_session_alive(second)
+            claim = service_model.page_claim(second)
+            record_claim(second, **{**claim, "pid": os.getpid()})
 
         out, err = starter.communicate(timeout=60)
         assert starter.returncode == 0, f"{out}{err}"
@@ -11404,7 +11414,8 @@ def test_hook_remedies_follow_the_host_not_the_display_name(
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     waited = under_codex(shlex.join([*LEAF_COMMAND, "wait", str(page)]), env)
     assert waited.wait(timeout=60) == 0
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     session_model.cmd_status(page, "waiting", "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})

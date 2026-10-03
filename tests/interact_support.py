@@ -614,15 +614,24 @@ def record_claim(page, /, harness="claude-code", **fields):
     lifetime = {key: record[key] for key in ("job", "activity") if key in record}
     if not lifetime:
         lifetime = {"pid": record["pid"]}
-    session = cleanup_model.ensure_session(record["id"], lifetime)
-    session = cleanup_model.write_session(
-        {
-            **session,
-            "turn": record["turn"],
-            "turn_opened": record["turn_opened"],
-            "turn_closed": record["turn_closed"],
-        }
-    )
+    turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
+    session = None
+    if "generation" in fields:
+        # Copying a current claim corrects the fake host's lifetime, rather than
+        # replacing its session and briefly leaving that claim without an owner.
+        with cleanup_model.flocked(cleanup_model.session_lock_path(record["id"])):
+            current = cleanup_model.session_record(record["id"])
+            if (
+                current is not None
+                and current["ended"] is None
+                and fields["generation"] == current["generation"]
+            ):
+                session = cleanup_model.write_session(
+                    {**current, "lifetime": lifetime, **turn}
+                )
+    if session is None:
+        session = cleanup_model.ensure_session(record["id"], lifetime)
+        session = cleanup_model.write_session({**session, **turn})
     record = {
         key: value
         for key, value in record.items()
@@ -634,21 +643,6 @@ def record_claim(page, /, harness="claude-code", **fields):
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)
     return service_model.page_claim(page)
-
-
-def keep_session_alive(page):
-    """Let pytest stand for the fake task after its command process exits.
-
-    A process-backed simulated session keeps its generation and page acquisitions.
-    Rebind its process provenance in one atomic session publication, so every page
-    remains owned throughout the handoff. Activity and job lifetimes already
-    outlive the command process and need no handoff.
-    """
-    session_id = service_model.page_claim(page)["id"]
-    with cleanup_model.flocked(cleanup_model.session_lock_path(session_id)):
-        record = cleanup_model.session_record(session_id)
-        if "pid" in record["lifetime"] and record["lifetime"]["pid"] != os.getpid():
-            cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
 
 
 def live_versions(d):
@@ -1468,7 +1462,8 @@ print(json.dumps({"url": url}))
     # The fake codex wrapper exits with this one command; a real Codex session
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
-    keep_session_alive(page)
+    claim = service_model.page_claim(page)
+    record_claim(page, **{**claim, "pid": os.getpid()})
     return page
 
 

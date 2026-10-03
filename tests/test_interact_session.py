@@ -13856,10 +13856,13 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
         "enabled",
         "lifetime",
         "runtime",
+        "server_id",
     }
     assert service["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
-    assert urllib.request.urlopen(state).status == 200
+    response = urllib.request.urlopen(state)
+    assert response.status == 200
+    assert response.headers["Leaf-Server"] == service["server_id"]
 
 
 def test_server_start_forwards_flags_and_returns_service_output(page_dir):

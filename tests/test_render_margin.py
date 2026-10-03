@@ -5248,7 +5248,7 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     # Remove the gallery's sidenote so the column stays centred rather than shifting
     # left to reserve its room. The width is picked for that centred arrangement.
     page.evaluate("document.getElementById('bg-compare-note').remove()")
-    resized(page, 1720, 900)
+    resized(page, 1600, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
     _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")

@@ -396,38 +396,6 @@ def _canonical_workflows(
     return result, aging
 
 
-def declared_activity(status: dict) -> dict:
-    """An activity reading from the agent's declaration alone, in the shape
-    `canonical_activity` returns, for a page whose evidence nobody here reads
-    (`presence.other_leaves`). It has no counts and no deadline, and takes the
-    declaration at its word: working is working, waiting is listening, and idle or
-    anything else is closed."""
-    kind = {"working": "working", "waiting": "listening"}.get(status["state"], "closed")
-    return {
-        "kind": kind,
-        "held": True,
-        "dropped": False,
-        "detail": status.get("detail", "") if kind != "closed" else "",
-        "observed": "",
-        "observed_kind": None,
-        "counts": dict.fromkeys(
-            (
-                "active",
-                "handling",
-                "queued",
-                "picked_up",
-                "pending",
-                "overdue",
-                "total",
-            ),
-            0,
-        ),
-        "ts": status.get("ts"),
-        "next_transition_at": None,
-        "obligations": [],
-    }
-
-
 def canonical_activity(
     present: dict,
     interaction_evidence: list[dict],

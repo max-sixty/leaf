@@ -361,6 +361,7 @@ def _service_record(
         "enabled": True,
         "lifetime": lifetime,
         "runtime": runtime,
+        "server_id": httpd.server_id,
     }
 
 
@@ -410,6 +411,10 @@ def cmd_serve(
     try:
         if handshake is None and claimed:
             session_harness().ensure_delivery()
+        if httpd is not None:
+            from .server_rows import RowPublisher
+
+            rows = RowPublisher(page_dir, httpd.server_id)
         announced = _announce_server(page_dir, url, handshake)
         if httpd is None:
             return
@@ -420,6 +425,7 @@ def cmd_serve(
             with page_locked(page_dir):
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             return
+        threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),

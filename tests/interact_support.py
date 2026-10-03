@@ -48,6 +48,7 @@ from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -1158,6 +1159,7 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "server_id": "fixture-server",
     }
     cleanup_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
@@ -1234,7 +1236,7 @@ def fresh_process():
         page_memory_model._memories = kept
 
 
-def neighbour_page(directory, title=None, dead=False, published=True):
+def neighbour_page(directory, title=None, dead=False, published=True, port=59999):
     """A page with desired service state and, unless dead, a live lease."""
     directory.mkdir(parents=True)
     (directory / "revisions").mkdir()
@@ -1263,21 +1265,23 @@ def neighbour_page(directory, title=None, dead=False, published=True):
                 "text": "t",
             },
         )
-    record = {"port": 59999}
+    record = {"port": port}
     if dead:
         cleanup_model.write_json(
             directory / "service.json",
             {
                 "host": "127.0.0.1",
                 "bind": "127.0.0.1",
-                "port": 59999,
+                "port": port,
                 "enabled": True,
                 "lifetime": "standing",
+                "server_id": "fixture-server",
             },
         )
     else:
         serving(directory, record["port"])
-    return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
+    server_rows_model.RowPublisher(directory, "fixture-server").refresh()
+    return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
 
 def _status(page_dir, *args):

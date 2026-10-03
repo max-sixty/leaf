@@ -44,6 +44,27 @@ def test_an_explicit_line_break_separates_quoted_words():
     )
 
 
+def test_an_empty_quote_neighbour_is_an_exact_boundary():
+    """The browser treats a missing side as the page edge, never a wildcard."""
+    from leaf.anchor_capture import resolve_quote
+
+    anchor = {"section": "labels", "quote": "Alpha", "suffix": "Beta Alpha Beta"}
+    previous = passages_model.page_passages(
+        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta</p>')
+    )
+    revised = passages_model.page_passages(
+        structure_model.SourceDocument('<p id="labels">Start Alpha Beta Alpha Beta</p>')
+    )
+    assert resolve_quote(previous, anchor) == 0
+    assert resolve_quote(revised, anchor) is None
+    anchor = {"section": "labels", "quote": "Beta", "prefix": "Alpha Beta Alpha"}
+    revised = passages_model.page_passages(
+        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta End</p>')
+    )
+    assert resolve_quote(previous, anchor) is not None
+    assert resolve_quote(revised, anchor) is None
+
+
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
     result = comment(
         published(page_dir), "--quote", "Ship dark", "--text", "dark for how long?"
@@ -569,6 +590,427 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
 
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
+
+
+def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_dir):
+    """A source save repairs all affected threads, including those not answered.
+
+    Opening records remain historical, closed threads and bare reactions do not
+    hold the revision, and automatic anchor bookkeeping leaves messages and exact
+    response obligations intact. Repeated reads append no duplicate transition.
+    """
+    original = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2><table id="labels"><tr><th>Alpha</th><th>Gamma</th><th>Unchanged</th></tr></table>',
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = {}
+    for quote in ("Alpha", "Gamma", "Unchanged"):
+        roots[quote] = json.loads(
+            comment(page_dir, "--quote", quote, "--text", f"About {quote}").output
+        )
+    closed = json.loads(
+        comment(page_dir, "--quote", "Gamma", "--text", "Already settled").output
+    )
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": closed["id"]}
+    )
+    user_reply = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": roots["Gamma"]["id"],
+            "text": "Please revise this too.",
+        },
+    )
+    reaction = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": roots["Alpha"]["anchor"],
+            "token": "shorten",
+        },
+    )
+    before = state_json(page_dir)["activity"]["obligations"]
+    assert before
+    messages = [
+        e
+        for e in events_model.read_events(page_dir)
+        if e["kind"] in {"comment", "reply"}
+    ]
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha", "Beta").replace("Gamma", "Delta")
+    )
+    checked = check(page_dir)
+    assert checked.exit_code == 0, checked.output
+    assert all(
+        root["id"] in checked.output for root in (roots["Alpha"], roots["Gamma"])
+    )
+    assert f"--for {user_reply['id']}" in checked.output
+    assert roots["Unchanged"]["id"] not in checked.output
+    assert closed["id"] not in checked.output
+    assert not any(e["kind"] == "reanchor" for e in events_model.read_events(page_dir))
+    state = state_json(page_dir)
+    threads = {t["id"]: t for t in state["threads"]}
+    for quote in ("Alpha", "Gamma"):
+        assert threads[roots[quote]["id"]]["anchor"] == {"section": "labels"}
+    assert threads[roots["Unchanged"]["id"]]["anchor"] == roots["Unchanged"]["anchor"]
+    assert threads[closed["id"]]["anchor"] == closed["anchor"]
+    assert reaction["id"] not in threads
+    assert state["activity"]["obligations"] == before
+    events = events_model.read_events(page_dir)
+    moves = [e for e in events if e["kind"] == "reanchor"]
+    assert {e["thread"] for e in moves} == {roots[q]["id"] for q in ("Alpha", "Gamma")}
+    assert all(
+        e["revision"] == 2 and e["author"] == "page" and not e["attention"]
+        for e in moves
+    )
+    assert [e for e in events if e["kind"] in {"comment", "reply"}] == messages
+    assert all(
+        e["anchor"] == root["anchor"]
+        for q, root in roots.items()
+        for e in events
+        if e["id"] == root["id"]
+    )
+    state_json(page_dir)
+    assert events_model.read_events(page_dir) == events
+
+    from leaf.events import build_threads
+    from leaf.thread_context import sample_events
+
+    document = structure_model.SourceDocument((page_dir / "index.html").read_text())
+    selected = {roots["Alpha"]["id"], roots["Gamma"]["id"]}
+    copied = sample_events(document, events, selected)
+    assert len([e for e in copied if e["kind"] == "reanchor"]) == 2
+    child_threads = build_threads(copied, document.within)
+    assert all(
+        child_threads[identity]["anchor"] == {"section": "labels"}
+        for identity in selected
+    )
+
+
+def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", q, "--text", q).output)
+        for q in ("Alpha", "Gamma")
+    ]
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha and Gamma", "Beta and Delta")
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            roots[0]["id"],
+            "--quote",
+            "Beta",
+            "--text",
+            "Revised this.",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    reply = json.loads(result.output)
+    assert reply["anchor"]["quote"] == "Beta"
+    threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
+    assert threads[roots[0]["id"]]["anchor"] == reply["anchor"]
+    assert threads[roots[1]["id"]]["anchor"] == {"section": "wording"}
+    moves = [e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"]
+    assert [e["thread"] for e in moves] == [roots[1]["id"]]
+
+
+def test_a_quote_without_a_section_requires_the_authors_replacement(page_dir):
+    original = PAGE.replace("</main>", "<p>Alpha</p></main>")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(
+            page_dir, "--quote", "Alpha", "--text", "Keep this discussion attached."
+        ).output
+    )
+    assert root["anchor"]["section"] is None
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
+    checked = check(page_dir)
+    assert checked.exit_code == 1
+    assert root["id"] in checked.output and "no surviving section" in checked.output
+    assert files_model.latest_revision(page_dir) == 1
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--quote",
+            "Beta",
+            "--text",
+            "Updated the same subject.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    assert json.loads(moved.output)["anchor"]["quote"] == "Beta"
+
+
+def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
+    from leaf.events import build_threads
+
+    original = SUGGESTED.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Discuss this.").output
+    )
+    anchored = original.replace(
+        '<lf-suggestion id="sug-refill">',
+        f'<lf-suggestion id="sug-refill" resolves="{root["id"]}">',
+    )
+    (page_dir / "index.html").write_text(anchored)
+    assert stamp(page_dir, "Proposal").exit_code == 0
+    decide(page_dir, "accept")
+    assert build_threads(events_model.read_events(page_dir), {})[root["id"]]["resolved"]
+    revised = (
+        anchored.replace("Alpha", "Beta")
+        .replace(
+            '<lf-suggestion id="sug-refill"', '<lf-suggestion restated id="sug-refill"'
+        )
+        .replace(
+            "Refill when the camera shows it half-empty.", "Refill every afternoon."
+        )
+    )
+    (page_dir / "index.html").write_text(revised)
+    result = stamp(page_dir, "Revised the proposal")
+    assert result.exit_code == 0, result.output
+    events = events_model.read_events(page_dir)
+    thread = build_threads(events, {})[root["id"]]
+    assert not thread["resolved"] and thread["anchor"] == {"section": "wording"}
+    assert events[-1]["kind"] == "reanchor" and events[-1]["revision"] == 3
+
+
+def test_quote_preservation_reads_restated_body_at_the_candidate_revision(page_dir):
+    (page_dir / "index.html").write_text(DRAFTED)
+    publish(page_dir)
+    edit(page_dir, "Alpha")
+    root = json.loads(
+        comment(
+            page_dir, "--section", "note", "--quote", "Alpha", "--text", "Discuss this."
+        ).output
+    )
+    revised = DRAFTED.replace(
+        '<lf-draft id="note">', '<lf-draft id="note" restated>'
+    ).replace("Adds --dry-run to every mutating command.", "Beta")
+    (page_dir / "index.html").write_text(revised)
+    result = stamp(page_dir, "Restated the draft")
+    assert result.exit_code == 0, result.output
+    thread = next(
+        thread
+        for thread in state_json(page_dir)["threads"]
+        if thread["id"] == root["id"]
+    )
+    assert thread["anchor"] == {"section": "note"}
+
+
+def test_a_stamp_refuses_a_reopened_quote_without_a_surviving_section(page_dir):
+    original = SUGGESTED.replace("</main>", "<p>Alpha</p></main>")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Discuss this.").output
+    )
+    anchored = original.replace(
+        '<lf-suggestion id="sug-refill">',
+        f'<lf-suggestion id="sug-refill" resolves="{root["id"]}">',
+    )
+    (page_dir / "index.html").write_text(anchored)
+    assert stamp(page_dir, "Proposal").exit_code == 0
+    decide(page_dir, "accept")
+    before = events_model.read_events(page_dir)
+    revised = (
+        anchored.replace("Alpha", "Beta")
+        .replace(
+            '<lf-suggestion id="sug-refill"', '<lf-suggestion restated id="sug-refill"'
+        )
+        .replace(
+            "Refill when the camera shows it half-empty.", "Refill every afternoon."
+        )
+    )
+    (page_dir / "index.html").write_text(revised)
+    result = stamp(page_dir, "Revised the proposal")
+    assert result.exit_code == 1 and "no surviving section" in result.output
+    assert files_model.latest_revision(page_dir) == 2
+    assert events_model.read_events(page_dir) == before
+
+
+def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
+    original = PAGE.replace("<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>')
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
+    )
+    before = events_model.read_events(page_dir)
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
+    refused = stamp(page_dir, "Revised", completes=("unknown-widget",))
+    assert refused.exit_code == 1 and "no active widget work claim" in refused.output
+    assert files_model.latest_revision(page_dir) == 1
+    assert events_model.read_events(page_dir) == before
+    accepted = stamp(page_dir, "Revised")
+    assert accepted.exit_code == 0, accepted.output
+    events = events_model.read_events(page_dir)
+    assert events[-1]["kind"] == "reanchor" and events[-1]["thread"] == root["id"]
+    assert events[-2]["kind"] == "note" and events[-2]["revision"] == 2
+
+
+def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
+    page_dir, monkeypatch
+):
+    from leaf import revisioning
+    from leaf.service import PageTransaction
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", quote, "--text", "Keep this").output)
+        for quote in ("Alpha", "Gamma")
+    ]
+    revised = original.replace("Alpha Gamma", "Beta Delta")
+    (page_dir / "index.html").write_text(revised)
+    append = revisioning.append_admitted
+
+    def interrupted(page, event, **kwargs):
+        accepted = append(page, event, **kwargs)
+        if event["kind"] == "note":
+            raise RuntimeError("interrupted after durable note")
+        return accepted
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "append_admitted", interrupted)
+        refused = stamp(page_dir, "Revised")
+        assert isinstance(refused.exception, RuntimeError)
+    assert files_model.latest_revision(page_dir) == 1
+    pending = events_model.read_events(page_dir)
+    assert pending[-1]["kind"] == "note" and pending[-1]["revision"] == 2
+    assert not any(e["kind"] == "reanchor" for e in pending)
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha Gamma", "Later unrelated edit")
+    )
+    with PageTransaction(page_dir) as page:
+        assert files_model.latest_revision(page_dir) == 2
+        assert files_model.revision_path(page_dir, 2).read_text() == revised
+        moves = [event for event in page.events if event["kind"] == "reanchor"]
+        assert {event["thread"] for event in moves} == {root["id"] for root in roots}
+    recovered = events_model.read_events(page_dir)
+    with PageTransaction(page_dir):
+        pass
+    assert events_model.read_events(page_dir) == recovered
+
+
+def test_an_explicit_replacement_is_durable_before_its_revision_appears(
+    page_dir, monkeypatch
+):
+    from leaf import revisioning
+    from leaf.service import PageTransaction
+
+    original = PAGE.replace("</main>", "<p>Alpha</p></main>")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
+    )
+    revised = original.replace("Alpha", "Beta")
+    (page_dir / "index.html").write_text(revised)
+    args = [
+        "thread",
+        "reply",
+        str(page_dir),
+        root["id"],
+        "--quote",
+        "Beta",
+        "--text",
+        "Revised this.",
+    ]
+
+    def interrupted(*args, **kwargs):
+        raise RuntimeError("interrupted before required reply")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "append_admitted", interrupted)
+        refused = CliRunner().invoke(cli_model.cli, args)
+        assert isinstance(refused.exception, RuntimeError)
+    with PageTransaction(page_dir) as page:
+        assert files_model.latest_revision(page_dir) == 1
+        assert not any(event["kind"] == "reply" for event in page.events)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "publish_artifact", interrupted)
+        refused = CliRunner().invoke(cli_model.cli, args)
+        assert isinstance(refused.exception, RuntimeError)
+    assert files_model.latest_revision(page_dir) == 1
+    pending = events_model.read_events(page_dir)
+    assert pending[-1]["kind"] == "reply" and pending[-1]["anchor"]["quote"] == "Beta"
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Gamma"))
+    with PageTransaction(page_dir) as page:
+        assert files_model.latest_revision(page_dir) == 2
+        assert files_model.revision_path(page_dir, 2).read_text() == revised
+        assert page.events == pending
+
+
+def test_an_interrupted_activation_finishes_all_anchor_transitions(
+    page_dir, monkeypatch
+):
+    from leaf import revisioning
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", q, "--text", q).output)
+        for q in ("Alpha", "Gamma")
+    ]
+    (page_dir / "index.html").write_text(original.replace("Alpha Gamma", "Beta Delta"))
+    append = revisioning.append_admitted
+
+    def interrupted(page, event, **kwargs):
+        append(page, event, **kwargs)
+        raise RuntimeError("interrupted after one anchor append")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "append_admitted", interrupted)
+        import pytest
+
+        with pytest.raises(RuntimeError, match="interrupted after"):
+            revisioning.activate_source(page_dir)
+    assert files_model.latest_revision(page_dir) == 1
+    assert (
+        len([e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"])
+        == 1
+    )
+    recovered = revisioning.activate_source(page_dir)
+    assert recovered.error is None and recovered.revision == 2 and not recovered.created
+    threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
+    assert all(
+        threads[root["id"]]["anchor"] == {"section": "wording"} for root in roots
+    )
+    assert (
+        len([e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"])
+        == 2
+    )
 
 
 def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir):

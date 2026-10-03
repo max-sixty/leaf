@@ -12,7 +12,11 @@ manifest determines its digest, and carries a second ``executable`` digest over
 the inputs an already-open document cannot re-evaluate in place. The HTML
 revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
-including after a process crash.
+including after a process crash. A publication that also changes the log stages
+its bundle, records the exact bundle name in its first admitted prerequisite,
+and publishes this marker only after all dependent transitions are durable.
+`revisioning.finish_publications` completes that sequence before transaction
+consumers read the page.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
 revision, owning its manifest, captured vocabulary, parsed document, and passage
@@ -677,23 +681,14 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
-def write_artifact(
-    page_dir: Path,
-    revision: int,
-    artifact: RevisionArtifact,
-    reading: SourceReading,
-) -> Path:
-    """Publish a complete immutable bundle, then its discoverable HTML marker.
-
-    `reading` is the checked candidate's document under the vocabulary the artifact
-    captured; the new revision's held reading adopts it (`read_revision`)."""
+def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
+    """Make exact immutable inputs durable, without making a revision discoverable."""
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
         raise ArtifactError(f"revision r{revision} already exists")
     name = artifact_name(revision, artifact)
     destination = revisions / name
-    marker = revisions / f"{name}.html"
     if not destination.exists():
         with tempfile.TemporaryDirectory(
             prefix=".capture-", dir=revisions
@@ -721,6 +716,22 @@ def write_artifact(
             fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
+    return name
+
+
+def staged_reading(page_dir: Path, name: str) -> SourceReading:
+    """Read the exact durable bundle named by an admitted publication prerequisite."""
+    bundle = page_dir / "revisions" / name
+    return SourceReading(
+        SourceDocument((bundle / "index.html").read_bytes().decode("utf-8")),
+        _shared_registry((bundle / "resources" / "registry.json").read_bytes()),
+    )
+
+
+def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
+    """Commit a staged bundle only after its dependent log transitions are durable."""
+    destination = page_dir / "revisions" / name
+    marker = destination.with_name(f"{name}.html")
     os.link(destination / "index.html", marker)
     fsync_parents([marker])
     marker = marker.absolute()
@@ -728,6 +739,15 @@ def write_artifact(
         marker, file_stamp(marker), RevisionReading(marker, reading)
     )
     return marker
+
+
+def write_artifact(
+    page_dir: Path, revision: int, artifact: RevisionArtifact, reading: SourceReading
+) -> Path:
+    """Publish a complete bundle whose revision has no prerequisite log transitions."""
+    return publish_artifact(
+        page_dir, stage_artifact(page_dir, revision, artifact), reading
+    )
 
 
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:

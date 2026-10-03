@@ -84,6 +84,45 @@ class PageView:
         return claim_update_sources(read_status(self._page_dir))
 
 
+class CandidatePageView(PageView):
+    """Admission against checked immutable inputs before their revision is exposed."""
+
+    def __init__(
+        self, page_dir: Path, revision: int, reading: SourceReading, publication: str
+    ):
+        super().__init__(page_dir)
+        self._revision = revision
+        self._reading = reading
+        self.publication = publication
+
+    @property
+    def revisions(self) -> list[int]:
+        return [*super().revisions, self._revision]
+
+    def document(self, revision: int) -> SourceDocument:
+        return (
+            self._reading.document
+            if revision == self._revision
+            else super().document(revision)
+        )
+
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        if revision == self._revision:
+            return SourceReading(self._reading.document, registry)
+        return super().reading(revision, registry)
+
+    def registry(self, revision: int | None) -> dict | None:
+        return (
+            self._reading.registry
+            if revision == self._revision
+            else super().registry(revision)
+        )
+
+    @property
+    def within(self) -> dict:
+        return self._reading.within
+
+
 class InitialPageView:
     """A fresh single-revision page, before its directory is allocated.
 

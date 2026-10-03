@@ -48,6 +48,7 @@ import { pageScroller } from "./scrolling.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
 import { reveal } from "./widget-elements.js";
+import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { rangeOf } from "./passages.js";
@@ -409,7 +410,7 @@ export function createAnchorTravel({
     { focus = null, keep = false, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
-    const thread = currentThreads().find((candidate) => candidate.id === id);
+    const thread = threadNames(currentThreads()).get(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating =

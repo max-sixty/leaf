@@ -6670,14 +6670,6 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3: scoped board margins prevent the wide card from taking "
-        "its room, so its suggestion controls stay in the rail instead of pinning"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
     and reads as it will once the change is settled. The row is the column's own
@@ -6803,14 +6795,6 @@ def test_the_page_says_a_change_is_only_proposed(browser, serve):
         )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3: scoped board margins keep the moved card in the column "
-        "while its suggestion controls stand in the rail beyond the card"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     """The row is the column's child, not the change's, so the subtree a card
     travels in no longer carries it: a card dragged to another column, or moved by
@@ -10533,6 +10517,398 @@ def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
     return page
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
+    """A new patch changes evidence, while wrap, file disclosure and reading position
+    belong to the reader inspecting the same files."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    value = patch_manifest if manifest else lambda patch: patch
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
+    page = open_page(browser, url)
+    wrap = page.locator("lf-diff .lf-diff-wrap")
+    wrap.click()
+    page.locator("lf-diff summary").last.click()
+    search = page.locator("lf-diff .lf-diff-search input")
+    search.fill("handlers")
+    row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",81]\']')
+    row.scroll_into_view_if_needed()
+    scroll_settled(page)
+    reading = """() => {
+      const diff = document.querySelector('lf-diff');
+      return {scroll: scrollY, wrap: diff.wrapped(),
+              files: diff.shownEntries().map(entry => entry.record.path),
+              open: diff.fileEntries.map(entry => entry.details.open),
+              focus: diff.shadowRoot.activeElement?.className,
+              top: diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]').getBoundingClientRect().top};
+    }"""
+    before = page.evaluate(reading)
+    assert before["wrap"]
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        value(MULTI_HUNK_PATCH.replace("new route", "new routing")),
+    )
+    told(page)
+    rendered(page)
+    after = page.evaluate(reading)
+    expect(search).to_have_value("handlers")
+    assert after == before, (before, after)
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve, manifest):
+    """Replacing a file's evidence retains its code scrollport and focused line."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    value = patch_manifest if manifest else lambda patch: patch
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
+    page = open_page(browser, url)
+    page.locator("lf-diff summary").first.click()
+    page.keyboard.press("Tab")
+    page.locator("lf-diff summary").first.focus()
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("]")
+    page.keyboard.press("]")
+    page.keyboard.press("]")
+    reading = """() => {
+      const diff = document.querySelector('lf-diff');
+      const row = diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]');
+      return {scroll: scrollY, sideways: row.closest('code').scrollLeft,
+              focus: diff.shadowRoot.activeElement?.dataset.lfDatum};
+    }"""
+    page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",81]\']').evaluate(
+        "row => { row.closest('code').scrollLeft = 200; }"
+    )
+    scroll_settled(page)
+    before = page.evaluate(reading)
+    assert before["sideways"] == 200
+    assert before["focus"] is not None
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        value(MULTI_HUNK_PATCH.replace("new first", "new beginning")),
+    )
+    told(page)
+    rendered(page)
+    after = page.evaluate(reading)
+    assert after == before, (before, after)
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("inserts_line", [False, True])
+def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
+    browser, serve, manifest, inserts_line
+):
+    """A change in another hunk does not take the passage the reader selected."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    value = patch_manifest if manifest else lambda patch: patch
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
+    page = open_page(browser, url)
+    row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",41]\']')
+    row.scroll_into_view_if_needed()
+    ends = row.evaluate("""row => {
+      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const start = node.textContent.indexOf('second');
+        if (start < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, start); range.setEnd(node, start + 'second'.length);
+        const box = range.getBoundingClientRect();
+        return [[box.left, box.top + box.height / 2], [box.right, box.top + box.height / 2]];
+      }
+    }""")
+    select(page, *ends)
+    before = page.evaluate("() => getSelection().toString()")
+    assert before == "second"
+    patch = MULTI_HUNK_PATCH.replace("new first", "new beginning")
+    if inserts_line:
+        patch = patch.replace("@@ -1,5 +1,5 @@", "@@ -1,5 +1,6 @@").replace(
+            '+    return "new beginning"\n',
+            '+    return "new beginning"\n+    inserted = True\n',
+        )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+    told(page)
+    rendered(page)
+    assert page.evaluate("() => getSelection().toString()") == before
+    gutters = page.evaluate("""() => {
+      const widget = document.querySelector('lf-diff');
+      const entry = widget.fileEntries[0];
+      return entry.lines.map(line => {
+        const {gutterRow} = widget.threadPair(line.node);
+        const number = String(line.side === 'old' ? line.oldLine : line.newLine);
+        return {
+          datum: line.node.dataset.lfDatum,
+          commentInPairedGutter: line.comment.isConnected && line.comment.parentElement === gutterRow,
+          column: gutterRow.dataset.columnNumber,
+          label: gutterRow.querySelector('[data-line-number-content]').textContent,
+          expected: number,
+          lineTypeMatches: gutterRow.dataset.lineType === line.node.dataset.lineType,
+          commentCount: gutterRow.querySelectorAll('.lf-diff-line-comment').length,
+        };
+      });
+    }""")
+    assert all(
+        gutter["commentInPairedGutter"]
+        and gutter["column"] == gutter["expected"]
+        and gutter["label"] == gutter["expected"]
+        and gutter["lineTypeMatches"]
+        and gutter["commentCount"] == 1
+        for gutter in gutters
+    ), gutters
+
+
+@pytest.mark.parametrize("starts_as_manifest", [False, True])
+def test_a_closed_diff_file_reads_current_evidence_across_source_forms(
+    browser, serve, starts_as_manifest
+):
+    """File disclosure keeps its owner and loads the current patch in either form."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    initial = (
+        patch_manifest(MULTI_HUNK_PATCH) if starts_as_manifest else MULTI_HUNK_PATCH
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", initial)
+    page = open_page(browser, url)
+    code = page.locator("lf-diff code[data-code]").first
+    code.evaluate("node => { node.scrollLeft = 200; }")
+    summary = page.locator("lf-diff summary").first
+    summary.click()
+    patch = MULTI_HUNK_PATCH.replace("new first", "new beginning")
+    next_value = patch if starts_as_manifest else patch_manifest(patch)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", next_value)
+    told(page)
+    rendered(page)
+    summary.click()
+    row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+    expect(row).to_contain_text("new beginning")
+    assert code.evaluate("node => node.scrollLeft") == 200
+
+
+def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve):
+    """A failed render cannot authorize reuse of the evidence its error removed."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    good = patch_manifest(MULTI_HUNK_PATCH)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+    page = open_page(browser, url)
+    bad = patch_manifest(MULTI_HUNK_PATCH)
+    bad["files"][0]["patch"] = "invalid diff"
+    data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
+    told(page)
+    rendered(page)
+    expect(page.locator("lf-diff .lf-error")).to_be_visible()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+    told(page)
+    rendered(page)
+    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+    ).to_contain_text("new first")
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("starts_as_rename", [False, True])
+def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
+    browser, serve, manifest, starts_as_rename
+):
+    """A path keeps its file controls; replaced presentation hands focus to that file."""
+    rename = (
+        "diff --git a/old.py b/app/handlers.py\n"
+        "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
+    )
+    regular = MULTI_HUNK_PATCH
+    value = patch_manifest if manifest else lambda patch: patch
+    initial, other = (rename, regular) if starts_as_rename else (regular, rename)
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(initial))
+    page = open_page(browser, url)
+    owner = page.locator("lf-diff .lf-diff-file").first.element_handle()
+    comment = page.locator("lf-diff .lf-diff-file-comment").first.element_handle()
+    if starts_as_rename:
+        page.locator("lf-diff .lf-diff-file-comment").first.click()
+        page.keyboard.press("Escape")
+    else:
+        page.locator("lf-diff summary").first.click()
+        page.keyboard.press("ArrowRight")
+    scroll_settled(page)
+    before = page.evaluate("() => scrollY")
+    for patch in (other, initial):
+        data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+        told(page)
+        rendered(page)
+        assert owner.evaluate("node => node.isConnected")
+        assert comment.evaluate("node => node.isConnected")
+        assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
+        assert page.evaluate("() => scrollY") == before
+        if patch == regular:
+            expect(
+                page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+            ).to_contain_text("new first")
+    if starts_as_rename:
+        assert comment.evaluate("node => node === node.getRootNode().activeElement")
+        data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
+        told(page)
+        rendered(page)
+    summary = page.locator("lf-diff summary").first
+    summary.click()
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        value(regular.replace("new first", "new beginning")),
+    )
+    told(page)
+    rendered(page)
+    summary.click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+    ).to_contain_text("new beginning")
+
+
+@pytest.mark.parametrize("language", [None, "python"])
+def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
+    browser, serve, language
+):
+    """Changing evidence beside a selected passage keeps its native selection."""
+    tag = '<lf-text-document id="document" source="document-text"'
+    if language:
+        tag += f' language="{language}"'
+    tag += "></lf-text-document>"
+    source = LONG_LINE_DIFF_PAGE.replace(
+        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>', tag
+    )
+    url = serve(source)
+    data_model.cmd_data_set(
+        serve.page_dir, "document-text", 'first = "old"\nsecond = "selected"\n'
+    )
+    page = open_page(browser, url)
+    code = page.locator("lf-text-document code")
+    code.scroll_into_view_if_needed()
+    ends = code.evaluate("""row => {
+      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const start = node.textContent.indexOf('selected');
+        if (start < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, start); range.setEnd(node, start + 'selected'.length);
+        const box = range.getBoundingClientRect();
+        return [[box.left, box.top + box.height / 2], [box.right, box.top + box.height / 2]];
+      }
+    }""")
+    select(page, *ends)
+    reading = "() => ({selection: getSelection().toString(), scroll: scrollY})"
+    before = page.evaluate(reading)
+    assert before["selection"] == "selected"
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "document-text",
+        'first = "new beginning"\nsecond = "selected"\n',
+    )
+    told(page)
+    rendered(page)
+    expect(code).to_contain_text('first = "new beginning"')
+    assert page.evaluate(reading) == before
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("changes_kind", [False, True])
+def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
+    browser, serve, manifest, changes_kind
+):
+    """A replacement carries its source focus; core carries the reply and its caret."""
+    patch = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-old\n+new\n"
+    )
+    next_patch = (
+        "diff --git a/old.py b/a.py\nsimilarity index 100%\n"
+        "rename from old.py\nrename to a.py\n"
+        if changes_kind
+        else patch.replace("+new\n", "+newer\n")
+    )
+    value = patch_manifest if manifest else lambda patch: patch
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+    page = open_page(browser, url)
+    row = page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')
+    row.hover()
+    page.get_by_title("Comment on a.py · new line 1", exact=True).click()
+    write(page.locator(".lf-composer leaf-text"), "Please clarify this.")
+    with sending(page, "a line comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
+    draft = "An unsent reader draft"
+    write(reply, draft)
+    page.keyboard.press("Home")
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    for _ in range(4):
+        page.keyboard.press("Shift+ArrowRight")
+    reading = "e => ({scroll: scrollY, value: e.value, start: e.selectionStart, end: e.selectionEnd})"
+    before = reply.evaluate(reading)
+    assert before["end"] - before["start"] == 4
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
+    told(page)
+    rendered(page)
+    current = page.locator(".lf-thread-reply leaf-text:focus-within")
+    expect(current).to_have_js_property("value", draft)
+    assert current.evaluate(reading) == before
+
+
+def test_a_diff_disclosure_waits_for_the_source_render_that_owns_its_evidence(
+    browser, serve
+):
+    """Opening a retained closed file joins a pending revision without a false error."""
+
+    def patch(path, word):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{word}\n"
+        )
+
+    def value(word):
+        return patch_manifest(patch("a.py", word) + patch("b.py", "second"))
+
+    url = serve(MANIFEST_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("first"))
+    page = open_page(browser, url)
+    a = page.locator("lf-diff summary").nth(0)
+    b = page.locator("lf-diff summary").nth(1)
+    a.click()
+    expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
+        "first"
+    )
+    b.click()
+    line = page.locator('lf-diff [data-lf-datum=\'["b.py","new",1]\']')
+    expect(line).to_have_text("second")
+    b.click()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("middle"))
+    told(page)
+    rendered(page)
+    held = []
+
+    def hold(route):
+        if "key=a.py" in route.request.url:
+            held.append((route, route.fetch()))
+        else:
+            route.continue_()
+
+    page.route("**/api/deferred*", hold)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("latest"))
+    holding(page, held, 1, "the new open-file evidence")
+    b.click()
+    # Let the native toggle and its lazy load answer while the source revision is held.
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    try:
+        assert page.locator("lf-diff .lf-error").count() == 0
+    finally:
+        for route, response in held:
+            route.fulfill(response=response)
+    rendered(page)
+    expect(line).to_have_text("second")
+    expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
+        "latest"
+    )
+    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
 
 
 WEB_AWESOME_SHEET = """sheets => sheets.some(

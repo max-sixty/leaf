@@ -50,10 +50,9 @@
    card lands on its target, and so does a send from it (`cardTarget`), with the card
    still up showing what was sent. With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
-   The rest of the runtime reads both directions from here: `threadHere` gives the thread
-   a user standing on the page is at, and the side this owner declares to
-   standing-target.js gives the page target a card or cluster stands for. The panel
-   declares its own target association.
+   Core Thread destinations read this target accompaniment. The side this owner
+   declares to standing-target.js gives the page target a card or cluster stands for.
+   The panel declares its own target association.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the messages' own scroll, held through reflow. The metadata and
@@ -166,12 +165,7 @@ import { whenDocumentPresented } from "./semantic-state.js";
 
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import {
-  claimed,
-  focusSurface,
-  surfaceFocusTarget,
-  showHeld,
-} from "./thread/surfaces.js";
+import { claimed, showHeld } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -202,7 +196,7 @@ export function createMarginProjection({
   inventory,
   refreshInventory,
   renderAnnotations,
-  showThread,
+  openPageThread,
   panel,
   accompaniedThread,
   accompanyThread,
@@ -216,7 +210,6 @@ export function createMarginProjection({
   renderMarginThread,
   placedAt,
   scrollToElement,
-  scrollToThread,
 }) {
   const {
     targetFor,
@@ -2327,65 +2320,6 @@ export function createMarginProjection({
     return thread && { thread, presented: positioned };
   }
 
-  // A route that starts on the page stays on the page while that thread has an inline
-  // destination. Widget-local surfaces are already rendered, while a margin-projection thread is
-  // opened on demand. Threads remains the complete fallback for a detached or otherwise
-  // unaddressable thread. Callers choose only the landing within the thread;
-  // this function owns the surface choice so a mark, its accessibility note, and t/T
-  // cannot drift into different policies. Its default opens the compact margin card
-  // on the thread; an explicit reply requests its editor, and Threads defaults to reply.
-  // The promise resolves the actual destination after the selected placement lands.
-  //
-  // A press on marked words passes `travel: false`: the words are already under the
-  // user's hand, and centring them moves everything the user was looking at. The
-  // card needs no trip: it opens in the window even where its cluster is above it.
-  async function openPageThread(
-    id,
-    { focus = null, travel = true, intent = retainUserIntent() } = {},
-  ) {
-    if (!intent()) return null;
-    if (!panelIsOpen() && focus !== "message") {
-      // Capture the departure before any selected surface moves focus. The route
-      // returns its actual destination only after the existing placement has landed.
-      const localFocus = focus ?? "reply";
-      const local = surfaceFocusTarget(id, { focus: localFocus });
-      if (local) {
-        intent.handoff(closePreview);
-        if (travel) {
-          if (!(await scrollToThread(id, { focus: localFocus, intent }))) return null;
-        } else if (!intent.handoff(() => focusSurface(id, { focus: localFocus })))
-          return null;
-        return surfaceFocusTarget(id, { focus: localFocus });
-      }
-      const opened = openInlineThread(id);
-      if (opened) {
-        if (travel) {
-          if (
-            !(await scrollToThread(id, {
-              focus: focus ?? "thread",
-              presented: opened.presented,
-              intent,
-            }))
-          )
-            return null;
-        } else {
-          if (!(await opened.presented) || !intent()) return null;
-          const current = threadFocusTarget(id, { focus });
-          if (
-            !current ||
-            !intent.handoff(() => {
-              focusForNavigation(current);
-              current.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-            })
-          )
-            return null;
-        }
-        return threadFocusTarget(id, { focus });
-      }
-    }
-    return showThread(id, { focus: focus ?? "reply", intent });
-  }
-
   // The row's acknowledgment face is read out of the published state projection rather
   // than the receipt paint. A repaint driven from the paint instead ran inside the
   // panel render the application performs *before* reconciliation, which is early enough
@@ -2579,33 +2513,20 @@ export function createMarginProjection({
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
   const foldMarginEntryOptions = () => setOptionsOpen(null, false);
-  // The thread the user is at: the one holding focus, else the one the card shows. The
-  // card is up only while the user stands somewhere it belongs (`followStanding`,
-  // `declareRelease`, `pressAway`), so its being up is the answer rather than a second
-  // reading of where they stand beside it. With Threads open the list's thread expanded
-  // for the target the user stands on plays the card's part. `c` answers in that
-  // thread's reply box, `t` walks on from it, and Threads opens at it. A thread inside
-  // the card or on the page is `.lf-page-thread`; one in the list is `.lf-thread`.
-  const threadHere = () => {
+  // The conversation accompanying a page target while no Thread holds focus.
+  // Core reads held identity first, including inside widget shadow roots.
+  const accompaniedThreadHere = () => {
     const active = focused();
     if (panelIsOpen()) {
       const entry = active && !panel.contains(active) && threadEntryAt(active);
       return entry ? accompaniedThread(threadIdsOf(entry)) : null;
     }
-    const direct = active?.closest?.(".lf-page-thread[data-thread]");
-    if (direct) return direct;
     if (!pinnedKey || previewEntry?.key !== pinnedKey || !previewOpen() || previewAway)
       return null;
     const threads = previewList.querySelectorAll(".lf-margin-thread .lf-page-thread");
     return threads.length === 1 ? threads[0] : null;
   };
-  // The page element a thread is about, resolved or not: where its anchor is placed, the
-  // element its inventory entry is grouped under. A general or detached thread has none.
-  const threadTarget = (id) => placedAt(id)?.place ?? null;
-  const threadFocusTarget = (id, { focus = null } = {}) => {
-    if (focus === "message") return null;
-    const surface = surfaceFocusTarget(id, { focus });
-    if (surface) return surface;
+  const previewFocusTarget = (id, { focus = null } = {}) => {
     id = threadNames(allThreads()).get(id)?.id ?? id;
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id,
@@ -2613,8 +2534,7 @@ export function createMarginProjection({
     return thread ? threadFocusDestination(thread, { focus: focus ?? "thread" }) : null;
   };
   // The page target this owner's chrome shows (standing-target.js): a margin cluster
-  // control's and the card's — its threads and its own controls. `threadHere` is
-  // the same relation read the other way.
+  // control's and the card's — its threads and its own controls.
   declareSide((node) => {
     const projected = marginTargetAt(node);
     if (projected) return projected;
@@ -2794,14 +2714,16 @@ export function createMarginProjection({
     cardTarget: stepsOut,
     optionsRung,
     openInlineThread,
-    openPageThread,
+    threadPreview: {
+      open: openInlineThread,
+      focusTarget: previewFocusTarget,
+      accompanied: accompaniedThreadHere,
+      close: closePreview,
+    },
     paintSelectedMarginEntries,
     marginEntryChoices,
     unfoldedMarginEntries,
     foldMarginEntryOptions,
-    threadHere,
-    threadTarget,
-    threadFocusTarget,
     captureStanding,
     restoreStanding,
     mount,

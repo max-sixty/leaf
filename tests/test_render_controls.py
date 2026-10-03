@@ -79,6 +79,7 @@ from render_harness import (
     any_suggestion_control,
     consume_browser_errors,
     expect_comment_notes,
+    held_frames,
     holding,
     leaf_page,
     nudge,
@@ -6949,3 +6950,105 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
         assert page.evaluate(
             "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
         ), f"{step}: the next Tab did not carry on from the block being read"
+
+
+@pytest.mark.parametrize("new_composer", [False, True], ids=["control", "composer"])
+def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
+    browser, serve, new_composer
+):
+    """Taking a reaction back ends its response gesture before the log answers it."""
+    source = leaf_page(
+        "A later response",
+        '<h1>Review</h1><section id="first"><h2>First passage</h2>'
+        '<button id="first-control">First control</button></section>'
+        '<div style="height:1500px"></div>'
+        '<section id="later"><h2>Later passage</h2>'
+        '<button id="later-control">Later control</button></section>'
+        '<div style="height:1200px"></div>',
+    )
+    url = serve(source)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "id": "standing-reaction",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "first-control"},
+        },
+    )
+    page = open_page(browser, url)
+    page.locator("#first-control").click()
+    page.keyboard.press("e")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("1")
+    holding(page, held, 1, "the reaction withdrawal")
+    page.locator("#later-control").click()
+    current = page.locator("#later-control")
+    if new_composer:
+        page.keyboard.press("c")
+        current = page.locator(".lf-fab-input")
+        write(current, "Keep this newer draft")
+    expect(current).to_be_focused()
+    before = page.evaluate("scrollY")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(current).to_be_visible()
+    expect(current).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    if new_composer:
+        expect(current).to_have_js_property("value", "Keep this newer draft")
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
+    assert (withdrawn["kind"], withdrawn["undoes"]) == (
+        "undo",
+        "standing-reaction",
+    )
+
+
+@pytest.mark.parametrize(
+    "newer_control", [False, True], ids=["arrival", "newer-control"]
+)
+def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
+    browser, serve, newer_control
+):
+    """Modal close and command dispatch share one gesture, before another input arrives."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reference arrival",
+                '<h1>Review</h1><div style="height:1200px"></div>'
+                '<button id="origin">Original control</button>'
+                '<button id="later">Later control</button><div style="height:1000px"></div>',
+            )
+        ),
+    )
+    page.locator("#origin").click()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    search = page.get_by_role("combobox", name="Search commands")
+    search.fill("Comment on the control")
+    command = page.get_by_role("button", name="Comment on the control", exact=True)
+    expect(command).to_be_visible()
+    expect(command).to_have_attribute("data-lf-available", "true")
+    with held_frames(page):
+        box = command.bounding_box()
+        assert box is not None
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        expect(page.locator(".lf-command-reference")).to_be_hidden()
+        if newer_control:
+            box = page.locator("#later").bounding_box()
+            assert box is not None
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            expect(page.locator("#later")).to_be_focused()
+        before = page.evaluate("scrollY")
+    rendered(page)
+    if newer_control:
+        expect(page.locator("#later")).to_be_focused()
+    else:
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+    assert page.evaluate("scrollY") == before

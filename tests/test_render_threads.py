@@ -5084,28 +5084,19 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Shared conversation faces belong to the theme. Chrome rules only position
         # the transcript, messages, and metadata within their containing surfaces.
         "lf-msg-body",
-        # A shared message's text wrapper and the thread's reading inset are
-        # defined in shadow.css so inline and panel conversations agree.
-        "lf-msg-text",
+        # The thread's reading inset is shared by inline and panel conversations.
         "lf-thread-transcript",
         "lf-thread",
         "detached",
         "lf-thread-root-meta",
         "lf-msg",
-        "lf-page-thread",
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",
-        # The margin layer is chrome, and its whole document face — placement by
-        # anchor, the rail and pin postures, the lanes a pane's rows stand in — is the
-        # authored theme's. The runtime sheet names it only to say which plane it
-        # stands on, so the movement the theme's rule causes is that deliberate face
-        # rather than a leaked one.
-        "lf-margin-cluster",
-        # Page Map rows share the margin entry's state and icon face in theme.css.
+        # The margin layer's placement rules live in the annotation overlay sheet,
+        # outside the core chrome sheet whose scoped classes this test counts.
+        # Page Map rows share the margin entry's state and icon face.
         "lf-margin-kind",
-        "lf-margin-lane",
-        "lf-margin-projection",
         "lf-page-map-action",
         "lf-react-palette",
         # An icon action's glyph, sized and seated in shadow.css so a press wearing one
@@ -5136,27 +5127,22 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Under a finger a reaction trigger meets the aim floor and an agent message's
         # head row holds it (shadow.css), since both stand in declared widget trees too.
         "lf-react",
-    }, "the authored-theme class surface changed: widen the exception on purpose"
-    # Every one of these is worn by something the runtime puts inside the page rather
-    # than inside its own container: a scoped rule cannot reach the copy in the page.
+        # The annotation overlay's hover mark has a global outline rule in its
+        # chrome sheet; it deliberately shares a name with scoped chrome rules.
+        "lf-mark-hover",
+    }, "the shared stylesheet class surface changed: widen the exception on purpose"
+    # Every one of these is worn by something the core runtime puts inside the page
+    # rather than inside its own container. Annotation-specific global rules live
+    # in the overlay sheet, outside this core chrome sheet's census.
     # What is not here is the shared vocabulary, whose faces the theme states — see the
     # exception above, and chrome.css's header for why.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        # Drawing is a body state, and an inline thread lives inside authored
-        # widget markup. Both deliberately cross the chrome scope so drawing can spare
-        # the thread's controls.
-        "lf-thread-seat",
+        # The shared interface class crosses the chrome scope.
         "lf-ui",
         # A native label can pass through an intermediate focus target. This projects
         # the held control's focus ring until activation settles.
         "lf-focus-visible",
         "lf-btn",
-        "lf-over-mark",
-        "lf-mark-el",
-        "lf-projected-mark",  # an element mark projects above authored paint
-        "lf-mark-hover",  # the same element mark, for the row the pointer is on
-        "lf-mark-here",  # the same element mark, for the comment the user is in
-        "lf-pending",
         "lf-ins-block",
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
@@ -5180,9 +5166,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-media-open",
         # A standing reaction's paint on the page: its margin glyph.
         "lf-react-mark",
-        # A visual reaction's outline on its target while its shared action bar is
-        # standing.
-        "lf-action-target",
         # A comparison's target paint and deletions stand inside the block they are
         # about; a text block's parent may not accept a sibling beside it.
         "lf-version-inline",

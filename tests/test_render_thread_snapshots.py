@@ -9,6 +9,7 @@ reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
 import hashlib
 import json
 import shutil
+import sys
 from datetime import datetime, timezone
 
 import pytest
@@ -19,7 +20,48 @@ from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
 from leaf_dev.thread_snapshots import CASES, SnapshotRun
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
-from render_harness import consume_browser_errors, open_page
+from render_harness import consume_browser_errors, leaf_page, open_page
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="Linux's fixed native font contract"
+)
+def test_linux_browser_resolves_the_profile_fonts(browser, serve):
+    """The actual browser's UI, serif and mono faces match the keyed font environment."""
+    faces = {
+        "system-ui": "DejaVu Sans",
+        "serif": "DejaVu Serif",
+        "monospace": "DejaVu Sans Mono",
+    }
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Font contract",
+                "".join(f'<p id="{name}">Native Leaf words 0123</p>' for name in faces),
+                head="<style>"
+                + "".join(f"#{name} {{ font-family: {name}; }}" for name in faces)
+                + "</style>",
+            )
+        ),
+    )
+    session = page.context.new_cdp_session(page)
+    session.send("DOM.enable")
+    session.send("CSS.enable")
+    root = session.send("DOM.getDocument")["root"]["nodeId"]
+    for name, family in faces.items():
+        node = session.send(
+            "DOM.querySelector", {"nodeId": root, "selector": f"#{name}"}
+        )["nodeId"]
+        fonts = session.send("CSS.getPlatformFontsForNode", {"nodeId": node})["fonts"]
+        assert {font["familyName"] for font in fonts} == {family}, (
+            fonts,
+            page.locator(f"#{name}").evaluate(
+                "node => getComputedStyle(node).fontFamily"
+            ),
+        )
+        assert all(not font["isCustomFont"] for font in fonts), fonts
+    session.detach()
 
 
 def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(

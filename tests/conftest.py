@@ -19,6 +19,7 @@ from leaf import machine as machine_model
 from leaf import session_cleanup as cleanup_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND
+from leaf_dev.browser import LINUX_FONTCONFIG, linux_font_fingerprint
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
@@ -562,6 +563,9 @@ def headless_shell():
     here: a second `sync_playwright()` inside this process raises where the
     session's `browser` fixture already holds one open, so which tests had run
     first would decide whether the fixture worked."""
+    if sys.platform == "linux":
+        linux_font_fingerprint()
+        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
     read = subprocess.run(
         [
             sys.executable,

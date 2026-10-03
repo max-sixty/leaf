@@ -1,16 +1,63 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
 browser check or command that reads or screenshots one."""
 
+import hashlib
+import os
+import subprocess
 from contextlib import contextmanager
+from pathlib import Path
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
 from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from leaf_dev import ROOT
+
 DESKTOP = (1440, 900)
 # The width of a window beside an editor.
 BESIDE = (900, 900)
+
+# Pytest browser checks and captures use native DejaVu faces on Linux.
+LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
+LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
+
+
+def linux_font_fingerprint():
+    """Bind the fixed fontconfig and installed font bytes to reviewed Linux images.
+
+    CI and local Linux capture install fonts-dejavu-core. An absent face is a setup
+    error; changed font bytes require an explicitly reviewed rendering profile.
+    """
+    for name in ("DejaVuSans.ttf", "DejaVuSerif.ttf", "DejaVuSansMono.ttf"):
+        if not (LINUX_FONTS / name).is_file():
+            raise RuntimeError(
+                "Install fonts-dejavu-core before running Linux browser tests"
+            )
+    # Bind only the selected faces, so unrelated installed font packages do not
+    # create another rendering profile for the same UI.
+    faces = {
+        Path(
+            subprocess.check_output(
+                [
+                    "fc-match",
+                    "-f",
+                    "%{file}",
+                    f"{family}:weight={weight}:slant={slant}",
+                ],
+                env=os.environ | {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)},
+                text=True,
+            )
+        )
+        for family in ("system-ui", "serif", "monospace")
+        for weight in ("regular", "bold")
+        for slant in ("roman", "italic")
+    }
+    digest = hashlib.sha256(LINUX_FONTCONFIG.read_bytes())
+    for path in sorted(faces):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
 
 
 @contextmanager

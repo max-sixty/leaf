@@ -86,6 +86,9 @@ jobs:
       - name: Install Chromium headless shell and WebKit
         run: uv run playwright install --with-deps chromium webkit --only-shell
 
+      - name: Install the Linux browser font contract
+        run: sudo apt-get install -y fonts-dejavu-core
+
       - name: Fetch pinned image assets
         run: uv run leaf-dev fetch-assets
 

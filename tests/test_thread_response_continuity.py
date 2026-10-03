@@ -188,12 +188,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 @pytest.mark.parametrize(
     ("contents", "integer_band", "viewport"),
     [
-        ("example", False, (390, 740)),
+        ("short", False, (390, 740)),
         ("long", False, (390, 740)),
         ("short", True, (420, 741)),
         ("long", True, (420, 741)),
     ],
-    ids=["example-fractional", "long-fractional", "short-integer", "long-integer"],
+    ids=["short-fractional", "long-fractional", "short-integer", "long-integer"],
 )
 def test_narrow_panel_editor_growth_retains_the_live_send(
     browser, serve, contents, integer_band, viewport
@@ -204,46 +204,35 @@ def test_narrow_panel_editor_growth_retains_the_live_send(
     line-box theme supplies its contrast without changing any geometry rule.
     Both the first wrap and a later wrap beside a held send keep every control edge.
     """
-    from pathlib import Path
-
     from render_harness import holding, panel_settled
 
-    if contents == "example":
-        source = Path(__file__).resolve().parents[1] / "examples/review-a-plan.html"
-        url = serve(source)
-    else:
-        head = (
-            "<style>:root { --lf-ui-lh: 1.5; --t-6: 12px; }</style>"
-            if integer_band
-            else ""
-        )
-        url = serve(
-            leaf_page("Reply wrapping", "<h1>Review the release</h1>", head=head)
-        )
+    head = (
+        "<style>:root { --lf-ui-lh: 1.5; --t-6: 12px; }</style>" if integer_band else ""
+    )
+    url = serve(leaf_page("Reply wrapping", "<h1>Review the release</h1>", head=head))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "id": "root",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the review clear.",
+        },
+    )
+    if contents == "long":
         events_model.append_event(
             serve.page_dir,
             {
-                "id": "root",
-                "kind": "comment",
-                "author": "user",
+                "kind": "reply",
+                "author": "agent",
                 "revision": 1,
-                "text": "Keep the review clear.",
+                "parent": "root",
+                "text": "\n\n".join(
+                    ["Retain the release context while writing the next reply."] * 14
+                ),
             },
         )
-        if contents == "long":
-            events_model.append_event(
-                serve.page_dir,
-                {
-                    "kind": "reply",
-                    "author": "agent",
-                    "revision": 1,
-                    "parent": "root",
-                    "text": "\n\n".join(
-                        ["Retain the release context while writing the next reply."]
-                        * 14
-                    ),
-                },
-            )
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         reduced_motion="no-preference",

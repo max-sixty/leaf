@@ -3,7 +3,8 @@
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
 leaf-assets.json. Tests compare current Leaf directly against that immutable set;
 no historical runtime, source patch or baseline build is involved. Each rendering
-profile names the OS, architecture and locked Chromium version. Missing profiles
+profile names the OS, architecture and locked Chromium version. Linux also binds
+the shared native fontconfig and installed DejaVu font bytes. Missing profiles
 fail: browser upgrades require deliberately reviewed captures, including the Linux
 CI profile. Existing fetch-assets warms the same cache as every other asset reader.
 
@@ -48,6 +49,7 @@ from playwright.sync_api import Page
 from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT, leaf_assets
+from leaf_dev.browser import linux_font_fingerprint
 from leaf_dev.thread_journey import STAGES
 
 
@@ -85,7 +87,8 @@ def render_profile(browser_version: str) -> str:
         if system == "darwin"
         else platform.freedesktop_os_release()["VERSION_ID"]
     )
-    return f"{system}-{version}-{platform.machine()}-chromium-{browser_version}"
+    fonts = f"-fonts-{linux_font_fingerprint()}" if system == "linux" else ""
+    return f"{system}-{version}-{platform.machine()}-chromium-{browser_version}{fonts}"
 
 
 @contextmanager

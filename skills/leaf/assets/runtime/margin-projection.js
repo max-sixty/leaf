@@ -663,9 +663,9 @@ export function createMarginProjection({
       0,
     );
   }
-  // The reply takes the room below the transcript without carrying the words above
-  // it. A transcript that cannot fit beside even one editor line scrolls itself;
-  // typing then uses the remaining room and scrolls inside the editor.
+  // Draft lines take room before they scroll. A long transcript yields up to half
+  // the card's body to the reply; a short one leaves the remaining room available.
+  // Growing the editor moves their shared boundary, never the card's attachment.
   function fitThreadCardEditors() {
     const listRoom =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
@@ -678,18 +678,22 @@ export function createMarginProjection({
       const line = parseFloat(box.lineHeight);
       const furniture = row.offsetHeight - input.offsetHeight;
       const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      // Reserve the turns' own content, rather than the room the last-sized editor
-      // left them. After a resize that editor can exceed the new card's height.
-      const answered =
-        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) +
-        thread.querySelector(".lf-thread-transcript").scrollHeight;
+      const available =
+        listRoom -
+        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) -
+        furniture -
+        inset;
+      const answered = Math.min(
+        thread.querySelector(".lf-thread-transcript").scrollHeight,
+        available / 2,
+      );
       const oneLine =
         input.offsetHeight -
         input.clientHeight +
         line +
         parseFloat(box.paddingTop) +
         parseFloat(box.paddingBottom);
-      const room = Math.max(oneLine, listRoom - answered - furniture - inset);
+      const room = Math.max(oneLine, available - answered);
       input.style.setProperty("--lf-thread-editor-room", `${room}px`);
     }
   }

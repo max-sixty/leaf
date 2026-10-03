@@ -499,7 +499,7 @@ def bundle_published_runtime(out: Path) -> None:
 )
 def site(output: Path) -> None:
     """Build leaf.page and its edge assets."""
-    from leaf.session_cleanup import flocked
+    from leaf.state import flocked
 
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

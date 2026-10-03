@@ -162,3 +162,23 @@ def test_every_existing_scenario_declares_completion_and_fixed_checks(suite, tmp
         checks = [a["config"]["check"] for a in test["assert"]]
         assert "completed" in checks
         assert len(checks) == len(set(checks))
+
+
+def test_live_round_receipts_require_exact_admitted_user_inputs():
+    from leaf_dev.harness import inputs_received
+
+    events = [
+        {"id": "first", "kind": "comment", "attempt": "round-1", "attention": True},
+        {"id": "second", "kind": "action", "attempt": "round-2", "attention": True},
+        {"id": "error", "kind": "error"},
+        {"kind": "pickup", "phase": "opened", "events": ["other"]},
+        {"kind": "pickup", "phase": "claimed", "events": ["first", "second"]},
+    ]
+    assert inputs_received(events, set())
+    assert not inputs_received(events, {"unadmitted"})
+    assert not inputs_received(events, {"round-1", "round-2"})
+    events.append({"kind": "pickup", "phase": "opened", "events": ["first"]})
+    assert inputs_received(events, {"round-1"})
+    assert not inputs_received(events, {"round-1", "round-2"})
+    events.append({"kind": "pickup", "phase": "opened", "events": ["second"]})
+    assert inputs_received(events, {"round-1", "round-2"})

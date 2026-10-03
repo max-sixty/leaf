@@ -274,7 +274,7 @@
    with the added or removed text sitting on nothing. The track takes its floor from the
    longest line instead, and keeps `1fr` over it so a file whose lines all fit still
    fills the box rather than ending at its longest line. `--lf-diff-row-fill` is that
-   floor, and wrapping drops it (below): a wrapped line still measures its whole
+   floor, and the wrap switch drops it: a wrapped line still measures its whole
    unwrapped self at max-content, so a floor left in place would size the column to the
    very line the user asked to have wrapped. */
 :scope:host(.lf-rendered) code[data-code] {
@@ -324,16 +324,8 @@
    file — twenty-four thousand pixels below the line, on the patch this was measured on.
    Wrapping trades the diff's column alignment for lines that end where the user can
    see them, which is why it is the user's own switch rather than the default.
-   The shared body reads its checkbox, so the state has one home. Keeping the query inside one subtree also lets
-   WebKit invalidate the line styles when the user taps the switch. `anywhere` rather than
-   `break-word`: what runs long in a patch is paths, URLs, minified data and prose in
-   comments, and the first three offer the line box no break opportunity to find.
-   The code box gives up its permanent scrollbar with them, since wrapped rows leave it
-   nothing to scroll. */
-.lf-diff-body:has(.lf-diff-wrap:checked) .lf-diff-file [data-line] {
-                          white-space: pre-wrap; overflow-wrap: anywhere; }
-.lf-diff-body:has(.lf-diff-wrap:checked) .lf-diff-file code[data-code] {
-                          overflow-x: auto; --lf-diff-row-fill: 0; }
+   The switch changes Pierre's rendered overflow mode. The code box gives up its
+   permanent scrollbar with the wrapped rows, since they leave it nothing to scroll. */
 /* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
    through its variables above, and keeps its syntax roles readable on the denser one. */
 [data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }

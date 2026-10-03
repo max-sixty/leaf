@@ -1700,11 +1700,20 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] { outline-offset: -2px; }
+:scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] {
+    --lf-shot-side-tint: var(--del-tint); --lf-shot-side-ink: var(--danger-ink); }
+:scope:is(lf-shot) .lf-shotcap[data-lf-state="after"] {
+    --lf-shot-side-tint: var(--add-tint); --lf-shot-side-ink: var(--ok-ink); }
 :scope:is(lf-shot) .lf-shotcap:hover { background: var(--chip); }
-:scope:is(lf-shot) .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--chip);
-    box-shadow: inset 0 -2px var(--accent); }
+:scope:is(lf-shot) .lf-shotcap[aria-pressed="true"] {
+    color: var(--lf-shot-side-ink); background: var(--lf-shot-side-tint);
+    box-shadow: inset 0 -3px var(--lf-shot-side-ink); }
 :scope:is(lf-shot) .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
+/* In a split both frames are visible, so both labels carry their side's color
+   while neither wears the selected fill or underline. */
+:scope:is(lf-shot):not(:has(.lf-shotcap[aria-pressed="true"])) .lf-shotcap {
+    color: var(--lf-shot-side-ink); }
 /* Where the pair differs: each frame outlines its own regions where they sit in it, so
    content that moved is marked at its old place in before and its new place in after,
    and an outline never stands over a place the frame left empty. What changed takes a
@@ -1749,17 +1758,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 > .lf-shotframe[data-lf-state="after"] { visibility: visible; }
 :scope:is(lf-shot):not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
     display: block; }
-:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):not(:has(input:checked))
-.lf-shotcap[data-lf-state="before"] {
-  color: var(--ink); background: var(--chip);
-  box-shadow: inset 0 -2px var(--accent); }
-:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):has(input:checked)
-.lf-shotcap[data-lf-state="before"] {
-  color: var(--muted); box-shadow: none; }
-:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):has(input:checked)
-.lf-shotcap[data-lf-state="after"] {
-  color: var(--ink); background: var(--chip);
-  box-shadow: inset 0 -2px var(--accent); }
 
 :scope:is(lf-shot):has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
     outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;

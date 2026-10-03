@@ -114,23 +114,41 @@
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
 
+/* A computed row count is shared by the document's reservation and chrome's
+   style query. Registering its type makes the query read the calculated integer. */
+@property --lf-banner-rows {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 1;
+}
+
 :root {
   position: static !important;
   color-scheme: light dark;
   /* The fixed banner's height also reserves the document's head. It lives in the
      render-blocking theme so the initial document and eventual chrome share one box.
      It is stated rather than measured: the control run shares the status's line, or
-     takes a 36px-lower line of its own, as the window's pointer and width and the page's
-     sign-off decide (below), and the banner lays itself out by that decision
+     takes a lower line of its own, as the window's width and interface type
+     decide, and the banner lays itself out by that decision
      (chrome.css). Nothing the runtime draws later can change the rows, so the document
      is placed once, before the banner arrives. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-banner-row: 42px;
-  --lf-banner-rows: 1;
-  --lf-banner-h: calc(36px * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
+  /* A button's line plus its 10px padding/border, the toolbar's 8px padding,
+     and the banner's rule. The aim floor may make the button taller. */
+  --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
+    calc(var(--aim-floor) + 9px));
+  --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
+  /* The complete toolbar owns 30em of UI type and leaves 210px for
+     status, insets, and the gap. Both rooms are independent of page capabilities.
+     A larger UI font raises the same capacity boundary before first paint. */
+  --lf-banner-actions-w: calc(30 * var(--t-5));
+  --lf-banner-rows: clamp(1, round(up,
+    calc((var(--lf-banner-actions-w) + 210px + var(--lf-safe-left)
+      + var(--lf-safe-right)) / 100vw)), 2);
+  --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));
   /* The bottom bar: the keyboard's line and the status, held at the window's foot at one
      stated height, as the banner is at its head. The page ends above it and a held
@@ -437,24 +455,9 @@
 }
 /* The narrow face a phone held upright wears (chrome.css) holds forty-pixel controls,
    and a finger's row 44px aims wherever it stands. */
-@media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
-@media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
-/* The rows. More and Threads stand on the row, and Approval where the page asks for
-   sign-off (banner.js), each held at its widest words, so the run's width is known;
-   beside it the status wants a readable start of its sentence, about 24ch. Chrome on
-   macOS finds no room for both at 436px and narrower under a fine pointer and 456px
-   under a coarse one, or 636px and 644px with Approval. Each bound here sits a few
-   pixels under its measure, so no window takes a second row it could do without; the
-   status there starts a little short of 24ch, as it does beside a classic scrollbar. A
-   finger's steps, such as page search's, stand in the reading loop's place and fit the
-   same row (banner-toolbar.js). Delivery writes the declaration on the root
-   (`data-lf-review`), since a :has() reading the page's meta from the root would restyle
-   the whole page on every change below it. */
-@media screen and (width <= 430px), screen and (pointer: coarse) and (width <= 450px) {
-  :root { --lf-banner-rows: 2; }
-}
-@media screen and (width <= 630px), screen and (pointer: coarse) and (width <= 640px) {
-  html[data-lf-review="sign-off"] { --lf-banner-rows: 2; }
+@media screen and (width <= 480px) {
+  :root { --lf-banner-row: max(52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
+    calc(var(--aim-floor) + 9px)); }
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */

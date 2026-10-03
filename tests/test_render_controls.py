@@ -14,7 +14,7 @@ from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1058,12 +1058,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """A page that only informs ends at Threads and offers no terminal action.
-
-    The slot the approve button takes on a sign-off page stays empty here rather than
-    picking up a neutral control, which is the fact a user can see: an informational
-    page asks them for nothing, so it hands them nothing to press.
-    """
+    """An informational page offers Threads and More without an approval action."""
     page = open_page(browser, serve(LONG_PAGE))
     # The banner is built in one pass, so a control standing in it is what makes the
     # absence beside it worth reading rather than a row that never rendered.
@@ -1071,12 +1066,10 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-banner").evaluate("element => element.localName") == (
         "header"
     )
-    # Read the run that stands, not the toolbar's whole inventory: a control registered
-    # for another device is in the row's markup with no presence, and the fact here is
-    # that nothing the user can press follows Threads.
-    expect(page.locator(".lf-banner-actions > *:visible").last).to_have_class(
-        re.compile(r"\blf-threads-toggle\b")
-    )
+    row = page.locator(".lf-banner-actions > *:visible")
+    expect(row).to_have_count(2)
+    expect(row.nth(0)).to_have_class(re.compile(r"\blf-threads-toggle\b"))
+    expect(row.nth(1)).to_have_class(re.compile(r"\blf-banner-more\b"))
     approval = page.locator(".lf-signoff")
     expect(approval).to_have_count(1)
     expect(approval).to_be_hidden()
@@ -1086,9 +1079,6 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert len(events_model.read_events(serve.page_dir)) == events_before, (
         "the retained control approved a page that did not declare sign-off"
     )
-    # The Lit-faced native island stays connected for its lifetime, but approval takes
-    # the slot beside Threads only where a page asks for one. The visible row is a control
-    # short rather than a control longer.
 
 
 def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve):
@@ -2006,7 +1996,7 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
               const banner = document.querySelector('.lf-banner').getBoundingClientRect();
               const box = menu.getBoundingClientRect();
               return {banner: {bottom: banner.bottom},
-                      button: {bottom: button.bottom, left: button.left},
+                      button: {bottom: button.bottom, right: button.right},
                       menu: {top: box.top, right: box.right, left: box.left},
                       viewport: innerWidth};
             }"""
@@ -2014,12 +2004,16 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
     assert phone["menu"]["top"] == pytest.approx(
         phone["banner"]["bottom"] + 6, abs=2
     ), phone
-    assert phone["menu"]["left"] == pytest.approx(phone["button"]["left"], abs=2), (
-        f"the phone menu appeared to belong to a control on its right: {phone}"
+    assert phone["menu"]["right"] == pytest.approx(phone["button"]["right"], abs=2), (
+        f"the phone menu did not line up with More's trailing edge: {phone}"
     )
-    assert phone["menu"]["right"] <= phone["viewport"] - 8, (
+    assert phone["menu"]["left"] >= 0 and phone["menu"]["right"] <= phone["viewport"], (
         f"the phone menu left the viewport: {phone}"
     )
+    assert phone["menu"]["right"] - phone["menu"]["left"] <= min(
+        360, phone["viewport"] - 16
+    ), phone
+    assert root_overflow(page) == 0
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -2070,10 +2064,27 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
                      .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
     )
     assert len(want) >= 2, f"only {want} stand in More, which walks nothing"
-    more.focus()
+    page.evaluate(RELEASE_FOCUS)
+    threads = page.locator(".lf-threads-toggle")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if threads.evaluate("control => control === document.activeElement"):
+            break
+    expect(threads).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(more).to_be_focused()
+    assert more.evaluate("control => control.matches(':focus-visible')")
     page.keyboard.press("Enter")
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(more).to_have_attribute("aria-expanded", "true")
+    menu = page.locator(".lf-banner-menu").bounding_box()
+    assert menu["x"] >= 0 and menu["x"] + menu["width"] <= 390, menu
+    assert menu["width"] <= 390 - 16, menu
+    bulk = page.locator(".lf-banner-menu > .lf-answer-all:visible")
+    assert bulk.count() > 0
+    for control in bulk.all():
+        assert control.bounding_box()["width"] >= menu["width"] - 24
+    assert root_overflow(page) == 0
     reached = []
     for _ in range(len(want) * 3):
         here = page.evaluate(
@@ -2096,6 +2107,7 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     page.keyboard.press("Escape")
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(more).to_have_attribute("aria-expanded", "false")
+    expect(more).to_be_focused()
 
 
 # Where the banner's two parts stand, the height the theme states for it (the document's
@@ -2149,25 +2161,22 @@ def assert_banner_as_stated(read, wrapped):
         # A landscape phone holds the status beside Threads, and beside Approval too.
         (740, True, False, False),
         (740, True, True, False),
-        # One window, two banners: the run that asks for sign-off would leave the
-        # status too little room there, and only that one takes a second row.
-        (600, False, False, False),
+        # Capability arrival cannot change this window's row allocation.
+        (600, False, False, True),
         (600, False, True, True),
-        # A phone held upright gives the run a row of its own; a little wider, it
-        # doesn't need one.
+        # The narrow window gives the run a row of its own at both widths.
         (390, True, False, True),
-        (470, True, False, False),
+        (470, True, False, True),
     ],
 )
-def test_the_banner_rows_follow_the_window_and_sign_off(
+def test_the_banner_rows_follow_the_window_independently_of_sign_off(
     browser, serve, width, touch, signoff, wrapped
 ):
-    """The banner's rows are the theme's to state, from the pointer, the window's width
-    and the page's declared sign-off, so the document's head is reserved at the banner's
-    height before the runtime draws it and nothing the banner holds later moves the
-    page. A landscape phone has one row, as a desk window does, and at one width a page
-    asking for sign-off has two where a page without it has one. The banner draws the
-    height it states, and every control on its row stands inside it."""
+    """The viewport, UI type and aim size allocate the banner before controls arrive.
+
+    Approval and its absence share that allocation, so a revision cannot change the
+    document's top reservation. Each control fits the height the theme states.
+    """
     html = signed_off(SUGGESTION_PAGE) if signoff else SUGGESTION_PAGE
     context = browser.new_context(
         viewport={"width": width, "height": 800}, has_touch=touch, is_mobile=touch
@@ -2191,7 +2200,7 @@ def test_a_finger_s_steps_keep_the_banner_s_rows(browser, serve):
     page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
     page_at_rest(page)
     before = page.evaluate(BANNER_ROWS)
-    assert_banner_as_stated(before, wrapped=False)
+    assert_banner_as_stated(before, wrapped=True)
     page.keyboard.press("/")
     page.keyboard.type("feeder")
     expect(
@@ -2200,18 +2209,18 @@ def test_a_finger_s_steps_keep_the_banner_s_rows(browser, serve):
     page_at_rest(page)
     read = page.evaluate(BANNER_ROWS)
     assert "Close search" in read["controls"], read
-    assert_banner_as_stated(read, wrapped=False)
+    assert_banner_as_stated(read, wrapped=True)
     assert read["main"] == pytest.approx(before["main"], abs=1), (before, read)
 
 
-def test_a_revision_that_asks_for_sign_off_gives_the_banner_its_rows(browser, serve):
-    """Sign-off is the revision's declaration, and a revision taken on in place brings
-    its own: the banner's rows follow it as Approval does, so the run that now holds
-    Approval takes the second row a fresh load of the same revision would give it."""
+def test_a_revision_that_asks_for_sign_off_keeps_the_banner_s_rows(browser, serve):
+    """An arriving approval capability uses the banner's existing second row."""
     page = open_page(browser, live_url(serve(SUGGESTION_PAGE)))
     resized(page, 600, 800)
     page_at_rest(page)
-    assert_banner_as_stated(page.evaluate(BANNER_ROWS), wrapped=False)
+    before = page.evaluate(BANNER_ROWS)
+    assert_banner_as_stated(before, wrapped=True)
+    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
     (serve.page_dir / "index.html").write_text(
         signed_off(SUGGESTION_PAGE).replace(
             "</lf-board>", "</lf-board>\n<p>A draft asking for sign-off.</p>"
@@ -2220,7 +2229,13 @@ def test_a_revision_that_asks_for_sign_off_gives_the_banner_its_rows(browser, se
     told(page)
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     page_at_rest(page)
-    assert_banner_as_stated(page.evaluate(BANNER_ROWS), wrapped=True)
+    after = page.evaluate(BANNER_ROWS)
+    assert_banner_as_stated(after, wrapped=True)
+    for position in ("height", "bannerBottom", "stated", "main"):
+        assert after[position] == pytest.approx(before[position], abs=0.5), (
+            before,
+            after,
+        )
 
 
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
@@ -2999,8 +3014,8 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
 
     The banner is where all of it lands, and it is packed to the right against a spacer,
     which decides who pays. A control that grows moves itself and everything to its
-    *left*; everything to its right keeps its place. So `Open threads: 9` becoming
-    `Open threads: 10` — a comment posted from the terminal while the user reads —
+    *left*; everything to its right keeps its place. So `Threads: 9` becoming
+    `Threads: 10` — a comment posted from the terminal while the user reads —
     slid the version picker 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
@@ -3021,7 +3036,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     comments = ".lf-banner .lf-threads-toggle"
     accept_all = '[title^="Accept every"]'
     page.wait_for_function(
-        f"() => document.querySelector('{comments}').textContent === 'Open threads: 9'"
+        f"() => document.querySelector('{comments}').textContent === 'Threads: 9'"
     )
     page_at_rest(page)
 
@@ -3056,7 +3071,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
                     "text": "A tenth.",
                 },
             ),
-            f"() => document.querySelector('{comments}').textContent === 'Open threads: 10'",
+            f"() => document.querySelector('{comments}').textContent === 'Threads: 10'",
         ),
         (
             "a new version is published",

@@ -2120,7 +2120,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Open threads: {opened}")
+    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads: {opened}")
     page.locator(".lf-threads-toggle").click()
     expect(
         page.locator('.lf-thread-panel [data-filter-value="resolved"]')
@@ -2198,7 +2198,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator("blockquote")).to_contain_text(selected)
     expect(page.locator(".lf-threads-toggle")).to_have_text(
-        f"Open threads: {opened_with + 1}"
+        f"Threads: {opened_with + 1}"
     )
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     page.reload(wait_until="load")
@@ -2267,7 +2267,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.locator(".lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -2287,7 +2287,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )

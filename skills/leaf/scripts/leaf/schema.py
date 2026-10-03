@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from .session_cleanup import EVENTS_FILE
+from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership

@@ -4,7 +4,7 @@ import fcntl
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
-from leaf import leases, session_cleanup
+from leaf import leases, state
 
 
 def test_a_waiting_purpose_lock_follows_a_removed_holder(tmp_path, monkeypatch):
@@ -18,8 +18,8 @@ def test_a_waiting_purpose_lock_follows_a_removed_holder(tmp_path, monkeypatch):
         return lock(stream, operation)
 
     def wait():
-        with session_cleanup.flocked(path) as stream:
-            assert session_cleanup.still_named(stream.fileno(), path)
+        with state.flocked(path) as stream:
+            assert state.still_named(stream.fileno(), path)
             entered.set()
             assert release.wait(10)
 
@@ -57,7 +57,7 @@ def test_a_lease_follows_a_path_replaced_before_acquisition(tmp_path, monkeypatc
     lease = leases.take_lease(path)
     assert lease is not None
     try:
-        assert session_cleanup.still_named(lease.fileno(), path)
+        assert state.still_named(lease.fileno(), path)
         assert leases.take_lease(path) is None
     finally:
         leases.release_lease(lease)

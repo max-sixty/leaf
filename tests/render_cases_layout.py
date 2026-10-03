@@ -21,7 +21,7 @@ from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model

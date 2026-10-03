@@ -1,0 +1,27 @@
+# Added for the cutover from hook stdout receipts to actual reader acknowledgement.
+# Live idle/mid-turn scenarios prove the host path; this pins the instruction order.
+description: claude-hook-reader-ack
+metadata:
+  purpose: "A Claude hook delivery is reader-confirmed: acknowledge its complete inline envelope before work, without competing with the Stop hook's watch."
+  tags: [wait-loop]
+vars:
+  prompt: |
+    You are a Claude Code session using Leaf. You just received this complete inline envelope from Leaf's prompt hook:
+    {"format":"leaf-delivery-v3","id":"dc81eabb","carrier":"hook","acknowledge":"Once this complete delivery is in your context, confirm it with `leaf delivery ack dc81eabb`. Until then, the user's moves read Sent.","batches":[{"page":"/tmp/review","through_seq":1,"threads":[],"handling":{},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":[]}]}]}
+
+    The page is already served. Read the Leaf instructions needed for your host.
+    Only Skill and Read run here; write each other tool call you would make, with
+    its full JSON input, before starting the requested revision. Then end your answer.
+assert:
+- type: javascript
+  metric: reads-claude-code-host
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/host-claude-code\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the first written shell operation acknowledges the complete
+    delivery with `leaf delivery ack dc81eabb`, before any status/work/reply.
+    Fail if a tool call starts `leaf wait`, or if it says the hook already confirmed
+    receipt and omits the acknowledgment. Reading further instructions first is fine.

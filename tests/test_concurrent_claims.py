@@ -7,7 +7,7 @@ from threading import Event
 
 from interact_support import record_claim
 from leaf.service import claim_path, claim_records, page_claim
-from leaf.session_cleanup import flocked
+from leaf.state import flocked
 
 
 def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(

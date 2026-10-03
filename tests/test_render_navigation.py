@@ -11160,12 +11160,12 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     draft_control(page, "edit", "plan").click()
-    editor = page.locator("#plan textarea")
-    editor.fill("Save through the visible control.")
+    editor = page.locator("#plan leaf-text")
+    write(editor, "Save through the visible control.")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Keep the second line.")
-    expect(editor).to_have_value(
-        "Save through the visible control.\nKeep the second line."
+    expect(editor).to_have_js_property(
+        "value", "Save through the visible control.\nKeep the second line."
     )
     with sending(page, "the draft shortcut"):
         page.keyboard.press("Enter")
@@ -11261,11 +11261,11 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
 
     page.locator(".lf-thread-panel .lf-close-action").click()
     draft_control(page, "edit", "plan").click()
-    editor = page.locator("#plan textarea")
-    editor.fill("First paragraph")
+    editor = page.locator("#plan leaf-text")
+    write(editor, "First paragraph")
     editor.press("Enter")
     editor.type("Second paragraph")
-    expect(editor).to_have_value("First paragraph\nSecond paragraph")
+    expect(editor).to_have_js_property("value", "First paragraph\nSecond paragraph")
     expect(editor).to_have_attribute(
         "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
     )

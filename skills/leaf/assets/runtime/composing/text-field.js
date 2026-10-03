@@ -36,6 +36,9 @@
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
  * listeners CodeMirror holds on the window and document; reconnecting builds another.
+ * `:state(ready)` means that view exists. A reading surface being replaced can keep
+ * its words in flow until then, so measuring the connecting editor never collapses
+ * the scrollport before the editor has content.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
  * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
@@ -494,6 +497,7 @@ class LeafText extends HTMLElement {
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     this.#paintEmpty();
+    this.#internals.states.add("ready");
   }
 
   // A move between parents reconnects within the task and keeps its editor.
@@ -504,6 +508,7 @@ class LeafText extends HTMLElement {
       this.#sizes.disconnect();
       this.#view.destroy();
       this.#view = null;
+      this.#internals.states.delete("ready");
     });
   }
 

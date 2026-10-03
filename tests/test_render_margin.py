@@ -1367,9 +1367,9 @@ def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
     resized(page, width, 900)
     draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
     draft_item.locator(".lf-draft-pencil").click()
-    editor = page.locator("#bg-draft textarea")
+    editor = page.locator("#bg-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
-    editor.fill(body)
+    write(editor, body)
     page.locator("#bg-editing-guide").click()
     expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
     expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()

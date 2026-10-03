@@ -794,6 +794,10 @@ registers those rows on its box with the same text-entry meanings. `TEXT_BOX` ma
 the text field and any native textarea, for code asking whether an element takes typed
 paragraphs.
 
+A field has `:state(ready)` once its editor view exists. When it replaces a reading
+surface, keep that surface in flow until the field is ready: measuring a connecting
+empty field must not shrink the scrollport and lose the user's reading position.
+
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
 the words, never in the field. So `sync.value()` reads the whole draft, `sync.load()`

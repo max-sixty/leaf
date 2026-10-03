@@ -243,6 +243,13 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def draft_edit(page: Page) -> None:
+    """A passage opened in its shared editor, with Markdown source and a focused caret."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("Tab")
+    page.locator("#rn-cli .lf-draft-edit").focus()
+
+
 DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
@@ -268,6 +275,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         element_thread,
         versions_menu,
         go_to,
+        draft_edit,
     )
 }
 
@@ -283,6 +291,14 @@ class State:
 
 
 STATES = (
+    State("release-draft", "release-notes", draft_edit),
+    State(
+        "release-draft-phone",
+        "release-notes",
+        draft_edit,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),

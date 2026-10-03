@@ -5093,8 +5093,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",
-        # The margin layer's placement rules load with the annotation overlay.
-        # This page has no annotation, so its lazy stylesheet is absent.
+        # The margin layer's placement rules live in the annotation overlay sheet,
+        # outside the core chrome sheet whose scoped classes this test counts.
         # Page Map rows share the margin entry's state and icon face.
         "lf-margin-kind",
         "lf-page-map-action",
@@ -5133,7 +5133,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     }, "the shared stylesheet class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the core runtime puts inside the page
     # rather than inside its own container. Annotation-specific global rules live
-    # in the overlay's sheet, which this page does not load.
+    # in the overlay sheet, outside this core chrome sheet's census.
     # What is not here is the shared vocabulary, whose faces the theme states — see the
     # exception above, and chrome.css's header for why.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {

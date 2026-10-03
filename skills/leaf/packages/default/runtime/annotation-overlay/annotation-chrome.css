@@ -83,6 +83,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
   :is(.lf-fab-bar, .lf-margin-preview) { position-visibility: always; }
+  /* Window-plane paint stays independent of the scroll anchor it released. */
+  :is(.lf-fab-bar, .lf-margin-preview)[data-lf-plane="window"] {
+    will-change: opacity;
+  }
   .lf-fab-bar { --lf-response-min-width: 216px; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
     min-width: var(--lf-response-min-width); }

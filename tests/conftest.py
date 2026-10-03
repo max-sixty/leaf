@@ -16,7 +16,7 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND
 from playwright.sync_api import sync_playwright

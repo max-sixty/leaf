@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from leaf import codex as codex_model
 from leaf import codex_adapter as adapter_model
-from leaf.session_cleanup import write_json
+from leaf.state import write_json
 
 
 def test_live_and_archived_readers_ignore_records_with_missing_fields(tmp_path):

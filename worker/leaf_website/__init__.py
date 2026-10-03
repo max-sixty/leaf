@@ -58,10 +58,10 @@ from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
     PageTransaction,
-    close_session_turn,
     page_claim,
     restore_page_claim,
 )
+from leaf.state import close_session_turn
 from leaf.thread import (
     fail_answer,
     release_delivery_reply,
@@ -446,7 +446,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.open()
+        if not self.open():
+            raise RuntimeError("the hosted turn no longer owns its session epoch")
         open_app_server_delivery(
             self.page_dir,
             self.session_id,

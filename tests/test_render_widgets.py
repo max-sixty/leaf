@@ -10554,6 +10554,13 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     }"""
     before = page.evaluate(reading)
     assert before["wrap"]
+    if not manifest:
+        changed_line = page.locator(
+            'lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']'
+        )
+        assert (
+            changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
+        )
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
@@ -10564,6 +10571,10 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     after = page.evaluate(reading)
     expect(search).to_have_value("handlers")
     assert after == before, (before, after)
+    if not manifest:
+        assert (
+            changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
+        )
 
 
 @pytest.mark.parametrize("manifest", [False, True])
@@ -11680,14 +11691,6 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3 WebKit: tapping Soft wrap checks its checkbox, but the "
-        "diff lines retain white-space: pre instead of wrapping"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     patch = (
         "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"

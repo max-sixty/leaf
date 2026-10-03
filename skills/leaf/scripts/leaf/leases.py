@@ -18,7 +18,7 @@ from pathlib import Path
 from leaf.event_log import EventRefused
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
-from leaf.session_cleanup import (
+from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
     TITLES_SUFFIX,
@@ -179,7 +179,7 @@ def adapter_lease_path(session_id: str) -> Path:
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:
-    """`session_cleanup.session_file`, with its directory created."""
+    """`state.session_file`, with its directory created."""
     sessions_home()
     return session_file(session_id, suffix)
 
@@ -234,7 +234,7 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
-def wait_is_live(page_dir: Path, session_id: str | None) -> bool:
+def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now."""
     lease_path = waiter_lease_path(page_dir, session_id)
     return bool(lease_path and lock_is_held(lease_path))

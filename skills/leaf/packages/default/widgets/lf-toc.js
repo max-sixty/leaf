@@ -312,10 +312,14 @@ customElements.define(
     #rememberFocus() {
       const viewport = this.#nav.getBoundingClientRect();
       const active = document.activeElement;
-      const focused = this.#nav.contains(active) ? active.getBoundingClientRect() : null;
+      const focused = this.#nav.contains(active)
+        ? active.getBoundingClientRect()
+        : null;
       this.#navHeight = viewport.height;
       this.#focusedLink = active;
-      this.#focusedVisible = !!focused && focused.top >= viewport.top - 1 &&
+      this.#focusedVisible =
+        !!focused &&
+        focused.top >= viewport.top - 1 &&
         focused.bottom <= viewport.bottom + 1;
     }
 
@@ -365,9 +369,12 @@ customElements.define(
       if (layout.labelHeight > track.height + 1) {
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
-        if (this.#nav.contains(document.activeElement) &&
-            this.#focusedLink === document.activeElement && this.#focusedVisible &&
-            this.#nav.getBoundingClientRect().height < this.#navHeight - 1) {
+        if (
+          this.#nav.contains(document.activeElement) &&
+          this.#focusedLink === document.activeElement &&
+          this.#focusedVisible &&
+          this.#nav.getBoundingClientRect().height < this.#navHeight - 1
+        ) {
           const focused = document.activeElement.getBoundingClientRect();
           const viewport = this.#nav.getBoundingClientRect();
           if (focused.bottom > viewport.bottom)

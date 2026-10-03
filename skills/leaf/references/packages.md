@@ -327,9 +327,12 @@ detail matching the declared browser schema; `says()` over `textContent`; `offer
 scroll against the resulting layout); asynchronous visible preparation is registered
 through `controller.present(promise)`; box-derived apparatus takes its first visible
 reading synchronously from `PRESENTATION` and observes later changes through the normal
-layout signals (each helper's header under `runtime/` says why), scheduling a paint with
-`nextRender`/`cancelRender` and watching a size with `sizeObserver` rather than the
-browser's own, so that a reader waiting for the page to settle after a gesture — a
+layout signals. Apparatus derived from the authored structure reconciles at
+`PAGE_INTERFACE`, which runs at startup and each in-place revision activation;
+it retains surviving nodes with `setChildren` so focus and native view state survive.
+Each helper's header under `runtime/` says why. Use `nextRender`/`cancelRender` for
+paints and `sizeObserver` for size observation, so that a reader waiting for the
+page to settle after a gesture — a
 check, a test — waits for that work too (`nextRender` asked for from another rendering
 callback runs in that callback's frame, and otherwise in the next frame; a step that
 must not run in the frame that asked for it, such as an animation tick, asks for
@@ -532,7 +535,7 @@ A module that names an element away from it, in a feed row or a summary, reads t
 shared names rather than its own. `addressableLabel(element)` is what the chrome calls
 it: first the name the authoring contract gives it (the attribute its entry declares
 with `x-name`, else a leading `<summary>`, heading, or titled member's `<strong>`,
-inside a leading `<header>` too), else its caption or `aria-label`. An element whose
+inside a leading `<header>` or `<hgroup>` too), else its caption or `aria-label`. An element whose
 words are its own, such as a paragraph or a list item, is otherwise named by those
 words cut short; any other element takes the name of the nearest element holding it
 that has one, so a question's options are named by the question. Past that, plain

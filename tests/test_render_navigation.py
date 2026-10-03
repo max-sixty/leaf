@@ -1439,7 +1439,7 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(
                   generated: target?.dataset.lfGen === '1'};
         })"""
     )
-    assert targets[0] == {"href": "#bg-title", "tag": "h1", "generated": False}
+    assert targets[0] == {"href": "#bg-title", "tag": "hgroup", "generated": False}
     assert all(
         target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets

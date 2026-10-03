@@ -1,5 +1,6 @@
 """The real-browser gate the everyday suite keeps."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -163,3 +164,75 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
     expect(latest.locator(".lf-msg-body")).to_have_text(words)
     expect(latest.locator(".lf-msg-body")).to_be_in_viewport(ratio=0.99)
     assert pending, "The reply POST must still be pending after fitting"
+
+
+def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve):
+    """A long submitted comment retains its editor viewport inside the transcript.
+
+    Reading keys must name that inner viewport, as native wheel/PageUp do, and
+    closing it must release the region before another comment adopts the frame.
+    """
+    source = leaf_page(
+        "Read a submitted comment",
+        '<h1>Read a submitted comment</h1><p id="topic">A passage to discuss.</p>'
+        '<div style="height:900px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 700)
+    words = "\n".join(
+        f"Line {line:02d}: A long comment stays readable after submission."
+        for line in range(30)
+    )
+    pending = []
+
+    def hold_comment(route):
+        if route.request.post_data_json["kind"] == "comment":
+            pending.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold_comment)
+    for _ in range(2):
+        page.locator("#topic").click(modifiers=["Alt"], position={"x": 40, "y": 10})
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.insert_text(words)
+        page.keyboard.press("ControlOrMeta+Enter")
+        holding(page, pending, 1, "the submitted comment")
+        body = page.locator(".lf-margin-preview .lf-msg-body").first
+        expect(body).to_contain_text("Line 29:")
+        expect(body.locator("..")).to_have_attribute(
+            "data-event", re.compile("pending:.*")
+        )
+        rendered(page)
+        before = body.evaluate("body => body.scrollTop")
+        assert before > 0, "The submitted comment must start at its last lines"
+        for _ in range(15):
+            page.keyboard.press("Tab")
+            if body.evaluate("body => document.activeElement === body"):
+                break
+        expect(body).to_be_focused()
+        page.keyboard.press("u")
+        page.wait_for_function(
+            "before => document.querySelector('.lf-margin-preview .lf-msg-body').scrollTop < before",
+            arg=before,
+        )
+        scroll_settled(page, ".lf-margin-preview .lf-msg-body")
+        after = body.evaluate("body => body.scrollTop")
+        assert after < before
+        pending.pop().continue_()
+        expect(body.locator("..")).not_to_have_attribute(
+            "data-event", re.compile("pending:.*")
+        )
+        rendered(page)
+        assert abs(body.evaluate("body => body.scrollTop") - after) <= 1
+        page.keyboard.press("d")
+        page.wait_for_function(
+            "after => document.querySelector('.lf-margin-preview .lf-msg-body').scrollTop > after",
+            arg=after,
+        )
+        scroll_settled(page, ".lf-margin-preview .lf-msg-body")
+        page.locator(".lf-margin-preview").get_by_role(
+            "button", name="Dismiss thread view"
+        ).click()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.unroute_all(behavior="wait")

@@ -13,6 +13,7 @@ import http.cookiejar
 import json
 import os
 import secrets
+import select
 import shlex
 import shutil
 import socket
@@ -300,12 +301,12 @@ def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     monkeypatch.setattr(
         codex_model,
         "set_stream_activity",
-        lambda session, turn, detail: updates.append((session, turn, detail)),
+        lambda session, turn, detail, **_scope: updates.append((session, turn, detail)),
     )
     monkeypatch.setattr(
         codex_model,
         "clear_stream_activity",
-        lambda session, turn=None: clears.append((session, turn)),
+        lambda session, turn=None, **_scope: clears.append((session, turn)),
     )
 
 
@@ -614,15 +615,24 @@ def record_claim(page, /, harness="claude-code", **fields):
     lifetime = {key: record[key] for key in ("job", "activity") if key in record}
     if not lifetime:
         lifetime = {"pid": record["pid"]}
-    session = cleanup_model.ensure_session(record["id"], lifetime)
-    session = cleanup_model.write_session(
-        {
-            **session,
-            "turn": record["turn"],
-            "turn_opened": record["turn_opened"],
-            "turn_closed": record["turn_closed"],
-        }
-    )
+    turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
+    session = None
+    if "generation" in fields:
+        # Copying a current claim corrects the fake host's lifetime, rather than
+        # replacing its session and briefly leaving that claim without an owner.
+        with cleanup_model.flocked(cleanup_model.session_lock_path(record["id"])):
+            current = cleanup_model.session_record(record["id"])
+            if (
+                current is not None
+                and current["ended"] is None
+                and fields["generation"] == current["generation"]
+            ):
+                session = cleanup_model.write_session(
+                    {**current, "lifetime": lifetime, **turn}
+                )
+    if session is None:
+        session = cleanup_model.ensure_session(record["id"], lifetime)
+        session = cleanup_model.write_session({**session, **turn})
     record = {
         key: value
         for key, value in record.items()
@@ -1440,21 +1450,29 @@ claim_page(page)
 started = start_server(page)
 print(json.dumps({"url": started.url}))
 """
+    release_start = tmp_path / "release-page-host"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    try:
+        assert select.select([started.stdout], [], [], 30)[0], (
+            "Page start did not finish"
+        )
+        announcement = started.stdout.readline()
+        assert json.loads(announcement)["url"].startswith("http://127.0.0.1:")
+        # Transfer the fixture lifetime while its original host is still alive;
+        # a session-bound server may retire as soon as that host exits.
+        claim = service_model.page_claim(page)
+        record_claim(page, **{**claim, "pid": os.getpid()})
+    finally:
+        release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
-    assert json.loads(out)["url"].startswith("http://127.0.0.1:")
-    # The fake codex wrapper exits with this one command; a real Codex session
-    # stays above later hook calls. Keep that session lifetime true for tests
-    # using this fixture after the launch itself has been verified.
-    claim = service_model.page_claim(page)
-    record_claim(page, **{**claim, "pid": os.getpid()})
     return page
 
 

@@ -204,9 +204,9 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
         assert page.locator("#action").bounding_box() == control_before
     if protected:
         errors = consume_browser_errors(page, "moved without input")
-        assert any(
-            f"{protected} moved without input" in error for error in errors
-        ), errors
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
 
 
 @pytest.mark.parametrize(
@@ -313,9 +313,9 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         assert page.locator("#outer").bounding_box() == outer_before
     if protected:
         errors = consume_browser_errors(page, "moved without input")
-        assert any(
-            f"{protected} moved without input" in error for error in errors
-        ), errors
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
 
 
 CAPPED_METADATA = "".join(
@@ -1290,9 +1290,9 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any(
-        e.startswith("button#control moved without input") for e in errors
-    ), errors
+    assert any(e.startswith("button#control moved without input") for e in errors), (
+        errors
+    )
 
 
 @pytest.mark.parametrize("destination", ["window", "page"])
@@ -1564,9 +1564,9 @@ def test_native_clipping_preserves_only_painted_carry(
     after = page.locator("#field").bounding_box()
     assert after["x"] - before["x"] == (6 if delta == 3 else delta)
     if painted:
-        assert any(
-            "textarea#field moved without input" in error for error in errors
-        ), errors
+        assert any("textarea#field moved without input" in error for error in errors), (
+            errors
+        )
     else:
         assert errors == [], errors
 
@@ -1660,9 +1660,9 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any(
-            "textarea#field moved without input" in error for error in errors
-        ), errors
+        assert any("textarea#field moved without input" in error for error in errors), (
+            errors
+        )
     else:
         assert errors == [], errors
 
@@ -1708,9 +1708,9 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
             paint(page)
             judge_watches()
             errors = take_browser_errors(page)
-            assert any(
-                "textarea#field moved without input" in e for e in errors
-            ), errors
+            assert any("textarea#field moved without input" in e for e in errors), (
+                errors
+            )
 
 
 @pytest.mark.parametrize("pressed", [True, False])
@@ -1842,9 +1842,9 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
     judge_watches()
     errors = take_browser_errors(page)
     if local_carry:
-        assert any(
-            "textarea#field moved without input" in error for error in errors
-        ), errors
+        assert any("textarea#field moved without input" in error for error in errors), (
+            errors
+        )
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors

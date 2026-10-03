@@ -485,10 +485,22 @@ def bundle_published_runtime(out: Path) -> None:
 
 
 @click.command("site")
-def site() -> None:
-    """Build leaf.page into .tmp/site."""
-    build(OUT)
-    bundle_published_runtime(OUT)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=OUT,
+    help="Build destination (default: .tmp/site).",
+)
+def site(output: Path) -> None:
+    """Build leaf.page and its edge assets."""
+    from leaf.session_cleanup import flocked
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # One destination is one publication; independent builds use separate outputs.
+    with flocked(output.with_name(f"{output.name}.lock")):
+        build(output)
+        bundle_published_runtime(output)
     click.echo(
-        f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}"
+        f"✓ {len(list(output.rglob('*.html')))} pages → {output} and {asset_site(output)}"
     )

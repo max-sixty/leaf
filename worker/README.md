@@ -299,7 +299,9 @@ debugging log. Live incidents use
 query builder.
 
 The local end-to-end verifier prints the same container records and leaves them at
-`.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
+`.tmp/verify-site/run-*/website-agent-local.log` for a later agent to inspect. Each
+run builds its own site, binds an OS-assigned HTTP port, and gives each website host
+a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
 website config, matching production without changing personal state. Its JSON result
 records `responseVisibleMs` from the first non-empty agent reply the open Threads panel

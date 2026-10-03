@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Self
 
 import click
+from leaf.codex_adapter import APP_SERVER_ENV
 from leaf.host import IDENTITY_VARIABLES
 
 from leaf_dev import ROOT
@@ -56,17 +57,24 @@ PAYLOAD = (
 )
 
 
+def run_directory(parent: Path) -> Path:
+    """Allocate one invocation's evidence without replacing another run's files."""
+    parent.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+
+
 def environment(**extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
-    identity: its id, job directory and effort level. A `leaf` command would sign
-    events as that session, and a child would take its settings. `CLAUDE_CONFIG_DIR`
+    identity: its id, job directory, effort level and App Server endpoint. A `leaf`
+    command would sign events as that session, and a child would use its transport
+    and settings. `CLAUDE_CONFIG_DIR`
     stays, since it names where the login lives."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in IDENTITY_VARIABLES
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}

@@ -781,7 +781,9 @@ def export_preview(
     runtime: Path, launcher: Path, source: Path, slot: str | None
 ) -> None:
     """Write the page as one offline file under `.tmp/`, and print its path."""
-    TMP.mkdir(exist_ok=True)
+    from leaf_dev.harness import run_directory
+
+    out_dir = run_directory(TMP / "exports")
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(
@@ -790,8 +792,7 @@ def export_preview(
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""
-        out = TMP / f"example-{source.stem}{suffix}.html"
-        out.unlink(missing_ok=True)
+        out = out_dir / f"example-{source.stem}{suffix}.html"
         leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
     print(
         preparation_note(source, prepared.data_sources, prepared.versions),

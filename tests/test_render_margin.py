@@ -1367,9 +1367,9 @@ def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
     resized(page, width, 900)
     draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
     draft_item.locator(".lf-draft-pencil").click()
-    editor = page.locator("#bg-draft textarea")
+    editor = page.locator("#bg-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
-    editor.fill(body)
+    write(editor, body)
     page.locator("#bg-editing-guide").click()
     expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
     expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
@@ -10486,9 +10486,9 @@ def test_rail_ask_draft_and_optimistic_undo(browser, serve):
     page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
     rail.get_by_role("button", name="Edit draft", exact=True).click()
     expect(rail.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
-    editor = page.locator("#draft textarea")
+    editor = page.locator("#draft leaf-text")
     expect(editor).to_be_focused()
-    editor.fill("A canonical rail saved this draft.")
+    write(editor, "A canonical rail saved this draft.")
     rail.get_by_role("button", name="Save", exact=True).click()
     expect(page.locator("#draft .lf-draft-body")).to_have_text(
         "A canonical rail saved this draft."
@@ -10517,7 +10517,7 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     edit = rail.get_by_role("button", name="Edit draft", exact=True)
     assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     edit.click()
-    expect(page.locator("#draft textarea")).to_be_focused()
+    expect(page.locator("#draft leaf-text")).to_be_focused()
     rail.get_by_role("button", name="Cancel", exact=True).click()
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")

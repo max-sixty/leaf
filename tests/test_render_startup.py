@@ -1939,7 +1939,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
 
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
-    draft.locator("textarea").fill(DRAFT_EDITED)
+    write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
@@ -2613,7 +2613,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     )
     page.set_default_timeout(5000)
     page.locator("#draft .lf-draft-body").dblclick()
-    editor = page.locator("#draft textarea")
+    editor = page.locator("#draft leaf-text")
     write(editor, "An unfinished durable draft")
     editor.press("Home")
     editor.press("Shift+ArrowRight")
@@ -2644,7 +2644,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
         editor.evaluate("el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]")
         == before
     )
-    expect(editor).to_have_value("An unfinished durable draft")
+    expect(editor).to_have_js_property("value", "An unfinished durable draft")
 
 
 def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):

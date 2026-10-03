@@ -250,6 +250,13 @@ def widget_inline_hints(page: Page) -> None:
     page.locator("#bg-local-shortcuts").focus()
 
 
+def draft_edit(page: Page) -> None:
+    """A passage opened in its shared editor, with Markdown source and a focused caret."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("Tab")
+    page.locator("#rn-cli .lf-draft-edit").focus()
+
+
 DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
@@ -276,6 +283,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         versions_menu,
         go_to,
         widget_inline_hints,
+        draft_edit,
     )
 }
 
@@ -291,6 +299,14 @@ class State:
 
 
 STATES = (
+    State("release-draft", "release-notes", draft_edit),
+    State(
+        "release-draft-phone",
+        "release-notes",
+        draft_edit,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),

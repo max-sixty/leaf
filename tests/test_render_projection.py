@@ -4256,9 +4256,9 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
 
     page = open_page(browser, live_url(serve(first)))
     draft_control(page, "edit", "plan").click()
-    editor = page.locator("lf-draft textarea")
+    editor = page.locator("lf-draft leaf-text")
     expect(editor).to_be_focused()
-    editor.fill("Ship it, but louder.")
+    write(editor, "Ship it, but louder.")
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
     # The user goes and stands on the question instead.
@@ -4270,7 +4270,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     told(page)
     expect(page).to_have_title("Live keys rewritten")
     # The rewritten draft has connected and read its edit back: the words are kept.
-    expect(editor).to_have_value("Ship it, but louder.")
+    expect(editor).to_have_js_property("value", "Ship it, but louder.")
     expect(pick).to_be_focused()
 
 

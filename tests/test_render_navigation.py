@@ -7303,7 +7303,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
     expect(edit).to_have_text("Edit…")
     edit.click()
-    expect(page.locator("#note textarea")).to_be_focused()
+    expect(page.locator("#note leaf-text")).to_be_focused()
 
     save = draft_control(page, "save", "note")
     save.focus()
@@ -7319,7 +7319,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     )
     expect(cancel).to_have_text("Cancel")
     cancel.click()
-    expect(page.locator("#note textarea")).to_have_count(0)
+    expect(page.locator("#note leaf-text")).to_have_count(0)
 
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
@@ -11031,7 +11031,7 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     expect(line).to_contain_text("comment on the page")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Comment on the page")
+    expect(help_el).to_contain_text("comment on the page")
     page.keyboard.press("Escape")
 
     # A real selection keeps the browser selection until Comment explicitly enters its
@@ -11315,23 +11315,23 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_be_visible()
     # Nothing is selected and the user is standing nowhere, so c's own row names the
     # page comment it enters. Threads navigation remains the separate g T command.
-    expect(help_el).to_contain_text("Comment on the page")
+    expect(help_el).to_contain_text("comment on the page")
     # The sequence's section stands on every page — the edges need no list — but holds
     # no row for a list this page hasn't got. Each row says the whole press from the
     # standing page rather than asking its heading to supply the first g.
     expect(help_el.get_by_role("heading", name="Go to", exact=True)).to_be_visible()
     expect(
-        help_el.locator("tr", has_text="top of the page").locator(
+        help_el.locator('tr[data-lf-command="navigation.page.top"]').locator(
             ".lf-binding-sequence > kbd"
         )
     ).to_have_text(["g", "g"])
     expect(
-        help_el.locator("tr", has_text="bottom of the page").locator(
+        help_el.locator('tr[data-lf-command="navigation.page.bottom"]').locator(
             ".lf-binding-sequence > kbd"
         )
     ).to_have_text(["g", "G"])
     expect(
-        help_el.locator("tr", has_text="bottom of the page").locator(
+        help_el.locator('tr[data-lf-command="navigation.page.bottom"]').locator(
             ".lf-binding-sequence"
         )
     ).to_have_attribute("aria-label", "g then Shift+g")
@@ -11395,10 +11395,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")
     expect(
-        help_el.locator("tr", has_text="Next open thread").locator("kbd")
+        help_el.locator('tr[data-lf-command="thread.next"]').locator("kbd")
     ).to_have_text("t")
     expect(
-        help_el.locator("tr", has_text="Previous open thread").locator("kbd")
+        help_el.locator('tr[data-lf-command="thread.previous"]').locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("In a thread")
     # Still one version, so there is no version walk to advertise.
@@ -11619,15 +11619,17 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     draft_control(page, "edit", "plan").click()
-    ta = page.locator("lf-draft textarea")
+    ta = page.locator("lf-draft leaf-text")
     expect(ta).to_be_focused()
-    ta.fill("Ship it — but louder.")
+    write(ta, "Ship it — but louder.")
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
     draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
+    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
+        "value", "Ship it — but louder."
+    )
     page.keyboard.press("Escape")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.

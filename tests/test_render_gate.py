@@ -2819,6 +2819,12 @@ def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
         }"""
     )
 
+    assert (
+        child.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+        )
+        == "arrived"
+    )
     assert at_rest(page) == []
     assert child.locator("body").get_attribute("data-arrived") == "yes"
 
@@ -2837,7 +2843,17 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
             const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
             deferredArrival(new Promise(resolve => setTimeout(() => {
                 const nested = document.createElement('iframe');
-                nested.srcdoc = `<body><script>setTimeout(() => document.body.setAttribute('data-late', 'yes'), 1000)<\\/script></body>`;
+                nested.srcdoc = `<body><script>
+                    Object.defineProperty(window, 'lfRest', {
+                        configurable: true,
+                        set(rest) {
+                            Object.defineProperty(window, 'lfRest', {
+                                value: rest, writable: true, configurable: true
+                            });
+                            queueMicrotask(() => document.body.setAttribute('data-late', 'yes'));
+                        }
+                    });
+                <\\/script></body>`;
                 document.body.append(nested);
                 nested.addEventListener('load', resolve, {once: true});
             }, 1000)));

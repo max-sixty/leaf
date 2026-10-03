@@ -48,6 +48,7 @@ from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -867,9 +868,9 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
-            assert resume.wait(timeout=STATED_TIMEOUT), (
-                "re-vendor never observed the writer"
-            )
+            assert resume.wait(
+                timeout=STATED_TIMEOUT
+            ), "re-vendor never observed the writer"
         return original_append_record(page, event)
 
     def init_result():
@@ -1167,7 +1168,7 @@ HELD_LEASES = []
 
 
 def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the same contentless lease as a live `server run`."""
+    """Hold the serving incarnation lease of a live `server run`."""
     directory.mkdir(parents=True, exist_ok=True)
     service = {
         "host": "127.0.0.1",
@@ -1175,10 +1176,14 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "server_id": "fixture-server",
     }
     cleanup_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    handle.truncate(0)
+    handle.write(service["server_id"].encode())
+    handle.flush()
     HELD_LEASES.append(handle)
 
 
@@ -1251,7 +1256,7 @@ def fresh_process():
         page_memory_model._memories = kept
 
 
-def neighbour_page(directory, title=None, dead=False, published=True):
+def neighbour_page(directory, title=None, dead=False, published=True, port=59999):
     """A page with desired service state and, unless dead, a live lease."""
     directory.mkdir(parents=True)
     (directory / "revisions").mkdir()
@@ -1280,21 +1285,23 @@ def neighbour_page(directory, title=None, dead=False, published=True):
                 "text": "t",
             },
         )
-    record = {"port": 59999}
+    record = {"port": port}
     if dead:
         cleanup_model.write_json(
             directory / "service.json",
             {
                 "host": "127.0.0.1",
                 "bind": "127.0.0.1",
-                "port": 59999,
+                "port": port,
                 "enabled": True,
                 "lifetime": "standing",
+                "server_id": "fixture-server",
             },
         )
     else:
         serving(directory, record["port"])
-    return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
+    server_rows_model.RowPublisher(directory, "fixture-server").refresh()
+    return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
 
 def _status(page_dir, *args):
@@ -1463,13 +1470,13 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
 import json, sys
 from pathlib import Path
 from leaf.hosting import start_server
-from leaf.service import starting_claim
+from leaf.service import claim_page
 page = Path(sys.argv[1])
-with starting_claim(page):
-    url, _ = start_server(page)
-print(json.dumps({"url": url}))
+claim_page(page)
+started = start_server(page)
+print(json.dumps({"url": started.url}))
 """
-    release_start = tmp_path / "release-server-start"
+    release_start = tmp_path / "release-page-host"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,

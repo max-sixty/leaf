@@ -106,6 +106,7 @@ import { allThreads } from "../thread/state.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
+import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
   panelElements: { generalInput, panel, threadsBox, inPanel },
@@ -142,6 +143,7 @@ export function createResponseSurface({
   refreshThread,
   dismissThreadView,
   responseHome,
+  revealResponseHome = null,
   createPlacement = null,
 }) {
   const hideReference = () => closeCommandReference(false);
@@ -174,11 +176,16 @@ export function createResponseSurface({
   const fabPositioned = () =>
     !fabAnchor
       ? Promise.resolve(false)
-      : ((fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet) ||
-            placement?.ready()) &&
-          fabDrawn()
-        ? Promise.resolve(true)
-        : new Promise((resolve) => fabPositionWaiters.push(resolve));
+      : !placement &&
+          fabInlineOutlet === responseHome &&
+          !fabDrawn() &&
+          !fabFocusHandoff?.intent()
+        ? Promise.resolve(false)
+        : ((fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet) ||
+              placement?.ready()) &&
+            fabDrawn()
+          ? Promise.resolve(true)
+          : new Promise((resolve) => fabPositionWaiters.push(resolve));
   const stopFabPositioning = ({ reset = false, repositioning = false } = {}) => {
     placement?.stop({ reset, repositioning });
     if (reset && !repositioning) answerFabPosition(false);
@@ -577,7 +584,7 @@ export function createResponseSurface({
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
     if (
-      coarsePointer.matches &&
+      (coarsePointer.matches || !placement) &&
       hasQuote(anchor) &&
       (!fabHoldsCapturedPassage() || !sameAnchor(anchor, fabAnchor))
     ) {
@@ -661,13 +668,19 @@ export function createResponseSurface({
   // Which handoff the mark belongs to. The mark itself is one bit, so a landing that only
   // read the bit could not tell its own handoff's mark from a later one's, and releasing
   // on the way out would drop a mark still being held for a focus yet to land.
-  let fabFocusHandoff = 0;
+  let fabFocusHandoff = null;
   const beginFabFocus = () => {
     fabInputTakingFocus = true;
-    return ++fabFocusHandoff;
+    const handoff = {};
+    handoff.intent = retainUserIntent({
+      available: () => fabFocusHandoff === handoff,
+    });
+    fabFocusHandoff = handoff;
+    return handoff;
   };
   const endFabFocus = () => {
     fabInputTakingFocus = false;
+    fabFocusHandoff = null;
   };
   // Every handoff lands here. It is marked at once and lands a frame or more later, and
   // the user owns the page for the whole of that gap: a passage standing when it lands
@@ -675,19 +688,39 @@ export function createResponseSurface({
   // would collapse it before anything could read it. Standing down releases the mark with
   // it, so the collapse the mark holds out cannot outlive the focus it was holding it for.
   function landFabFocus(handoff, anchor, stands) {
+    handoff.intent = restrictUserIntent(
+      handoff.intent,
+      () => composerOpen && stands() && sameAnchor(anchor, fabAnchor),
+    );
     void fabPositioned().then((positioned) => {
       if (handoff !== fabFocusHandoff) return;
       const taken = pageSelection();
       const words = taken ? selectionAnchor(taken) : null;
-      if (
+      const landed =
         positioned &&
-        composerOpen &&
-        stands() &&
-        (!hasQuote(words) || sameAnchor(words, anchor))
-      )
-        fabInput.focus({ preventScroll: true });
-      else endFabFocus();
+        (!hasQuote(words) || sameAnchor(words, anchor)) &&
+        handoff.intent.handoff(() => fabInput.focus({ preventScroll: true }));
+      if (!landed) endFabFocus();
     });
+  }
+
+  // Only a successful current Thread cohort may reveal the fallback home. Retirement
+  // and rollback still move the native editor there without authorizing navigation.
+  // An opening gesture keeps its original input generation through that preparation.
+  function finishPlacement() {
+    if (
+      placement ||
+      !revealResponseHome ||
+      fabBar.parentElement !== responseHome ||
+      !fabAnchor ||
+      !composerOpen
+    )
+      return;
+    if (!fabFocusHandoff?.intent.handoff(revealResponseHome)) {
+      answerFabPosition(false);
+      return;
+    }
+    answerFabPosition(true);
   }
   function openComment(anchor, text, options = {}) {
     return openComposer(anchor, text, options);
@@ -1016,7 +1049,7 @@ export function createResponseSurface({
       // click() to supply the keys a span doesn't come with — and the record would answer
       // for wherever the pointer is parked, so that one keeps reading the event.
       const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
-      const threadId = markAt(point.x, point.y);
+      const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
@@ -1240,6 +1273,7 @@ export function createResponseSurface({
     fabFrameAt: () => placement?.frame() ?? null,
     seatFab,
     restoreFab,
+    finishPlacement,
     fabInlineOutlet: () => fabInlineOutlet,
     mount,
   };

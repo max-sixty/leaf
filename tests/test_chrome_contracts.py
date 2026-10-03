@@ -2053,12 +2053,16 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
     assert page.evaluate("() => window.__leafReadyHeard")
 
 
-def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve):
-    """Delivery drops the sheets' comments and re-serializes what is left, so what a page
-    adopts is not the file's own bytes. The two have to say the same thing to the browser:
-    a stylesheet oddity the serializer repairs would change the rules every page runs
-    under, and no parser here would report it."""
-    page = open_page(browser, serve(LONG_PAGE))
+@pytest.mark.parametrize("mode", ["overlay", "page"])
+def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
+    """Delivered sheets parse like their captured files in document and shadow stages.
+
+    Page mode carries and constructs no physical annotation sheet, while shared paint
+    still reaches both trees. The selected overlay adds its actual annotation sheets.
+    """
+    page = open_page(
+        browser, serve(LONG_PAGE.replace("<body>", f'<body data-annotations="{mode}">'))
+    )
     layer = urljoin(
         page.url,
         page.evaluate(
@@ -2066,8 +2070,16 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         ),
     )
     files = {}
-    for name in ("chrome", "marks"):
-        answer = page.request.get(urljoin(layer, f"runtime/{name}.css"))
+    names = ["chrome", "marks"]
+    if mode == "overlay":
+        names.extend(["annotation-chrome", "annotation-marks"])
+    for name in names:
+        directory = (
+            "runtime/annotation-overlay"
+            if name.startswith("annotation-")
+            else "runtime"
+        )
+        answer = page.request.get(urljoin(layer, f"{directory}/{name}.css"))
         assert answer.ok, answer.status
         files[name] = answer.text()
 
@@ -2079,20 +2091,50 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
             sheet.replaceSync(text);
             return rules(sheet);
           };
-          const { chromeSheet: chrome, marksSheet: marks } =
+          const { chromeSheet: chrome, marksSheet: marks, annotationSheets,
+            annotationMarkSheets } =
             await window.__lfRuntimeImport("/runtime/stylesheets.js");
-          if (![chrome, marks].every(sheet => document.adoptedStyleSheets.includes(sheet)))
+          if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
-          return {
+          const {shadowStage}=await window.__lfRuntimeImport('/runtime/shadow-stage.js');
+          const host=document.createElement('div'); document.querySelector('main').append(host);
+          const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
+          if (![marks,...annotationMarkSheets].every(sheet=>root.adoptedStyleSheets.includes(sheet)))
+            throw new Error('The shadow stage did not adopt its selected marks');
+          if (annotationSheets.length !== (files['annotation-chrome'] ? 2 : 0) ||
+              annotationMarkSheets.length !== (files['annotation-marks'] ? 1 : 0))
+            throw new Error('The document constructed an unselected annotation sheet');
+          const answer = {
             chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
             marks: {delivered: rules(marks), file: fromFile(files.marks)},
           };
+          if (annotationSheets.length) {
+            answer['annotation-chrome']={delivered:rules(annotationSheets[0]),file:fromFile(files['annotation-chrome'])};
+            answer['annotation-marks']={delivered:rules(annotationMarkSheets[0]),file:fromFile(files['annotation-marks'])};
+          }
+          return answer;
         }""",
         files,
     )
     for name, reading in readings.items():
         assert reading["delivered"], f"the page adopted no {name} rules"
         assert reading["delivered"] == reading["file"], name
+    carrier = page.locator("script[data-lf-sheets]").text_content()
+    selected = json.loads(carrier)
+    assert ("annotations" in selected) == (mode == "overlay")
+    assert page.locator("style[data-lf-annotation-theme]").count() == (
+        mode == "overlay"
+    )
+    if mode == "page":
+        assert ".lf-margin-cluster" not in carrier
+        assert ".lf-visual-mark {" not in carrier
+        assert "::highlight(lf-mark)" not in carrier
+        assert ".lf-margin-preview { position: fixed" not in carrier
+    assert ".lf-aim {" in selected["chrome"]
+    assert ".lf-target-trace {" in selected["chrome"]
+    assert ".lf-drawing-mark path" in selected["chrome"]
+    assert "::highlight(lf-version-insert)" in selected["marks"]
+    assert '.lf-msg[aria-busy="true"]' in selected["marks"]
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):

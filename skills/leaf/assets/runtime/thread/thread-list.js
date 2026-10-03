@@ -330,7 +330,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     commands.onListChanged();
     // Narrowing and reconciliation can move another card under a pointer that did not
     // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
-    commands.refreshAnchorHover();
+    commands.refreshAnchorHover?.();
   }
 
   async function prepareFrozenWidgets(current) {

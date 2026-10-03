@@ -79,6 +79,35 @@ class PageStateService:
         )
         return state
 
+    def activity_row(self) -> tuple[dict, str, dict]:
+        """Compact delivery output of the same transaction and fold as the banner.
+
+        No neighboring-page discovery runs here. The reading and live facts
+        name the inputs the publisher keeps, so a concurrent writer invalidates
+        this publication on its next look. Owed moves and reply bodies stay in
+        the page's projection; the row carries their counts, never their copies.
+        """
+        from ..server_rows import compact_activity
+
+        with self._read(with_token=True) as (context, reading, source_error):
+            state = served_page.read_served_page(
+                context, source_error=source_error
+            ).state
+            title = (
+                context.revision(context.active["revision"]).document.title
+                if context.active is not None
+                else ""
+            )
+            row = {
+                "title": title or self.page_dir.name,
+                "session_cwd": state["session_cwd"],
+                "activity": compact_activity(state["activity"]),
+            }
+            live = {
+                key: state[key] for key in ("listening", "session_alive", "live_turn")
+            }
+        return row, reading, live
+
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         with self._read() as (context, _reading, _source_error):
             if context.active is None:

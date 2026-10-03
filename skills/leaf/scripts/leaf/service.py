@@ -35,6 +35,7 @@ from leaf.state import (
     now_iso,
     open_session_turn,
     page_key,
+    session_lock_path,
     session_record,
     write_json,
 )
@@ -136,6 +137,31 @@ def claim_is_active(claim: dict | None) -> bool:
     return pid_alive(claim["pid"])
 
 
+def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
+    """Whether the record names this harness, or neither names a claimant.
+
+    Host identity is independent of liveness: readers pass the active claim
+    when asking which host owns the page now. Resource retirement instead uses
+    the exact acquisition reading (`same_claim`).
+    """
+    if harness is None:
+        return claim is None
+    return bool(
+        claim and (claim["harness"], claim["id"]) == (harness.name, harness.session)
+    )
+
+
+def same_claim(left: dict | None, right: dict | None) -> bool:
+    """Whether two readings name the same acquisition, including no claimant.
+
+    Lifecycle projection may change between readings; acquisition is the exact
+    publication a resource owner may retire or a failed start may restore.
+    """
+    if left is None or right is None:
+        return left is right
+    return left["acquisition"] == right["acquisition"]
+
+
 def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     """Whether anything has touched this page inside ACTIVITY_GRACE_SECS.
 
@@ -235,28 +261,34 @@ class PageTransaction:
         later reader — the page server, the append door, the Stop hook, none of
         them necessarily the claimant's own process — rebuilds what the claimant
         declared instead of reading its own environment."""
-        previous = self.claim
-        path = claim_path(self.page_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        session = ensure_session(harness.session, harness.lifetime())
-        claim = {
-            "page": str(self.page_dir),
-            "ts": now_iso(),
-            "released": None,
-            "id": harness.session,
-            "generation": session["generation"],
-            "acquisition": secrets.token_hex(16),
-            "harness": harness.name,
-            "agent": harness.agent,
-            "cwd": os.getcwd(),
-        }
-        write_json(path, claim)
-        return previous, page_claim(self.page_dir)
+        with self.publishing_claim(prepare_claim(harness, self.page_dir)) as transition:
+            pass
+        return transition
+
+    @contextmanager
+    def publishing_claim(self, claim: dict):
+        """Validate an intent, publish dependent resources, then acquire the page.
+
+        Page then session is the lifecycle lock order. The session cannot end or
+        replace its generation between intent validation and claim publication.
+        The caller performs only short local publication while this lock stands;
+        ownership is the final mutation, after those resources are ready.
+        """
+        with flocked(session_lock_path(claim["id"])):
+            projected = readable_claim(claim)
+            if not claim_is_active(projected):
+                raise RuntimeError(
+                    "the prepared acquisition no longer has a live session"
+                )
+            previous = self.claim
+            path = claim_path(self.page_dir)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            yield previous, projected
+            write_json(path, claim)
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""
-        current = read_json(claim_path(self.page_dir))
-        if not current or current.get("acquisition") != expected["acquisition"]:
+        if not same_claim(self.claim, expected):
             return
         path = claim_path(self.page_dir)
         if previous is None:
@@ -274,12 +306,7 @@ class PageTransaction:
 
     def owned_by(self, harness: "Harness | None") -> bool:
         """Whether this transaction may act for the given waiter."""
-        if harness is None:
-            return self.active_claim is None
-        claim = self.active_claim
-        return bool(
-            claim and (claim["harness"], claim["id"]) == (harness.name, harness.session)
-        )
+        return claimant_matches(self.active_claim, harness)
 
     def release_claim(self) -> None:
         claim = self.claim
@@ -683,6 +710,26 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
     )
 
 
+def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
+    """Capture an unpublished acquisition in the claimant's process.
+
+    Lifetime and cwd come from the launching host, not a detached child. Preparing
+    the canonical session is independent of any page ownership publication.
+    """
+    session = ensure_session(harness.session, harness.lifetime())
+    return {
+        "page": str(page_dir),
+        "ts": now_iso(),
+        "released": None,
+        "id": harness.session,
+        "generation": session["generation"],
+        "acquisition": secrets.token_hex(16),
+        "harness": harness.name,
+        "agent": harness.agent,
+        "cwd": os.getcwd(),
+    }
+
+
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the host session the page's watcher, if a host supplied one.
 
@@ -712,26 +759,6 @@ def restore_page_claim(
     previous, expected = transition
     with PageTransaction(page_dir) as page:
         page.restore_claim(expected, previous)
-
-
-@contextmanager
-def starting_claim(page_dir: Path, *, standing: bool = False):
-    """Claim the page for whatever starts inside, and give the claim back if the
-    start raises.
-
-    The one claim transition a start takes: `server start`, `server run`, a
-    `--user` preview's first start, and `leaf codex start`. A standing start
-    declines the claim. What counts as a start that raised is the caller's: a
-    detached start raises until its handshake commits (`detached`), so a caller
-    that leaves before committing restores the claim it took. The restore keeps a
-    successor's claim that replaced this one in between.
-    """
-    transition = None if standing else take_page_claim(page_dir)
-    try:
-        yield
-    except BaseException:
-        restore_page_claim(page_dir, transition)
-        raise
 
 
 def read_status(page_dir: Path) -> dict:

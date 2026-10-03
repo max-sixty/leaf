@@ -492,7 +492,7 @@ export function createThreadLanding({
   // usually done with the thread until the agent answers, so they move on from there
   // without Escaping out of the box first.
   const landSent = (thread) => {
-    const target = cardTarget(thread);
+    const target = cardTarget?.(thread);
     if (target) focusDestination(target);
     else standOnThread(thread);
   };

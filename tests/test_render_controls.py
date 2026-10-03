@@ -191,6 +191,35 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(reset).to_be_enabled(timeout=30000)
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    reset.focus()
+    expect(reset).to_be_focused()
+    assert (
+        page.locator("#on-you-sample").evaluate(
+            "sample => sample.showThread('98850286')"
+        )
+        is True
+    )
+    expect(reset).to_be_focused()
+    expect(anchored).to_be_visible()
+
+    # A cancelled arrival must leave newer focus inside the child alone.
+    assert (
+        page.locator("#on-you-sample").evaluate(
+            """async sample => {
+          const frame = sample.querySelector('iframe');
+          const real = frame.lfShowThread;
+          frame.lfShowThread = (...args) => {
+            const operation = real(...args);
+            frame.contentDocument.querySelector('.lf-threads-toggle').focus();
+            return operation;
+          };
+          try { return await sample.showThread('98850286'); }
+          finally { frame.lfShowThread = real; }
+        }"""
+        )
+        is False
+    )
+    expect(views["you"].locator(".lf-threads-toggle")).to_be_focused()
 
     views["you"].get_by_role("button", name=re.compile("Open threads")).click()
     expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
@@ -211,6 +240,14 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(panel).to_be_visible()
     expect(frame.locator(".lf-thread")).to_have_count(4)
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+    page.keyboard.press("Tab")
+    you_button = page.locator('#bg-panel-presets [data-view="you"]')
+    expect(you_button).to_be_focused()
+    assert you_button.evaluate("element => element.matches(':focus-visible')")
+    page.keyboard.press("Space")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
+    expect(you_button).to_be_focused()
 
     for view, thread, visible, title in (
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
@@ -256,11 +293,104 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     page.locator("#bg-panel-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
+    page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
     expect(panel).to_be_visible()
     expect(frame.locator(".lf-thread")).to_have_count(4)
     expect(
         frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
     ).to_have_attribute("open", "")
+    # Completion is the presented view, not a request to press private controls.
+    result = page.locator("#bg-panel-sample").evaluate(
+        """async sample => {
+          const frame = sample.querySelector('iframe');
+          const real = frame.lfShowThread;
+          let started;
+          const invocation = new Promise(resolve => started = resolve);
+          frame.lfShowThread = (...args) => {
+            const operation = real(...args);
+            started();
+            return operation;
+          };
+          const first = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'});
+          await invocation;
+          frame.lfShowThread = real;
+          const latest = sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
+            {surface: 'panel', status: 'resolved'});
+          return Promise.all([first, latest]);
+        }"""
+    )
+    assert result == [False, True]
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(
+        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
+    ).to_have_text("Projector map")
+    result = page.locator("#bg-panel-sample").evaluate(
+        """async sample => {
+          const frame = sample.querySelector('iframe');
+          const real = frame.lfShowThread;
+          let started;
+          const invocation = new Promise(resolve => started = resolve);
+          frame.lfShowThread = (...args) => {
+            const operation = real(...args);
+            started();
+            return operation;
+          };
+          const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'});
+          await invocation;
+          frame.lfShowThread = real;
+          await sample.reset();
+          return old;
+        }"""
+    )
+    assert result is False
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(
+        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
+    ).to_have_text("Projector map")
+
+
+def test_gallery_page_annotation_sample_owns_its_child_mode(browser, serve):
+    """Native practice comments and decisions use a rail without changing the parent."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    parent_before = events_model.read_events(serve.page_dir)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    child = page.frame_locator("#bg-page-annotations-sample iframe")
+    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
+    rail = child.locator("lf-annotation-rail")
+    expect(rail).to_be_visible()
+    assert (
+        child.locator(
+            ".lf-margin-projection,.lf-margin-preview,.lf-visual-marks"
+        ).count()
+        == 0
+    )
+    assert page.locator("body").get_attribute("data-annotations") != "page"
+    resources = child.locator("body").evaluate(
+        "() => performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
+    )
+    assert not [path for path in resources if "/runtime/annotation-overlay/" in path]
+    child.locator("#bg-page-annotations-finding").click(modifiers=["Alt"])
+    editor = rail.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    editor.press_sequentially("A comment in this practice window")
+    editor.press("Control+Enter")
+    expect(
+        rail.locator(".lf-msg").filter(has_text="A comment in this practice window")
+    ).to_be_visible()
+    option = child.locator("#bg-page-annotations-short")
+    option.click()
+    expect(option.get_by_role("checkbox")).to_be_checked()
+    expect(child.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    option.press("z")
+    expect(option.get_by_role("checkbox")).not_to_be_checked()
+    assert events_model.read_events(serve.page_dir) == parent_before
+    page.locator("#bg-page-annotations-sample").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
+    expect(child.locator(".lf-page-thread")).to_have_count(0)
 
 
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
@@ -3243,13 +3373,13 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
     # Every row is cut to the panel's width, so the hover holds the whole account.
     # This page's own row carries the work behind it, which is what tells two rows
-    # apart when their titles are alike. A neighbour's row reads only that page's
-    # declaration (`presence.other_leaves`), so its hover has no work behind it.
+    # apart when their titles are alike. Neighbors publish the same compact account.
     expect(self_row).to_have_attribute(
         "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
     )
     expect(link).to_have_attribute(
-        "title", "The other leaf\nWorking — running the suite"
+        "title",
+        f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
     destination = link.get_attribute("href")
     # The new tab keeps the other page's live root, authorized by the key its link
@@ -3370,7 +3500,9 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         assert 0 <= fit["threads"]["left"] < fit["threads"]["right"] <= width, fit
 
 
-def test_a_panel_row_follows_its_pages_status_live(browser, serve, other_leaf):
+def test_a_panel_row_follows_its_pages_status_live(
+    browser, serve, other_leaf, tmp_path
+):
     """The panel is a status surface, not a snapshot: a neighbour's declaration
     changing on disk repaints its row at the next poll, in place, and the row's
     hover follows it, being the same account written where there is room for it
@@ -3410,7 +3542,8 @@ def test_a_panel_row_follows_its_pages_status_live(browser, serve, other_leaf):
     line = row.locator(".lf-others-line")
     expect(line).to_have_text("Awaits — pick a storage engine")
     expect(row).to_have_attribute(
-        "title", "The other leaf\nAwaits — pick a storage engine"
+        "title",
+        f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine",
     )
     assert line.get_attribute("title") is None, (
         "the line carries a tooltip of its own again, which wins under the pointer "

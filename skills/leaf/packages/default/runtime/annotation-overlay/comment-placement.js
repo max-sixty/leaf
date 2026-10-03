@@ -65,9 +65,9 @@
    space, which a transformed ancestor scales, so each length crosses by the reference's
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
-import { shellRight, shownWindow } from "./geometry.js";
-import { clamp } from "./rect.js";
-import { moveScrollerBy } from "./scrolling.js";
+import { shellRight, shownWindow } from "/runtime/geometry.js";
+import { clamp } from "/runtime/rect.js";
+import { moveScrollerBy } from "/runtime/scrolling.js";
 
 export const COMMENT_GAP = 8;
 // The least room a surface stands in: a floor chosen to hold the comment box's words

@@ -255,8 +255,10 @@ itself, under the identity that replacement already keys on, or the user loses i
 
 Python derives page-wide `activity` and exact-input `workflows` from the agent's
 status declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner describes page activity; a neighboring-page row, for now,
-describes only that page's declaration, in the same shape (`presence.other_leaves`).
+evidence. The banner describes page activity; each serving page publishes a compact
+canonical activity summary for neighboring rows (`server_rows.py`). The summary is
+disposable delivery output; neighboring readers consult it and server liveness,
+never another page's log or document.
 Messages, thread attention, and margin entries consume the canonical workflows;
 thread attention also retains outstanding user Asks. Page activity does not imply
 work on every message. JavaScript adds unresolved local sends through the

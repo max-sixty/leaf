@@ -1768,7 +1768,7 @@ def margins_laid_out(page):
     than polling again, so a predicate handing back the layout's own result would return
     at once and prove nothing."""
     page.wait_for_function(
-        "() => window.__lfRuntimeImport('/runtime/margin-layout.js')"
+        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
         ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
         timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )

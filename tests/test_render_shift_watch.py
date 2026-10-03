@@ -1630,7 +1630,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     page = open_page(browser, serve(source))
     initial = page.locator("#holder").bounding_box()
     state = page.evaluate("""async()=>{
-      const module=await window.__lfRuntimeImport('/runtime/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
+      const module=await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}

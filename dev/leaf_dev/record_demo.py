@@ -338,6 +338,7 @@ def record(
 
     page.locator("#work").scroll_into_view_if_needed()
     shot(1000)
+    applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
@@ -353,7 +354,12 @@ def record(
         "() => document.querySelector('.lf-notice').classList.contains('show')"
     )
     shot(2400)
-    waiter.receive()
+    page.wait_for_function(
+        "before => document.body.getAttribute('data-lf-applied') !== before",
+        arg=applied_before_move,
+    )
+    if "card-oncall" not in folded_board(page_dir)["col-during"]:
+        raise RuntimeError("the board move did not reach the page's standing log")
     return frames, durations
 
 
@@ -430,7 +436,9 @@ def record_demo(output: Path | None) -> None:
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
         cmd_status(page_dir, "waiting", "")
-        url, _note = claim_and_start(page_dir)
+        with claim_and_start(page_dir) as started:
+            pass
+        url = started.url
         waiter = DemoWaiter(page_dir)
         try:
             with chrome() as browser, tab(browser, GIF_SIZE) as page:

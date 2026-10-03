@@ -1,196 +1,25 @@
-/* Element-target paint in Leaf's chrome layer.
+/* Transient Aim and target-trace paint in Leaf's chrome layer.
  *
- * Every element target a moment holds (anchor-paint.js) contributes its shown box. A
- * declared visual widget, or a registered visual part, can substitute its drawn surface
- * and, for SVG, painted geometry that Leaf clones into chrome. The projection keeps
- * hollow contours above package-owned descendants without changing document layout or
- * painting over their contents. The painter owns geometry caching: scroll only moves
- * cached paint; a layout, resize, source replacement, or target change rebuilds it. */
+ * Aim draws synchronously for the gesture that arms it. A trace retains its current
+ * target and drawn geometry: scrolling moves cached paint, while layout and resize
+ * rebuild its shape. Persistent annotations have their own optional painter. */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
-import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
+import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
+import {
+  SVG_NS,
+  paintGeometry,
+  paintShape,
+  placement,
+  standOver,
+} from "./target-paint-geometry.js";
 
-// Pointer-inert projections for every element target a moment holds. A semantic
-// visual part can replace the ordinary box with its provider-owned drawing.
-export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
-visualMarkLayer.setAttribute("aria-hidden", "true");
 export const targetTraceBox = el("div", "lf-ui lf-target-trace lf-target-paint");
 targetTraceBox.setAttribute("aria-hidden", "true");
 export const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
 aimBox.setAttribute("aria-hidden", "true");
-
-const SVG_NS = "http://www.w3.org/2000/svg";
-const SHAPE_STROKE_ROOM = 2;
-const PROJECTED = "lf-projected-mark";
-const STATE_CLASSES = {
-  pending: "lf-visual-mark-pending",
-  action: "lf-visual-mark-action",
-  hover: "lf-visual-mark-hover",
-  focus: "lf-visual-mark-focus",
-  here: "lf-visual-mark-here",
-};
-
-const paints = (shape, property) => {
-  const style = getComputedStyle(shape);
-  return (
-    shape.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
-    style[property] !== "none" &&
-    Number.parseFloat(style[`${property}Opacity`]) !== 0 &&
-    (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0)
-  );
-};
-
-function paintGeometry(surface) {
-  if (!(surface instanceof SVGElement)) return null;
-  const geometry = [surface, ...surface.querySelectorAll("*")].filter(
-    (child) => child instanceof SVGGeometryElement,
-  );
-  const fill = geometry.filter((shape) => paints(shape, "fill"));
-  const paintedStroke = geometry.filter((shape) => paints(shape, "stroke"));
-  // Every painted primitive contributes to the contour. A fill-only boundary must not
-  // disappear merely because a sibling decoration happens to have its own stroke.
-  const outlined = new Set([...fill, ...paintedStroke]);
-  const stroke = geometry.filter((shape) => outlined.has(shape));
-  return fill.length || stroke.length ? { fill, stroke } : null;
-}
-
-function geometryClone(source, left, top, property) {
-  const matrix = source.getScreenCTM();
-  if (!matrix) return null;
-  const clone = source.cloneNode(false);
-  clone.removeAttribute("id");
-  clone.removeAttribute("class");
-  clone.removeAttribute("opacity");
-  clone.removeAttribute("fill-opacity");
-  clone.removeAttribute("stroke-opacity");
-  clone.style.removeProperty("transform");
-  clone.style.removeProperty("opacity");
-  clone.style.removeProperty("fill-opacity");
-  clone.style.removeProperty("stroke-opacity");
-  // Percentage geometry is resolved in the source SVG's viewport. Freeze each animated
-  // length before moving the primitive into the overlay's different viewport.
-  for (const attribute of [...clone.attributes]) {
-    const length = source[attribute.localName];
-    if (
-      attribute.value.includes("%") &&
-      typeof SVGAnimatedLength !== "undefined" &&
-      length instanceof SVGAnimatedLength
-    )
-      clone.setAttribute(attribute.name, String(length.animVal.value));
-  }
-  clone.setAttribute(
-    "transform",
-    `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${atLayoutPrecision(matrix.e - left)} ${atLayoutPrecision(matrix.f - top)})`,
-  );
-  clone.style.setProperty("fill", property === "fill" ? "white" : "none", "important");
-  clone.style.setProperty(
-    "stroke",
-    property === "stroke" ? "var(--lf-shape-ink)" : "none",
-    "important",
-  );
-  clone.style.setProperty("stroke-width", "var(--lf-shape-stroke)", "important");
-  clone.style.setProperty(
-    "stroke-dasharray",
-    "var(--lf-shape-dash, none)",
-    "important",
-  );
-  clone.style.setProperty("stroke-linejoin", "round", "important");
-  clone.style.setProperty("stroke-linecap", "round", "important");
-  clone.style.setProperty("vector-effect", "non-scaling-stroke", "important");
-  return clone;
-}
-
-function paintShape(host, geometry, { left, top, right, bottom }, options = {}) {
-  if (!geometry) return false;
-  const { maskId = "", veil = false } = options;
-  const width = atLayoutPrecision(right - left);
-  const height = atLayoutPrecision(bottom - top);
-  const fill = veil
-    ? geometry.fill.map((shape) => geometryClone(shape, left, top, "fill"))
-    : [];
-  const stroke = geometry.stroke.map((shape) =>
-    geometryClone(shape, left, top, "stroke"),
-  );
-  if ([...fill, ...stroke].some((shape) => !shape)) return false;
-
-  const paint = [];
-  if (veil && fill.length) {
-    const defs = document.createElementNS(SVG_NS, "defs");
-    const mask = document.createElementNS(SVG_NS, "mask");
-    mask.id = maskId;
-    mask.setAttribute("maskUnits", "userSpaceOnUse");
-    mask.setAttribute("x", "0");
-    mask.setAttribute("y", "0");
-    mask.setAttribute("width", String(width));
-    mask.setAttribute("height", String(height));
-    mask.style.maskType = "alpha";
-    mask.append(...fill);
-    defs.append(mask);
-    const wash = document.createElementNS(SVG_NS, "rect");
-    wash.setAttribute("width", String(width));
-    wash.setAttribute("height", String(height));
-    wash.setAttribute("fill", "var(--lf-shape-ink)");
-    wash.setAttribute("fill-opacity", "0.08");
-    wash.setAttribute("mask", `url(#${maskId})`);
-    paint.push(defs, wash);
-  }
-  const outline = document.createElementNS(SVG_NS, "g");
-  outline.append(...stroke);
-  paint.push(outline);
-  keeps(host, "viewBox", `0 0 ${width} ${height}`);
-  keeps(host, "width", width);
-  keeps(host, "height", height);
-  // A repaint of geometry that has not moved clones the shapes it already holds.
-  const held = host.children;
-  if (
-    paint.length !== held.length ||
-    paint.some((node, index) => !node.isEqualNode(held[index]))
-  )
-    host.replaceChildren(...paint);
-  return true;
-}
-
-// A paint box stands over `rect`, placed in the document at layout precision, so a
-// target that has not moved places it with the same words (keeps.js).
-function standOver(box, rect, borderRadius) {
-  const at = documentPoint(rect.left, rect.top);
-  Object.assign(box.style, {
-    display: "block",
-    left: layoutPx(at.left),
-    top: layoutPx(at.top),
-    width: layoutPx(rect.right - rect.left),
-    height: layoutPx(rect.bottom - rect.top),
-    borderRadius,
-  });
-}
-
-function placement(surface, shaped) {
-  const box = shownBox(surface);
-  const pad = shaped ? SHAPE_STROKE_ROOM : 0;
-  const rect = pagePlaneRect(
-    {
-      left: box.left - pad,
-      top: box.top - pad,
-      right: box.right + pad,
-      bottom: box.bottom + pad,
-    },
-    surface,
-    new Map(),
-  );
-  if (!rect) return null;
-  const shapeKey = [
-    rect.right - rect.left,
-    rect.bottom - rect.top,
-    box.left - rect.left,
-    box.top - rect.top,
-    box.right - rect.right,
-    box.bottom - rect.bottom,
-  ].join(":");
-  return { rect, shapeKey };
-}
 
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
@@ -199,8 +28,6 @@ const aimMaskId = "lf-runtime-aim-shape-mask";
 const targetTraceShape = document.createElementNS(SVG_NS, "svg");
 targetTraceShape.classList.add("lf-target-trace-shape");
 targetTraceShape.setAttribute("aria-hidden", "true");
-let targets = new Map();
-const overlays = new Map();
 let traceElement = null;
 let traceSurface = null;
 let traceGeometry = null;
@@ -294,100 +121,20 @@ export function paintTrace(element, surface = element) {
     clearTrace();
     return;
   }
-  drawTrace(element, surface, element !== traceElement || surface !== traceSurface);
-}
-
-function syncStates() {
-  for (const [element, { overlay }] of overlays) {
-    const states = targets.get(element)?.states ?? new Set();
-    for (const [state, className] of Object.entries(STATE_CLASSES))
-      overlay.classList.toggle(className, states.has(state));
+  const rebuild = geometryDirty || element !== traceElement || surface !== traceSurface;
+  if (geometryDirty) {
+    if (geometryFrame) cancelRender(geometryFrame);
+    if (placementFrame) cancelRender(placementFrame);
+    geometryFrame = placementFrame = 0;
+    geometryDirty = false;
   }
-}
-
-function paintTargets(rebuildGeometry = true) {
-  for (const element of [...overlays.keys()])
-    if (!targets.has(element)) {
-      element.classList.remove(PROJECTED);
-      overlays.get(element).overlay.remove();
-      overlays.delete(element);
-    }
-
-  for (const [element, target] of targets) {
-    let record = overlays.get(element);
-    const geometry =
-      rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
-    const placed = placement(target.surface, Boolean(geometry));
-    if (!placed) {
-      element.classList.toggle(PROJECTED, false);
-      if (record) {
-        record.geometry = geometry;
-        record.shapeKey = "";
-        record.overlay.style.display = "none";
-      }
-      continue;
-    }
-    if (!record) {
-      const overlay = el("div", "lf-ui lf-visual-mark lf-target-paint");
-      const shape = document.createElementNS(SVG_NS, "svg");
-      shape.classList.add("lf-visual-mark-shape");
-      overlay.append(shape);
-      visualMarkLayer.append(overlay);
-      record = { overlay, shape, geometry: null, shapeKey: "" };
-      overlays.set(element, record);
-    }
-    const { overlay, shape } = record;
-    const { rect, shapeKey } = placed;
-    element.classList.toggle(PROJECTED, true);
-    keeps(overlay, "data-for", element.id || null);
-    overlay.classList.toggle("lf-shaped", Boolean(geometry));
-    if (
-      rebuildGeometry ||
-      record.geometry !== geometry ||
-      record.shapeKey !== shapeKey
-    ) {
-      if (geometry) paintShape(shape, geometry, rect);
-      else shape.replaceChildren();
-      record.geometry = geometry;
-      record.shapeKey = shapeKey;
-    }
-    keeps(overlay, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-    standOver(
-      overlay,
-      rect,
-      geometry ? "0" : getComputedStyle(target.surface).borderRadius,
-    );
-  }
-  syncStates();
-}
-
-export function setTargets(next) {
-  const nextTargets = new Map(
-    [...next]
-      .filter((target) => target.states?.size)
-      .map((target) => [target.element, target]),
-  );
-  const identitiesChanged =
-    nextTargets.size !== targets.size ||
-    [...nextTargets].some(
-      ([element, target]) => targets.get(element)?.surface !== target.surface,
-    );
-  targets = nextTargets;
-  const traceNeedsGeometry = geometryDirty;
-  const rebuild = identitiesChanged || traceNeedsGeometry;
-  if (rebuild && geometryFrame) cancelRender(geometryFrame);
-  if (rebuild && placementFrame) cancelRender(placementFrame);
-  if (rebuild) geometryFrame = placementFrame = 0;
-  geometryDirty = false;
-  paintTargets(rebuild);
-  if (traceElement) drawTrace(traceElement, traceSurface, traceNeedsGeometry);
+  drawTrace(element, surface, rebuild);
 }
 
 export function shifted() {
-  if (placementFrame || geometryFrame || (!targets.size && !traceElement)) return;
+  if (placementFrame || geometryFrame || !traceElement) return;
   placementFrame = nextRender(() => {
     placementFrame = 0;
-    paintTargets(false);
     if (traceElement) drawTrace(traceElement, traceSurface, false);
   });
 }
@@ -396,17 +143,16 @@ export function geometryChanged() {
   geometryDirty = true;
   if (placementFrame) cancelRender(placementFrame);
   placementFrame = 0;
-  if (geometryFrame || (!targets.size && !traceElement)) return;
+  if (geometryFrame || !traceElement) return;
   geometryFrame = nextRender(() => {
     geometryFrame = 0;
     if (!geometryDirty) return;
     geometryDirty = false;
-    paintTargets(true);
     if (traceElement) drawTrace(traceElement, traceSurface, true);
   });
 }
 
-// The shapes into the aim's and the margin's boxes; mounted from leaf.js.
+// The transient shapes are mounted into their boxes from leaf.js.
 export function mountTargetPaint() {
   aimBox.append(aimShape);
   targetTraceBox.append(targetTraceShape);

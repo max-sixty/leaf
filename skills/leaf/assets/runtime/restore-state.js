@@ -14,7 +14,8 @@
 import { userStore, tabStore } from "./storage.js";
 import { AUXILIARY_SURFACE_KEY } from "./auxiliary-surfaces.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
-import { ANNOTATIONS_KEY, setAnnotationsHidden } from "./annotation-layer.js";
+// The tab coordinate is shared by restoration evidence and the optional owner.
+export const ANNOTATIONS_KEY = "lf-annotations";
 
 export const USER_VIEW_RESTORE_CASES = [
   {
@@ -56,5 +57,4 @@ export function restoreUserView({
   drawersEdge.restore();
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
-  if (tabStore.get(ANNOTATIONS_KEY) === "hidden") setAnnotationsHidden(true);
 }

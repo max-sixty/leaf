@@ -3264,6 +3264,32 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     )
 
 
+def test_outline_measurement_preserves_manual_reading_position(browser, serve):
+    sections = "\n".join(
+        f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
+        for index in range(1, 81)
+    )
+    source = leaf_page(
+        "long contents route",
+        f"<h1>Migration</h1><aside class='sidebar'><lf-toc id='contents'></lf-toc></aside>{sections}",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page")
+    links = nav.locator("a")
+    links.last.focus()
+    nav.evaluate("node => { node.scrollTop = 0; }")
+    assert nav.evaluate("node => node.scrollTop") == 0
+    page.evaluate("""async () => {
+      window.dispatchEvent(new Event('resize'));
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+    }""")
+    assert nav.evaluate("node => node.scrollTop") == 0
+    resized(page, 1400, 700)
+    assert nav.evaluate("node => node.scrollTop") == 0
+
+
 def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     browser, serve
 ):

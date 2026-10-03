@@ -48,6 +48,7 @@ PUBLIC_TABS = [
     ("rust-sort", "Sort film"),
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
+    ("annotation-workspace", "Annotation workspace"),
 ]
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.

@@ -1811,15 +1811,16 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   block-size: 32px; max-inline-size: 100%; min-inline-size: 0; }
 :scope:is(lf-annotation-rail) .lf-ar-item { block-size: 32px; inline-size: 100%; min-inline-size: 0; text-align: start;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media screen and (pointer: coarse) {
+  :scope:is(lf-annotation-rail) :is(.lf-ar-open, .lf-ar-notice, .lf-ar-slot, .lf-ar-item) {
+    min-block-size: var(--aim-floor); }
+}
 :scope:is(lf-annotation-rail) .lf-ar-entry:has(.lf-page-thread) > .lf-ar-open { display: none; }
 :scope:is(lf-annotation-rail) .lf-ar-empty { color: var(--ink-2); }
 /* Preparation may retire a row, but only the shared cohort can empty its seat. */
 :scope:is(lf-annotation-rail) [data-lf-ar-retired]:not(:has(.lf-ar-outlet > *)) { display: none; }
 :scope:is(lf-annotation-rail) .lf-ar-group:not(:has(.lf-ar-entry:not([data-lf-ar-retired]),
   .lf-ar-entry .lf-ar-outlet > *)) { display: none; }
-:scope:is(lf-annotation-rail) :is(.lf-ar-open, .lf-ar-item):focus-visible {
-  outline: var(--focus-ring); outline-offset: 2px; }
-
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
  * margin form is a reading map: the widget gives each row the length of the section it
  * leads, flex lays those shares down the full available height, and the darker lens on

@@ -24,7 +24,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import user_views as user_views_model
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
@@ -1939,7 +1939,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
 
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
-    draft.locator("textarea").fill(DRAFT_EDITED)
+    write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
@@ -2613,7 +2613,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     )
     page.set_default_timeout(5000)
     page.locator("#draft .lf-draft-body").dblclick()
-    editor = page.locator("#draft textarea")
+    editor = page.locator("#draft leaf-text")
     write(editor, "An unfinished durable draft")
     editor.press("Home")
     editor.press("Shift+ArrowRight")
@@ -2644,7 +2644,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
         editor.evaluate("el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]")
         == before
     )
-    expect(editor).to_have_value("An unfinished durable draft")
+    expect(editor).to_have_js_property("value", "An unfinished durable draft")
 
 
 def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):
@@ -3122,7 +3122,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
-                  does: 'a project widget using the same heading' }]);
+                  title: 'a project widget using the same heading' }]);
         }"""
     )
     page.keyboard.press("?")
@@ -4662,7 +4662,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     }:
         expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
         expected = (
-            "returned an outlet outside its widget"
+            "returned an outlet outside its presentation owner"
             if failure == "moved"
             else f"surface fixture: {expected_phase}"
         )

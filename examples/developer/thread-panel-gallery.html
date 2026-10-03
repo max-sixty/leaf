@@ -35,76 +35,24 @@
       }
     </style>
     <script type="module">
-      // Each sample is an independent Leaf page. Set its initial view through the
-      // same controls a visitor can use, then do so again after its Reset button.
       await customElements.whenDefined("lf-sample");
-
-      function readyPage(sample) {
-        if (sample.ready) return sample.ready;
-        return new Promise((resolve) => {
-          const observer = new MutationObserver(() => {
-            if (!sample.ready) return;
-            observer.disconnect();
-            resolve(sample.ready);
-          });
-          observer.observe(sample, { childList: true });
-        });
+      const views = {
+        "overview-sample": { surface: "panel" },
+        "on-you-sample": { thread: "98850286", surface: "page" },
+        "resolved-sample": { surface: "panel", status: "resolved" },
+        "summary-sample": { thread: "c1a39980", surface: "panel" },
+      };
+      function showView(sample) {
+        const { thread, ...view } = views[sample.id];
+        return sample.showThread(thread, view);
       }
-
-      async function showView(sample, ready) {
-        const child = await ready;
-        if (!sample.isConnected) return;
-        if (sample.id === "on-you-sample") {
-          const marker = await new Promise((resolve) => {
-            const find = () => {
-              const marker = child.querySelector(".lf-margin-marker");
-              if (!marker) return;
-              observer.disconnect();
-              resolve(marker);
-            };
-            const observer = new MutationObserver(find);
-            observer.observe(child.body, { childList: true, subtree: true });
-            find();
-          });
-          if (sample.isConnected) marker.click();
-          return;
-        }
-        child.querySelector(".lf-threads-toggle").click();
-        const view = {
-          "overview-sample": "overview",
-          "resolved-sample": "resolved",
-          "summary-sample": "summary",
-        }[sample.id];
-        if (view === "resolved") {
-          child.querySelector(".lf-thread-filter-toggle").click();
-          child
-            .querySelector('[data-filter-kind="status"][data-filter-value="resolved"]')
-            .click();
-        }
-        if (view === "summary") {
-          child.querySelector(".lf-thread-summary")?.click();
-        }
-      }
-
-      const mounted = new WeakSet();
-      function mountViews() {
-        for (const sample of document.querySelectorAll(
-          "#thread-panel-views lf-sample",
-        )) {
-          if (mounted.has(sample)) continue;
-          mounted.add(sample);
-          void showView(sample, readyPage(sample));
-          sample.addEventListener("click", (event) => {
-            if (!event.target.closest(".lf-sample-controls button")) return;
-            queueMicrotask(() => void showView(sample, sample.ready));
-          });
-        }
-      }
-      new MutationObserver(mountViews).observe(document.body, {
-        childList: true,
-        subtree: true,
+      document.addEventListener("lf-sample-ready", (event) => {
+        if (views[event.target.id]) void showView(event.target);
       });
-      mountViews();
+      for (const id of Object.keys(views)) {
+        const sample = document.getElementById(id);
+        if (sample.ready) void showView(sample);
+      }
     </script>
   </head>
   <body>

@@ -19,7 +19,7 @@ from pathlib import Path
 import click
 from leaf.files import read_json
 from leaf.service import readable_claim, requires_agent_attention
-from leaf.session_cleanup import page_key
+from leaf.state import page_key
 
 from leaf_dev import ROOT
 from leaf_dev.harness import (
@@ -31,14 +31,17 @@ from leaf_dev.harness import (
     commands,
     completed,
     environment,
+    inputs_received,
     now,
     observed_sum,
+    opened_input_ids,
     read_trace,
     run_agent,
     run_leaf,
     scratch,
-    trace_result,
     token_counts,
+    trace_result,
+    waits_started,
 )
 
 FIXTURES = ROOT / "evals/usability/fixtures"
@@ -299,9 +302,17 @@ class Run:
         ):
             return False
         rounds = live_rounds(traces[0]) if case.rounds else []
-        return len(rounds) == len(case.rounds) and all(
-            r["delivery"] is not None and r["end"] is not None for r in rounds
-        )
+        if len(rounds) != len(case.rounds) or any(r["end"] is None for r in rounds):
+            return False
+        if not case.rounds:
+            return True
+        attempts = {
+            attempt_key(n, i)
+            for n, moves in enumerate(case.rounds)
+            for i, move in enumerate(moves)
+            if move["kind"] != "error"
+        }
+        return inputs_received(page_events(self.work / "page"), attempts)
 
 
 # Fixtures
@@ -611,7 +622,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     """Serve the case's page from a live session and play its user.
 
     Each time a turn ends with every posted round delivered, the next round goes out
-    through the served page, a few seconds later so that a wait the turn started has
+    through the served page, a few seconds later so that Leaf's watcher has
     taken its lease. The session closes once the last round's turn has ended, when a
     round waits past DELIVERY_LIMIT, or at LIVE_LIMIT, which voids the run. At each
     turn's end the stream records the page's status."""
@@ -621,6 +632,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
     url, posted, delivered = None, 0, 0
     pending_events: set[str] = set()
+    attempts: set[str] = set()
     try:
         with (
             LiveChild(
@@ -661,6 +673,11 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 pending_events = post_round(
                     run, page, PageClient(url), case.rounds[posted], posted
                 )
+                attempts.update(
+                    move.get("attempt", attempt_key(posted, i))
+                    for i, move in enumerate(case.rounds[posted])
+                    if move["kind"] != "error"
+                )
                 posted += 1
                 note(
                     {
@@ -677,18 +694,15 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
 
             for record in child.records():
                 if delivered < posted:
-                    picked = {
-                        event_id
-                        for event in page_events(page)
-                        if event["kind"] == "pickup" and event["phase"] == "opened"
-                        for event_id in event["events"]
-                    }
-                    if pending_events <= picked:
+                    events = page_events(page)
+                    if inputs_received(
+                        events, attempts
+                    ) and pending_events <= opened_input_ids(events):
                         delivered = posted
                         waiting.cancel()
                         note(
                             {
-                                "type": "eval_pickup",
+                                "type": "eval_received",
                                 "round": posted,
                                 "events": sorted(pending_events),
                                 "received_at": now(),
@@ -1225,35 +1239,43 @@ def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) 
 
 
 def live_rounds(trace: list[dict]) -> list[dict]:
-    """Each posted round: where it went out, the delivery that carried it, the end of
-    the turn that took it, and the status recorded at that end."""
+    """Each posted round's confirmed-input window and completed response turn.
+
+    The driver emits eval_received only after admitted attention inputs have
+    opened pickups. A window begins at the post so it includes the ACK and claim
+    operations whose tool result first lets the driver observe that receipt.
+    Hook output text does not prove receipt on either inline or pointer routes.
+    """
     rounds = []
     for n, post in enumerate(
         i for i, d in enumerate(trace) if d["type"] == "eval_post"
     ):
-        arrived = next(
+        received = next(
             (
                 i
                 for i in range(post, len(trace))
-                if trace[i]["type"] == "eval_pickup" and trace[i]["round"] == n + 1
+                if trace[i]["type"] == "eval_received" and trace[i]["round"] == n + 1
             ),
             None,
         )
-        end = arrived and next(
-            (i for i in range(arrived, len(trace)) if trace[i]["type"] == "result"),
-            None,
+        end = (
+            next(
+                (
+                    i
+                    for i in range(received, len(trace))
+                    if trace[i]["type"] == "result"
+                ),
+                None,
+            )
+            if received is not None
+            else None
         )
         rounds.append(
             {
                 "round": n + 1,
                 "post": post,
-                "delivery": arrived,
+                "delivery": post if received is not None else None,
                 "end": end,
-                "listening": end is not None
-                and next(
-                    (d["listening"] for d in trace[end:] if d["type"] == "eval_status"),
-                    False,
-                ),
                 "status": end is not None
                 and next(
                     (d["status"] for d in trace[end:] if d["type"] == "eval_status"),
@@ -1295,14 +1317,15 @@ def answered(events: list[dict], event_id: str) -> list[dict]:
 
 
 def round_scores(trace: list[dict], r: dict, name: str) -> dict:
-    """What every live round is held to: delivered, a wait re-armed in the turn
-    that took it, and that turn ending on a waiting page whose URL it repeats."""
+    """Confirmed input, watch ownership left to Leaf, and a waiting handover URL."""
     if r["delivery"] is None or r["end"] is None:
         return {f"{name}_delivered": False}
     end = trace[r["end"]]
     return {
         f"{name}_delivered": True,
-        f"{name}_rearmed": r["listening"],
+        f"{name}_watch_left_to_leaf": not any(
+            waits_started(d) for d in trace[r["delivery"] : r["end"]]
+        ),
         f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
         f"{name}_url": bool(URL.search(end.get("result") or "")),
     }
@@ -1324,9 +1347,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
         "detail_names_ask": check(
             r"cop(y|ies)|backfill|approach|option|how .*run", status.get("detail") or ""
         ),
-        "wait_started": next(
-            (d["listening"] for d in trace if d["type"] == "eval_status"), False
-        ),
+        "watch_left_to_leaf": not any(waits_started(d) for d in trace[:first_end]),
         "gesture_named": check(
             r"\b(pick|choose|select|click)", handover.get("result") or ""
         ),
@@ -1603,24 +1624,24 @@ CHECKS = {
         "checked",
         "handoff_waiting",
         "detail_names_ask",
-        "wait_started",
+        "watch_left_to_leaf",
         "gesture_named",
         "edit_delivered",
-        "edit_rearmed",
+        "edit_watch_left_to_leaf",
         "edit_waiting",
         "edit_url",
         "edit_claimed",
         "edit_replied",
         "edit_done",
         "question_delivered",
-        "question_rearmed",
+        "question_watch_left_to_leaf",
         "question_waiting",
         "question_url",
         "question_answered",
     ),
     "mixed": (
         "batch_delivered",
-        "batch_rearmed",
+        "batch_watch_left_to_leaf",
         "batch_waiting",
         "batch_url",
         "one_delivery",
@@ -1636,7 +1657,7 @@ CHECKS = {
     ),
     "elided": (
         "question_delivered",
-        "question_rearmed",
+        "question_watch_left_to_leaf",
         "question_waiting",
         "question_url",
         "shown_elided",

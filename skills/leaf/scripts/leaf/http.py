@@ -65,6 +65,7 @@ from .revision_delivery import (
     DeliveryAddress,
     compose_document,
     deliver_resource,
+    delivered_resource,
     layer_import_map,
     rebase_document,
 )
@@ -83,7 +84,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .session_cleanup import write_json
+from .state import write_json
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -274,12 +275,14 @@ class PageEndpoint:
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
         started = time.monotonic()
-        if self.method == "GET":
+        if self.method in {"GET", "HEAD"}:
             answer = self._answer(self._get)
         elif self.method == "POST":
             answer = self._answer(self._post, prepare=self._read_posted)
         else:
             answer = self._json({"error": f"unsupported method {self.method}"}, 501)
+        if self.method == "HEAD":
+            answer.body = b""
         answer.headers.update(self._delivery_headers())
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
@@ -505,6 +508,60 @@ class PageEndpoint:
             headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
 
+    def _resource_content(self, resource: Resource) -> Response:
+        """Serve exact resource bytes, with single byte ranges for native playback.
+
+        The resource owner retains exact bytes or an immutable file. Both live and
+        captured routes derive size and read only the selected span here; HEAD reads
+        no body. RFC 9110 permits ignoring Range; unsupported
+        units, malformed or multiple ranges, and If-Range without a validator get the
+        complete representation. A valid unsatisfiable range earns 416.
+        """
+        ctype = resource.mime
+        if ctype not in BINARY_TYPES:
+            ctype += "; charset=utf-8"
+        size = resource.size
+        status = 200
+        window = slice(0, size)
+        headers = (
+            {"Accept-Ranges": "bytes"}
+            if resource.mime.startswith(("video/", "audio/"))
+            else {}
+        )
+        requested = self.headers.get("Range", "")
+        match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", requested)
+        if (
+            self.method == "GET"
+            and "Accept-Ranges" in headers
+            and not self.headers.get("If-Range")
+            and match is not None
+            and any(match.groups())
+        ):
+            first, last = (
+                part.lstrip("0") or "0" if part else "" for part in match.groups()
+            )
+
+            # Bound decimal parsing by the representation's length; an arbitrarily
+            # long numeral is still simply beyond that length.
+            def offset(raw: str) -> int:
+                return size + 1 if len(raw) > len(str(size)) else int(raw)
+
+            start = offset(first) if first else max(0, size - offset(last))
+            end = min(size, offset(last) + 1) if first and last else size
+            if first and last and (len(last), last) < (len(first), first):
+                pass  # An invalid range is ignored, rather than unsatisfiable.
+            elif start >= end:
+                status, window = 416, slice(0, 0)
+                headers["Content-Range"] = f"bytes */{size}"
+            else:
+                status, window = 206, slice(start, end)
+                headers["Content-Range"] = f"bytes {start}-{end - 1}/{size}"
+        body = b"" if self.method == "HEAD" else resource.read(window)
+        response = self._content(status, ctype, body)
+        headers["Content-Length"] = str(size if self.method == "HEAD" else len(body))
+        response.headers.update(headers)
+        return response
+
     def _json(self, obj, status: int = 200) -> Response:
         return self._content(
             status,
@@ -684,13 +741,12 @@ class PageEndpoint:
             version = self.page_snapshot.context.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir)
-                events = page.events
-            revision = latest_revision(self.page_dir)
-            if revision is None:
-                return self._json({"error": missing_revision(self.page_dir)}, 404)
-            artifact = read_artifact(self.page_dir, revision)
-            version = stamped_version(events, revision)
+                activate_source(self.page_dir, transaction=page)
+                revision = latest_revision(self.page_dir)
+                if revision is None:
+                    return self._json({"error": missing_revision(self.page_dir)}, 404)
+                artifact = read_artifact(self.page_dir, revision)
+                version = stamped_version(page.events, revision)
         return self._serve_document(artifact, revision, version)
 
     def _revision_name(self, revision: int) -> str:
@@ -774,31 +830,14 @@ class PageEndpoint:
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
-        source = logical
-        widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
-        if widget is not None:
-            implementation = artifact.implementations.get(widget.group("tag"))
-            if implementation is not None:
-                source = implementation["path"]
-        if source != logical:
-            target = json.dumps(self._artifact_root(revision) + source)
-            return self._content(
-                200,
-                "application/javascript; charset=utf-8",
-                f"export * from {target};\n".encode(),
-            )
-        resource = artifact.resources.get(source)
-        if resource is None:
-            return None
-        body = deliver_resource(
-            resource,
-            source,
+        resource = delivered_resource(
+            artifact,
+            logical,
             DeliveryAddress(self.page_root, self._artifact_root(revision)),
         )
-        ctype = resource.mime
-        if ctype not in BINARY_TYPES:
-            ctype += "; charset=utf-8"
-        return self._content(200, ctype, body)
+        if resource is None:
+            return None
+        return self._resource_content(resource)
 
     def _serve_page_path(self) -> Response | None:
         path = self.path
@@ -869,16 +908,12 @@ class PageEndpoint:
         # boundary for a page directory edited or symlinked after vendoring.
         if file.is_file() and path_is_within(file, self.page_dir):
             ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
-            # charset describes an encoding, so it rides on the types that
-            # have one. On a PNG it is noise.
-            if ctype not in BINARY_TYPES:
-                ctype += "; charset=utf-8"
-            body = deliver_resource(
-                Resource(file.read_bytes(), ctype.partition(";")[0]),
+            resource = deliver_resource(
+                Resource(file, ctype),
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._content(200, ctype, body)
+            return self._resource_content(resource)
         return None
 
     def _get(self) -> Response:

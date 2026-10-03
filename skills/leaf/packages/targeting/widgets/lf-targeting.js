@@ -313,18 +313,18 @@ customElements.define(
         [
           {
             id: "targeting.submit",
+            contextKeys: ["1"],
+            bindingBadge: null,
             control: this.#submit,
-            decision: () => this.#submit.textContent,
-            does: () => this.#submit.textContent,
-            line: () => this.#submit.textContent.toLowerCase(),
+            decision: true,
+            title: () => this.#submit.textContent,
             when: () => this.#canSubmit(),
             run: () => this.#submit.click(),
           },
           {
             id: "targeting.focused-element",
             keys: ["Enter"],
-            does: "Choose the focused preview element",
-            line: "choose this element",
+            title: "choose this element",
             when: () =>
               this.#armed &&
               targetCandidates(this.#preview, document.activeElement).length > 0,
@@ -333,8 +333,7 @@ customElements.define(
           {
             id: "targeting.cancel-selection",
             keys: ["Escape"],
-            does: "Stop selecting elements",
-            line: "stop selecting",
+            title: "stop selecting",
             when: () => this.#armed,
             run: () => {
               this.disarm();

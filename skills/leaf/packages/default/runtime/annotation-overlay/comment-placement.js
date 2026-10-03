@@ -65,9 +65,9 @@
    space, which a transformed ancestor scales, so each length crosses by the reference's
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
-import { shellRight, shownWindow } from "./geometry.js";
-import { clamp } from "./rect.js";
-import { moveScrollerBy } from "./scrolling.js";
+import { shellRight, shownWindow } from "/runtime/geometry.js";
+import { clamp } from "/runtime/rect.js";
+import { moveScrollerBy } from "/runtime/scrolling.js";
 
 export const COMMENT_GAP = 8;
 // The least room a surface stands in: a floor chosen to hold the comment box's words
@@ -183,7 +183,7 @@ export const cardMeasure = () => rootLength("--thread-card");
    A superseded computation retains that hold. The placement owns its carried inline
    offset; `hold` supplied to `options` names only a block edge.
 
-   `fit({ side, width, scale })` sizes the surface for the room its side gives, in its
+   `fit({ side, width, height, scale })` sizes the surface for the room its side gives, in its
    positioning space. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
@@ -356,10 +356,11 @@ export function commentPlacement() {
         },
       };
       const measure = (state) => state.middlewareData.scaled;
+      const heldEdge = hold?.();
       const holding = ((!across && hold) || carriedInline !== null) && {
         name: "hold",
         fn(state) {
-          const edge = !across && hold?.();
+          const edge = !across && heldEdge;
           if (!edge && carriedInline === null) return {};
           const { line, scale } = measure(state);
           const position = {};
@@ -373,11 +374,55 @@ export function commentPlacement() {
           return position;
         },
       };
+      const size = ui.size({
+        ...overflow,
+        apply(state) {
+          const { scale } = measure(state);
+          const lane =
+            carriedInline !== null
+              ? boundary.right - clear.left - carriedInline
+              : across
+                ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
+                : side === "right"
+                  ? boundary.right - box.right - COMMENT_GAP
+                  : clear.left - boundary.left - COMMENT_GAP;
+          fit({
+            side,
+            width: Math.max(
+              Math.min(minimumWidth, boundary.width) / scale.x,
+              Math.min(state.availableWidth, lane / scale.x),
+            ),
+            height: state.availableHeight,
+            scale,
+          });
+        },
+      });
+      // A fresh surface may slide into the complete clipping rectangle: size after
+      // shift. A held edge grows toward the opposite boundary: size before shift,
+      // reading that edge as its sizing direction without changing its attachment.
+      // Drop the preceding pass's shift data when size resets the measurements;
+      // its permission to shift must not widen a held edge's available height.
+      const sizing = heldEdge
+        ? {
+            ...size,
+            fn(state) {
+              const { shift, ...middlewareData } = state.middlewareData;
+              const foot = "foot" in heldEdge;
+              return size.fn({
+                ...state,
+                placement: across
+                  ? `${foot ? "top" : "bottom"}-start`
+                  : `${side}-${foot ? "end" : "start"}`,
+                middlewareData,
+              });
+            },
+          }
+        : size;
       const middleware = [
         scaled,
         ui.offset((state) => {
           const { scale } = measure(state);
-          const edge = across && hold?.();
+          const edge = across && heldEdge;
           // Declare the held separation to offset itself, so the attachment limiter
           // follows the same edge instead of pulling a shorter card toward its target.
           const top =
@@ -397,28 +442,7 @@ export function commentPlacement() {
           };
         }),
         holding,
-        ui.size({
-          ...overflow,
-          apply(state) {
-            const { scale } = measure(state);
-            const lane =
-              carriedInline !== null
-                ? boundary.right - clear.left - carriedInline
-                : across
-                  ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
-                  : side === "right"
-                    ? boundary.right - box.right - COMMENT_GAP
-                    : clear.left - boundary.left - COMMENT_GAP;
-            fit({
-              side,
-              width: Math.max(
-                Math.min(minimumWidth, boundary.width) / scale.x,
-                Math.min(state.availableWidth, lane / scale.x),
-              ),
-              scale,
-            });
-          },
-        }),
+        heldEdge && sizing,
         ui.shift({
           ...overflow,
           mainAxis: true,
@@ -447,6 +471,7 @@ export function commentPlacement() {
             },
           },
         }),
+        !heldEdge && sizing,
       ].filter(Boolean);
       return {
         reference: box,

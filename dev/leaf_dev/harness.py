@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Self
 
 import click
+from leaf.codex_adapter import APP_SERVER_ENV
 from leaf.host import IDENTITY_VARIABLES
 
 from leaf_dev import ROOT
@@ -57,17 +58,24 @@ PAYLOAD = (
 )
 
 
+def run_directory(parent: Path) -> Path:
+    """Allocate one invocation's evidence without replacing another run's files."""
+    parent.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+
+
 def environment(**extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
-    identity: its id, job directory and effort level. A `leaf` command would sign
-    events as that session, and a child would take its settings. `CLAUDE_CONFIG_DIR`
+    identity: its id, job directory, effort level and App Server endpoint. A `leaf`
+    command would sign events as that session, and a child would use its transport
+    and settings. `CLAUDE_CONFIG_DIR`
     stays, since it names where the login lives."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in IDENTITY_VARIABLES
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}
@@ -486,6 +494,29 @@ def hook_delivered(record: dict) -> bool:
     return record.get("subtype") == "hook_response" and "leaf-delivery-v" in (
         record.get("output") or ""
     )
+
+
+def inputs_received(events: list[dict], attempts: set[str]) -> bool:
+    """Whether a posted round is admitted and its attention inputs are received.
+
+    Inline context, pointer reads, and attempted ACK commands are presentations,
+    not acceptance. Every attempt must be admitted; only attention-marked inputs
+    require the opened pickups that name exactly what the reader received.
+    Page-authored errors carry no user attempt and do not advance user rounds.
+    """
+    posted = [e for e in events if e.get("attempt") in attempts]
+    inputs = {e["id"] for e in posted if e["attention"]}
+    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
+
+
+def opened_input_ids(events: list[dict]) -> set[str]:
+    """The admitted attention inputs whose reader recorded an opened pickup."""
+    return {
+        ident
+        for e in events
+        if e["kind"] == "pickup" and e["phase"] == "opened"
+        for ident in e["events"]
+    }
 
 
 def read_trace(stream: Path) -> list[dict]:

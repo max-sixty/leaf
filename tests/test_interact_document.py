@@ -66,7 +66,7 @@ from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry, require_registry
@@ -202,6 +202,18 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
         return artifact_model.read_artifact(page_dir, activated.revision)
 
     base = activate()
+
+    document = document.replace("<body>", '<body data-annotations="overlay">')
+    explicit_overlay = activate()
+    assert explicit_overlay.executable == base.executable
+
+    document = document.replace('data-annotations="overlay"', 'data-annotations="page"')
+    page_annotations = activate()
+    assert page_annotations.executable != explicit_overlay.executable
+
+    document = document.replace(' data-annotations="page"', "")
+    restored_overlay = activate()
+    assert restored_overlay.executable == base.executable
 
     document = document.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
     reworded = activate()

@@ -173,7 +173,7 @@ def test_native_judges_keep_unknown_cost_distinct_from_observed_zero(
         if cost is not None:
             record["total_cost_usd"] = cost
 
-        def native_judge(*args, **kwargs):
+        def native_judge(*args, record=record, **kwargs):
             return [record]
 
         monkeypatch.setattr(arrangement_eval, "claude", native_judge)

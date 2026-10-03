@@ -39,12 +39,14 @@ export { focusDestination, holdFocus } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
-export { setChildren } from "./dom-children.js";
+export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
   consumeThreads,
+  consumePageThreads,
+  consumeAnnotations,
   mountThreadViews,
   threadActions,
 } from "./application.js";
@@ -67,9 +69,18 @@ export {
   saying,
 } from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
-export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
+export {
+  afterScript,
+  cancelRender,
+  nextFrame,
+  nextRender,
+  sizeObserver,
+} from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
-export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
+export {
+  CONTRIBUTION_ENTRY_SCHEMA,
+  contributionItemKey,
+} from "./contribution-model.js";
 export {
   contributionEntry,
   presentContributionEntry,
@@ -126,7 +137,7 @@ export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
-export { revisionLabel } from "./context.js";
+export { revisionLabel, annotationMode } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {

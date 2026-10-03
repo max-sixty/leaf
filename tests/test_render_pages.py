@@ -779,9 +779,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-threads-toggle")
-    expect(toggle).to_have_text(
-        "Open threads: 1"
-    )  # counted as open, like any other thread
+    expect(toggle).to_have_text("Threads: 1")  # counted as open, like any other thread
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
@@ -825,7 +823,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         },
     )
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
@@ -3545,6 +3543,7 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
   .filter(d => !d.closest('.lf-chrome'))
   .map(d => ({
     open: d.open,
+    displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
     shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
@@ -3602,7 +3601,11 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
         f"{len(dressed)} of the {len(printed)} controls paper kept still promise a press "
         f"nothing on a sheet can answer:\n  " + "\n  ".join(dressed)
     )
-    on_paper = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
+    # A disclosure omitted from paper altogether, such as a draft's edit history,
+    # is not a visible summary concealing content from a reader of the sheet.
+    on_paper = [
+        d for d in page.evaluate(DISCLOSURES) if d["displayed"] and not d["open"]
+    ]
     assert on_paper and all(d["shown"] for d in on_paper), (
         f"a shut disclosure printed as a summary and a stub, with no press on the sheet "
         f"to open it: {[d for d in on_paper if not d['shown']]}"

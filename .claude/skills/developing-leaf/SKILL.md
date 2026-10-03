@@ -61,10 +61,10 @@ its playground when it owns the same decision.
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
-theme's tokens, and the `playground` package's elements
-(`<root>/skills/leaf/packages/playground/instructions/author.md`) wrap the
-candidates: the controls and presets the user explores them with, the
-candidates in its preview, and an output saying what to build.
+theme's tokens. Follow
+`<root>/skills/leaf/packages/playground/instructions/author.md` to choose the
+selection and exploration elements, present the candidates, and submit a task
+saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
@@ -149,9 +149,13 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 `uv run --project <root> leaf-dev verify-site local` builds the site, starts the
 website adapter against the host's Codex login, asks for one heading edit, and
 verifies the publication, reply, and changed page in Chrome. It bypasses the
-Cloudflare Worker, container limits, and credential proxy. When a change touches
-those and `OPENAI_API_KEY` is exported, run the same check through Wrangler's local
-container:
+Cloudflare Worker, container limits, and credential proxy, and needs no Docker.
+
+Use CI for Linux-specific evidence and the complete Worker/container boundary:
+pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
+`publish-site` verifies that boundary before deployment. Start Docker locally
+only to reproduce a concrete failure at that boundary. When debugging hosted-agent
+delivery through it and `OPENAI_API_KEY` is exported, run:
 
 ```bash
 npm ci --prefix <root>/worker
@@ -165,13 +169,18 @@ production reading.
 ## Test a terminal Codex task
 
 `uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
-this working tree installed as their plugin, through both transports of `leaf codex
-start`. It checks each comment is answered once, a comment during queue-backed
+this working tree installed as their plugin, through both transports of automatic
+server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
+
+For a change to preview startup or lifetime, add `--preview`. It starts the
+canonical user preview in each task, checks the keyed URL across those turns,
+and interrupts its isolated server between turns to prove that the preview
+restores both the address and working feedback without a source edit.
 
 ## Compare checkout versions
 
@@ -285,6 +294,10 @@ if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
+
+Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
+ordinary gate. Review the failure's captured images before accepting an intentional
+change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;

@@ -1,4 +1,4 @@
-/* Retained controls derived from anchor paint.
+/* Retained controls derived from the canonical current anchor reading.
  *
  * This view owns visual comment proxies, standing reaction controls, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
@@ -24,7 +24,9 @@ import {
 import {
   fragmentId,
   fragmentTarget,
+  annotationAt,
   resolveAnchor,
+  sectionOf,
   unclaimedVisualGesture,
   visualAt,
   visualParts,
@@ -32,13 +34,14 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { pageQueryAll, pageText } from "./passages.js";
+import { inChrome, pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
-import { targetElement, targetParts } from "./resolved-target.js";
+import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
+import { bareReaction } from "./thread/model.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
@@ -221,8 +224,8 @@ export function createAnchorControls({
             {
               id: "reaction.removal.close",
               keys: ["Escape"],
-              does: "Hide the remove action",
-              line: "hide remove",
+              description: "Hide the remove action",
+              title: "hide remove",
               when: () => Boolean(record.expanded),
               run: () => {
                 const eventId = record.expanded;
@@ -332,17 +335,49 @@ export function createAnchorControls({
     }
   }
 
-  function paintDraft({ open, anchor, about, marked }) {
+  function paintDraft({ open, anchor, about, resolved }) {
     const label = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label);
-    draftQuote.classList.toggle("lf-unseen", !label || (marked && !about));
+    const located = Boolean(resolved && resolved.status !== "outdated");
+    draftQuote.classList.toggle("lf-unseen", !label || (located && !about));
   }
 
-  function render(painted) {
+  function render({ readings, draft }) {
+    const notes = new Map();
+    const reactions = new Map();
+    for (const { thread, placement: found } of readings) {
+      if (found.status === "outdated" || thread.resolved) continue;
+      if (bareReaction(thread)) {
+        let at;
+        let before;
+        if (targetElement(found)) [at, before] = [found.place, true];
+        else {
+          const block = annotationAt(targetSegments(found)[0].node);
+          const host = shadowHost(block?.getRootNode());
+          [at, before] = host ? [host, true] : [block, false];
+        }
+        if (at && !inChrome(at)) {
+          const held = reactions.get(at) ?? { before: [], inside: [] };
+          held[before ? "before" : "inside"].push(thread.root);
+          reactions.set(at, held);
+        }
+        continue;
+      }
+      const blocks = targetElement(found)
+        ? [found.place]
+        : [
+            ...new Set(
+              targetSegments(found).map((segment) => annotationAt(segment.node)),
+            ),
+          ].filter(Boolean);
+      for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
+        if (holder && !inChrome(holder))
+          notes.set(holder, [...(notes.get(holder) ?? []), thread.id]);
+    }
     prepareVisualActions();
-    anchorNotes.present(painted.notes);
-    seatReactions(painted.reactionSeats);
-    paintDraft(painted.draft);
+    anchorNotes.present(notes);
+    seatReactions(reactions);
+    paintDraft(draft);
     paintMessageReferences();
   }
 

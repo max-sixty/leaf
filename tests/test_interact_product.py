@@ -36,7 +36,7 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
@@ -262,10 +262,7 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         )
         == []
     )
-    outside = fragment_errors(first, registry)
-    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
-        outside
-    )
+    assert fragment_errors(first, registry) == []
 
     # Evidence can quote another Ask source without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the

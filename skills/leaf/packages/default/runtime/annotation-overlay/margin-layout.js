@@ -9,6 +9,8 @@
    (theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its seat as
    `--lf-inset-top` and `--lf-inset-right`, and the push packing gives it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
+   Resize deliveries settle placement before their native paint; deferring that pass
+   to the next frame would show a row at its stale seat after its target changed.
 
    The layer is a static, zero-height block. A positioned wrapper would become every row's
    containing block, and a row can only anchor to what stands inside its containing block,
@@ -30,20 +32,26 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "./control-selectors.js";
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
-import { shadowHost, under, upFrom } from "./shadow.js";
-import { scrollerFor } from "./reading-regions.js";
-import { boundedBlockOf } from "./bounds.js";
-import { pageScroller } from "./scrolling.js";
+import { TAB_STOP } from "/runtime/control-selectors.js";
+import { cancelRender, nextRender, sizeObserver } from "/runtime/rendering.js";
+import {
+  shellRight,
+  shownBand,
+  shownExtent,
+  shownParts,
+  skipped,
+} from "/runtime/geometry.js";
+import { shadowHost, under, upFrom } from "/runtime/shadow.js";
+import { scrollerFor } from "/runtime/reading-regions.js";
+import { boundedBlockOf } from "/runtime/bounds.js";
+import { pageScroller } from "/runtime/scrolling.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
-import { overlaps } from "./rect.js";
-import { pointBand } from "./pointed-place.js";
-import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
-import { residencyStarted } from "./content-layout.js";
-import { keeps, layoutPx } from "./keeps.js";
-import { declarationFor } from "./registry.js";
+import { overlaps } from "/runtime/rect.js";
+import { pointBand } from "/runtime/pointed-place.js";
+import { anchorElement, anchorReading, nameAnchor } from "/runtime/anchor-names.js";
+import { residencyStarted } from "/runtime/content-layout.js";
+import { keeps, layoutPx } from "/runtime/keeps.js";
+import { declarationFor } from "/runtime/registry.js";
 
 const rows = new Map();
 // The box the last pass anchored each row through. A contents target's first shown
@@ -204,7 +212,7 @@ export function scheduleMarginEntryLabels() {
 // but the document's may take a target out of view or bring it back, so it is heard once,
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
-  layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
+  layer = { root, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
   paintPins();
   hearTargetChanges(document);
 }
@@ -624,7 +632,7 @@ function scheduleMarginLayout() {
 function observeLayout() {
   const column = marginColumn();
   if (!observer) {
-    observer = sizeObserver(scheduleMarginLayout);
+    observer = sizeObserver(layoutMarginRows);
     observer.observe(document.body);
   }
   if (observedColumn === column) return;

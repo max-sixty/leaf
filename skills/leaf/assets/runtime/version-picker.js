@@ -135,8 +135,7 @@ class VersionPickerView {
       .map(({ control, version }) => ({
         id: `version.open-v${version}`,
         binding: String(version),
-        does: `Open v${version}`,
-        line: `open v${version}`,
+        title: `open v${version}`,
         control,
       }));
   }

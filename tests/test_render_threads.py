@@ -31,6 +31,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -50,8 +51,10 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
+    admit_before_presenting_comment,
     any_owner_entry,
     example_media,
+    hold_pending_thread_presentation,
     holding,
     leaf_page,
     open_page,
@@ -62,9 +65,11 @@ from render_harness import (
     scroll_settled,
     sending,
     shortcut_bar_text,
+    stamp_page,
     take_browser_errors,
     told,
     undo,
+    wait_for_revision,
     write,
 )
 
@@ -923,7 +928,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve.scroll_into_view_if_needed()
     with page.expect_request("**/api/event"):
         resolve.click()
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     if view == "inline":
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
@@ -937,7 +942,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     held.pop().fulfill(
         json={"ok": False, "final": True, "error": "Please retry."},
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     if view == "inline":
         # The margin card the resolve closed opens again, with the user back in it.
         thread = page.locator(".lf-margin-thread")
@@ -953,7 +958,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve.focus()
     with page.expect_request("**/api/event"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     if view == "panel":
         write(
             page.locator(".lf-general leaf-text"), "My next thought can keep its focus."
@@ -1006,12 +1011,12 @@ def test_z_puts_the_user_back_in_the_thread_they_resolved(browser, serve, view):
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     round_trip(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     expect(landed).not_to_be_focused()
 
     undo(page)
     round_trip(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     expect(landed).to_be_focused()
     expect(landed).to_be_in_viewport()
 
@@ -1038,11 +1043,11 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
     round_trip(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
     undo(page)
     round_trip(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     assert seated.evaluate("node => node.contains(document.activeElement)")
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -1092,7 +1097,7 @@ def test_z_takes_a_reopen_back_to_the_resolved_list_it_came_from(browser, serve)
     page.unroute("**/api/event")
     round_trip(page)
     expect(resolved_filter).to_have_attribute("aria-pressed", "false")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
 
 @pytest.mark.parametrize("gesture", ["resolve", "reopen"])
@@ -1122,7 +1127,7 @@ def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gestu
 
     undo(page)
     round_trip(page)
-    expect(toggle).to_have_text(f"Open threads: {1 if gesture == 'resolve' else 0}")
+    expect(toggle).to_have_text(f"Threads: {1 if gesture == 'resolve' else 0}")
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(toggle).to_be_focused()
 
@@ -1158,7 +1163,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     resolve.focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     expect(card).to_be_visible()
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
@@ -1724,29 +1729,19 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
         })"""
     )
     assert layout == {"display": "flex", "overflowX": "auto", "scrolls": True}
-    field.evaluate(
-        """box => box.addEventListener('input', () => {
-          const shelf = box.parentElement.previousElementSibling;
-          window.__lfShelfAtInput = {
-            hidden: shelf.hidden,
-            images: shelf.querySelectorAll(':scope > .lf-composer-media-item').length,
-            removeLabels: [...shelf.querySelectorAll('.lf-composer-media-remove')]
-              .map(button => button.getAttribute('aria-label')),
-          };
-        }, {once: true})"""
-    )
     shelf.get_by_role("button", name="Remove pasted image 2").click()
-    assert page.evaluate("() => window.__lfShelfAtInput") == {
-        "hidden": False,
-        "images": 3,
-        "removeLabels": [
-            "Remove pasted image 1",
-            "Remove pasted image 2",
-            "Remove pasted image 3",
-        ],
-    }, "the local input event ran before Lit committed the reduced shelf"
+    rendered(page)
+    expect(shelf).to_be_visible()
+    expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(3)
     expect(field).to_be_focused()
     expect(shelf.locator("img")).to_have_count(3)
+    assert shelf.locator(".lf-composer-media-remove").evaluate_all(
+        "buttons => buttons.map(button => button.getAttribute('aria-label'))"
+    ) == [
+        "Remove pasted image 1",
+        "Remove pasted image 2",
+        "Remove pasted image 3",
+    ]
     assert shelf.locator(".lf-composer-media-open").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
     ) == [
@@ -1755,6 +1750,36 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
         "View pasted image 3",
     ]
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_visible()
+    field.click()
+    expect(shelf.locator("img")).to_have_count(3)
+    assert shelf.locator(".lf-composer-media-remove").evaluate_all(
+        "buttons => buttons.map(button => button.getAttribute('aria-label'))"
+    ) == [
+        "Remove pasted image 1",
+        "Remove pasted image 2",
+        "Remove pasted image 3",
+    ]
+    with sending(page, "the retained image draft"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert len(comments) == 1, comments
+    sent = comments[0]
+    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    assert sent["kind"] == "comment"
+    assert sent["text"].splitlines() == [
+        image_markdown,
+        "",
+        image_markdown,
+        "",
+        image_markdown,
+    ]
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -2232,7 +2257,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
         page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"][hidden]')
     ).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] leaf-text')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply c"
@@ -2281,7 +2306,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     panel_settled(page)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     page.evaluate(
         """async (id) => {
           const presentation = await window.__lfRuntimeImport(
@@ -2372,7 +2397,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     )
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
 
     page.evaluate("window.releaseThreadRetry()")
     page.wait_for_function(
@@ -2388,7 +2413,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     ), "successful retry replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
@@ -3248,7 +3273,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 of 3 open threads")
     # The page's own count is the log's and says so throughout.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 3")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 3")
 
     # The part of the page a thread is on is one of its words: a user looking for the
     # merge rule finds the thread in that section without its message saying so.
@@ -3945,7 +3970,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 18")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 18")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 
 
@@ -4162,7 +4187,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "was stated, so the fold started from somewhere other than the box the user "
         "was looking at"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(f'[data-id="{c1}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply"
@@ -5059,28 +5084,19 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Shared conversation faces belong to the theme. Chrome rules only position
         # the transcript, messages, and metadata within their containing surfaces.
         "lf-msg-body",
-        # A shared message's text wrapper and the thread's reading inset are
-        # defined in shadow.css so inline and panel conversations agree.
-        "lf-msg-text",
+        # The thread's reading inset is shared by inline and panel conversations.
         "lf-thread-transcript",
         "lf-thread",
         "detached",
         "lf-thread-root-meta",
         "lf-msg",
-        "lf-page-thread",
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",
-        # The margin layer is chrome, and its whole document face — placement by
-        # anchor, the rail and pin postures, the lanes a pane's rows stand in — is the
-        # authored theme's. The runtime sheet names it only to say which plane it
-        # stands on, so the movement the theme's rule causes is that deliberate face
-        # rather than a leaked one.
-        "lf-margin-cluster",
-        # Page Map rows share the margin entry's state and icon face in theme.css.
+        # The margin layer's placement rules live in the annotation overlay sheet,
+        # outside the core chrome sheet whose scoped classes this test counts.
+        # Page Map rows share the margin entry's state and icon face.
         "lf-margin-kind",
-        "lf-margin-lane",
-        "lf-margin-projection",
         "lf-page-map-action",
         "lf-react-palette",
         # An icon action's glyph, sized and seated in shadow.css so a press wearing one
@@ -5111,27 +5127,22 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Under a finger a reaction trigger meets the aim floor and an agent message's
         # head row holds it (shadow.css), since both stand in declared widget trees too.
         "lf-react",
-    }, "the authored-theme class surface changed: widen the exception on purpose"
-    # Every one of these is worn by something the runtime puts inside the page rather
-    # than inside its own container: a scoped rule cannot reach the copy in the page.
+        # The annotation overlay's hover mark has a global outline rule in its
+        # chrome sheet; it deliberately shares a name with scoped chrome rules.
+        "lf-mark-hover",
+    }, "the shared stylesheet class surface changed: widen the exception on purpose"
+    # Every one of these is worn by something the core runtime puts inside the page
+    # rather than inside its own container. Annotation-specific global rules live
+    # in the overlay sheet, outside this core chrome sheet's census.
     # What is not here is the shared vocabulary, whose faces the theme states — see the
     # exception above, and chrome.css's header for why.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        # Drawing is a body state, and an inline thread lives inside authored
-        # widget markup. Both deliberately cross the chrome scope so drawing can spare
-        # the thread's controls.
-        "lf-thread-seat",
+        # The shared interface class crosses the chrome scope.
         "lf-ui",
         # A native label can pass through an intermediate focus target. This projects
         # the held control's focus ring until activation settles.
         "lf-focus-visible",
         "lf-btn",
-        "lf-over-mark",
-        "lf-mark-el",
-        "lf-projected-mark",  # an element mark projects above authored paint
-        "lf-mark-hover",  # the same element mark, for the row the pointer is on
-        "lf-mark-here",  # the same element mark, for the comment the user is in
-        "lf-pending",
         "lf-ins-block",
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
@@ -5155,9 +5166,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-media-open",
         # A standing reaction's paint on the page: its margin glyph.
         "lf-react-mark",
-        # A visual reaction's outline on its target while its shared action bar is
-        # standing.
-        "lf-action-target",
         # A comparison's target paint and deletions stand inside the block they are
         # about; a text block's parent may not accept a sibling beside it.
         "lf-version-inline",
@@ -5700,9 +5708,7 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     )
 
 
-def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
-    browser, serve, tmp_path, monkeypatch
-):
+def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, serve):
     """A wrapper that generates no box shows as what its contents paint — in either
     document.
 
@@ -5714,19 +5720,16 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     widget showed as nothing at all. Bounded at the widget, the panel above it is no
     longer its own apparatus and the parts come back.
 
-    `display: contents` on a widget is a project's line to write — the shipped
-    vocabulary has none today, and `shownParts` exists because any layer can — so a
-    project theme is what puts one here. The page's own copy is the control."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".leaf").mkdir(exist_ok=True)
-    (tmp_path / ".leaf" / "theme.css").write_text(
-        "/* a project styling a wrapper away, which is any layer's to do */\n"
-        "lf-options { display: contents }\n"
+    `display: contents` on a widget is a page's line to write — the shipped vocabulary
+    has none today, and `shownParts` exists because any layer can. Page CSS is the
+    unlayered author stylesheet, above the package-scoped widget rules."""
+    page_source = REPLY_TRAVEL_PAGE.replace(
+        "</head>",
+        "<style>lf-options { display: contents }</style>\n</head>",
     )
-    url = serve(REPLY_TRAVEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    # A group reporting rather than asking: the joined control the layer draws for
-    # `choose` states its own display at a weight a project's bare tag rule does not
-    # reach, and the subject here is a boxless wrapper rather than a cascade fight.
+    url = serve(page_source, packages=EXAMPLE_PACKAGES)
+    # The page's unlayered style puts a reporting group's wrapper in `contents`; the
+    # subject is the boxless wrapper fallback, not package-theme precedence.
     seed_reply(
         serve.page_dir,
         '<lf-options id="tv-decision">'
@@ -7448,6 +7451,27 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "composer-widget":
+        url = serve(
+            leaf_page(
+                "diff",
+                '<h1 id="title">Review</h1><lf-diff id="patch" '
+                'source="review-patch"><pre></pre></lf-diff>',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page = open_page(browser, url)
+        line = page.locator(
+            'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+        )
+        line.hover()
+        page.get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        box = page.locator(".lf-fab-input")
+        send = page.locator(".lf-composer .lf-compose-submit")
+        after = page.locator("lf-diff .lf-page-thread")
+        reply = after.locator(".lf-thread-reply leaf-text")
     else:
         url = serve(PANEL_PAGE)
         root = panel_comment(
@@ -7460,7 +7484,10 @@ def pressed_send_surface(browser, serve, surface):
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-thread-reply leaf-text")
-        elif surface == "composer":
+        elif surface in {"composer", "composer-panel"}:
+            if surface == "composer-panel":
+                page.locator(".lf-threads-toggle").click()
+                panel_settled(page)
             page.locator("#how-cap").click(click_count=3)
             page.locator(".lf-fab-input").click()
             holder = page.locator(".lf-composer")
@@ -7482,12 +7509,19 @@ def pressed_send_surface(browser, serve, surface):
         after = {
             "card": page.locator("#how-store"),
             "composer": page.locator("#how-cap"),
+            "composer-panel": page.locator(
+                ".lf-thread", has_text="Sent from the box."
+            ).locator(":scope > .lf-thread-summary"),
             "panel": holder.locator(".lf-thread-summary"),
             "general": box,
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
             if surface in {"card", "composer"}
+            else page.locator(".lf-thread", has_text="Sent from the box.").locator(
+                ":scope > .lf-thread-reply leaf-text"
+            )
+            if surface == "composer-panel"
             else box
         )
     write(box, "Sent from the box.")
@@ -7499,11 +7533,20 @@ def pressed_send_surface(browser, serve, surface):
     ("surface", "how"),
     [
         (surface, how)
-        for surface in ["card", "panel", "general", "pause", "handoff", "composer"]
+        for surface in [
+            "card",
+            "panel",
+            "general",
+            "pause",
+            "handoff",
+            "composer",
+            "composer-widget",
+            "composer-panel",
+        ]
         for how in ["pointer", "keyboard"]
         # The anchored composer's Tab walks its field and response options
         # (`response.tab`), so its Send takes no keyboard press; Enter is that route.
-        if (surface, how) != ("composer", "keyboard")
+        if not (surface.startswith("composer") and how == "keyboard")
     ],
 )
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
@@ -7514,6 +7557,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     thread, or on the element the margin card is about with the card still up, and `c`
     writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
+    if surface.startswith("composer"):
+        hold_pending_thread_presentation(page)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -7530,6 +7575,26 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # The press never takes the focus, so the box never hears it leave.
             expect(box).to_be_focused()
             page.mouse.up()
+    if surface.startswith("composer"):
+        sent = admit_before_presenting_comment(
+            page, serve.page_dir, "Sent from the box."
+        )
+        thread = page.locator(
+            f'.lf-thread[data-id="{sent["id"]}"]'
+            if surface == "composer-panel"
+            else f'.lf-page-thread[data-thread="{sent["id"]}"]'
+        )
+        expect(thread).to_be_visible()
+        if surface == "composer-widget":
+            # Exact message navigation belongs to Threads, not the local reply box.
+            assert page.evaluate(
+                """async id => {
+                  const {surfaceFocusTarget} = await window.__lfRuntimeImport(
+                    '/runtime/thread/surfaces.js');
+                  return surfaceFocusTarget(id, {focus: 'message'}) === null;
+                }""",
+                sent["id"],
+            )
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()
@@ -8461,3 +8526,48 @@ def test_typing_a_search_moves_nothing_under_the_find_box(browser, serve):
         }"""
     )
     assert words == pytest.approx(title, abs=0.5), (words, title)
+
+
+def annotation_mode_source(mode):
+    return leaf_page(
+        "Mode switch",
+        '<h1>Mode switch</h1><p id="subject">A passage with stable words.</p>',
+    ).replace("<body>", f'<body data-annotations="{mode}">')
+
+
+@pytest.mark.parametrize(
+    "initial,next_mode", [("overlay", "page"), ("page", "overlay")]
+)
+def test_actual_mode_switch_carries_native_composer(browser, serve, initial, next_mode):
+    root = "0123456789abcdef0123456789abcdef"
+    event = {
+        "id": root,
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "A current thread",
+        "anchor": {"section": "subject"},
+    }
+    page = open_page(
+        browser, live_url(serve(annotation_mode_source(initial), events=[event]))
+    )
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    thread.locator(":scope > summary").click()
+    editor = thread.locator(".lf-thread-reply leaf-text")
+    editor.click()
+    expect(editor).to_be_focused()
+    editor.evaluate("el=>el.setSelectionRange(0,0,'none')")
+    birth = page.evaluate("performance.timeOrigin")
+    stamp_page(
+        serve.page_dir,
+        annotation_mode_source(next_mode),
+        "Change actual annotation mode",
+    )
+    wait_for_revision(page, 2)
+    assert page.evaluate("performance.timeOrigin") != birth
+    expect(editor).to_be_focused()
+    assert editor.evaluate(
+        "el=>[el.value,el.selectionStart,el.selectionEnd,el.selectionDirection]"
+    ) == ["", 0, 0, "none"]
+    assert page.locator(".lf-margin-projection").count() == (next_mode == "overlay")

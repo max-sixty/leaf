@@ -1,7 +1,9 @@
 """Shared widgets browser-integration cases and readings."""
 
 import html
+import json
 
+from browser_sources import browser_source
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
@@ -114,69 +116,35 @@ GENERIC_VISUAL_LAYER = {
         "x-example": '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
     }
 }
-GENERIC_VISUAL_WIDGETS = {
-    "lf-test-visual.js": """
-import { once, registerVisualParts } from '/runtime/widget-api.js';
 
-customElements.define('lf-test-visual', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    this.innerHTML = `<svg viewBox="0 0 240 120" width="240" height="120">
-      <g id="outer">
-        <rect id="outer-surface" x="10" y="10" width="220" height="100" rx="8"
-              fill="#dbeafe" stroke="#2563eb" stroke-width="2"></rect>
-        <line id="outer-decoration" x1="25" y1="36" x2="215" y2="36"
-              stroke="#2563eb" stroke-width="2"></line>
-        <g id="inner">
-          <path d="M120 44 L158 76 L120 104 L82 76 Z"
-                fill="#fef3c7"></path>
-          <line x1="100" y1="76" x2="140" y2="76"
-                stroke="#d97706" stroke-width="2"></line>
-        </g>
-      </g>
-    </svg>
-    <div id="html" style="width: 220px; padding: 8px;">
-      <span id="html-surface" style="display: inline-block; border-radius: 12px; padding: 4px 10px; background: #dbeafe;">HTML surface</span>
-      <span id="html-decoration"> · decoration</span>
-    </div>`;
-    const outer = this.querySelector('#outer');
-    const inner = this.querySelector('#inner');
-    const outerSurface = this.querySelector('#outer-surface');
-    const html = this.querySelector('#html');
-    const htmlSurface = this.querySelector('#html-surface');
-    this.parts = [
-      { id: 'outer', element: outer, surface: outerSurface, label: 'Outer store' },
-      { id: 'inner', element: inner, label: 'Inner decision' },
-      { id: 'html', element: html, surface: htmlSurface, label: 'HTML target' },
-    ];
-    this.visualRegistration = registerVisualParts(this, () => this.parts);
-    this.redraw = () => {
-      outerSurface.setAttribute('rx', '28');
-      this.visualRegistration.update();
-    };
-  }
-});
-"""
-}
+
+def visual_widgets(
+    *,
+    staged=False,
+    opening_fill="#dbeafe",
+    repair_fill_on_reveal=False,
+    outside_surface_for=None,
+):
+    """Serve one visual implementation with each case's declared state and faults."""
+    configuration = {
+        "staged": staged,
+        "openingFill": opening_fill,
+        "repairFillOnReveal": repair_fill_on_reveal,
+        "outsideSurfaceFor": outside_surface_for,
+    }
+    return {
+        "visual-fixture.js": browser_source("widgets/visual-fixture.js"),
+        "lf-test-visual.js": (
+            "import { defineVisualFixture } from './visual-fixture.js';\n"
+            f"defineVisualFixture({json.dumps(configuration)});\n"
+        ),
+    }
+
+
+GENERIC_VISUAL_WIDGETS = visual_widgets()
 # The same visual drawn in two steps, as an animation or stepper draws it: `inner`
 # appears only in the second, which its registration's `reveal` draws on request.
-STAGED_VISUAL_WIDGETS = {
-    "lf-test-visual.js": GENERIC_VISUAL_WIDGETS["lf-test-visual.js"].replace(
-        "    this.visualRegistration = registerVisualParts(this, () => this.parts);",
-        """    inner.style.display = 'none';
-    this.visualRegistration = registerVisualParts(
-      this,
-      () => this.parts.filter((part) => part.id !== 'inner' || inner.style.display !== 'none'),
-      {
-        reveal: (id) => {
-          if (id !== 'inner') return;
-          inner.style.display = '';
-          this.visualRegistration.update();
-        },
-      },
-    );""",
-    )
-}
+STAGED_VISUAL_WIDGETS = visual_widgets(staged=True)
 
 
 # The same visual with its part ids declared by prefix rather than authored: the
@@ -222,33 +190,7 @@ SHADOW_VISUAL_LAYER = {
     }
 }
 SHADOW_VISUAL_WIDGETS = {
-    "lf-test-shadow-visual.js": """
-import { once, registerVisualParts, shadowStage } from '/runtime/widget-api.js';
-
-customElements.define('lf-test-shadow-visual', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    Object.assign(this.style, {
-      display: 'block',
-      width: '100px',
-      height: '60px',
-      overflow: 'hidden',
-    });
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 220 60');
-    svg.setAttribute('width', '220');
-    svg.setAttribute('height', '60');
-    svg.style.cssText = 'display: block; max-width: none';
-    svg.innerHTML = `<rect id="wide-surface" x="10" y="10" width="200" height="40"
-      rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"></rect>`;
-    shadowStage(this, [svg]);
-    const surface = this.shadowRoot.querySelector('#wide-surface');
-    this.visualRegistration = registerVisualParts(this, () => [
-      { id: 'wide', element: surface, label: 'Clipped wide surface' },
-    ]);
-  }
-});
-""",
+    "lf-test-shadow-visual.js": browser_source("widgets/shadow-visual.js")
 }
 # Every supported structural diagram whose authored ids reach a drawn box. State
 # machines carry nested boxes and ER entities carry attribute tables, while sequence
@@ -1077,21 +1019,7 @@ LATE_MARGIN_PAGE = leaf_page(
 # statement rides an answer rather than the upgrade that asked for it. The request is
 # answered by the test, which is what puts it after the handover on every machine rather
 # than on a fast one.
-LATE_MARGIN_WIDGET = """\
-import { once } from "/runtime/widget-api.js";
-
-customElements.define(
-  "lf-callout",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      fetch("/margin-width").then(() =>
-        document.body.style.setProperty("--lf-taken-r", "160px"),
-      );
-    }
-  },
-);
-"""
+LATE_MARGIN_WIDGET = browser_source("widgets/late-margin.js")
 # Where the two things in the right margin stand, and how much of the board is over the
 # controls. The controls stand in the rail, and they hang off the column rather than out
 # of the rail's strip, so the strip's own edge says nothing about where they are.

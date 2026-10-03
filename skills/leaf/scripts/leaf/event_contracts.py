@@ -18,7 +18,7 @@ from leaf.event_meaning import (
 )
 from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
-from leaf.page_view import PageView
+from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
     authored_positions,
@@ -597,7 +597,8 @@ def admission_error(
     than a routing table per transport.
     """
     return (
-        _revision_error(view, event)
+        _publication_error(view, event)
+        or _revision_error(view, event)
         or _approval_error(view, event, events, registry)
         or _action_error(view, event, readings)
         or _report_error(view, event, registry)
@@ -605,9 +606,40 @@ def admission_error(
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _thread_presentation_error(view, event, events)
+        or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
     )
+
+
+def _publication_error(view, event: dict) -> str | None:
+    if "publication" not in event:
+        return None
+    if (
+        not isinstance(view, CandidatePageView)
+        or event["publication"] != view.publication
+    ):
+        return "publication is owned by the checked source publisher"
+    if event.get("revision") != view.revisions[-1] or not event[
+        "publication"
+    ].startswith(f"r{event['revision']}-"):
+        return "publication must name its checked candidate revision"
+    return None
+
+
+def _reanchor_error(view, event: dict, events: list) -> str | None:
+    """A revision's automatic fallback changes a live quote to its own section."""
+    if event["kind"] != "reanchor":
+        return None
+    thread = build_threads(events, view.within).get(event["thread"])
+    if thread is None or thread["resolved"] or not thread["anchor"]:
+        return "reanchor needs an open anchored thread"
+    anchor = thread["anchor"]
+    if not anchor.get("quote") or event["anchor"] != {"section": anchor.get("section")}:
+        return "reanchor must retain the quoted thread's own section"
+    if anchor.get("section") not in view.document(event["revision"]).ids:
+        return "reanchor section must survive in its revision"
+    return None
 
 
 def admitted_event(view, events: list, event: dict) -> dict:
@@ -661,7 +693,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     return event
 
 
-def append_admitted(page, event: dict) -> dict:
+def append_admitted(page, event: dict, *, view=None) -> dict:
     """Admit one event and append it, under the page transaction's log lease.
 
     The one door. `page` is an open `service.PageTransaction`, whose lease makes
@@ -676,5 +708,7 @@ def append_admitted(page, event: dict) -> dict:
     if accepted := page.matching_attempt(event):
         return accepted
     return page._append_record(
-        admitted_event(PageView(page.page_dir), page.events, event)
+        admitted_event(
+            view if view is not None else PageView(page.page_dir), page.events, event
+        )
     )

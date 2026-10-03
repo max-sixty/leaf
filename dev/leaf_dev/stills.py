@@ -7,6 +7,9 @@ BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload 
 commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
 only the runtime, theme and server differ between the two stills of a state.
+Message delivery belongs to thread_journey and test_render_thread_snapshots: its
+held checkpoints replace the former panel/card sent stills, whose unrestricted
+POSTs could complete before capture.
 
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
@@ -15,14 +18,14 @@ add one where a change touches a surface it does not reach.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
-Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
+Each invocation allocates a run directory under `.tmp/stills/`. Each state's
+directory within it holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 `diff.png` outlining the head's own regions, a change in red and a move in blue. The
 crops cover both stills' regions.
 """
 
-import shutil
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,7 +39,7 @@ from playwright.sync_api import Page
 
 from leaf_dev import ROOT
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
-from leaf_dev.harness import build_pair, serving_source
+from leaf_dev.harness import build_pair, run_directory, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -67,6 +70,15 @@ def card_by_keyboard(page: Page) -> None:
     )
 
 
+def card_more_room(page: Page) -> None:
+    """An overflowing conversation uses extra room without needing a complete fit."""
+    page.set_viewport_size({"width": 1440, "height": 480})
+    settle(page)
+    card_by_pointer(page)
+    settle(page)
+    page.set_viewport_size({"width": 1440, "height": 600})
+
+
 def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_by_keyboard(page)
@@ -75,14 +87,6 @@ def card_reply(page: Page) -> None:
         "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
     )
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
-
-
-def card_reply_sent(page: Page) -> None:
-    """The margin card's message metadata after sending a reply."""
-    card_reply(page)
-    card = page.locator(".lf-margin-preview")
-    card.get_by_role("button", name="Send", exact=True).click()
-    card.locator("[data-event].user .lf-msg-sending").last.wait_for()
 
 
 def card_reply_large(page: Page) -> None:
@@ -111,17 +115,6 @@ def panel_by_keyboard(page: Page) -> None:
     )
 
 
-def panel_reply_sent(page: Page) -> None:
-    """A reply sent from the Threads panel's open thread, its stage on the message
-    and the thread's attention on the other rows."""
-    threads_panel(page)
-    thread = page.locator(".lf-thread[open]")
-    thread.locator("leaf-text").focus()
-    page.keyboard.insert_text("A reply sent from the panel")
-    thread.get_by_role("button", name="Send", exact=True).click()
-    thread.locator(".lf-msg.user .lf-msg-sending").last.wait_for()
-
-
 def composer(page: Page) -> None:
     """A comment being typed on a passage selected by pointer."""
     box = page.locator("#triage-lede").bounding_box()
@@ -147,6 +140,28 @@ def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
     page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
+    )
+
+
+def theme_hierarchy(page: Page) -> None:
+    """A neutral callout with open and closed support; exercise the closed row by key."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    summary = page.locator("#bg-theme-support summary")
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if summary.evaluate("el => el.matches(':focus-visible')"):
+            break
+    else:
+        raise AssertionError("Tab did not reach the supporting disclosure")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    page.locator("#bg-theme-hierarchy").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
     )
 
 
@@ -234,21 +249,35 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def widget_inline_hints(page: Page) -> None:
+    """A standalone command scope with an active inline hint, outside an Ask."""
+    page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    page.locator("#bg-local-shortcuts").focus()
+
+
+def draft_edit(page: Page) -> None:
+    """A passage opened in its shared editor, with Markdown source and a focused caret."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("Tab")
+    page.locator("#rn-cli .lf-draft-edit").focus()
+
+
 DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
         at_rest,
         card_by_pointer,
         card_by_keyboard,
+        card_more_room,
         card_reply,
-        card_reply_sent,
         card_reply_large,
         threads_panel,
         panel_by_keyboard,
-        panel_reply_sent,
         composer,
         card_grabbed,
         code_note,
+        theme_hierarchy,
         wide_passage,
         multiline_passage,
         code_copy_by_pointer,
@@ -258,6 +287,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         element_thread,
         versions_menu,
         go_to,
+        widget_inline_hints,
+        draft_edit,
     )
 }
 
@@ -273,7 +304,38 @@ class State:
 
 
 STATES = (
+    State("release-draft", "release-notes", draft_edit),
+    State(
+        "release-draft-phone",
+        "release-notes",
+        draft_edit,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
+    State(
+        "gallery-theme-dark",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        scheme="dark",
+    ),
+    State(
+        "gallery-theme-phone",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "gallery-theme-phone-dark",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
+    State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
@@ -310,9 +372,6 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    # Last on its page, since the reply it sends stays in the log.
-    State("plan-panel-sent", "review-a-plan", panel_reply_sent),
-    State("plan-card-sent", "review-a-plan", card_reply_sent),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),
@@ -335,6 +394,7 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
     ),
@@ -367,7 +427,7 @@ def capture(browser, address: str, state: State, path: Path) -> None:
         page.screenshot(path=path)
 
 
-def differences(browser, names: list[str]) -> dict[str, dict]:
+def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
     """`lf-shot`'s reading of each named state's two stills, from the module that
     owns it, served beside them to a blank page."""
 
@@ -376,7 +436,7 @@ def differences(browser, names: list[str]) -> dict[str, dict]:
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.endswith(".png"):
-            route.fulfill(path=OUT / path.lstrip("/"))
+            route.fulfill(path=out / path.lstrip("/"))
         else:
             route.fulfill(body="<!doctype html>", content_type="text/html")
 
@@ -437,9 +497,7 @@ def crop(folder: Path, regions: list[dict]) -> None:
 def stills(base_ref: str | None) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
-    if OUT.exists():
-        shutil.rmtree(OUT)
-    OUT.mkdir(parents=True)
+    out = run_directory(OUT)
     failed: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
@@ -455,7 +513,7 @@ def stills(base_ref: str | None) -> None:
                         for state in STATES:
                             if state.source != source:
                                 continue
-                            folder = OUT / state.name
+                            folder = out / state.name
                             folder.mkdir(exist_ok=True)
                             try:
                                 capture(browser, address, state, folder / f"{arm}.png")
@@ -464,12 +522,14 @@ def stills(base_ref: str | None) -> None:
                                     f"on {arm}: {str(error).splitlines()[0]}"
                                 )
             read = differences(
-                browser, [state.name for state in STATES if state.name not in failed]
+                browser,
+                [state.name for state in STATES if state.name not in failed],
+                out,
             )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in STATES:
-        folder = OUT / state.name
+        folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
         elif (difference := read[state.name])["changed"]:
@@ -480,3 +540,4 @@ def stills(base_ref: str | None) -> None:
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(STATES)} states unchanged")
+    click.echo(f"files in {out}")

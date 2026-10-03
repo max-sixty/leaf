@@ -65,12 +65,14 @@ def gate(page: Path, widths: dict) -> dict:
         for name, (viewport, _) in widths.items():
             with tab(browser, viewport=viewport, touch=name == "phone") as view:
                 errors = []
-                view.on("pageerror", lambda error: errors.append(str(error)))
+                view.on(
+                    "pageerror", lambda error, errors=errors: errors.append(str(error))
+                )
                 view.on(
                     "console",
-                    lambda message: errors.append(message.text)
-                    if message.type == "error"
-                    else None,
+                    lambda message, errors=errors: (
+                        errors.append(message.text) if message.type == "error" else None
+                    ),
                 )
                 load(view, url)
                 overflow = view.evaluate(

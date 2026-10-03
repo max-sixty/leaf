@@ -122,15 +122,19 @@ export function createPanelComposer({
         id: "thread.find.repeat",
         keys: ["n", "Shift+n"],
         routes: [
-          { id: "thread.find.next", binding: "n", does: "Go to the next thread found" },
+          {
+            id: "thread.find.next",
+            binding: "n",
+            title: "Go to the next thread found",
+          },
           {
             id: "thread.find.previous",
             binding: "Shift+n",
-            does: "Go to the previous thread found",
+            title: "Go to the previous thread found",
           },
         ],
-        does: "Next / previous thread found",
-        line: "search matches",
+        description: "Next / previous thread found",
+        title: "search matches",
         repeat: true,
         when: () => narrowing.threadSearchActive() && hasThreads(),
         run: (binding) => stepThread(binding === "n" ? 1 : -1),
@@ -145,11 +149,11 @@ export function createPanelComposer({
         // The shortcut uses the visible control's toggle, including leaving Resolved
         // when requesting waiting threads and preserving every other restriction.
         keys: ["w"],
-        does: () =>
+        description: () =>
           narrowing.needsYou()
             ? "Clear waiting filter"
             : "Show only the threads waiting on you",
-        line: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on you"),
+        title: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on you"),
         control: () => narrowingView.userControl,
         when: () => runtime.statePhase === "ready" && narrowingView.canToggleUser,
         run: () => narrowingView.toggleUser(),
@@ -157,8 +161,8 @@ export function createPanelComposer({
       {
         id: "thread.unread.first",
         keys: ["u"],
-        does: "Go to the first unread message",
-        line: "first unread",
+        description: "Go to the first unread message",
+        title: "first unread",
         when: () => unreadCount() > 0,
         run: firstUnread,
       },
@@ -168,8 +172,8 @@ export function createPanelComposer({
         // text box does not shadow: the typing scope claims what types a character, so the
         // press only ever reaches here from the list rather than from a box in it.
         keys: ["/"],
-        does: "Find in the threads",
-        line: "find",
+        description: "Find in the threads",
+        title: "find",
         control: () => findInput,
         run: () => {
           findInput.focus();
@@ -189,8 +193,8 @@ export function createPanelComposer({
         {
           id: "thread.find.first",
           keys: ["Enter"],
-          does: "Go to the first thread found",
-          line: "first found",
+          description: "Go to the first thread found",
+          title: "first found",
           when: hasThreads,
           run: () => stepThread(1),
         },

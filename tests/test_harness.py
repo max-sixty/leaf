@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from leaf_dev.eval_codex import records_for
 from leaf_dev.harness import accepted_thread_claims, commands, completed, trace_result
 
@@ -159,7 +158,7 @@ def observed_codex():
     child.now = lambda: "2026-10-02T22:36:55-07:00"
     task = Task.__new__(Task)
     task.thread, task.started, task.running = "parent", [], set()
-    task.commands, task.running_commands = [], {}
+    task.commands, task.running_commands, task.hooks = [], {}, []
     task.on_final = None
     task.on_message = child._hear
     child.task = task
@@ -195,6 +194,7 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
             },
         )
 
+    hear("hook/started", run={"eventName": "UserPromptSubmit"})
     hear("turn/started", turn={"id": "parent-turn"})
     usage(50, 50)
     hear(
@@ -235,6 +235,7 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
         turn={"id": "child-turn", "status": "completed", "error": None},
     )
     assert task.running == {"parent-turn"}
+    assert [message["method"] for message in task.hooks] == ["hook/started"]
     assert task.started == ["parent-turn"]
     assert task.commands == [] and task.running_commands == {}
     assert child.final == "Parent answer"
@@ -252,6 +253,11 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
         "entries": [{"kind": "context", "text": "Parent hook context"}],
     }
     hear("hook/completed", run=parent_hook)
+    assert [message["method"] for message in task.hooks] == [
+        "hook/started",
+        "hook/completed",
+    ]
+    assert task.hooks[-1]["params"]["run"] == parent_hook
     hear(
         "turn/completed",
         turn={"id": "parent-turn", "status": "completed", "error": None},
@@ -374,6 +380,7 @@ def test_single_turn_timeout_retains_native_trace_without_fabricating_completion
     tmp_path, monkeypatch
 ):
     import subprocess
+
     from leaf_dev import harness
 
     partial = {

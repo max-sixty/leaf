@@ -47,11 +47,13 @@ const browserGlobals = Object.fromEntries(
     "HTMLSpanElement",
     "Highlight",
     "IntersectionObserver",
+    "MessageChannel",
     "MouseEvent",
     "MutationObserver",
     "Node",
     "NodeFilter",
     "OffscreenCanvas",
+    "PerformanceObserver",
     "Range",
     "Response",
     "ResizeObserver",
@@ -736,6 +738,18 @@ export default [
     languageOptions: { globals: { process: "readonly" } },
   },
   {
+    // Python executes these test expressions and modules inside the browser. Their
+    // source is linted here rather than hidden inside Python string literals.
+    files: ["tests/browser/**/*.js"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
+  },
+  {
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/bench_latency.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+    rules: { "no-undef": "error" },
+  },
+  {
     // The site verifier resolves the release-scoped runtime URL from the page under
     // test. That URL is data, so its two imports cannot be static dependency edges.
     files: ["dev/leaf_dev/verify_site_browser.js"],
@@ -901,7 +915,10 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/assets/runtime/**/*.js"],
+    files: [
+      "skills/leaf/assets/runtime/**/*.js",
+      "skills/leaf/packages/*/runtime/**/*.js",
+    ],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,

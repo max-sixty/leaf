@@ -195,22 +195,6 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             sources.setdefault(id(holder), []).append(rec)
 
     errors = []
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        awaits = entry.get("x-awaits") or {}
-        requires_region = awaits.get("region") and asking(
-            rec["attrs"], awaits.get("when")
-        )
-        if not requires_region or quoted_in(rec, registry):
-            continue
-        holder = rec.get("holder")
-        while holder and not registry.get(holder["tag"], {}).get("x-ask-surface"):
-            holder = holder.get("holder")
-        if not holder:
-            errors.append(
-                f"{at(rec)}: this declared Ask source must be inside an Ask "
-                "with a heading"
-            )
     for region in regions:
         headings = [
             child

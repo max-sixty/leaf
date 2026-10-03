@@ -3,7 +3,7 @@
    Importing this module is inert. leaf.js supplies the concrete feature views once and
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
-import { runtime } from "./context.js";
+import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
   readApplication,
@@ -34,10 +34,12 @@ import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
 import { createAnnotationInventory } from "./annotation-inventory.js";
+import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
 import { clocked } from "./presence.js";
+import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { registerMirrorConsumer } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
@@ -46,7 +48,6 @@ import { threadBox as buildThreadBox } from "./thread/box.js";
 import { messageText } from "./thread/messages.js";
 import { isThreadEvent } from "./pending/model.js";
 import {
-  focusSurface,
   consumeThreads as registerConsumer,
   consumePageThreads as registerPageConsumer,
   renderSurfaces,
@@ -313,7 +314,6 @@ export function mountApplication(dependencies) {
       placedAt: dependencies.anchorPlacement.placedAt,
     },
     travel: {
-      focusSurface,
       scrollToThread: dependencies.anchorTravel.scrollToThread,
     },
   };
@@ -324,13 +324,13 @@ export function mountApplication(dependencies) {
 
   const annotations = createAnnotationInventory({
     openAsks,
-    comparisonBase: dependencies.margin.comparisonBase,
-    comparisonChanges: dependencies.margin.comparisonChanges,
-    inlineComparison: dependencies.margin.inlineComparison,
-    toggleInlineComparison: dependencies.margin.toggleInlineComparison,
+    comparisonBase: dependencies.annotationCommands.comparisonBase,
+    comparisonChanges: dependencies.annotationCommands.comparisonChanges,
+    inlineComparison: dependencies.annotationCommands.inlineComparison,
+    toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
-    showThread: dependencies.showThread,
-    goToAsk: dependencies.margin.goToAsk,
+    showThread: (...args) => threadDestinations.openPageThread(...args),
+    goToAsk: dependencies.annotationCommands.goToAsk,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -342,11 +342,14 @@ export function mountApplication(dependencies) {
     presentingContributions();
     inlineContributions.present();
     const entries = annotations.collect();
-    dependencies.margin.renderPageMapDialog(entries);
+    dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
   const renderAnnotations = clocked(document.body, () => {
-    if (!onPaper.matches) margin.paint(refreshAnnotationInventory());
+    if (!onPaper.matches) {
+      const entries = refreshAnnotationInventory();
+      overlay?.paint(entries);
+    }
   });
   const mountAnnotations = () => {
     watchProjection(document.body, renderAnnotations);
@@ -356,29 +359,35 @@ export function mountApplication(dependencies) {
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
-      if (immediate) margin.flushLayout();
+      if (immediate) overlay?.flushLayout();
     });
   };
-  const margin = dependencies.createMarginProjection({
+  const overlay = dependencies.createMarginProjection?.({
     inventory: annotations,
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
-    showThread: dependencies.showThread,
+    openPageThread: (...args) => threadDestinations.openPageThread(...args),
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
     accompanyThread: dependencies.accompanyThread,
-    designModeActive: dependencies.margin.designModeActive,
-    pointerModeActive: dependencies.margin.pointerModeActive,
-    leavePageMap: dependencies.margin.leavePageMap,
-    openPageMap: dependencies.margin.openPageMap,
-    pageMapDialogContains: dependencies.margin.pageMapDialogContains,
-    scrollThreadIntoView: dependencies.margin.scrollThreadIntoView,
+    designModeActive: dependencies.annotationCommands.designModeActive,
+    pointerModeActive: dependencies.annotationCommands.pointerModeActive,
+    leavePageMap: dependencies.annotationCommands.leavePageMap,
+    openPageMap: dependencies.annotationCommands.openPageMap,
+    pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
+    scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
     renderMarginThread: (host, thread, controls) =>
       renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+  });
+  const threadDestinations = createThreadDestinations({
+    placedAt: dependencies.anchorPlacement.placedAt,
+    panelIsOpen: dependencies.panelIsOpen,
+    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    preview: overlay?.threadPreview,
   });
 
   threadPresenter = createThreadPresentation({
@@ -397,7 +406,7 @@ export function mountApplication(dependencies) {
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the panel.
     openThread: (id, options) =>
-      margin.openPageThread(id, { ...options, travel: false }),
+      threadDestinations.openPageThread(id, { ...options, travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
@@ -502,6 +511,24 @@ export function mountApplication(dependencies) {
     composition: dependencies.compositionSurface,
     reveal: dependencies.showThread,
   };
+  let annotationRegistration = null;
+  const consumeAnnotations = (owner, render) => {
+    if (annotationMode !== "page")
+      throw new Error("Page annotation presentation requires data-annotations=page");
+    if (annotationRegistration)
+      throw new Error("The document already has a page annotation view");
+    const registration = Symbol("page annotation view");
+    annotationRegistration = registration;
+    const retire = () => {
+      if (annotationRegistration === registration) annotationRegistration = null;
+    };
+    try {
+      return createAnnotationView(owner, render, annotations, invalidateDom, retire);
+    } catch (error) {
+      retire();
+      throw error;
+    }
+  };
   const consumeThreads = (owner, render) =>
     registerConsumer(owner, render, threadSurfaceCommands);
   const consumePageThreads = (owner, render) =>
@@ -526,7 +553,8 @@ export function mountApplication(dependencies) {
     refreshAnnotationInventory,
     renderAnnotations,
     mountAnnotations,
-    margin,
+    overlay,
+    threadDestinations,
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
@@ -543,6 +571,7 @@ export function mountApplication(dependencies) {
     presentThread,
     consumeThreads,
     consumePageThreads,
+    consumeAnnotations,
     mountThreadViews,
     registerThreadPanel,
     forgetAuthoredOwners: projection.forgetAuthoredOwners,
@@ -569,7 +598,7 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
-export const openThread = (...args) => app().margin.openPageThread(...args);
+export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
@@ -580,6 +609,7 @@ export const receiveState = (...args) => app().receiveState(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
 export const consumeThreads = (...args) => app().consumeThreads(...args);
 export const consumePageThreads = (...args) => app().consumePageThreads(...args);
+export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({

@@ -10,14 +10,12 @@ several operations, so its trace alone cannot prove their internal order.
 
 import json
 import re
-import shutil
 from datetime import datetime
 from functools import partial
 from pathlib import Path
 
 from leaf.event_log import read_events
 
-from leaf_dev import ROOT
 from leaf_dev.harness import (
     accepted_thread_claims,
     blocks,
@@ -28,12 +26,8 @@ from leaf_dev.harness import (
     scratch,
     waits_started,
 )
+from leaf_dev.review_scenario import REQUEST, prepare
 
-TURN_LIMIT = 600
-PROMPT = (
-    "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
-    "and handle the comments I leave on it."
-)
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
 CASES = {"idle": ("idle", "idle"), "mid-turn": ("running",)}
@@ -75,15 +69,13 @@ def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
     page, state = work / "page", run / "state"
+    prepare(arm, state, page)
     leaf = partial(run_leaf, arm, state)
-    leaf("page", "init", str(page), check=True)
-    shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-    leaf("page", "stamp", str(page), "--text", "Release triage for review.", check=True)
     rounds = tuple(
         (dict(COMMENTS[n], kind="comment", attempt=attempt(n + 1)),)
         for n in range(len(CASES[case]))
     )
-    scenario = Case(case, (PROMPT,), rounds=rounds, injection=CASES[case])
+    scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
     execute_live(Run(case, arm, run, host), scenario, work, page)
     (run / "events.jsonl").write_text(
         leaf("page", "events", str(page), check=True).stdout

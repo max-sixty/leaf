@@ -26,8 +26,9 @@
  * runtime uses — `value`, the selection triple, `setSelectionRange`, `placeholder`,
  * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
- * history, so undo never walks back into a draft the runtime swapped out. A pasted
- * picture is the box owner's: the field leaves that paste to the host's listeners.
+ * history, so undo never walks back into a draft the runtime swapped out. A box owner
+ * that takes pasted pictures intercepts paste in capture; otherwise the field pastes
+ * the clipboard's text, including text carried beside a picture.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -36,6 +37,9 @@
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
  * listeners CodeMirror holds on the window and document; reconnecting builds another.
+ * `:state(ready)` means that view exists. A reading surface being replaced can keep
+ * its words in flow until then, so measuring the connecting editor never collapses
+ * the scrollport before the editor has content.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
  * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
@@ -299,16 +303,6 @@ function decorate(state, placed) {
   return Decoration.set(out, true);
 }
 
-// A paste carrying a picture is left to the box's owner, which uploads it and keeps the
-// words as they were (`wireInput`); the editor would otherwise insert the clipboard's
-// text, or delete the selection for a clipboard with none, before the owner hears it.
-const pastesPicture = EditorView.domEventHandlers({
-  paste: (event) =>
-    [...(event.clipboardData?.items ?? [])].some(
-      (item) => item.kind === "file" && item.type.startsWith("image/"),
-    ),
-});
-
 // The draft is read by the renderer that will send it, so the preview styles exactly what
 // the message will: the same constructs, the same links. The reading is taken again when
 // the words change and the styling when the selection moves. The renderer loads lazily;
@@ -371,19 +365,31 @@ class LeafText extends HTMLElement {
             scaleY,
             top: box.top + this.clientTop * scaleY,
             left: box.left + this.clientLeft * scaleX,
-            bottom: box.top + (this.clientTop + this.clientHeight) * scaleY,
-            right: box.left + (this.clientLeft + this.clientWidth) * scaleX,
+            // client dimensions round fractional CSS sizes. Keep the trailing
+            // edges on the actual box, inset by its native border and scrollbar.
+            bottom:
+              box.bottom -
+              (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
+            right:
+              box.right -
+              (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX,
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
           if (!caret) return;
+          // Native scroll offsets quantize a fractional correction. Round away from
+          // zero so a caret just beyond an edge actually enters the host's scrollport.
+          const wholePixel = (distance) =>
+            distance < 0 ? Math.floor(distance) : Math.ceil(distance);
           this.scrollBy({
-            top:
+            top: wholePixel(
               (Math.min(0, caret.top - top) + Math.max(0, caret.bottom - bottom)) /
-              scaleY,
-            left:
+                scaleY,
+            ),
+            left: wholePixel(
               (Math.min(0, caret.left - left) + Math.max(0, caret.right - right)) /
-              scaleX,
+                scaleX,
+            ),
             behavior: "instant",
           });
         },
@@ -433,7 +439,6 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
-        pastesPicture,
         fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
@@ -482,6 +487,7 @@ class LeafText extends HTMLElement {
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     this.#paintEmpty();
+    this.#internals.states.add("ready");
   }
 
   // A move between parents reconnects within the task and keeps its editor.
@@ -492,6 +498,7 @@ class LeafText extends HTMLElement {
       this.#sizes.disconnect();
       this.#view.destroy();
       this.#view = null;
+      this.#internals.states.delete("ready");
     });
   }
 

@@ -13,7 +13,6 @@ from pathlib import Path
 import click
 from leaf.codex import app_server_connect, app_server_handshake, app_server_request
 
-
 STEP_LIMIT = 300
 QUIET = 10
 
@@ -33,6 +32,7 @@ class Task:
         self.started: list[str] = []
         self.running: set[str] = set()
         self.commands: list[str] = []
+        self.hooks: list[dict] = []
         self.running_commands: dict[str, str] = {}
         self.on_final: Callable[[str], None] | None = None
         app_server_handshake(
@@ -51,6 +51,8 @@ class Task:
         method, params = message.get("method"), message.get("params") or {}
         if not self.owns(message):
             return
+        if method in {"hook/started", "hook/completed"}:
+            self.hooks.append(message)
         if method == "turn/started":
             self.started.append(params["turn"]["id"])
             self.running.add(params["turn"]["id"])

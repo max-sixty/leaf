@@ -4,7 +4,8 @@ A document and the captured resources it names use logical page paths: `/page/�
 the author's files, `/media/…` for the page's images, and the layer's own files at the
 root (`/icon.svg`, `/runtime/…`). Every host delivers the same captured bytes under an
 address of its own — an HTTP server beneath a revision's URL, a published site beneath
-a release, an offline export as embedded `data:` URLs — so each host passes one
+a release, an offline export through document-lifetime object URLs — so each host
+passes one
 `address` function, from a logical path to the URL it serves that path at, and the
 walks below apply it. HTML source spans preserve prose and unrelated attributes,
 JavaScript rewriting names only parsed imports, and CSS rewriting names only the URLs
@@ -39,7 +40,14 @@ from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
+from .layer import CASCADE_LAYERS
+from .revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    authored_imports,
+    bind_imports,
+    rewrite_css,
+)
 from .schema import (
     BROWSER_DIRS,
     DECLARED_MARKS,
@@ -51,6 +59,7 @@ from .structure import (
     DELIVERY_ENCODING_META,
     UTF8_BOM,
     SourceDocument,
+    annotation_mode,
     element_attrs,
     rel_tokens,
     review_mode,
@@ -59,8 +68,8 @@ from .structure import (
     source_index,
 )
 
-# From a logical page path to the URL one host serves it at.
-Address = Callable[[str], str]
+# From a page-local URL (path and suffix) to its delivery URL, or None if unavailable.
+Address = Callable[[str], str | None]
 
 # The paths of a page's namespace a document or resource may name: the author's files,
 # the page's media, and the layer. The API and the page's documents are the runtime's
@@ -119,7 +128,7 @@ def _rebase(reference: str, base: str, address: Address) -> str:
     if located is None:
         return reference
     path, suffix = located
-    return address(path) + suffix
+    return address(quote(path, safe="/") + suffix)
 
 
 @lru_cache(maxsize=32)
@@ -151,6 +160,8 @@ def rebase_document(
 ) -> str:
     """Re-address every reference an HTML document makes, and nothing else in it.
 
+    An unavailable address removes the attribute; unavailable executable delivery
+    removes script elements. CSS omits only declarations that load unavailable assets.
     The references are an authored script's `src` and its literal imports, a
     stylesheet link, every URL `attribute_references` reads, and the URLs of each
     `style` element and attribute — in the document and in each declarative shadow
@@ -184,6 +195,11 @@ def rebase_document(
                 continue
             attrs = element_attrs(element)
             tag = element.tag
+            if tag == "script" and address("/leaf.js") is None:
+                start = span(location.start_tag)[0]
+                end = span(location.end_tag or location.start_tag)[1]
+                edits.append((start, end, ""))
+                continue
             stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
             if (
                 stylesheet
@@ -217,7 +233,13 @@ def rebase_document(
                 if delivered != value:
                     start, end = span(location.attrs[name])
                     edits.append(
-                        (start, end, f'{name}="{html.escape(delivered, quote=True)}"')
+                        (
+                            start,
+                            end,
+                            f'{name}="{html.escape(delivered, quote=True)}"'
+                            if delivered is not None
+                            else "",
+                        )
                     )
             if tag in {"script", "style"} and location.end_tag is not None:
                 start = index(location.start_tag.end_line, location.start_tag.end_col)
@@ -315,7 +337,8 @@ def mark_declared(
             for value in attrs.values()
             if value
             and value.startswith(f"/{MEDIA_DIR}/")
-            and (media := resources.get(value)) is not None
+            and (media := resources.get(urlsplit(value).path)) is not None
+            and media.mime.startswith("image/")
             and (size := media_size(media.data)) is not None
         ]
         if sizes:
@@ -342,8 +365,16 @@ class DeliveryAddress:
     asset_root: str
 
     def __call__(self, path: str) -> str:
-        root = self.page_root if path.startswith(f"/{MEDIA_DIR}/") else self.asset_root
-        return root.rstrip("/") + quote(path, safe="/")
+        located = urlsplit(path)
+        root = (
+            self.page_root
+            if located.path.startswith(f"/{MEDIA_DIR}/")
+            else self.asset_root
+        )
+        suffix = ("?" + located.query if located.query else "") + (
+            "#" + located.fragment if located.fragment else ""
+        )
+        return root.rstrip("/") + quote(unquote(located.path), safe="/") + suffix
 
 
 def layer_import_map(asset_root: str) -> dict:
@@ -365,7 +396,9 @@ def layer_import_map(asset_root: str) -> dict:
     }
 
 
-def deliver_resource(resource: Resource, logical_path: str, address: Address) -> bytes:
+def deliver_resource(
+    resource: Resource, logical_path: str, address: Address
+) -> Resource:
     """Address one captured resource, including a page widget served under an alias.
 
     A stylesheet's URLs and an authored module's imports are re-addressed; a layer
@@ -374,12 +407,39 @@ def deliver_resource(resource: Resource, logical_path: str, address: Address) ->
     (``/page/widgets/<tag>.js``), which is the base of its authored imports.
     """
     if resource.mime == "application/javascript" and logical_path.startswith("/page/"):
-        return rebase_module(resource.data, logical_path, address)
-    if resource.mime == "text/css":
-        return rebase_css(resource.data.decode("utf-8"), logical_path, address).encode(
-            "utf-8"
+        return Resource(
+            rebase_module(resource.data, logical_path, address), resource.mime
         )
-    return resource.data
+    if resource.mime == "text/css":
+        return Resource(
+            rebase_css(resource.data.decode("utf-8"), logical_path, address).encode(
+                "utf-8"
+            ),
+            resource.mime,
+        )
+    return resource
+
+
+def delivered_resource(
+    artifact: RevisionArtifact, logical_path: str, address: Address
+) -> Resource | None:
+    """One resource as an HTTP or static host serves it, including widget aliases.
+
+    Aliases re-export the addressed captured implementation rather than copying
+    its module: loading either path then shares one module instance. Ordinary
+    resources are rebased against their own captured path, and a missing path
+    remains absent for the transport to report.
+    """
+    source = artifact.widget_aliases.get(logical_path, logical_path)
+    if source != logical_path:
+        return Resource(
+            f"export * from {json.dumps(address(source))};\n".encode(),
+            "application/javascript",
+        )
+    resource = artifact.resources.get(source)
+    if resource is None:
+        return None
+    return deliver_resource(resource, source, address)
 
 
 def delivery_identity(
@@ -432,22 +492,15 @@ def json_script(value) -> str:
     )
 
 
-def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
-    """Carry the layer's adopted stylesheets in the document that runs the layer.
+def delivery_sheets(
+    resources: Mapping[str, Resource], address: Address, document: SourceDocument
+) -> str:
+    """Carry the selected layer's adopted sheets, with their own text and addressed URLs.
 
-    `runtime/stylesheets.js` constructs the chrome's and the marks' sheets while it
-    evaluates, so their text must be in hand without a request. WebKit has no CSS module
-    scripts to import them with, and a fetch awaited at module scope would make every
-    page module that imports the widget API evaluate after `DOMContentLoaded`. Every
-    document that runs the layer carries this (`compose_document`), with the sheets'
-    own URLs at the delivery's `address`: a constructed sheet resolves them against the
-    document.
-
-    The sheets go out as they are written, comments included. They used to be stripped
-    here, which is the one thing that made the text a user receives differ from the
-    file a maintainer reads, and a page has no build step to make that difference
-    anywhere else. The comments are most of the weight: 62KB of sheet becomes 134KB,
-    or 11KB against 39KB over the wire, at the head of every delivered document.
+    `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
+    every document running the layer carries their text without a request or await.
+    Shared chrome and marks are always present; physical annotation sheets are absent
+    in page mode. The browser constructs only the sheets this carrier actually holds.
     """
     sheets = {
         name: rebase_css(resources[path].data.decode("utf-8"), path, address)
@@ -456,6 +509,14 @@ def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
             ("marks", "/runtime/marks.css"),
         )
     }
+    if annotation_mode(document) == "overlay":
+        sheets["annotations"] = {
+            name: rebase_css(resources[path].data.decode("utf-8"), path, address)
+            for name, path in (
+                ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
+                ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
+            )
+        }
     return (
         '<script type="application/json" data-lf-runtime data-lf-sheets>'
         f"{json_script(sheets)}</script>"
@@ -557,6 +618,20 @@ def compose_document(
         if delivery.inline_stylesheet is not None
         else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" data-lf-runtime>'
     )
+    # Physical page-side placement keeps the theme's lf-base contract, below package
+    # and authored overrides. An adopted sheet would rank after those same defaults.
+    if delivery.runtime is not None and annotation_mode(document) == "overlay":
+        annotation_theme = rebase_css(
+            resources["/runtime/annotation-overlay/annotation-theme.css"].data.decode(
+                "utf-8"
+            ),
+            "/runtime/annotation-overlay/annotation-theme.css",
+            delivery.address,
+        )
+        theme = (
+            f"<style data-lf-runtime data-lf-annotation-theme>@layer {', '.join(CASCADE_LAYERS)};\n"
+            f"@layer lf-base {{\n{_inline_css(annotation_theme)}\n}}</style>" + theme
+        )
     head = (
         delivery_prelude(document, revision, version, executable, widgets)
         + (
@@ -579,12 +654,16 @@ def compose_document(
         + (delivery.runtime or "")
         + theme
         + (
-            delivery_sheets(resources, delivery.address)
+            delivery_sheets(resources, delivery.address, document)
             if delivery.runtime is not None
             else ""
         )
         + delivery.head
-        + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
+        + (
+            f'<script type="module" src="{html.escape(entry, quote=True)}" data-lf-runtime></script>'
+            if (entry := delivery.address("/leaf.js")) is not None
+            else ""
+        )
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]

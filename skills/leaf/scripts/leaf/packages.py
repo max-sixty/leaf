@@ -1,7 +1,6 @@
 """Package authoring commands and filesystem safety gates."""
 
 import contextlib
-import fcntl
 import json
 import os
 import re
@@ -33,13 +32,12 @@ from .locations import (
     location_is_within,
     locations_overlap,
     path_location,
+    path_lock_key,
     paths_same,
 )
 from .machine import package_store
 from .schema import (
-    ASSETS,
     BROWSER_DIRS,
-    DEFAULT_PACKAGE,
     ELEMENT_ID,
     HTML_NAME,
     PACKAGE_DIRS,
@@ -50,27 +48,34 @@ from .schema import (
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
-from .session_cleanup import EVENTS_FILE, fsync_parents, json_bytes
+from .state import EVENTS_FILE, flocked, fsync_parents, json_bytes
 
 
 @contextlib.contextmanager
-def package_write_lock(package: Path):
-    """Serialize package mutations without creating a lock artifact beside the code.
+def package_write_lock(*packages: Path):
+    """Serialize mutations only where their package contracts share destinations.
 
-    A directory inode is a stable process-shared lock on both supported host families.
-    The filesystem root exists before any candidate package path, so two initializers
-    choose the same inode even when the package's parent directories do not exist yet.
-    Package writes are rare and short; one lock per filesystem also closes concurrent
-    registry updates to different packages without inventing persistent state.
+    Registry read/modify/write and shared member directories stay together. An
+    install holds its source and destination in the same ordered lock set, so source
+    init finishes before copying and destination init cannot race publication.
+    Symlinked contract members use their resolved destinations. Independent packages
+    never hold an exclusive lock in common.
+
+    The lock home is machine-local, independent of XDG_STATE_HOME and TMPDIR: two
+    environments writing the same authored package still share its locks. Nothing
+    is written beside authored code or inside a not-yet-validated package.
     """
-    root = Path(package.absolute().anchor)
-    descriptor = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+    root = Path("/tmp") / f"leaf-package-locks-{os.getuid()}"
+    root.mkdir(mode=0o700, exist_ok=True)
+    keys = {
+        path_lock_key(package / name)
+        for package in packages
+        for name in (*VENDORED_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
+    }
+    with contextlib.ExitStack() as held:
+        for key in sorted(keys):
+            held.enter_context(flocked(root / f"{key}.lock"))
         yield
-    finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-        os.close(descriptor)
 
 
 def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list:
@@ -332,12 +337,12 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The composition context in which this package normally appears."""
+    """The complete mandatory layer, with this package when it is not already in it."""
     inputs = layer_inputs()
-    for index, root in enumerate(inputs):
+    for root in inputs:
         if paths_same(package, root):
-            return inputs[: index + 1]
-    return [ASSETS, DEFAULT_PACKAGE, package]
+            return inputs
+    return [*inputs, package]
 
 
 def check_package(
@@ -493,7 +498,8 @@ def cmd_package_install(source: Path) -> Path:
     changing which directory that name means.
     """
     store = package_store()
-    with package_write_lock(store):
+    source = source.expanduser().resolve()
+    with package_write_lock(source, store / source.name):
         package, _, _ = check_package(source, require_exists=True)
         name = package.name
         if re.fullmatch(HTML_NAME, name) is None:
@@ -519,6 +525,7 @@ def cmd_package_install(source: Path) -> Path:
             staged = Path(temporary) / name
             staged.mkdir()
             copy_package_contract(package, staged)
+            check_package(staged, require_exists=True)
             os.rename(staged, destination)
         print(json.dumps({"package": str(destination)}))
         return destination

@@ -20,7 +20,6 @@ login, bypassing the Worker, container limits, and credential proxy.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -41,9 +40,15 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.browser import chrome
-from leaf_dev.harness import codex_home
+from leaf_dev.harness import codex_home, copy_working, environment, run_directory
+from leaf_dev.site import asset_site
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 # The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
@@ -601,8 +606,8 @@ def check_turn_answered(
     url: str, heading: str, turn: TurnReading, asks: int, revision: int
 ) -> None:
     """Require the turn to have published the heading and answered, reading only what
-    the container admitted, so a turn that stopped is reported as that rather than as
-    a panel that drew nothing."""
+    the container admitted. A missing publication includes the source-validation
+    reading, distinguishing a rejected source from a valid source missing the heading."""
     state, published, replies, answer = turn
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
@@ -611,7 +616,9 @@ def check_turn_answered(
         published is not None,
         f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
         f"{state['active']['revision']} from {revision} with the page "
-        f"reading {reading}" + (said if replies else " and did not reply"),
+        f"reading {reading}"
+        + (said if replies else " and did not reply")
+        + f"; source validation: {state['source_error'] or 'no error'}",
     )
     check(
         replies != [],
@@ -960,6 +967,17 @@ def answers(url: str) -> bool:
         return False
 
 
+def announced_origin(log: Path, event: str) -> str | None:
+    """Read the bound address the child published, never a guessed free port."""
+    for line in log.read_text().splitlines(keepends=True):
+        if not line.endswith("\n") or not line.startswith("{"):
+            continue
+        record = json.loads(line)
+        if record.get("event") == event:
+            return f"http://127.0.0.1:{record['port']}"
+    return None
+
+
 @contextmanager
 def logged(log: Path) -> Iterator[IO[str]]:
     """Collect a local server's output in `log`, printing it beside any failure."""
@@ -1002,13 +1020,18 @@ def serving(
 def local_adapter():
     """Build the site and serve it with the website adapter under a temporary copy of
     the host's Codex login, removed with the adapter's pages and task history."""
-    origin = "http://127.0.0.1:8080"
+    out = run_directory(ROOT / ".tmp" / "verify-site")
+    log = out / "website-agent-local.log"
+    origin = None
+
+    def ready():
+        nonlocal origin
+        origin = announced_origin(log, "container_http_ready")
+        return origin is not None and answers(f"{origin}/health")
+
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
-        # Short, because the App Server's Unix socket lives here and its path must
-        # fit the platform's 104 bytes.
-        tempfile.TemporaryDirectory(prefix="lsa.", dir="/tmp") as runtime,
-        logged(ROOT / ".tmp" / "website-agent-local.log") as output,
+        logged(log) as output,
     ):
         root = Path(temporary)
         site = root / "site"
@@ -1017,65 +1040,102 @@ def local_adapter():
             (ROOT / "worker" / "codex-config.toml").read_text(),
         )
         subprocess.run(
-            BUILD_SITE,
+            [*BUILD_SITE, "--output", str(site)],
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
             check=True,
         )
-        shutil.copytree(ROOT / ".tmp" / "site", site)
         release = json.loads((site / "_leaf" / "site.json").read_text())["release"]
         with serving(
-            SERVE_SITE,
+            [*SERVE_SITE, "--port", "0"],
             output,
-            lambda: answers(f"{origin}/health"),
+            ready,
             30,
             cwd=ROOT,
-            env={
-                **os.environ,
-                "CODEX_HOME": str(home),
-                "LEAF_SITE_ROOT": str(site),
-                # The adapter keeps its App Server socket and log in the temporary
-                # directory, which is one fixed path per machine. A server another
-                # run left behind holds it, and a second server then exits on start.
-                "TMPDIR": runtime,
-            },
+            env=environment(
+                CODEX_HOME=str(home),
+                LEAF_SITE_ROOT=str(site),
+                XDG_STATE_HOME=str(root / "state"),
+            ),
         ):
             yield origin, release
 
 
 @contextmanager
-def local_worker() -> Iterator[str]:
+def local_worker() -> Iterator[tuple[str, str]]:
     """Serve the built site through `wrangler dev`: the Worker and its page container.
 
     The patience covers building the container image. Wrangler leaves each container's
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
     name of its own and removes the containers carrying it on the way out.
     """
-    origin = "http://127.0.0.1:8787"
-    wrangler = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
-    name = f"lv{os.getpid()}"
+    out = run_directory(ROOT / ".tmp" / "verify-site")
+    name = f"lv-{out.name}"
+    log = out / "wrangler-dev.log"
+    origin = None
+
+    def ready():
+        nonlocal origin
+        origin = announced_origin(log, "local_worker_ready")
+        return origin is not None and answers(f"{origin}/")
+
     try:
         with (
-            logged(ROOT / ".tmp" / "wrangler-dev.log") as output,
-            serving(
+            tempfile.TemporaryDirectory(prefix="leaf-worker-") as temporary,
+            logged(log) as output,
+        ):
+            root = Path(temporary)
+            # Freeze both halves of this release. Docker must build from the same
+            # private site the edge serves, even if another run rebuilds .tmp/site.
+            context = root / "context"
+            copy_working(
                 [
-                    str(wrangler),
-                    "dev",
-                    "--name",
-                    name,
-                    "--port",
-                    "8787",
-                    "--var",
-                    "AGENT_PREWARM:false",
+                    "Dockerfile.website",
+                    "pyproject.toml",
+                    "uv.lock",
+                    "skills/leaf",
+                    "worker/pyproject.toml",
+                    "worker/leaf_website",
+                    "worker/package.json",
+                    "worker/package-lock.json",
+                    "worker/codex-config.toml",
+                ],
+                context,
+            )
+            from leaf.state import flocked
+
+            with flocked(MANIFEST.parents[1].with_name("site.lock")):
+                shutil.copytree(MANIFEST.parents[1], context / ".tmp" / "site")
+                shutil.copytree(asset_site(MANIFEST.parents[1]), root / "assets")
+            release = json.loads(
+                (context / ".tmp" / "site" / "_leaf" / "site.json").read_text()
+            )["release"]
+            config = tomllib.loads((ROOT / "worker" / "wrangler.toml").read_text())
+            config.pop("env")
+            config["name"] = name
+            config["main"] = str(ROOT / "worker" / "src" / "index.ts")
+            config["assets"]["directory"] = str(root / "assets")
+            config["vars"]["AGENT_PREWARM"] = "false"
+            for container in config["containers"]:
+                container["image"] = str(context / "Dockerfile.website")
+                container["image_build_context"] = str(context)
+            config_path = root / "wrangler.json"
+            config_path.write_text(json.dumps(config))
+            with serving(
+                [
+                    "node",
+                    str(Path(__file__).with_name("wrangler_server.mjs")),
+                    str(ROOT),
+                    str(config_path),
+                    str(root / "state"),
                 ],
                 output,
-                lambda: answers(f"{origin}/"),
+                ready,
                 180,
                 cwd=ROOT / "worker",
-            ),
-        ):
-            yield origin
+            ):
+                yield origin, release
     finally:
         listed = subprocess.run(
             ["docker", "ps", "--quiet", "--filter", f"name=^workerd-{name}-"],
@@ -1119,11 +1179,10 @@ def verify_site(target: str, release: str | None, agent: bool) -> None:
             run_verification(origin, built, agent=True, direct_agent=True)
         return
     if target == "wrangler":
-        release = release or built_release()
-        with local_worker() as origin:
+        with local_worker() as (origin, built):
             run_verification(
                 origin,
-                release,
+                release or built,
                 agent=agent,
                 settle_after_activation=None if agent else wait_for_host_network,
             )

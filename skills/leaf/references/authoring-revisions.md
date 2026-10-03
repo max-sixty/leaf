@@ -33,7 +33,8 @@ nothing to weigh: write the true thing straight and name the change in the versi
 note.
 
 Use `lf-draft` for a passage whose wording belongs to the user. Their submitted
-words remain effective across revisions.
+words remain effective across revisions. Editing uses the same Markdown text field
+as a message; Save records the exact source as the passage's replacement text.
 
 ## Honor user state
 
@@ -86,9 +87,11 @@ structure included, is an ordinary revision, and when the structure changes, wri
 user state across a rewrite (`page-authoring.md`, "Stable anchors"), so a passage
 that survives keeps its id wherever on the page it goes, and moving it needs neither
 a suggestion nor `restated`. `page check` refuses a rewrite that drops an id an
-open thread or the user's state still rests on, and names the way out. It does
-not guard the words an open thread quotes, so leave those as they stand while the
-thread is open.
+open thread or the user's state still rests on, and names the way out. It also
+lists every open thread whose quote the rewrite removes or makes ambiguous;
+activation keeps each at its surviving section. Prefer the replacement passage
+when you know it, and detach only when the subject itself leaves the page
+(`threads.md`, "Preserve revised anchors").
 
 A list of work holds what is still to do. When an item of a plan, a backlog, or a list
 of problems found is done, move it out of that list to the finished work, which sits

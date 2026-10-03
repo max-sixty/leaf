@@ -405,8 +405,9 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
         assets
         / active_revision_directory(site_build.product_page(site, "index.html"))
         / "runtime"
+        / "annotation-overlay"
         / "margin-layout.js",
-        example_layer / "runtime" / "margin-layout.js",
+        example_layer / "runtime" / "annotation-overlay" / "margin-layout.js",
     ]
     assert repeated[0].read_bytes() == repeated[1].read_bytes()
     assert repeated[0].stat().st_ino == repeated[1].stat().st_ino
@@ -1772,34 +1773,36 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
-    # An init script is source rather than a function Playwright calls, so a bare
-    # arrow here is an expression the document evaluates and throws away, and the
-    # delay this test is named for never reaches the frame.
-    context.add_init_script(
-        """(() => {
-                const append = Element.prototype.append;
-                Element.prototype.append = function(...nodes) {
-                    if (
-                        window.frameElement?.hasAttribute('data-interaction-frame')
-                        && nodes.some(node => node instanceof HTMLScriptElement)
-                    ) {
-                        setTimeout(() => append.apply(this, nodes), 2000);
-                        return;
-                    }
-                    return append.apply(this, nodes);
-                };
-            })();"""
-    )
-    page.reload(wait_until="domcontentloaded")
+    held = []
+    held_once = False
+
+    def hold_restored_state(route):
+        nonlocal held_once
+        if route.request.frame.name == "interaction-send-comment" and not held_once:
+            held_once = True
+            held.append(route)
+            return
+        route.continue_()
+
+    page.route("**/api/state*", hold_restored_state)
+    with page.expect_request(
+        lambda request: (
+            request.frame.name == "interaction-send-comment"
+            and "/api/state" in request.url
+        )
+    ):
+        page.reload(wait_until="domcontentloaded")
     toggle = gallery.locator("[data-interaction-toggle]")
-    page.wait_for_function(
-        """() => {
-                const gallery = document.querySelector('#bg-interactions');
-                const status = gallery?.querySelector('[data-interaction-status]');
-                const toggle = gallery?.querySelector('[data-interaction-toggle]');
-                return status?.textContent === 'Loading' && toggle?.disabled;
-            }"""
+    expect(gallery.get_by_role("tab", name="Send a comment")).to_have_attribute(
+        "aria-selected", "true"
     )
+    expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
+    expect(toggle).to_be_disabled()
+    assert held, "the restored frame never requested its state"
+    held.pop().continue_()
+    page.wait_for_load_state("load")
+    wait_until_ready(page)
+    page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play", timeout=15_000
     )
@@ -2119,7 +2122,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Open threads: {opened}")
+    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads: {opened}")
     page.locator(".lf-threads-toggle").click()
     expect(
         page.locator('.lf-thread-panel [data-filter-value="resolved"]')
@@ -2197,7 +2200,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator("blockquote")).to_contain_text(selected)
     expect(page.locator(".lf-threads-toggle")).to_have_text(
-        f"Open threads: {opened_with + 1}"
+        f"Threads: {opened_with + 1}"
     )
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     page.reload(wait_until="load")
@@ -2266,7 +2269,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.locator(".lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -2286,7 +2289,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )

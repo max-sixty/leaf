@@ -13,9 +13,9 @@ import re
 import tempfile
 from pathlib import Path
 
+from leaf_dev import ROOT
 from leaf_dev.arrangement_eval import Run, capture_phase, capture_reads, claude, stage
 from leaf_dev.harness import build_source, completed, observed_sum, trace_result
-from leaf_dev import ROOT
 
 REQUEST = """Make a v2.4 release triage board with these seven defects: migration reruns,
 digest email timezone, CSV export quoting, webhook retry delays, logout with an expired

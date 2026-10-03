@@ -81,16 +81,14 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     settled_help = command_reference_rows(page, "In a settled ask")
-    expect(
-        settled_help.get_by_text("Open or close the settled ask", exact=True)
-    ).to_have_count(1)
+    expect(settled_help.get_by_text("open", exact=True)).to_have_count(1)
     expect(
         settled_help.get_by_text(re.compile(r"decision", re.IGNORECASE))
     ).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
-    row.click()
+    row.press("ArrowRight")
     opened = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 3
     assert opened > collapsed * 3, (

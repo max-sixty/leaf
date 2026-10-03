@@ -156,7 +156,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(page.locator(".lf-first-unread")).to_have_attribute(
         "aria-label", "1 unread message. Go to first unread message"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "aria-label", "Open threads: 2, 1 unread thread"
     )
@@ -197,7 +197,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     page.reload()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
 
@@ -781,7 +781,22 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
+    # Selection opening is outstanding rendering when the native release returns,
+    # even if a loaded event loop has not yet stood its response field.
+    page.evaluate("""() => {
+      window.selectionRelease = [];
+      document.addEventListener('mouseup', event => {
+        if (!event.composedPath().some(node => node.matches?.('lf-diff'))) return;
+        queueMicrotask(() => selectionRelease.push({
+          words: getSelection().toString(),
+          settled: document.querySelector('script[data-lf-entry]').lfRenderingSettled(),
+        }));
+      }, {once: true});
+    }""")
     _select_new_route(page)
+    assert page.evaluate("window.selectionRelease") == [
+        {"words": "new route", "settled": False}
+    ]
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
@@ -815,13 +830,14 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     expect(thread).to_be_focused()
     page.keyboard.press("Tab")
     expect(news).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(news).to_have_count(0)
-    expect(thread).to_be_focused()
-    body = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-msg-body')
-    expect(body).to_be_visible()
-    assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
-    body.scroll_into_view_if_needed()
+    with sending(page, "opened diff reply read"):
+        page.keyboard.press("Enter")
+        expect(news).to_have_count(0)
+        expect(thread).to_be_focused()
+        body = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-msg-body')
+        expect(body).to_be_visible()
+        assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
+        body.scroll_into_view_if_needed()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}
@@ -1014,7 +1030,10 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
 
-def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve):
+@pytest.mark.parametrize("opening", ["Enter", "Space", "pointer", "programmatic"])
+def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
+    browser, serve, opening
+):
     """A resolved diff thread stands folded to its summary. An agent's reply that
     reopened it unfolded it under the reader, and every diff line after it moved down by
     the whole thread. It stays folded, its summary says what is waiting, and the
@@ -1052,9 +1071,37 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(browser, serve
     expect(thread).not_to_have_attribute("open", "")
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
 
+    # A native open-attribute checkpoint runs before paint. The first opened body
+    # must already contain the released news, rather than the older resolved layout.
+    thread.evaluate("""node => {
+      window.openedThread = null;
+      new MutationObserver(() => {
+        if (!node.open || window.openedThread) return;
+        window.openedThread = {
+          messages: [...node.querySelectorAll('.lf-msg')].map(message => message.dataset.event),
+          reply: Boolean(node.querySelector(':scope > .lf-thread-reply leaf-text')),
+        };
+      }).observe(node, {attributeFilter:['open']});
+    }""")
     page.keyboard.press("Tab")
     expect(summary).to_be_focused()
-    page.keyboard.press("Enter")
+    if opening == "pointer":
+        summary.click()
+    elif opening == "programmatic":
+        thread.evaluate("""node => {
+          const open = document.createElement('button');
+          open.textContent = 'Open disclosure';
+          open.style.cssText = 'position:fixed;left:0;top:80px;z-index:9999';
+          open.onclick = () => {node.open = true};
+          document.body.append(open);
+        }""")
+        page.get_by_role("button", name="Open disclosure", exact=True).click()
+    else:
+        page.keyboard.press(opening)
+    assert page.evaluate("openedThread") == {
+        "messages": [root, reply["id"]],
+        "reply": True,
+    }
     expect(thread).to_have_attribute("open", "")
     expect(summary).to_be_hidden()
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()

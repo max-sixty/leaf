@@ -51,6 +51,99 @@ from render_harness import (
 )
 
 
+@pytest.mark.parametrize("viewport", [(390, 740), (1200, 900)])
+def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
+    browser, serve, viewport
+):
+    """Feedback clears the actual reply while its controls keep their place."""
+    url = serve(
+        leaf_page("Reply refusal", "<h1>Reply refusal</h1><p>Keep the reply live.</p>")
+    )
+    panel_comment(serve.page_dir, "A reply belongs beside this question.")
+    context = browser.new_context(
+        viewport={"width": viewport[0], "height": viewport[1]}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    reply = page.locator(".lf-thread[open] > .lf-thread-reply")
+    field = reply.locator("leaf-text")
+    send = reply.get_by_role("button", name="Send", exact=True)
+    words = "Keep this reply in the writing box when the server refuses it."
+    write(field, words)
+    rendered(page)
+    before = {"field": field.bounding_box(), "send": send.bounding_box()}
+    list_foot = page.locator(".lf-threads").evaluate(
+        "node => [getComputedStyle(node).paddingBottom, getComputedStyle(node).scrollPaddingBottom]"
+    )
+    field.evaluate("""field => {
+        window.__noticeReplyFrames = [];
+        new ResizeObserver(() => {
+            const status = document.querySelector('.lf-bottom-status');
+            if (!status.checkVisibility()) return;
+            const r = node => node.getBoundingClientRect().toJSON();
+            window.__noticeReplyFrames.push({status:r(status), field:r(field),
+                send:r(field.parentElement.querySelector('.lf-thread-send')),
+                general:r(document.querySelector('.lf-general leaf-text'))});
+        }).observe(field);
+    }""")
+
+    def refuse_reply(route):
+        command = route.request.post_data_json
+        if command.get("kind") == "reply":
+            route.fulfill(
+                status=400,
+                json={
+                    "ok": False,
+                    "final": True,
+                    "attempt": command["attempt"],
+                    "error": "This reply was refused; your words stay here so you can retry.",
+                },
+            )
+        else:
+            route.continue_()
+
+    page.route("**/api/event", refuse_reply)
+    page.keyboard.press("Enter")
+    notice = page.locator(".lf-notice")
+    expect(notice).to_contain_text("Couldn't send")
+    expect(notice).to_be_visible()
+    expect(field).to_have_js_property("value", words)
+    rendered(page)
+    assert {"field": field.bounding_box(), "send": send.bounding_box()} == before
+
+    write(
+        field,
+        words + "\nKeep the feedback clear when this draft wraps onto more lines.",
+    )
+    rendered(page)
+    expect(notice).to_be_visible()
+    assert field.bounding_box()["height"] > before["field"]["height"]
+    after = {"field": field.bounding_box(), "send": send.bounding_box()}
+    assert after["send"] == before["send"]
+    frames = page.evaluate("window.__noticeReplyFrames")
+    assert frames
+    for frame in frames:
+        for key in ("field", "send", "general"):
+            box, status = frame[key], frame["status"]
+            assert (
+                status["right"] <= box["left"]
+                or box["right"] <= status["left"]
+                or status["bottom"] <= box["top"]
+                or box["bottom"] <= status["top"]
+            ), frame
+    assert (
+        page.locator(".lf-threads").evaluate(
+            "node => [getComputedStyle(node).paddingBottom, getComputedStyle(node).scrollPaddingBottom]"
+        )
+        == list_foot
+    )
+    expect(notice).to_be_hidden(timeout=6_000)
+    rendered(page)
+    assert {"field": field.bounding_box(), "send": send.bounding_box()} == after
+    consume_browser_errors(page, "400")
+
+
 def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     browser, serve
 ):
@@ -402,8 +495,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     )
     standing = card.evaluate(REPLY_BOX)
     assert standing["caret"] == [True, 8, 8]
-    # The box stands at the list's foot, the fold later cards wait below.
-    assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
+    # The live field and Send remain inside the list's visible reading band.
+    assert list_box[0] <= standing["field"][0] < standing["field"][1] <= list_box[1]
+    send = card.locator(".lf-thread-send").bounding_box()
+    assert list_box[0] <= send["y"] < send["y"] + send["height"] <= list_box[1]
 
     for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
         newest = append_carried_log_record(
@@ -1530,8 +1625,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
-    page.locator(".lf-banner-more").focus()
-    page.keyboard.press("Tab")
+    page.locator(".lf-threads-toggle").focus()
+    page.keyboard.press("Shift+Tab")
     expect(approval).to_be_focused()
     before = events_model.read_events(serve.page_dir)
     page.keyboard.press("Enter")
@@ -1574,23 +1669,135 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         f"too few controls stood at these widths to have an order at all: {orders}"
     )
 
-    # And the order it settled on: every banner control the page offers, with the reading loop
-    # finishing the row beside the panel it opens.
+    # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
     for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
     for width, order in orders.items():
-        assert order[-1].startswith("Open threads:"), (
-            f"the thread no longer finishes the row at {width}px: {order}"
-        )
+        assert order[-1].startswith("Open threads:"), order
+    expect(page.locator(".lf-banner-actions > :last-child")).to_have_class(
+        re.compile(r"\blf-banner-more\b")
+    )
     resized(page, 500, 900)
     control = banner_control(page, ".lf-others")
     control.click()
     page.mouse.move(0, page.viewport_size["height"] - 1)
     expect(control).to_have_attribute("aria-expanded", "true")
     expect(control).to_have_css("background-color", token_colour(page, "--chip"))
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize(
+    "width,touch,ui_size",
+    [
+        (1200, False, 14),
+        (630, False, 14),
+        (629, False, 14),
+        (500, False, 14),
+        (390, False, 14),
+        (320, False, 14),
+        (630, True, 14),
+        (629, True, 14),
+        (320, True, 16),
+        (320, True, 20),
+        (631, False, 20),
+    ],
+)
+def test_approval_capability_changes_keep_banner_targets(
+    browser, serve, width, touch, ui_size
+):
+    """Approval arriving or leaving cannot change chrome allocation or a resting aim.
+
+    The widths straddle the capacity boundary, include the former page-dependent
+    interval, and retain access with enlarged UI text. Native shift watching also
+    protects movement between the settled reads.
+    """
+    original = leaf_page("Reading", '<h1 id="reading">A place to read</h1>').replace(
+        "</head>", f"<style>:root {{ --t-5: {ui_size}px; }}</style></head>"
+    )
+    approval = original.replace(
+        "<title>Reading</title>",
+        '<title>Reviewing</title><meta name="lf-review" content="sign-off">',
+    )
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, live_url(serve(original)), context=context)
+    resized(page, width, 900)
+    selectors = (
+        ".lf-banner",
+        ".lf-banner-status",
+        ".lf-banner-actions",
+        ".lf-threads-toggle",
+        ".lf-banner-more",
+        "#reading",
+    )
+
+    def boxes():
+        return {
+            selector: page.locator(selector).bounding_box() for selector in selectors
+        }
+
+    before = boxes()
+    more = page.locator(".lf-banner-more")
+    more_box = before[".lf-banner-more"]
+    aim = (
+        more_box["x"] + more_box["width"] / 2,
+        more_box["y"] + more_box["height"] / 2,
+    )
+    page.mouse.move(*aim)
+    more.focus()
+    expect(more).to_be_focused()
+    for source, title, present in (
+        (approval, "Reviewing", True),
+        (original, "Reading", False),
+    ):
+        page.wait_for_timeout(600)  # End Chrome's native recent-input grace.
+        (serve.page_dir / "index.html").write_text(source)
+        told(page)
+        expect(page).to_have_title(title)
+        rendered(page)
+        if present:
+            expect(page.locator(".lf-signoff")).to_be_visible()
+            expect(
+                page.get_by_role("button", name="Approve version", exact=True)
+            ).to_be_visible()
+        else:
+            expect(page.locator(".lf-signoff")).to_be_hidden()
+        after = boxes()
+        assert after[".lf-banner-status"]["width"] >= 150
+        reserved_height = page.evaluate(
+            "parseFloat(getComputedStyle(document.body, '::before').height)"
+        )
+        assert after[".lf-banner"]["height"] == pytest.approx(reserved_height, abs=0.5)
+        for selector in (".lf-signoff", ".lf-threads-toggle", ".lf-banner-more"):
+            target = page.locator(selector)
+            if target.is_visible():
+                box = target.bounding_box()
+                assert box["x"] >= 0 and box["x"] + box["width"] <= width
+                if touch:
+                    assert box["width"] >= 43.5 and box["height"] >= 43.5
+        for selector in selectors:
+            assert after[selector] == pytest.approx(before[selector], abs=0.5), (
+                selector,
+                before,
+                after,
+            )
+        expect(more).to_be_focused()
+        assert page.evaluate(
+            "([x,y]) => document.elementFromPoint(x,y).closest('.lf-banner-more') !== null",
+            aim,
+        )
+        page.keyboard.press("Enter")
+        menu = page.locator(".lf-banner-menu")
+        expect(menu).to_be_visible()
+        menu_box = menu.bounding_box()
+        assert menu_box["x"] >= 0 and menu_box["x"] + menu_box["width"] <= width
+        page.keyboard.press("Escape")
+        expect(menu).to_be_hidden()
+        expect(more).to_be_focused()
 
 
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
@@ -1846,12 +2053,16 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
     assert page.evaluate("() => window.__leafReadyHeard")
 
 
-def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve):
-    """Delivery drops the sheets' comments and re-serializes what is left, so what a page
-    adopts is not the file's own bytes. The two have to say the same thing to the browser:
-    a stylesheet oddity the serializer repairs would change the rules every page runs
-    under, and no parser here would report it."""
-    page = open_page(browser, serve(LONG_PAGE))
+@pytest.mark.parametrize("mode", ["overlay", "page"])
+def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
+    """Delivered sheets parse like their captured files in document and shadow stages.
+
+    Page mode carries and constructs no physical annotation sheet, while shared paint
+    still reaches both trees. The selected overlay adds its actual annotation sheets.
+    """
+    page = open_page(
+        browser, serve(LONG_PAGE.replace("<body>", f'<body data-annotations="{mode}">'))
+    )
     layer = urljoin(
         page.url,
         page.evaluate(
@@ -1859,8 +2070,16 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         ),
     )
     files = {}
-    for name in ("chrome", "marks"):
-        answer = page.request.get(urljoin(layer, f"runtime/{name}.css"))
+    names = ["chrome", "marks"]
+    if mode == "overlay":
+        names.extend(["annotation-chrome", "annotation-marks"])
+    for name in names:
+        directory = (
+            "runtime/annotation-overlay"
+            if name.startswith("annotation-")
+            else "runtime"
+        )
+        answer = page.request.get(urljoin(layer, f"{directory}/{name}.css"))
         assert answer.ok, answer.status
         files[name] = answer.text()
 
@@ -1872,20 +2091,50 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
             sheet.replaceSync(text);
             return rules(sheet);
           };
-          const { chromeSheet: chrome, marksSheet: marks } =
+          const { chromeSheet: chrome, marksSheet: marks, annotationSheets,
+            annotationMarkSheets } =
             await window.__lfRuntimeImport("/runtime/stylesheets.js");
-          if (![chrome, marks].every(sheet => document.adoptedStyleSheets.includes(sheet)))
+          if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
-          return {
+          const {shadowStage}=await window.__lfRuntimeImport('/runtime/shadow-stage.js');
+          const host=document.createElement('div'); document.querySelector('main').append(host);
+          const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
+          if (![marks,...annotationMarkSheets].every(sheet=>root.adoptedStyleSheets.includes(sheet)))
+            throw new Error('The shadow stage did not adopt its selected marks');
+          if (annotationSheets.length !== (files['annotation-chrome'] ? 2 : 0) ||
+              annotationMarkSheets.length !== (files['annotation-marks'] ? 1 : 0))
+            throw new Error('The document constructed an unselected annotation sheet');
+          const answer = {
             chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
             marks: {delivered: rules(marks), file: fromFile(files.marks)},
           };
+          if (annotationSheets.length) {
+            answer['annotation-chrome']={delivered:rules(annotationSheets[0]),file:fromFile(files['annotation-chrome'])};
+            answer['annotation-marks']={delivered:rules(annotationMarkSheets[0]),file:fromFile(files['annotation-marks'])};
+          }
+          return answer;
         }""",
         files,
     )
     for name, reading in readings.items():
         assert reading["delivered"], f"the page adopted no {name} rules"
         assert reading["delivered"] == reading["file"], name
+    carrier = page.locator("script[data-lf-sheets]").text_content()
+    selected = json.loads(carrier)
+    assert ("annotations" in selected) == (mode == "overlay")
+    assert page.locator("style[data-lf-annotation-theme]").count() == (
+        mode == "overlay"
+    )
+    if mode == "page":
+        assert ".lf-margin-cluster" not in carrier
+        assert ".lf-visual-mark {" not in carrier
+        assert "::highlight(lf-mark)" not in carrier
+        assert ".lf-margin-preview { position: fixed" not in carrier
+    assert ".lf-aim {" in selected["chrome"]
+    assert ".lf-target-trace {" in selected["chrome"]
+    assert ".lf-drawing-mark path" in selected["chrome"]
+    assert "::highlight(lf-version-insert)" in selected["marks"]
+    assert '.lf-msg[aria-busy="true"]' in selected["marks"]
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):

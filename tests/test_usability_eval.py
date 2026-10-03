@@ -3,8 +3,8 @@
 import json
 
 import pytest
-from leaf.event_log import read_cursor, read_events
 from leaf.delivery import record_pickup
+from leaf.event_log import read_cursor, read_events
 from leaf.service import PageTransaction
 from leaf_dev import ROOT
 from leaf_dev.usability_eval import (
@@ -13,6 +13,7 @@ from leaf_dev.usability_eval import (
     Run,
     admit,
     append_elided_history,
+    attempt_key,
     build_fixture,
     checks_for,
     claimed_first,
@@ -89,9 +90,9 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
         trace = [
             {"type": "result"},
             {"type": "eval_post", "round": 1},
-            {"type": "eval_pickup", "round": 1},
             {"type": "system", "subtype": "hook_response",
              "output": 'leaf-delivery-v {"elided":{"messages":16}}'},
+            {"type": "eval_received", "round": 1},
             read_premise,
             {"type": "result"},
         ]  # fmt: skip
@@ -183,7 +184,7 @@ def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
     trace = [
         {"type": "result"},
         {"type": "eval_post", "round": 1, "events": sorted(admitted_ids)},
-        {"type": "eval_pickup", "round": 1},
+        {"type": "eval_received", "round": 1},
         {"type": "result"},
     ]
     assert score_mixed(run, trace)["one_delivery"] == (membership == "together")
@@ -237,3 +238,86 @@ def test_native_scenario_output_preserves_unavailable_usage(
         assert phase["cost_usd"] is None and phase["cost_known"] is False
         assert arrangement["cost_usd"] is None and arrangement["cost_known"] is False
     assert "cost" not in response
+
+
+def test_mixed_round_requires_receipts_only_for_admitted_attention(tmp_path):
+    from leaf_dev.harness import inputs_received
+
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+
+    class Browser:
+        origin = "http://127.0.0.1:1"
+
+        def post(self, event):
+            admit(run, page, event)
+
+    moves = CASES["mixed"].rounds[0]
+    post_round(run, page, Browser(), moves, 0)
+    events = page_events(page)
+    attempts = {
+        attempt_key(0, i) for i, move in enumerate(moves) if move["kind"] != "error"
+    }
+    posted = [event for event in events if event.get("attempt") in attempts]
+    assert len(posted) == 5
+    assert [event["attention"] for event in posted] == [True, True, False, False, False]
+    assert not inputs_received(events, attempts)
+    attention = [event["id"] for event in posted if event["attention"]]
+    events.append({"kind": "pickup", "phase": "opened", "events": attention})
+    assert inputs_received(events, attempts)
+    assert not inputs_received(events, attempts | {"never-admitted"})
+
+
+def test_live_rounds_use_confirmed_receipts_before_successful_response():
+    from leaf_dev.usability_eval import live_rounds
+
+    trace = [
+        {"type": "eval_post", "round": 1},
+        {"type": "system", "subtype": "hook_response", "output": "leaf-delivery-v"},
+        {"type": "result", "is_error": False},
+    ]
+    assert live_rounds(trace)[0]["end"] is None
+    trace[1] = {"type": "eval_received", "round": 2}
+    assert live_rounds(trace)[0]["end"] is None
+    trace[1] = {"type": "eval_received", "round": 1}
+    assert live_rounds(trace)[0]["end"] == 2
+    assert live_rounds(trace)[0]["delivery"] == 0
+    assert live_rounds(trace[:-1])[0]["end"] is None
+
+
+def test_round_scoring_leaves_the_watch_with_leaf():
+    from leaf_dev.usability_eval import live_rounds, round_scores
+
+    trace = [
+        {"type": "eval_post", "round": 1},
+        {"type": "eval_received", "round": 1},
+        {"type": "result", "result": "http://127.0.0.1:1234/?t=abc", "is_error": False},
+        {"type": "eval_status", "status": {"state": "waiting"}},
+    ]
+    assert round_scores(trace, live_rounds(trace)[0], "input")[
+        "input_watch_left_to_leaf"
+    ]
+    trace.insert(
+        2,
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "manual",
+                        "name": "Bash",
+                        "input": {
+                            "command": "leaf wait page",
+                            "run_in_background": True,
+                        },
+                    }
+                ]
+            },
+        },
+    )
+    assert not round_scores(trace, live_rounds(trace)[0], "input")[
+        "input_watch_left_to_leaf"
+    ]

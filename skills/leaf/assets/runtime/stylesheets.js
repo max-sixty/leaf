@@ -1,5 +1,6 @@
-/* The layer's constructed stylesheets: the comment chrome's (chrome.css) and the marks'
-   (marks.css), which the document and every shadow stage adopt.
+/* The layer's constructed stylesheets: shared chrome and marks, with actual annotation
+   sheets only when delivery selected the overlay renderer. The document adopts the
+   chrome; the document and every shadow stage adopt the marks.
 
    Every delivery carries their text in the document (`delivery_sheets` in
    revision_delivery.py), so they are constructed while this module evaluates, with no
@@ -32,3 +33,12 @@ export function constructSheet(text, name) {
 
 export const chromeSheet = constructSheet(sheets.chrome, "chrome");
 export const marksSheet = constructSheet(sheets.marks, "marks");
+export const annotationMarkSheets = sheets.annotations
+  ? [constructSheet(sheets.annotations.marks, "annotation marks")]
+  : [];
+export const annotationSheets = sheets.annotations
+  ? [
+      constructSheet(sheets.annotations.chrome, "annotation chrome"),
+      ...annotationMarkSheets,
+    ]
+  : [];

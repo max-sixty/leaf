@@ -1,7 +1,7 @@
 {
   "lf-playground": {
     "description": "An interactive playground for exploring one configuration in an operable preview and choosing it.",
-    "x-instructions": "Put the playground inside lf-ask when its configuration is a question for the user. A page module can add structured values with registerContributor(name, defaultSnapshot, {read, apply}); call the returned notifier after its gestures. Use one optional registerInstructionProvider(values => text) for prose derived from structured or conditional values. Give the page's complete lf-playground declaration an exact action schema for its task-specific values.",
+    "x-instructions": "Use lf-ask to frame the configuration question and context when they live outside the playground. A page module can add structured values with registerContributor(name, defaultSnapshot, {read, apply}); call the returned notifier after its gestures. Use one optional registerInstructionProvider(values => text) for prose derived from structured or conditional values. Give the page's complete lf-playground declaration an exact action schema for its task-specific values.",
     "type": "object",
     "properties": {
       "id": {
@@ -21,7 +21,6 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-awaits": {
-      "region": true,
       "answered": {"choose": {}}
     },
     "x-state": {

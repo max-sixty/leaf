@@ -21,6 +21,6 @@
 # Python 3.9 program; it never imports the managed Leaf package.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
-    exec python3 -S "$root/skills/leaf/scripts/leaf/session_cleanup.py"
+    exec python3 -S "$root/skills/leaf/scripts/leaf/state.py"
 fi
 exec uv run -q --no-dev --project "$root" python -m leaf "$@"

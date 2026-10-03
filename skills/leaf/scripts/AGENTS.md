@@ -40,19 +40,20 @@ subpackage's initializer is only a marker, never a second API.
 - `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
-- `codex_state`: Codex hook turn observation and shared delivery serialization paths;
+- `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the host's model for when a user opens a
   thread, before the agent's reply could name it;
-- `session_cleanup`: standalone stdlib cold session cleanup, shared state paths,
-  page identity, cross-process locks, and durable byte and JSON replacement;
+- `state`: dependency-free session lifetime and turn publication, standalone cold
+  SessionEnd, shared paths, page identity, locks and durable replacement;
 - `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
   process readings,
   process-backed leases taken through `take_lease` and `release_lease`, page
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;
 - `presence`: page, claim, and neighboring-leaf presence;
+- `server_rows`: each serving page's disposable canonical neighbor-row publication;
 - `user_views`: disposable per-document browser observations and passive check context;
 - `samples`, `sample_content`: disposable child pages built from captured templates,
   and their initial histories admitted from parent threads or authored fixture commands;

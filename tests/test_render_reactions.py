@@ -32,6 +32,7 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
+    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -266,7 +267,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
         and level["clusters"] == 1
     ), level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
@@ -2063,40 +2064,20 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[data-id="S"]')
-    page.evaluate(
-        """() => {
-          const frame = window.requestAnimationFrame.bind(window);
-          const cancel = window.cancelAnimationFrame.bind(window);
-          const held = new Map();
-          let handle = 1e6;
-          window.requestAnimationFrame = (callback) => {
-            held.set((handle += 1), callback);
-            return handle;
-          };
-          window.cancelAnimationFrame = (given) => { held.delete(given); };
-          window.leafReleaseFrames = () => {
-            window.requestAnimationFrame = frame;
-            window.cancelAnimationFrame = cancel;
-            for (const callback of held.values()) frame(callback);
-            held.clear();
-          };
-        }"""
-    )
-    control.focus()
-    page.keyboard.press("Enter")
-
-    page.evaluate(
-        """() => {
-          document.activeElement.blur();
-          const text = document.querySelector('h1').firstChild;
-          const range = document.createRange();
-          range.selectNodeContents(text);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }"""
-    )
-    page.evaluate("() => window.leafReleaseFrames()")
+    with held_frames(page):
+        control.focus()
+        page.keyboard.press("Enter")
+        page.evaluate(
+            """() => {
+              document.activeElement.blur();
+              const text = document.querySelector('h1').firstChild;
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              const selection = getSelection();
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }"""
+        )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
     expect(bar).to_be_visible()
@@ -2622,7 +2603,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
     page = open_page(browser, url)
     painted(page, [["merge-both", "change"]])
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
     thread_model.cmd_reply(
         serve.page_dir,
@@ -2632,7 +2613,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
         for_event=None,
     )
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
@@ -2642,7 +2623,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
     thread_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 

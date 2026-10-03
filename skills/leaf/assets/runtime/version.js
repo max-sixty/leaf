@@ -330,8 +330,8 @@ export function createVersionController({
         ? `${routes[0].binding}–${routes.at(-1).binding}`
         : routes[0]?.binding;
     },
-    does: "Open a numbered version",
-    line: "open version",
+    description: "Open a numbered version",
+    title: "open version",
     when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
     // The focused menu and its standing picker share this route. The first gives g V a
     // visible compact hint; the second preserves the key across a browser hand-back that
@@ -361,8 +361,7 @@ export function createVersionController({
   const NEWEST = {
     id: "version.current",
     keys: ["v"],
-    does: "Open the current page",
-    line: "open the current page",
+    title: "open the current page",
     // A stamped row is deliberately historical, including the newest one. This key names
     // the live page instead, sharing the same route as the arrival chip while the focused
     // row remains Enter's exact-version destination.
@@ -398,8 +397,8 @@ export function createVersionController({
   });
   const VERSION_WALK = {
     ...walk,
-    does: "Walk the versions, marking what changed since the one you are on",
-    line: "walk — marking changes",
+    description: "Walk the versions, marking what changed since the one you are on",
+    title: "walk — marking changes",
     when: versionsToWalk,
   };
   const VERSION_EDGE = { ...edge, when: versionsToWalk };
@@ -447,8 +446,8 @@ export function createVersionController({
       {
         id: "version.leave-forward",
         keys: ["Tab"],
-        does: "Leave the versions menu forward",
-        line: "leave forward",
+        description: "Leave the versions menu forward",
+        title: "leave forward",
         native: true,
         // A held Tab is still one continuous trip through the controls. When its repeated
         // keydown reaches the boundary, closing is part of that press just as it is for a
@@ -461,8 +460,8 @@ export function createVersionController({
       {
         id: "version.leave-backward",
         keys: ["Shift+Tab"],
-        does: "Leave the versions menu backward",
-        line: "leave backward",
+        description: "Leave the versions menu backward",
+        title: "leave backward",
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
@@ -477,8 +476,8 @@ export function createVersionController({
       {
         id: "version.close",
         keys: ["Escape"],
-        does: "Close the versions menu",
-        line: "close",
+        description: "Close the versions menu",
+        title: "close",
         // Exact travel is the menu's unfamiliar action and keeps the compact line's
         // second slot from either door. Escape remains live and stays in the complete
         // reference as the platform-standard close.
@@ -498,8 +497,8 @@ export function createVersionController({
   const PICKER = {
     id: "version.open",
     keys: ["Shift+v"],
-    does: "The versions, and what each one changed",
-    line: "versions",
+    description: "The versions, and what each one changed",
+    title: "versions",
     control: versionBtn,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
@@ -1940,8 +1939,7 @@ export function createVersionController({
         {
           id: "version.activate",
           keys: PRESS,
-          does: "Open that version",
-          line: "open that version",
+          title: "open that version",
         },
         NEWEST,
       ],

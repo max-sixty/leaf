@@ -68,7 +68,8 @@ that work uses. "Package contract" in `packages.md` defines the command.
 
 Write a complete HTML document. The authored head names and describes the page;
 Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Put page-specific CSS in `<style>` and JavaScript in
+delivers the document. Omit `<meta charset>`: delivery declares UTF-8 before
+authored head content. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
@@ -370,6 +371,28 @@ gives a column page's right margin to something of the page's own. A marker leve
 with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
 neither.
 
+### Page-owned annotations
+
+Leaf's default draws markers, passage marks and contextual replies over the page.
+For an arrangement that places annotations in the document instead, select
+`data-annotations="page"` on `body`. This choice omits the overlay's modules,
+styles and geometry. Exact comments, Asks, decisions, Undo, live revisions and
+drawing capture still use the shared Leaf mechanisms. Changing the selection
+replaces the document through the ordinary revision lifetime.
+
+Place one empty `<lf-annotation-rail id="annotations"></lf-annotation-rail>`
+where the reader should find conversations and actions. Allocate its width and
+height in the page's CSS; it scrolls inside that box. At narrow widths, give it a
+place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+reply editors, action controls and retained reading; the page supplies their layout.
+Widget-local conversations keep their exact seats before the page rail takes
+remaining targets. The Threads panel remains the complete conversation index.
+
+Omitting the rail is valid. Comments open in Threads, and selection offers the
+banner's Comment on selection control. A custom package can supply the same
+page presentation through "Page annotation presentation" in `packages.md`;
+do not reconstruct the event log or annotation inventory in page code.
+
 ## Draw the subject
 
 Decide what each view draws before writing its words. Most of what a page explains
@@ -391,8 +414,8 @@ interface with a screenshot, and a visual change with an `lf-shot` before-and-af
 capture. A proposal or a mechanism has nothing to capture yet, so draw it. A process
 that unfolds over time is a diagram that moves: draw it in a page module from its
 state and the moment, with controls to pause and scrub, so every moment stays
-readable and its parts stay commentable. A recorded video is flat and heavy, and
-belongs only where the explanation leaves the page. When the shape of numbers is
+readable and its parts stay commentable. For fixed recordings and screen captures,
+follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
 items. Put a table below it in `<details>` when readers also need exact values.
@@ -526,8 +549,8 @@ do not turn their contents into source code or markup.
 
 Use `lf-sample` with one direct `template[data-sample]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
-element and template stable ids, and put the child page's main content in the
-template:
+element and template stable ids. Put the child's content and styles directly in
+the template; Leaf supplies the document and its `main`:
 
 ```html
 <lf-sample id="practice" label="practice release note">
@@ -551,6 +574,9 @@ A click or Tab reaches the child directly; its normal widget controls, keyboard
 routes, comments, and replies work there. Escape closes the child's open controls
 before returning to the surrounding page. Reset creates a fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
+Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
+template when the child needs it. Leaf carries that declaration onto the child's
+body; the surrounding page keeps its own choice.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
@@ -599,6 +625,15 @@ reach it. A page module can await the element's `ready` promise to receive the c
 `Document`, and await `reset()` to replace it. The bubbling `lf-sample-ready`
 event carries `detail.document` after each child presents, including Reset, so
 host controls can reapply a selected view without inspecting the Reset button.
+To select a conversation, call `await sample.showThread(id)` with its root event id;
+this shows the same page destination as its marker. To inspect it in Threads,
+call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
+`status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
+omitted values restore Open and unrestricted waiting. A panel view may omit the
+id to show its list. Completion means the selected view has presented; it returns
+false when a newer selection or Reset supersedes it. Outer controls keep keyboard
+focus. Use this method instead of clicking the child's private chrome or observing
+its DOM. Reapply the selected view on `lf-sample-ready` after Reset.
 Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.

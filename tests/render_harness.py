@@ -43,24 +43,32 @@ from types import SimpleNamespace
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
+from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, wait_for
 from leaf import cli as cli_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.browser import (
+    scroll_settled,  # noqa: F401 — shared browser wait, re-exported to tests
+)
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
     package_selection_args,
     prepare_page,
     read_fixture,
+)
+from leaf_dev.thread_snapshot_plugin import (
+    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
 )
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -74,7 +82,7 @@ WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 
 @cache
 def shift_watch_source():
-    """Install the sensor with the runtime's document-free control vocabulary."""
+    """Install the sensor with the runtime's document-free control and clipping vocabulary."""
     controls = subprocess.check_output(
         [
             "node",
@@ -82,13 +90,15 @@ def shift_watch_source():
             "--eval",
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
-                "process.stdout.write(JSON.stringify(WORKS));"
+                'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
+                "process.stdout.write(JSON.stringify([WORKS,clippingAxes.toString()]));"
             ),
         ],
         cwd=ROOT,
         text=True,
     )
-    return f"((interactive) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({controls});"
+    interactive, clipping = json.loads(controls)
+    return f"((interactive, clippingAxes) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
@@ -730,6 +740,50 @@ def round_trip(page):
     _until(page, heard_back, "heard back what it sent")
 
 
+def hold_pending_thread_presentation(page):
+    """Hold the list while a new comment's pending thread is presented."""
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('.lf-threads');
+          const present = list.present;
+          const held = Promise.withResolvers();
+          list.present = model => {
+            const row = model.rows.find(row => row.kind === 'thread' &&
+              row.descriptor.id.startsWith('pending:'));
+            if (!row && !window.pendingCommentId) return present.call(list, model);
+            window.pendingCommentId ??= row.descriptor.id;
+            window.commentPresentationHeld = true;
+            return held.promise.then(() => present.call(list, model));
+          };
+          window.releaseCommentPresentation = () => {
+            list.present = present;
+            held.resolve();
+          };
+        }"""
+    )
+
+
+def admit_before_presenting_comment(page, page_dir, text):
+    """Admit the held comment before releasing its original presentation."""
+    page.wait_for_function("() => window.commentPresentationHeld === true")
+    assert page.evaluate("window.pendingCommentId").startswith("pending:")
+    round_trip(page)
+    admitted = next(
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment" and event.get("text") == text
+    )
+    page.wait_for_function(
+        """async id => {
+          const {threadList} = await window.__lfRuntimeImport('/runtime/thread/state.js');
+          return threadList().some(thread => thread.id === id);
+        }""",
+        arg=admitted["id"],
+    )
+    page.evaluate("releaseCommentPresentation()")
+    return admitted
+
+
 # A press or a click reaches the runtime inside the driver's call and posts behind it, so
 # `round_trip` alone cannot wait for the gesture just made: a post the gesture has not
 # issued yet is not pending, the trip is over before it begins, and the log read behind it
@@ -751,26 +805,6 @@ def sending(page, what):
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
     round_trip(page)
-
-
-def watch_message_arrival(root, selector):
-    """Record delivery paint on insertion within a document or declared shadow root."""
-    root.evaluate(
-        """(node, selector) => {
-          const root = node.shadowRoot ?? node;
-          window.__messageArrival = null;
-          const observer = new MutationObserver(() => {
-            const message = root.querySelector(
-              `${selector}[data-attempt][aria-busy="true"]`
-            );
-            if (!message) return;
-            window.__messageArrival = Number(getComputedStyle(message).opacity);
-            observer.disconnect();
-          });
-          observer.observe(root, {childList: true, subtree: true});
-        }""",
-        selector,
-    )
 
 
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
@@ -795,6 +829,34 @@ def holding(page, held, count, what):
                 f"dispatched into this process, on {_traffic(page)}"
             )
         page.wait_for_timeout(20)
+
+
+@contextmanager
+def held_frames(page):
+    """Keep frame-dependent handoffs pending while real input supplies a newer intent."""
+    page.evaluate(
+        """() => {
+          const frame = requestAnimationFrame.bind(window);
+          const cancel = cancelAnimationFrame.bind(window);
+          const held = new Map();
+          let handle = 1e6;
+          window.requestAnimationFrame = callback => {
+            held.set(++handle, callback);
+            return handle;
+          };
+          window.cancelAnimationFrame = handle => held.delete(handle);
+          window.leafReleaseFrames = () => {
+            window.requestAnimationFrame = frame;
+            window.cancelAnimationFrame = cancel;
+            for (const callback of held.values()) frame(callback);
+            held.clear();
+          };
+        }"""
+    )
+    try:
+        yield
+    finally:
+        page.evaluate("leafReleaseFrames()")
 
 
 _NOTES_OF = """(holder) => {
@@ -886,7 +948,7 @@ def plant_quiet_word(page, selector, holding):
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
 # count of asks started here reaches the answer that carries the news only by luck of
 # the ordering.
-def told(page):
+def told(page, *, until=None):
     """Wait until the page has taken in everything the server now holds.
 
     Call it after the test writes a version, event, status, or lease behind a live
@@ -895,11 +957,25 @@ def told(page):
     the gesture rather than the write. The server's answer is asked through the
     context's request API rather than the page: it carries the same cookie, and it is
     not seen by page routes or by the traffic watcher, so a test that stubs or counts
-    /api/state sees exactly what it did before this call existed."""
+    /api/state sees exactly what it did before this call existed. `until` waits for
+    a server fact another page publishes asynchronously before asking this page to
+    adopt that answer."""
     origin = urlsplit(page.url)
-    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
-    assert answer.ok, f"the server would not say what it holds: {answer.status}"
-    wait_until_ready(page, answer.json(), through="state")
+
+    def read():
+        answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+        assert answer.ok, f"the server would not say what it holds: {answer.status}"
+        return answer.json()
+
+    # A neighboring leaf publishes its row on its own server's next maintenance
+    # pass. A state answer from this page can still carry the previous row just
+    # after a test writes that neighbor's status.
+    state = (
+        wait_for(read, until, failure="the server did not publish the expected state")
+        if until is not None
+        else read()
+    )
+    wait_until_ready(page, state, through="state")
 
 
 def nudge(page_dir):
@@ -1338,15 +1414,26 @@ def shortcut_bar_text(page):
     return page.locator(".lf-shortcut-bar").inner_text()
 
 
-def ask_actions_hint(digits):
-    """What the shortcut bar's Ask row says for an Ask holding `digits` numbered routes.
+def active_digit_bindings(page):
+    """Read reachable digits without inventing a page-owned aggregate Ask command.
 
-    The row names the live range and one fixed word for the group; each action's own
-    title stays on its control and in the command reference. Tests read that wording
-    from here rather than spelling it out, so changing what the runtime says is one
-    edit here and not a sweep of every assertion that happens to quote it.
+    Widgets assign their contextual aliases. The dispatcher is the canonical reader of
+    which declared keys can execute where focus stands, including native shadowing.
     """
-    return f"{digits}\nAsk actions"
+    rendered(page)
+    digits = page.evaluate(
+        """async () => {
+          const {availableCommandRoutes} = await window.__lfRuntimeImport(
+            '/runtime/keyboard/dispatch.js');
+          return [...new Set([...availableCommandRoutes().values()].flatMap(
+            keys => [...keys].filter(key => /^[1-9]$/.test(key))))].sort();
+        }"""
+    )
+    if len(digits) > 1 and digits == [
+        str(n) for n in range(int(digits[0]), int(digits[-1]) + 1)
+    ]:
+        return f"{digits[0]}–{digits[-1]}"
+    return " ".join(digits)
 
 
 def open_versions(page):
@@ -1706,7 +1793,7 @@ def margins_laid_out(page):
     than polling again, so a predicate handing back the layout's own result would return
     at once and prove nothing."""
     page.wait_for_function(
-        "() => window.__lfRuntimeImport('/runtime/margin-layout.js')"
+        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
         ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
         timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )
@@ -1792,51 +1879,11 @@ SHELL_BOX = """(() => {
 })()"""
 
 
-# How long a scroller holds one position before its travel is over, counted in the
-# browser's own rendering frames.
-SCROLL_STILL_FRAMES = 3
-
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
 RELEASE_FOCUS = """async () =>
   (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
-
-
-SCROLL_STILL = """([selector, axis, frames]) => {
-  const box = selector ? document.querySelector(selector) : document.scrollingElement;
-  if (!box) return false;
-  const at = axis === "x" ? box.scrollLeft : box.scrollTop;
-  const held = globalThis.__lfScrollStill;
-  globalThis.__lfScrollStill =
-    held && held.at === at ? { at, frames: held.frames + 1 } : { at, frames: 0 };
-  return globalThis.__lfScrollStill.frames >= frames;
-}"""
-
-
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
-    """Wait for stable scroll position after the caller observes scroll initiation.
-
-    The helper cannot distinguish a finished scroll from one not yet issued.
-    Callers first observe the gesture's synchronous arrival, focus, or attribute
-    change that accompanies its scroll. The quiet interval is counted in animation
-    frames to span the pause between instant nested-scrollport placement and the
-    outer scroller's smooth movement, rather than a machine-dependent time window.
-
-    Each call resets its observation. Timeout reports the selected scroller and
-    its last reading. `tests/AGENTS.md`, "A wait consumes a fact the system states",
-    owns the caller policy."""
-    page.evaluate("() => { delete globalThis.__lfScrollStill; }")
-    try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
-    except PlaywrightTimeout:
-        where = scroller or "the document"
-        held = page.evaluate(
-            "() => globalThis.__lfScrollStill ?? null",
-        )
-        raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
-        ) from None
 
 
 def panel_settled(page, open=True):
@@ -2043,45 +2090,33 @@ def scroll_followers(writes):
     return found
 
 
-# The page as its DOM states it: `<html>`'s attributes, then each element in the body and
-# in every open shadow tree by where it stands, with its attributes sorted, and the words
-# of each text node. Comments are Lit's markers, which `live_counts` counts instead.
-# `data-lf-traffic` is the runtime's request ledger, which the page's clock moves. An
-# inline style is a set of declarations, read sorted: a property taken off and set again
-# stands last in the attribute's text and says the same.
-PAGE_STATE = """() => {
-  const said = (node) => (a) => a.name === "style"
-    ? `style=${JSON.stringify([...node.style].map((property) =>
-        `${property}: ${node.style.getPropertyValue(property)}` +
-        (node.style.getPropertyPriority(property) ? " !important" : "")).sort().join("; "))}`
-    : `${a.name}=${JSON.stringify(a.value)}`;
-  const lines = [[...document.documentElement.attributes]
-    .filter((a) => a.name !== "data-lf-traffic")
-    .map(said(document.documentElement)).sort().join(" ")];
-  const walk = (parent, path) => {
-    for (const node of parent.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE && node.data.trim())
-        lines.push(`${path} ${JSON.stringify(node.data.trim())}`);
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const here = `${path} > ${node.localName}${node.id ? "#" + node.id : ""}`;
-      lines.push(`${here} ${[...node.attributes].map(said(node)).sort().join(" ")}`);
-      if (node.shadowRoot) walk(node.shadowRoot, `${here} ::shadow`);
-      walk(node, here);
-    }
-  };
-  walk(document.body, "body");
-  return lines;
-}"""
+_BROWSER_STATE = browser_function("harness.js", "browserState")
 
 
-def page_state(page):
-    """The page as its DOM states it (`PAGE_STATE`), one line per element and text."""
-    return page.evaluate(PAGE_STATE)
+def reader_state(page):
+    """Accessible content, controls, and their rendered boxes, plus focus and caret.
+
+    Compare two readings from the same journey, not a saved implementation snapshot.
+    Accessibility owns names, roles, values, and control states; Playwright's boxes
+    expose accessible element geometry, not every detail of painted text. Browser
+    focus affordances and visible fields' source/selection are read separately.
+    Hidden caches, wrapper classes, app-owned attributes, and equivalent styles are
+    irrelevant.
+    Node/listener retention belongs to `live_counts`, not this reading.
+    """
+    focused = page.locator(":focus")
+    native = page.evaluate(_BROWSER_STATE)
+    return [
+        *page.locator("body").aria_snapshot(boxes=True).splitlines(),
+        "focus: "
+        + (focused.last.aria_snapshot(boxes=True) if focused.count() else "none"),
+        *("field: " + json.dumps(field) for field in native["fields"]),
+        *("keyboard stop: " + json.dumps(stop) for stop in native["stops"]),
+    ]
 
 
 def state_changes(before, after):
-    """The lines of `page_state` one reading holds and the other does not, marked `-`
-    for the first and `+` for the second."""
+    """Differences between two reader_state readings, with enough context to act."""
     return [
         line
         for line in difflib.unified_diff(before, after, lineterm="", n=0)
@@ -2140,32 +2175,8 @@ def left_alone(page):
 
 # Armed in each of the page's documents: its writes (`write_watch.js`), the frames it asks
 # for, counted where they are asked for, and each time the focus lands in it.
-_REST_ARM = """() => {
-  window.lfWrites = [];
-  window.lfWriteStep = null;
-  const rest = (window.lfRest = { frames: {}, focus: 0 });
-  const request = window.requestAnimationFrame;
-  window.requestAnimationFrame = (callback) => {
-    // The first caller past the runtime's scheduler, which is whose loop it is.
-    const site = new Error().stack.split("\\n").slice(2)
-      .find((line) => !line.includes("/runtime/rendering.js"))?.trim() ?? "";
-    return request.call(window, (time) => {
-      rest.frames[site] = (rest.frames[site] ?? 0) + 1;
-      callback(time);
-    });
-  };
-  document.addEventListener("focusin", () => rest.focus++, { capture: true });
-}"""
-_REST_READ = """() => {
-  const writes = window.lfWrites;
-  window.lfWrites = null;
-  const endless = document.getAnimations()
-    .filter((animation) => animation.playState === "running" &&
-      animation.effect?.getComputedTiming().iterations === Infinity)
-    .map((animation) => `${animation.animationName ?? animation.id} on ` +
-      `${animation.effect.target.localName}.${[...animation.effect.target.classList].join(".")}`);
-  return { writes, ...window.lfRest, endless };
-}"""
+_REST_ARM = browser_function("harness.js", "armRest")
+_REST_READ = browser_function("harness.js", "readRest")
 
 
 def at_rest(page):

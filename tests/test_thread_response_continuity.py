@@ -303,7 +303,7 @@ def test_narrow_panel_editor_growth_retains_the_live_send(
 def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
     browser, serve
 ):
-    """Clearing a sent draft and editing the next retain navigation's one cue.
+    """Clearing a sent draft and editing the next never restart thread entry motion.
 
     Native animation events observe the displayed transform, rather than the
     renderer's remembered flags, through the real held send and later repaint.
@@ -323,11 +323,9 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
     expect(field).to_be_visible()
     page.evaluate("""() => {
       window.__recuedArrivals = [];
-      window.__directCues = 0;
       document.addEventListener('animationstart', event => {
         const card = event.target;
         if (!card.matches?.('.lf-thread[data-attempt]')) return;
-        window.__directCues++;
         const transform = getComputedStyle(card).transform;
         if (transform !== 'none') window.__recuedArrivals.push({
           animation: event.animationName, transform,
@@ -364,7 +362,9 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
         rendered(page)
         wait_for_probe(page, "pageSettled")
         scroll_settled(page, ".lf-threads")
-        page.wait_for_function("window.__directCues > 0")
+        expect(page.locator(".lf-thread[data-attempt] .lf-msg-body")).to_have_text(
+            "Keep this comment visible while it is sent."
+        )
         expect(field).to_have_js_property("value", "Keep the next thought separate.")
         assert reading_place() == before
         assert page.evaluate("window.__recuedArrivals") == [], (

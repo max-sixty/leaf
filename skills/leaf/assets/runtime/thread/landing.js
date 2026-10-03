@@ -350,7 +350,7 @@ const listNode = (id, threadsBox, preferMessage = false) => {
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls.
-async function showThreadNow(id, focus, revealThread, threadsBox, mayArrive) {
+async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArrive) {
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
@@ -423,8 +423,10 @@ async function showThreadNow(id, focus, revealThread, threadsBox, mayArrive) {
     (aim.block === "end" && thread.querySelector(":scope > .lf-thread-reply")) ||
     target;
   revealed.classList.toggle("grow", false);
-  revealed.classList.toggle("flash", true);
-  setTimeout(() => revealed.classList.toggle("flash", false), 1300);
+  if (flash) {
+    revealed.classList.toggle("flash", true);
+    setTimeout(() => revealed.classList.toggle("flash", false), 1300);
+  }
   return focus ? focused() : node;
 }
 
@@ -500,6 +502,7 @@ export function createThreadLanding({
     id,
     {
       focus = "reply",
+      flash = true,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -508,7 +511,7 @@ export function createThreadLanding({
     } = {},
   ) => {
     if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
-    const ready = showThreadNow(id, focus, revealThread, threadsBox, intent);
+    const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out
     // of both discarded event-handler promises and callers that continue a delivery.

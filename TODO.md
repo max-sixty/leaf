@@ -309,6 +309,15 @@ height and where a switch lands wait on the workspace decision under Layout.
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
+- **Decide what plain `page check` runs in a browser from the mistakes agents make.**
+  It runs a page once in the host's browser, about 1.3 s, where the page has a script
+  or places a page widget or a data widget (`needs_browser`,
+  `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
+  (`lf-playground`, `lf-targeting`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  and every widget in thread markup report through `leaf wait` once a browser draws
+  them, but nothing runs them first. Write `evals/` cases in which agents author each
+  kind and measure how often what they write fails to draw, then run the kinds agents
+  get wrong and stop running those they reliably get right.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

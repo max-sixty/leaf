@@ -2162,12 +2162,17 @@ def left_alone(page):
     clock through every callback while Date.now stays fixed; the following test keeps
     real-time timers.
     """
+    def prepare_children(parent):
+        for frame in parent.child_frames:
+            if frame.evaluate(
+                "() => !!document.querySelector('script[data-lf-entry]')?.lfReadiness"
+            ):
+                wait_until_ready(frame)
+                rendered(frame)
+            prepare_children(frame)
+
+    prepare_children(page.main_frame)
     rendered(page)
-    for frame in page.frames[1:]:
-        if frame.evaluate(
-            "() => !!document.querySelector('script[data-lf-entry]')?.lfRenderingSettled"
-        ):
-            rendered(frame)
     notice = page.locator(".lf-notice.show")
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while notice.count():

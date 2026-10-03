@@ -49,10 +49,13 @@ export const runtimeResource = (path) => {
     return layerRegistry
       ? new URL(`.${path}`, new URL(layerRegistry, document.baseURI)).href
       : path;
-  const resource = offlinePayload.resources[path];
+  const located = new URL(path, document.baseURI);
+  const resource = offlinePayload.resources[located.pathname];
   if (typeof resource !== "string")
     throw new Error(`Leaf's interactive export is missing ${path}`);
-  return resource;
+  // A resource query does not change captured bytes; fragments retain native URL
+  // meaning (for example an SVG symbol or a recording's start time).
+  return resource + located.hash;
 };
 
 export const runtime = {

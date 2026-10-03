@@ -135,7 +135,9 @@ subject. Give native `<video>` and `<audio>` elements `controls`, label their
 content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
 Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
 the complete recording for offline playback with no size cap or omissions: base64
-adds about a third to its bytes, so trim recordings to what the reader needs.
+stores each recording once and adds about a third to its bytes, so trim recordings
+to what the reader needs. Offline embedded images, fonts, and recordings need
+JavaScript; the scripts-off export preserves authored text, layout, and alt text.
 Browser paste and upload still accept raster images only.
 
 Put invented examples inside `lf-sample` and

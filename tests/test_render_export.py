@@ -1,6 +1,7 @@
 """Preview and offline export tests."""
 
 import json
+import base64
 import os
 import re
 import signal
@@ -336,9 +337,9 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
         reported = set()
         deadline = time.monotonic() + 10
         while str(edited) not in reported:
-            assert time.monotonic() < deadline, (
-                f"the edit was never reported: {reported}"
-            )
+            assert (
+                time.monotonic() < deadline
+            ), f"the edit was never reported: {reported}"
             reported |= {path for _, path in next(changes)}
     finally:
         changes.close()
@@ -1320,7 +1321,16 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         </audio>
     """,
     )
-    url = serve(content)
+    content = content.replace(
+        "</main>",
+        '<video id="repeated" controls preload="none" aria-label="Repeated recording" src="/media/2930ad3df7819c50.mp4?ignored=1#t=2"></video><video id="from-api" controls preload="none" aria-label="API recording"></video></main>',
+    ).replace("</head>", '<script type="module" src="/page/media.js"></script></head>')
+    url = serve(
+        content,
+        page_files={
+            "media.js": "import { scopedMediaUrl } from '/runtime/widget-api.js'; document.querySelector('#from-api').src = scopedMediaUrl('/media/2930ad3df7819c50.mp4?ignored=1');"
+        },
+    )
     page = open_page(browser, url)
     media_responses = []
     page.on(
@@ -1333,6 +1343,12 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
     )
     exported = tmp_path / "recordings.html"
     exporting_model.cmd_export(serve.page_dir, exported, None)
+    exported_source = exported.read_text()
+    for filename in ("2930ad3df7819c50.mp4", "b5eb956d4548b3b0.mp3"):
+        encoded = base64.b64encode(
+            (serve.page_dir / "media" / filename).read_bytes()
+        ).decode()
+        assert exported_source.count(encoded) == 1
     for location in (url, exported.as_uri()):
         page.goto(location, wait_until="load")
         wait_until_ready(page)
@@ -1390,14 +1406,11 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
     assert all(
         response.headers["accept-ranges"] == "bytes" for response in media_responses
     )
-    assert (
-        page.locator("#video").get_attribute("src").startswith("data:video/mp4;base64,")
-    )
-    assert (
-        page.locator("#audio source")
-        .get_attribute("src")
-        .startswith("data:audio/mpeg;base64,")
-    )
+    video_url = page.locator("#video").get_attribute("src")
+    assert video_url.startswith("blob:")
+    assert page.locator("#repeated").get_attribute("src") == video_url + "#t=2"
+    assert page.locator("#from-api").get_attribute("src") == video_url
+    assert page.locator("#audio source").get_attribute("src").startswith("blob:")
 
 
 def test_interactive_export_with_an_ask_reaches_application_presentation(
@@ -1769,15 +1782,71 @@ def test_export_refuses_server_dependent_samples(serve, tmp_path):
 
 
 def test_an_export_keeps_utf8(browser, serve, tmp_path):
-    serve(leaf_page("Café handoff", "<h1>Café handoff</h1>"))
+    literal = "urn:leaf-resource:" + "a" * 64
+    source = leaf_page(
+        "Café handoff",
+        f'<h1>Café handoff</h1><p id="literal">{literal}</p><section id="native-shadow"><template shadowrootmode="open"><p id="shadow-text">Captured shadow text</p></template></section><script id="body-probe" type="module">window.order.push("body");</script>',
+        head='<meta name="parser-probe" content="head"><script id="head-probe" type="module">window.order = [document.querySelector("#head-probe").parentElement.tagName.toLowerCase()];</script>',
+    )
+    serve(source)
     out = tmp_path / "cafe.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     assert out.read_text(encoding="utf-8").startswith(UTF8_BOM)
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
     assert page.evaluate("document.characterSet") == "UTF-8"
+    assert page.evaluate("window.order") == ["head", "body"]
+    assert page.evaluate("document.doctype.name") == "html"
+    assert page.locator("head > meta[charset]").count() == 1
+    expect(page.locator("#native-shadow #shadow-text")).to_have_text(
+        "Captured shadow text"
+    )
+    expect(page.locator("#literal")).to_have_text(literal)
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+
+
+def test_an_export_without_scripts_keeps_text_layout_and_alt_text(
+    browser, serve, tmp_path
+):
+    source = (
+        leaf_page(
+            "Readable record",
+            '<h1>Readable record</h1><p id="words">The recording compares two routes.</p>'
+            '<img id="poster" src="/media/d7cf2b4e22c063dd.png?ignored=1#frame" alt="First frame: two routes">'
+            '<video controls src="/media/2930ad3df7819c50.mp4#t=2"></video>'
+            '<div id="layout" style="display:grid;grid-template-columns:1fr 1fr;background:url(/media/d7cf2b4e22c063dd.png)"><p>Before</p><p>After</p></div>',
+            head="<style>@media screen { #words { color: rgb(12, 34, 56); background:url(/media/d7cf2b4e22c063dd.png); } }</style>",
+        )
+        .replace("<html ", '<html data-author="record" ')
+        .replace("<body>", '<body class="authored">')
+    )
+    serve(source)
+    out = tmp_path / "readable.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page(
+        java_script_enabled=False, viewport={"width": 390, "height": 844}
+    )
+    requests = []
+    failures = []
+    page.on("request", lambda request: requests.append(request.url))
+    page.on("requestfailed", lambda request: failures.append(request.url))
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.get_by_role("heading", name="Readable record")).to_be_visible()
+    expect(page.get_by_role("note")).to_contain_text("JavaScript")
+    expect(page.locator("#words")).to_have_css("color", "rgb(12, 34, 56)")
+    expect(page.locator("#layout")).to_have_css("display", "grid")
+    assert page.locator("#poster").get_attribute("alt") == "First frame: two routes"
+    assert page.locator("#poster").get_attribute("src") is None
+    assert page.locator("video").get_attribute("src") is None
+    assert page.locator("#poster").get_attribute("data-lf-media-width") == "320"
+    assert page.locator("html").get_attribute("data-author") == "record"
+    assert page.locator("body").get_attribute("class") == "authored"
+    assert page.locator("script[src]").count() == 0
+    assert failures == []
+    assert requests == [out.as_uri()]
+    assert page.locator("body").bounding_box()["width"] <= 390
 
 
 def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
@@ -1863,8 +1932,17 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
+    composed = json.loads(
+        re.search(
+            r'<script type="application/json" data-lf-export>(.*?)</script>',
+            html,
+            re.DOTALL,
+        )[1]
+    )["document"]
     imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', html, re.DOTALL)[1]
+        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL)[
+            1
+        ]
     )["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {
@@ -1948,25 +2026,18 @@ body { --export-tone: rgb(12, 34, 56); }
     expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
         "naturalWidth", 24
     )
-    assert (
-        page.locator("#vector image")
-        .get_attribute("href")
-        .startswith("data:image/svg+xml;base64,")
-    )
-    assert (
-        page.locator("#responsive")
-        .get_attribute("srcset")
-        .count("data:image/svg+xml;base64,")
-        == 2
-    )
+    assert page.locator("#vector image").get_attribute("href").startswith("blob:")
+    assert page.locator("#responsive").get_attribute("srcset").count("blob:") == 2
     expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
     for selector in ("#badge", "#inline"):
         assert (
             page.locator(selector)
             .evaluate("el => getComputedStyle(el).backgroundImage")
-            .startswith('url("data:image/svg+xml;base64,')
+            .startswith('url("blob:')
         )
-    assert [url for url in requests if not url.startswith("data:")] == [out.as_uri()]
+    assert [url for url in requests if not url.startswith(("data:", "blob:"))] == [
+        out.as_uri()
+    ]
 
 
 def test_a_gloss_keeps_its_explanation_in_print(browser, serve):

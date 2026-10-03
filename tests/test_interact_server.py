@@ -682,6 +682,69 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     )
 
 
+def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
+    server, page_dir, tmp_path, monkeypatch
+):
+    """Observe actual file reads across cold document, HEAD and partial GET requests."""
+    data = b"0123456789" * 200_000
+    source = tmp_path / "large.mp4"
+    source.write_bytes(data)
+    _, path = media_model.cmd_media(page_dir, [source])[0]
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>", f'<video controls preload="none" src="{path}"></video></main>'
+        )
+    )
+    publish(page_dir)
+    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    reads = []
+    original_open = Path.open
+
+    class ObservedFile:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __enter__(self):
+            self.stream.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.stream.__exit__(*args)
+
+        def seek(self, offset):
+            return self.stream.seek(offset)
+
+        def read(self, amount=-1):
+            result = self.stream.read(amount)
+            reads.append(len(result))
+            return result
+
+    def observe(file, *args, **kwargs):
+        stream = original_open(file, *args, **kwargs)
+        return ObservedFile(stream) if file.suffix == ".mp4" else stream
+
+    monkeypatch.setattr(Path, "open", observe)
+    assert fetch(server)[0] == 200
+    assert reads == []
+    for route in (path, captured + path):
+        conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
+        try:
+            conn.request("HEAD", route + f"?t={TOKEN}")
+            response = conn.getresponse()
+            assert response.getheader("Content-Length") == str(len(data))
+            assert response.read() == b""
+            assert reads == []
+            conn.request(
+                "GET", route + f"?t={TOKEN}", headers={"Range": "bytes=100-131"}
+            )
+            response = conn.getresponse()
+            assert (response.status, response.read()) == (206, data[100:132])
+            assert reads == [32]
+            reads.clear()
+        finally:
+            conn.close()
+
+
 def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, page_dir):
     """The browser door derives the file type and bounds allocation before reading.
 
@@ -3602,9 +3665,9 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         requester.start()
         assert entered.wait(timeout=5), "the server did not accept the request"
         closer.start()
-        assert not closed.wait(timeout=0.1), (
-            "close returned with a request still active"
-        )
+        assert not closed.wait(
+            timeout=0.1
+        ), "close returned with a request still active"
         release.set()
         closer.join(timeout=5)
         requester.join(timeout=5)
@@ -5539,15 +5602,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     log.write_text("\n".join(lines), encoding="utf-8")
 
     events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
-        "the tear took the reply with it, so nothing below is being read"
-    )
+    assert [e["id"] for e in events if e["kind"] == "reply"] == [
+        "r-kept"
+    ], "the tear took the reply with it, so nothing below is being read"
     names = thread_context_model.thread_names(events)
     assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == ["c-lost"], (
-        f"the two readings put the reply in different threads: {list(threads)}"
-    )
+    assert list(threads) == [
+        "c-lost"
+    ], f"the two readings put the reply in different threads: {list(threads)}"
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
     # The lost id names the thread; its root is the reply that survived, under that
     # reply's own id, because a reply or resolve addressed to the root has to name a

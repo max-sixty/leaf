@@ -508,23 +508,31 @@ class PageEndpoint:
             headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
 
-    def _resource_content(self, ctype: str, body: bytes) -> Response:
+    def _resource_content(self, resource: Resource) -> Response:
         """Serve exact resource bytes, with single byte ranges for native playback.
 
-        Captured previews own bytes rather than file paths, so both live and captured
-        resources use this response. RFC 9110 permits ignoring Range; unsupported
+        The resource owner retains exact bytes or an immutable file. Both live and
+        captured routes derive size and read only the selected span here; HEAD reads
+        no body. RFC 9110 permits ignoring Range; unsupported
         units, malformed or multiple ranges, and If-Range without a validator get the
         complete representation. A valid unsatisfiable range earns 416.
         """
-        if not ctype.startswith(("video/", "audio/")):
-            return self._content(200, ctype, body)
-        size = len(body)
+        ctype = resource.mime
+        if ctype not in BINARY_TYPES:
+            ctype += "; charset=utf-8"
+        size = resource.size
         status = 200
-        headers = {"Accept-Ranges": "bytes"}
+        window = slice(0, size)
+        headers = (
+            {"Accept-Ranges": "bytes"}
+            if resource.mime.startswith(("video/", "audio/"))
+            else {}
+        )
         requested = self.headers.get("Range", "")
         match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", requested)
         if (
             self.method == "GET"
+            and "Accept-Ranges" in headers
             and not self.headers.get("If-Range")
             and match is not None
             and any(match.groups())
@@ -543,12 +551,14 @@ class PageEndpoint:
             if first and last and (len(last), last) < (len(first), first):
                 pass  # An invalid range is ignored, rather than unsatisfiable.
             elif start >= end:
-                status, body = 416, b""
+                status, window = 416, slice(0, 0)
                 headers["Content-Range"] = f"bytes */{size}"
             else:
-                status, body = 206, body[start:end]
+                status, window = 206, slice(start, end)
                 headers["Content-Range"] = f"bytes {start}-{end - 1}/{size}"
+        body = b"" if self.method == "HEAD" else resource.read(window)
         response = self._content(status, ctype, body)
+        headers["Content-Length"] = str(size if self.method == "HEAD" else len(body))
         response.headers.update(headers)
         return response
 
@@ -827,10 +837,7 @@ class PageEndpoint:
         )
         if resource is None:
             return None
-        ctype = resource.mime
-        if ctype not in BINARY_TYPES:
-            ctype += "; charset=utf-8"
-        return self._resource_content(ctype, resource.data)
+        return self._resource_content(resource)
 
     def _serve_page_path(self) -> Response | None:
         path = self.path
@@ -901,16 +908,12 @@ class PageEndpoint:
         # boundary for a page directory edited or symlinked after vendoring.
         if file.is_file() and path_is_within(file, self.page_dir):
             ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
-            # charset describes an encoding, so it rides on the types that
-            # have one. On a PNG it is noise.
-            if ctype not in BINARY_TYPES:
-                ctype += "; charset=utf-8"
-            body = deliver_resource(
-                Resource(file.read_bytes(), ctype.partition(";")[0]),
+            resource = deliver_resource(
+                Resource(file, ctype),
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._resource_content(ctype, body)
+            return self._resource_content(resource)
         return None
 
     def _get(self) -> Response:

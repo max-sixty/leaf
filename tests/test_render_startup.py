@@ -3122,7 +3122,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
-                  does: 'a project widget using the same heading' }]);
+                  title: 'a project widget using the same heading' }]);
         }"""
     )
     page.keyboard.press("?")

@@ -81,10 +81,12 @@
 import {
   answers,
   bindings,
+  allBindings,
+  lineOf,
+  titleOf,
   commandEntries,
   commandRoutes,
   live,
-  parsed,
   routedCommand,
   spell,
   word,
@@ -96,9 +98,15 @@ import {
   textEntryScope,
   universalCommandReference,
 } from "./register.js";
-import { EVERYTHING } from "./text-entry.js";
-import { controlNavigationKeys, takesLetters } from "../focus.js";
-import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
+import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
+import { takesLetters } from "../focus.js";
+import {
+  focused,
+  recoveredLabelFocus,
+  scopesAt,
+  scopesFor,
+  scopeIdentity,
+} from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
 import { shadowHost, under } from "../shadow.js";
 
@@ -192,19 +200,24 @@ export function stack(binding = null) {
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
   const TYPING = textEntryScope();
-  const navigationKeys = controlNavigationKeys(active);
-  const controlScope = navigationKeys.length
-    ? {
-        root: active,
-        rows: [],
-        claims: (binding) => navigationKeys.includes(parsed(binding).key),
-      }
-    : null;
+  const nativeClaims = nativeClaimAt(active);
+  const controlScope =
+    nativeClaims && !typing
+      ? {
+          root: active,
+          rows: [],
+          claims: nativeClaims,
+        }
+      : null;
   const expanded = pageScopes().flatMap((scope) => {
     if (scope === ELEMENTS) {
       if (!typing && !controlScope) return elementStack;
-      const own = elementStack.filter(({ el }) => el === active);
-      const ancestors = elementStack.filter(({ el }) => el !== active);
+      const own = elementStack.filter(
+        ({ el, contextual }) => el === active && !contextual,
+      );
+      const ancestors = elementStack.filter(
+        ({ el, contextual }) => el !== active || contextual,
+      );
       return [...own, ...(typing ? [TYPING] : [controlScope]), ...ancestors];
     }
     if (scope === TYPING && typing) return [];
@@ -299,15 +312,17 @@ function referencedInvocation(reference) {
   if (!pageHas(reference.scope) || !reference.scope.rows.includes(reference.row))
     return null;
   if (!live(reference.row)) return null;
-  const current = commandEntries(reference.row, bindings(reference.row)).find(
+  const current = commandEntries(reference.row, allBindings(reference.row)).find(
     ({ id, binding }) => id === reference.id && (binding ?? null) === reference.binding,
   );
   if (!current) return null;
   const run = reference.row.run
     ? () => reference.row.run(reference.binding ?? undefined)
-    : reference.control?.isConnected
-      ? () => reference.control.click()
-      : null;
+    : current.route
+      ? () => word(current.route.control ?? reference.row.control).click()
+      : word(reference.row.control)?.isConnected
+        ? () => word(reference.row.control).click()
+        : null;
   return run
     ? {
         id: reference.id,
@@ -320,10 +335,13 @@ function referencedInvocation(reference) {
 }
 
 function invocationFor(row, binding, command, recovered = null) {
-  const reference = routedCommand(command?.route);
+  if (!command || !live(row)) return null;
+  const current = commandEntries(row, [binding]).find(({ id }) => id === command.id);
+  if (!current) return null;
+  const reference = routedCommand(current.route);
   if (reference) return referencedInvocation(reference);
   const run = row.run
-    ? () => row.run(binding)
+    ? () => row.run(current.route?.binding ?? binding)
     : recovered
       ? () => recovered.click()
       : null;
@@ -357,15 +375,15 @@ export function lineOwner(binding) {
   for (const scope of stack(binding)) {
     const owners = scope.rows.filter(
       (row) =>
-        row.line &&
         bindings(row).includes(binding) &&
         !nearer.takes(binding) &&
-        live(row),
+        live(row) &&
+        lineOf(row) !== false,
     );
     if (owners.length > 1)
       throw new Error(
         `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
-          owners.map((owner) => word(owner.does)).join("; "),
+          owners.map(titleOf).join("; "),
       );
     if (owners.length)
       return {
@@ -385,7 +403,7 @@ function unclaimedScopes(binding) {
   const unclaimed = new Set();
   const nearer = shadow();
   for (const scope of stack(binding)) {
-    if (!nearer.takes(binding)) unclaimed.add(scope);
+    if (!nearer.takes(binding)) unclaimed.add(scopeIdentity(scope));
     nearer.past(scope);
   }
   return unclaimed;
@@ -417,7 +435,7 @@ export function dispatchKey(ev, { beforeCommand }) {
       if (matched)
         throw new Error(
           `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
-            `${word(matched.row.does)}; ${word(row.does)}`,
+            `${titleOf(matched.row)}; ${titleOf(row)}`,
         );
       matched = invocation;
     }
@@ -455,13 +473,16 @@ function commandMatching(matches) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
       const reachable = bindings(row).filter((binding) =>
-        binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
+        binding === "Escape"
+          ? unclaimedEscape.has(scopeIdentity(scope))
+          : !nearer.takes(binding),
       );
       const entry = commandEntries(row, reachable).find(
         (command) =>
           matches(command, row) && invocationFor(row, command.binding, command),
       );
-      if (entry?.binding != null) return { row, binding: entry.binding, entry };
+      if (entry && (entry.binding != null || allBindings(row).length === 0))
+        return { row, binding: entry.binding, entry };
     }
     nearer.past(scope);
   }
@@ -476,7 +497,7 @@ const commandFor = (id) => commandMatching((command) => command.id === id);
 export function activeCommandLabel(ids) {
   const wanted = new Set(ids);
   const command = commandMatching((entry) => wanted.has(entry.id));
-  return command ? spell(command.binding) : "";
+  return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot every executable route while focus is still on the page. Keep both readings:
 // command ids answer whether a semantic result can be invoked, while row bindings answer
@@ -491,9 +512,11 @@ function availableRouteSnapshot() {
     for (const row of scope.rows) {
       if (!live(row)) continue;
       const reachable = bindings(row).filter((binding) =>
-        binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
+        binding === "Escape"
+          ? unclaimedEscape.has(scopeIdentity(scope))
+          : !nearer.takes(binding),
       );
-      for (const binding of reachable) {
+      for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {
           if (!invocationFor(row, binding, command)) continue;
           commands.add(command.id);

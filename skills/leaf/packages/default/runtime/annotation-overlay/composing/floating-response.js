@@ -4,6 +4,8 @@
    This selected presentation reads that live response and owns only its physical
    placement: card sizing, collision geometry, off-flow reveals and withholding when
    the usable window has no room. No second anchor or editor is captured here.
+   While its passage is offscreen, the editor keeps its attached width as a cap so
+   moving into the window does not reflow its controls; a narrower window can shrink it.
    An inline seat suspends this placement; restoring the default home resumes it. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
@@ -75,6 +77,7 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let fabContentHeight = null;
+  let unanchoredWidth = null;
   // The compact row's occupied space beside the field, in CSS pixels. The frame's
   // minimum may leave spare space, so subtracting the field from the frame mistakes
   // that space for controls and makes successive fits widen the field in steps.
@@ -132,6 +135,7 @@ export function createFloatingResponsePlacement({
     fabPositionFrame = 0;
     fabContentHeight = null;
     if (!reset) return;
+    unanchoredWidth = null;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-response-room", "--lf-float-h"])
@@ -221,6 +225,11 @@ export function createFloatingResponsePlacement({
     const unanchored = Boolean(
       response.open && owner && !(visible && overlaps(visible, windowBoundary)),
     );
+    if (unanchored) {
+      unanchoredWidth ??= fabBar.getBoundingClientRect().width || null;
+    } else {
+      unanchoredWidth = null;
+    }
     if (!target && !unanchored) return false;
     const block = response.anchor.quote && owner;
     const readingRegion = !unanchored && owner && containingReadingRegionFor(owner);
@@ -248,10 +257,10 @@ export function createFloatingResponsePlacement({
     // the target instead of silently moving the draft.
     const setWidth = (available) => {
       const minimum = minimumFabWidth();
+      // Leaving the passage does not give the user's editor a new measure.
+      const room = unanchoredWidth ? Math.min(available, unanchoredWidth) : available;
       const width =
-        Math.ceil(available) >= Math.ceil(minimum)
-          ? available
-          : Math.max(0, boundary.width);
+        Math.ceil(room) >= Math.ceil(minimum) ? room : Math.max(0, boundary.width);
       fabBar.style.setProperty("--lf-float-w", `${width}px`);
       if (!response.open) return;
       fabBar.style.setProperty(
@@ -318,7 +327,7 @@ export function createFloatingResponsePlacement({
             // intrinsic growth may use the reading region's remaining travel before
             // the field scrolls. Content, rather than placed height, keeps clipping
             // during a wheel gesture from spending that travel again.
-            const height = fabBar.offsetHeight;
+            const height = fabBar.getBoundingClientRect().height;
             const contentHeight = response.open
               ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
               : fabBar.scrollHeight;

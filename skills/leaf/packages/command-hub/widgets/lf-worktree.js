@@ -81,8 +81,7 @@ function renderDatum(tree, record, prior) {
       {
         id: "worktree.toggle",
         keys: () => DISCLOSE(head),
-        does: "Open or close the worktree evidence",
-        line: () => (tree.hasAttribute("data-lf-open") ? "close" : "open"),
+        title: () => (tree.hasAttribute("data-lf-open") ? "close" : "open"),
         run: () => head.click(),
       },
     ]);

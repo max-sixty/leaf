@@ -36,10 +36,11 @@
    about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
    never closes it: the card leaves with what it is about and comes back with it.
 
-   The reply editor grows with its words, the card downward until its foot meets the
-   boundary's and upward from there, until the card fills the boundary; then the
-   transcript above it gives up its room to that growth down to a few lines of the turn
-   being answered, and only then does the editor scroll.
+   Floating UI supplies the height available at the held edge. Native grid tracks
+   share that room between the transcript and reply, each growing to its words and
+   scrolling only when its share is exhausted. The shared reply continuity keeps
+   removed turns as flexible space before the reply. Draft growth lets the transcript
+   yield writing room while retaining visible lines.
 
    The card is margin chrome, not a native layer: it shows the threads of the target the
    user stands at, from the target, its cluster, or the card itself, so standing on an
@@ -175,7 +176,7 @@ import {
   makeRoom,
 } from "./comment-placement.js";
 import { shownExtent, shownParts, shownRect, skipped } from "/runtime/geometry.js";
-import { clamp, union } from "/runtime/rect.js";
+import { union } from "/runtime/rect.js";
 import { passageGeometry } from "/runtime/resolved-target.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "/runtime/user-place.js";
@@ -477,8 +478,8 @@ export function createMarginProjection({
         {
           id: "margin.press",
           keys: PRESS,
-          does: "Open or close what the focused margin entry holds",
-          line: "open / close",
+          description: "Open or close what the focused margin entry holds",
+          title: "open / close",
           run: () => control.click(),
         },
       ],
@@ -599,11 +600,9 @@ export function createMarginProjection({
     const region = containingReadingRegionFor(target);
     return region ? shownRegionBounds(region) : null;
   };
-  // Refit a height limit only when it changes the card's actual allocation. A
-  // scroll that merely carries the card writes nothing. Clipped contents take
-  // newly available room even when the whole conversation still cannot fit;
-  // comparing content signatures or requiring a complete fit leaves long threads
-  // wearing the cap from the cramped place where they first opened.
+  // Placement supplies the outer bounds; the native tracks share them between
+  // reading and writing. A scroll that only carries a fitting card writes nothing;
+  // clipped contents receive newly available room without requiring a complete fit.
   function measureThreadCard(room, cap, reading) {
     preview.style.setProperty("--lf-thread-width", `${room}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
@@ -611,69 +610,22 @@ export function createMarginProjection({
     const overflow = [
       previewTranscript,
       ...previewList.querySelectorAll(REPLY_BOX),
-    ].reduce((sum, box) => sum + (box ? box.scrollHeight - box.clientHeight : 0), 0);
-    if (!(worn >= 0) || cap < height - 0.5 || (overflow > 0.5 && cap > height + 0.5))
+    ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
+    if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
-    fitThreadCardEditors();
     if (reading?.end) scrollToEnd(previewTranscript);
     return preview.getBoundingClientRect().height;
   }
-  // The thread's complete turns, without the reply row under them: what an arriving or a
-  // sent turn changes and a new line of the reply does not. Unrounded, since the row's
-  // height is fractional and a rounded difference moves with it.
-  const boxHeight = (node) => node.getBoundingClientRect().height;
+  // The selected transcript's unconstrained extent changes with turns, not editor
+  // lines. Keep its fractional local height alongside the native overflow reading;
+  // rounding the whole measurement makes an unchanged turn look newly arrived.
   function measureTranscript() {
-    return [...previewList.querySelectorAll(".lf-margin-thread")].reduce(
-      (sum, thread) =>
-        [...thread.querySelectorAll(".lf-thread-reply")].reduce(
-          (turns, row) => turns - boxHeight(row),
-          sum +
-            boxHeight(thread) +
-            [...thread.querySelectorAll(".lf-thread-transcript")].reduce(
-              (overflow, transcript) =>
-                overflow + transcript.scrollHeight - transcript.clientHeight,
-              0,
-            ),
-        ),
-      0,
-    );
+    return previewTranscript
+      ? parseFloat(getComputedStyle(previewTranscript).height) +
+          previewTranscript.scrollHeight -
+          previewTranscript.clientHeight
+      : 0;
   }
-  // Draft lines take room before they scroll. A long transcript yields up to half
-  // the card's body to the reply; a short one leaves the remaining room available.
-  // Growing the editor moves their shared boundary, never the card's attachment.
-  function fitThreadCardEditors() {
-    const listRoom =
-      parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
-      (preview.offsetHeight - previewList.clientHeight);
-    previewList.style.setProperty("--lf-thread-list-room", `${listRoom}px`);
-    for (const input of previewList.querySelectorAll(REPLY_BOX)) {
-      const row = input.closest(".lf-thread-reply");
-      const thread = row.closest(".lf-page-thread");
-      const style = getComputedStyle(thread);
-      const box = getComputedStyle(input);
-      const line = parseFloat(box.lineHeight);
-      const furniture = row.offsetHeight - input.offsetHeight;
-      const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const available =
-        listRoom -
-        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) -
-        furniture -
-        inset;
-      const answered = Math.min(
-        thread.querySelector(".lf-thread-transcript").scrollHeight,
-        available / 2,
-      );
-      const oneLine =
-        input.offsetHeight -
-        input.clientHeight +
-        line +
-        parseFloat(box.paddingTop) +
-        parseFloat(box.paddingBottom);
-      const room = Math.max(oneLine, available - answered);
-      input.style.setProperty("--lf-thread-editor-room", `${room}px`);
-    }
-  }
-
   // The row the card hangs from where its thread has no target to stand by. A row the
   // rail has no room for is withheld and has no box; it stands by the row's target
   // instead, at the row inside it the cluster would stand level with (pointed-place.js).
@@ -821,7 +773,7 @@ export function createMarginProjection({
           margin: place.margin,
           boundary,
           minimumWidth: cardMinimum(),
-          fit({ width, scale }) {
+          fit({ width, height, scale }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
@@ -839,24 +791,16 @@ export function createMarginProjection({
             // to the boundary's far edge, with that edge inside the boundary as far as
             // its last height puts it. This cap holds for reading and writing alike:
             // a growing editor uses the room below its top, then scrolls internally.
-            const last = previewHold
-              ? Math.min(previewHold.foot - previewHold.top, boundary.height)
+            const minimum = previewHold
+              ? (previewHold.foot - previewHold.top) / scale.y
               : 0;
-            const edge =
-              previewHold &&
-              previewSide.line(place.clear, place.row) + previewHold[held];
-            const cap = !previewHold
-              ? boundary.height
-              : held === "foot"
-                ? clamp(edge, boundary.top + last, boundary.bottom) - boundary.top
-                : boundary.bottom - clamp(edge, boundary.top, boundary.bottom - last);
-            const height = measureThreadCard(room, cap / scale.y, reading);
+            const fitted = measureThreadCard(room, Math.max(minimum, height), reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
               fresh &&
               (side === "top" || side === "bottom") &&
-              makeRoom(side, place.clear, place.extent, height, boundary, scroller)
+              makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
             ) {
               previewSide.scrolled();
               placeThreadPreview();
@@ -1322,8 +1266,8 @@ export function createMarginProjection({
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
-      does: "Move through the margin entries on this target",
-      line: "move through margin entries",
+      description: "Move through the margin entries on this target",
+      title: "move through margin entries",
       repeat: true,
       when: () => {
         const active = focused();
@@ -2119,14 +2063,14 @@ export function createMarginProjection({
     if (stepsOut())
       return {
         root: preview,
-        does: "Return to the page element this thread is about",
-        says: "back to page",
+        description: "Return to the page element this thread is about",
+        title: "back to page",
         out: () => focusDestination(stepsOut()),
       };
     return {
       root: preview,
-      does: "Dismiss the thread view",
-      says: "dismiss thread",
+      description: "Dismiss the thread view",
+      title: "dismiss thread",
       // Where it lands turns on whether a level of the user's own stands under it. A
       // cluster they unfolded themselves is that level, and it folds the moment focus
       // leaves the margin, so the close hands them back to the entry the card hangs
@@ -2170,8 +2114,8 @@ export function createMarginProjection({
     if (expandedOptionsKey === forcedInlineOptionsKey) return null;
     return {
       root: host,
-      does: "Fold the secondary page actions",
-      says: "close options",
+      description: "Fold the secondary page actions",
+      title: "close options",
       out: () => setOptionsOpen(host.lfEntry, false, { returnFocus: true }),
     };
   }
@@ -2189,8 +2133,8 @@ export function createMarginProjection({
       {
         id: "margin.back",
         keys: ["Escape"],
-        does: () => pageMapRung(false)?.does,
-        line: () => pageMapRung()?.says,
+        description: () => pageMapRung(false)?.description,
+        title: () => pageMapRung(false)?.title,
         commandReferenceWhen: () => Boolean(pageMapRung(false)),
         when: () => Boolean(pageMapRung()),
         run: () => pageMapRung()?.out(),

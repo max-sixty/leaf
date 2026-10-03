@@ -12,7 +12,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -777,6 +777,93 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     page.locator("#exhibit .lf-draft-body").click()
     expect(page.locator("#exhibit leaf-text")).to_have_count(0)
     expect(page.locator("#exhibit .lf-draft-body")).to_have_text("Read-only source.")
+
+
+def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
+    browser, serve
+):
+    """Ask aliases name the current draft action while its shared editor owns typing."""
+    original = "Keep **this** source editable."
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Draft contextual commands",
+                '<h1>Release note</h1><lf-ask id="note-decision">'
+                "<h2>How should the note read?</h2>"
+                f'<lf-draft id="note" needed><pre>{original}</pre></lf-draft></lf-ask>',
+            )
+        ),
+    )
+    question = page.locator("#note-decision")
+    editor = page.locator("#note leaf-text")
+    hints = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+
+    def return_to_question():
+        question.evaluate(
+            """async element => {
+              const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              focusDestination(element);
+            }"""
+        )
+        expect(question).to_be_focused()
+
+    page.keyboard.press("a")
+    expect(question).to_be_focused()
+    expect(draft_control(page, "edit", "note")).to_have_attribute(
+        "aria-keyshortcuts", "1"
+    )
+    expect(hints).to_have_text(["1"])
+    page.keyboard.press("1")
+    expect(editor).to_be_focused()
+    write(editor, "Keep **these** digits: ")
+    page.keyboard.type("123")
+    saved = "Keep **these** digits: 123"
+    expect(editor).to_have_js_property("value", saved)
+    expect(editor).to_be_focused()
+    rendered(page)
+    assert "1" not in hints.all_text_contents()
+    assert "2" not in hints.all_text_contents()
+
+    return_to_question()
+    expect(hints).to_have_text(["1", "2"])
+    for action, key in [("save", "1"), ("cancel", "2")]:
+        assert (
+            key
+            in draft_control(page, action, "note")
+            .get_attribute("aria-keyshortcuts")
+            .split()
+        )
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    for command_id, title in [("draft.save", "Save"), ("draft.cancel", "Cancel")]:
+        command = page.locator(
+            f'.lf-command-reference-command[data-lf-command="{command_id}"]'
+        )
+        expect(command).to_have_text(title)
+        expect(command).to_have_attribute("data-lf-available", "true")
+    page.keyboard.press("Escape")
+    expect(question).to_be_focused()
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    expect(page.locator("#note .lf-draft-body")).to_have_text(saved)
+
+    # The answered Ask remains an association while the source offers another edit.
+    return_to_question()
+    page.keyboard.press("1")
+    expect(editor).to_be_focused()
+    write(editor, "Discard these later words.")
+    return_to_question()
+    page.keyboard.press("2")
+    expect(editor).to_have_count(0)
+    expect(page.locator("#note .lf-draft-body")).to_have_text(saved)
+    edits = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
+    assert [event["detail"]["text"] for event in edits] == [saved]
 
 
 def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, serve):

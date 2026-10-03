@@ -45,7 +45,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, wait_for
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -948,7 +948,7 @@ def plant_quiet_word(page, selector, holding):
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
 # count of asks started here reaches the answer that carries the news only by luck of
 # the ordering.
-def told(page):
+def told(page, *, until=None):
     """Wait until the page has taken in everything the server now holds.
 
     Call it after the test writes a version, event, status, or lease behind a live
@@ -957,11 +957,25 @@ def told(page):
     the gesture rather than the write. The server's answer is asked through the
     context's request API rather than the page: it carries the same cookie, and it is
     not seen by page routes or by the traffic watcher, so a test that stubs or counts
-    /api/state sees exactly what it did before this call existed."""
+    /api/state sees exactly what it did before this call existed. `until` waits for
+    a server fact another page publishes asynchronously before asking this page to
+    adopt that answer."""
     origin = urlsplit(page.url)
-    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
-    assert answer.ok, f"the server would not say what it holds: {answer.status}"
-    wait_until_ready(page, answer.json(), through="state")
+
+    def read():
+        answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+        assert answer.ok, f"the server would not say what it holds: {answer.status}"
+        return answer.json()
+
+    # A neighboring leaf publishes its row on its own server's next maintenance
+    # pass. A state answer from this page can still carry the previous row just
+    # after a test writes that neighbor's status.
+    state = (
+        wait_for(read, until, failure="the server did not publish the expected state")
+        if until is not None
+        else read()
+    )
+    wait_until_ready(page, state, through="state")
 
 
 def nudge(page_dir):
@@ -1400,15 +1414,26 @@ def shortcut_bar_text(page):
     return page.locator(".lf-shortcut-bar").inner_text()
 
 
-def ask_actions_hint(digits):
-    """What the shortcut bar's Ask row says for an Ask holding `digits` numbered routes.
+def active_digit_bindings(page):
+    """Read reachable digits without inventing a page-owned aggregate Ask command.
 
-    The row names the live range and one fixed word for the group; each action's own
-    title stays on its control and in the command reference. Tests read that wording
-    from here rather than spelling it out, so changing what the runtime says is one
-    edit here and not a sweep of every assertion that happens to quote it.
+    Widgets assign their contextual aliases. The dispatcher is the canonical reader of
+    which declared keys can execute where focus stands, including native shadowing.
     """
-    return f"{digits}\nAsk actions"
+    rendered(page)
+    digits = page.evaluate(
+        """async () => {
+          const {availableCommandRoutes} = await window.__lfRuntimeImport(
+            '/runtime/keyboard/dispatch.js');
+          return [...new Set([...availableCommandRoutes().values()].flatMap(
+            keys => [...keys].filter(key => /^[1-9]$/.test(key))))].sort();
+        }"""
+    )
+    if len(digits) > 1 and digits == [
+        str(n) for n in range(int(digits[0]), int(digits[-1]) + 1)
+    ]:
+        return f"{digits[0]}–{digits[-1]}"
+    return " ".join(digits)
 
 
 def open_versions(page):

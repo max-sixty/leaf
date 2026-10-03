@@ -743,6 +743,41 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
     ), readings
 
 
+def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment width through scroll",
+                '<div style="height:650px"></div>'
+                '<p id="subject">Keep the long comment with this passage.</p>'
+                '<div style="height:1800px"></div>',
+            )
+        ),
+    )
+    resized(page, 900, 600)
+    target = page.locator("#subject")
+    target.evaluate(
+        "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 400)"
+    )
+    rendered(page)
+    target.click(modifiers=["Alt"], position={"x": 30, "y": 10})
+    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
+    rendered(page)
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    width = bar.bounding_box()["width"]
+
+    page.mouse.wheel(0, 1500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    assert abs(bar.bounding_box()["width"] - width) <= 1
+    page.mouse.wheel(0, -1500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    assert abs(bar.bounding_box()["width"] - width) <= 1
+
+
 @pytest.mark.parametrize(
     "size,at,long,touch,again,motion,options",
     [

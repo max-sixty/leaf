@@ -99,7 +99,7 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     TOKEN,
-    ask_actions_hint,
+    active_digit_bindings,
     compare_with,
     consume_browser_errors,
     draft_control,
@@ -3986,7 +3986,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
+    assert active_digit_bindings(page) == "1–3"
     # A stamped version this time, which is the other way a page moves under a user.
     # Its announcement arrives immediately; the bottom status may queue it behind the
     # earlier draft notice, so that line need not change before the next press.
@@ -3998,7 +3998,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     # The same mark, still holding the focus the user put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert ask_actions_hint("1–3") in shortcut_bar_text(page), (
+    assert active_digit_bindings(page) == "1–3", (
         "the revision took the user's keys down"
     )
     page.keyboard.press("2")
@@ -4037,7 +4037,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser,
     expect(decision).to_be_focused()
     # Standing, not a bare tab stop: the Ask's own action routes are live over the user
     # again, and the third option the revision brought is among them.
-    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
+    assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
@@ -4356,7 +4356,7 @@ customElements.define('page-counter', class extends HTMLElement {
         "the revision was patched in, so this proves nothing about the other install"
     )
     expect(page.locator("#lk-decision")).to_be_focused()
-    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
+    assert active_digit_bindings(page) == "1–4"
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -7637,7 +7637,7 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     )
     revised.locator(".lf-draft-body").click()
     editor = revised.get_by_role("textbox", name="Edit revised-draft")
-    editor.fill("The user's unsent replacement.\n")
+    write(editor, "The user's unsent replacement.\n")
     editor.press("Escape")
     expect(editor).to_have_count(0)
     assert take_browser_errors(page) == []
@@ -7651,9 +7651,9 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
         "The second revision's newly inserted body."
     )
-    expect(revised.get_by_role("textbox", name="Edit revised-draft")).to_have_value(
-        "The user's unsent replacement.\n"
-    )
+    expect(
+        revised.get_by_role("textbox", name="Edit revised-draft")
+    ).to_have_js_property("value", "The user's unsent replacement.\n")
     assert take_browser_errors(page) == []
 
 
@@ -7736,7 +7736,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     body = widget.locator(".lf-draft-body")
     assert body.text_content() == "First line.\nSecond line."
     widget.locator(".lf-draft-body").click()
-    widget.locator("textarea").fill("A user's exact words.\n")
+    write(widget.locator("leaf-text"), "A user's exact words.\n")
     draft_control(page, "save", "crossed-draft").click()
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
@@ -8471,7 +8471,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
     provided = "ledger_id,amount\n7,42"
-    draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
+    write(draft.get_by_role("textbox", name="Edit ledger-cargo"), provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
@@ -8913,16 +8913,18 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
     editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
-    editor.fill(
-        "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42"
+    write(
+        editor,
+        "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42",
     )
     assert not [
         event
         for event in events_model.read_events(d)
         if event.get("widget") == "ledger-cargo"
     ]
-    editor.fill(
-        "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
+    write(
+        editor,
+        "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42",
     )
     with sending(page, "the saved edit"):
         draft_control(page, "save", "ledger-cargo").click()

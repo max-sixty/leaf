@@ -480,13 +480,14 @@ export function createDrawingController({
         id: "draw.mode.stroke",
         keys: [],
         label: "drag",
-        does: "Draw anywhere on the page; each stroke adds to one drawing",
+        title: "Draw on the page",
+        description: "Each stroke adds to one drawing",
+        line: false,
       },
       {
         id: "draw.mode.exit",
         keys: ["w"],
-        does: "Exit Draw mode",
-        line: "exit Draw mode",
+        title: "exit Draw mode",
         touch: "Exit Draw mode",
         run: () => setDrawMode(false),
       },
@@ -497,8 +498,8 @@ export function createDrawingController({
   pageRung("draw mode", () =>
     drawModeActive()
       ? {
-          says: "exit Draw mode",
-          does: "Exit Draw mode",
+          title: "exit Draw mode",
+
           out: () => setDrawMode(false),
         }
       : null,
@@ -506,8 +507,8 @@ export function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    does: "Draw on the page and attach the drawing to a comment",
-    line: "draw",
+    description: "Draw on the page and attach the drawing to a comment",
+    title: "draw",
     touch: "Draw mode",
     when: () => anchoringIsReady() && !drawModeOn,
     run: () => setDrawMode(true),

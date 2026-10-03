@@ -232,8 +232,7 @@ function viewButton(label, view, open, cls = "") {
     {
       id: "command.open-view",
       keys: PRESS,
-      does: "Open this command view",
-      line: "open the view",
+      title: "open the view",
       run: () => node.click(),
     },
   ]);

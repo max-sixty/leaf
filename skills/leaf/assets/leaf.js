@@ -89,7 +89,11 @@ import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
-import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import {
+  commandHintLayer,
+  createCommandHints,
+} from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
@@ -164,7 +168,12 @@ import {
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
+import {
+  focused,
+  paintKeys,
+  reflectFirstScopes,
+  reflectKeys,
+} from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
@@ -526,6 +535,10 @@ asks = createAskView({
   repaint,
 });
 
+const commandHints = createCommandHints({
+  presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
+});
+
 const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
@@ -761,6 +774,7 @@ const standing = createStanding({
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetPickerHints: targets.paintTargetPickerHints,
+  paintCommandHints: commandHints.paint,
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
@@ -791,7 +805,7 @@ if (!offlineInteractive) {
     panel,
     legendRoot,
     goToHintLayer,
-    askActionLayer,
+    commandHintLayer,
     targetPickerHintLayer,
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
@@ -833,6 +847,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
   app.mountThread();
@@ -858,6 +873,7 @@ if (!offlineInteractive) {
   watchDisclosures(document);
   mountRepaint({
     reflectFirstScopes,
+    reflectKeys,
     paintStandingContent: standing.paintStandingContent,
     syncLayout: layout.syncLayout,
     pageShifted: pageGeometry.pageShifted,
@@ -866,7 +882,7 @@ if (!offlineInteractive) {
 } else {
   // An interactive export attaches no chrome, so its standing is only what a widget's
   // own box shows: an options group's addition field paints there as it does live.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs });
+  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
 
 const replayReady = passiveSample

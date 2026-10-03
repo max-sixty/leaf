@@ -246,6 +246,58 @@ and its chrome coordinate.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 
+### Layout stability
+
+Boxes that still move without input, which the "Stability" rule in
+`skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
+that changes size after first paint, with its cause.
+
+- **Keep the feature gallery's Undo reachable after Reject.**
+  `test_the_feature_gallery_keeps_its_real_actions_reachable` is a non-strict xfail in
+  `tests/test_render_margin.py`, and #1669 found it still failing. The diagnosis in
+  [notes/margin-stuck-style.md](notes/margin-stuck-style.md) names two defects: the
+  span around the rejected insertion keeps reporting a computed `anchor-name: none`,
+  so the row carrying Undo stays at its off-screen fallback, and after Undo the suggestion has a 0x0 box. #1687
+  then stopped hiding an emptied suggestion with `display: none`, which may have fixed
+  the 0x0 box; the note predates it. Check first whether the xfail now passes on
+  `main` under load, then follow the note's next step for the stuck span.
+- **Draw the playground at its final size from first paint.** `lf-playground`,
+  `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
+  findings: the module builds each control's inputs and the words of the instruction it
+  copies after first paint. Put each control's initial value and text in the authored markup, so
+  the module fills in what is there rather than adding it. Check first how values a
+  viewer restores from the tab's storage change the size, since markup carries only
+  the authored defaults.
+- **Size the activity feed and text documents at first paint.** `lf-activity` draws the
+  log's history and `lf-text-document` its bound source's value, and both arrive with
+  the first state answer, after first paint. Serving that state inside the page does
+  not work: modules run after first paint, and a page revision is immutable while the
+  log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
+  size is known at first paint, open the rows from it, and hold later growth with
+  `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
+  whether a text document, which the reader came to read, can stand behind a summary.
+- **Decide the contents' form before first paint.** `lf-toc` changes size because the
+  margin pass decides after first paint whether it is the fixed map in the margin or
+  the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
+  it measures at that point. A held summary does not answer that cause. Check first whether a
+  container or media query on the space beside the column can make the same decision
+  in CSS.
+- **Find a first-paint fix for the gallery's margin entry and for targeting.**
+  `lf-margin-entry-gallery` wraps words whose height follows the viewer's fonts (22px
+  to 45px taller on CI's Linux than on macOS), so no height its examples state holds
+  everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
+  builds after first paint before choosing an approach.
+- **Unconfirmed: Command Hub's outcome tiles at 320px.** The word "stopped" may touch
+  its tile's edge in a 320px window. The tiles share one row of four
+  (`.lf-command-facts` in `skills/leaf/packages/command-hub/theme.css`), and the only
+  narrow rule, `@container lf-command (width <= 520px)`, covers task metadata. Render
+  it before changing anything.
+- **Check that margin markers paint in place in their first frame.** The shift watch
+  exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
+  startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
+  frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
+  a page with margin markers at a few widths.
+
 ### Queues
 
 A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A

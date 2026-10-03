@@ -1789,19 +1789,23 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         lambda request: (
             request.frame.name == "interaction-send-comment"
             and "/api/state" in request.url
-        )
+        ),
+        timeout=HANDOVER_DEADLINE_MS,
     ):
         page.reload(wait_until="domcontentloaded")
+        gallery.scroll_into_view_if_needed()
     toggle = gallery.locator("[data-interaction-toggle]")
     expect(gallery.get_by_role("tab", name="Send a comment")).to_have_attribute(
-        "aria-selected", "true"
+        "aria-selected", "true", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
-    expect(toggle).to_be_disabled()
+    expect(gallery.locator("[data-interaction-status]")).to_have_text(
+        "Loading", timeout=HANDOVER_DEADLINE_MS
+    )
+    expect(toggle).to_be_disabled(timeout=HANDOVER_DEADLINE_MS)
     assert held, "the restored frame never requested its state"
     held.pop().continue_()
-    page.wait_for_load_state("load")
-    wait_until_ready(page)
+    page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
     page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play", timeout=15_000

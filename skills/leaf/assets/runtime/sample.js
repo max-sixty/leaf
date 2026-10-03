@@ -27,11 +27,12 @@ async function request(url, body) {
   return answer;
 }
 
+// Presentation waits on the child's state read, which can be slow without failing.
+// The child reports startup errors; the owner cancels a replaced or detached frame.
 function presented(frame, url, signal) {
   return new Promise((resolve, reject) => {
     let observer;
     const cleanup = () => {
-      clearTimeout(timeout);
       observer?.disconnect();
       detached.disconnect();
       frame.removeEventListener("load", loaded);
@@ -59,10 +60,6 @@ function presented(frame, url, signal) {
       observer.observe(doc, { attributes: true, childList: true, subtree: true });
       inspect();
     };
-    const timeout = setTimeout(
-      () => finish(new Error(`Leaf sample did not present: ${url}`)),
-      30000,
-    );
     signal.addEventListener("abort", aborted, { once: true });
     if (signal.aborted || !frame.isConnected) {
       finish(signal.reason ?? new DOMException("sample disconnected", "AbortError"));

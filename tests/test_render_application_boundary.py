@@ -363,8 +363,9 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     consume_browser_errors(page, "503")
 
 
+@pytest.mark.parametrize("while_pending", ["stay", "choose-earlier"])
 def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
-    browser, serve
+    browser, serve, while_pending
 ):
     """One public reading carries both optimistic turns and live authored unit state."""
     url = serve(
@@ -441,7 +442,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_attribute(
+        "open", ""
+    )
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
@@ -450,11 +453,22 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     )
     assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
+    selected = page.locator(f'.lf-thread[data-id="{admitted["id"]}"]')
+    expect(selected).to_have_attribute("open", "")
 
     write(box, "Refused words")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the shared collection's refused root")
     expect(reader).to_contain_text("Refused words")
+    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_attribute(
+        "open", ""
+    )
+    if while_pending == "choose-earlier":
+        # Refusal restores the earlier selection only while the provisional root
+        # still owns it; a later user choice must remain the selected conversation.
+        selected = page.locator('.lf-thread[data-id="question"]')
+        selected.locator(".lf-thread-summary").click()
+        expect(selected).to_have_attribute("open", "")
     route = held.pop()
     route.fulfill(
         status=400,
@@ -466,10 +480,11 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         },
     )
     round_trip(page)
+    consume_browser_errors(page, "400")
     expect(reader).not_to_contain_text("Refused words")
     expect(box).to_have_js_property("value", "Refused words")
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
-    consume_browser_errors(page, "400")
+    expect(selected).to_have_attribute("open", "")
     page.unroute("**/api/event")
 
 
@@ -1601,8 +1616,11 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     ]
 
 
+@pytest.mark.parametrize(
+    "place", ["inline-editor", "general", "choose-earlier", "leave-displaced-title"]
+)
 def test_a_failed_list_candidate_restores_its_complete_committed_reading(
-    browser, serve
+    browser, serve, place
 ):
     """Rows, count, narrowing, and native islands roll back as one checkpoint."""
     layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
@@ -1610,10 +1628,33 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     url = serve(
         leaf_page(
             "Thread rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><p id="earlier">An earlier passage.</p>'
+            '<p id="selected">The selected passage.</p><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
         layer_registry=layer,
         layer_widgets=widgets,
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "earlier-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "earlier"},
+            "text": "An earlier accepted conversation.",
+        },
+    )
+    selected_record = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "selected-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "selected"},
+            "text": "The selected accepted conversation.",
+        },
     )
     kept = append_carried_log_record(
         serve.page_dir,
@@ -1629,11 +1670,22 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    selected = page.locator('.lf-thread[data-id="selected-thread"]')
+    expect(page.locator(".lf-thread").first).not_to_have_attribute(
+        "data-id", "selected-thread"
+    )
+    selected.locator(".lf-thread-summary").click()
+    expect(selected).to_have_attribute("open", "")
     inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
     editor = inline.locator(":scope > .lf-thread-reply leaf-text")
     write(editor, "draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
     expect(editor).to_be_focused()
+    general = page.locator(".lf-general leaf-text")
+    if place == "general":
+        general.click()
+    elif place in {"choose-earlier", "leave-displaced-title"}:
+        selected.locator(".lf-thread-summary").click()
 
     page.evaluate(
         """async id => {
@@ -1658,6 +1710,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
           let failures = 2;
+          let releaseFailure;
+          const failedCandidate = new Promise(done => { releaseFailure = done; });
+          window.releaseFirstListFailure = releaseFailure;
           let releaseRetry;
           const retry = new Promise(done => { releaseRetry = done; });
           window.releaseThreadRetry = releaseRetry;
@@ -1670,6 +1725,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             if (!candidate) return present(model);
             if (failures > 0) {
               await present(model);
+              if (failures === 2) {
+                window.failedCandidatePresented = true;
+                await failedCandidate;
+              }
               failures -= 1;
               window.completeListFailures = 2 - failures;
               throw new Error('injected complete-list failure');
@@ -1684,8 +1743,15 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     )
 
-    # Each failed attempt reaches Lit's updated callback, so the candidate count and
-    # narrowing have painted before the list owner restores its committed reading.
+    # Hold delivery while the admitted undo and arriving frozen content become one
+    # application reading. Each failed attempt paints a real candidate without the
+    # selected root before the list owner restores its complete committed reading.
+    held_readings = []
+    page.route("**/api/state*", lambda route: held_readings.append(route))
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": selected_record["id"]},
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1708,6 +1774,19 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             "markup": '<lf-local id="thread-held" choice="idle"></lf-local>',
         },
     )
+    page.unroute("**/api/state*")
+    for route in held_readings:
+        route.continue_()
+    page.wait_for_function("() => window.failedCandidatePresented === true")
+    if place == "choose-earlier":
+        selected = page.locator('.lf-thread[data-id="earlier-thread"]')
+        selected.locator(".lf-thread-summary").click()
+        expect(selected).to_have_attribute("open", "")
+    elif place == "leave-displaced-title":
+        expect(page.locator(".lf-thread[open] > .lf-thread-summary")).to_be_focused()
+        general.click()
+        expect(general).to_be_focused()
+    page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
         """() => window.completeListFailures === 2 &&
           window.threadRetryHeld === true""",
@@ -1717,8 +1796,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     assert page.evaluate("() => !window.threadPreparationSettled")
     expect(page.locator("#thread-held")).to_have_count(0)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 3")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("3 open threads")
+    expect(selected).to_have_attribute("open", "")
     assert page.evaluate(
         """id => {
           const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
@@ -1731,7 +1811,12 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "list retention replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
-    expect(editor).to_be_focused()
+    if place == "inline-editor":
+        expect(editor).to_be_focused()
+    elif place == "choose-earlier":
+        expect(selected.locator(".lf-thread-summary")).to_be_focused()
+    else:
+        expect(general).to_be_focused()
     assert editor.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
@@ -1747,7 +1832,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-held') &&
-          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads: 2' &&
+          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads: 3' &&
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
@@ -1761,8 +1846,12 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 3")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("3 open threads")
+    if place == "choose-earlier":
+        expect(selected).to_have_attribute("open", "")
+    else:
+        expect(selected).to_have_count(0)
     assert page.evaluate(
         """id => {
           const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
@@ -1775,20 +1864,71 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
-    # One failed candidate, named by each boundary that carried it: the presentation
-    # publisher, the reading that was applying it, and the feed that asked for that
-    # reading. The feed's word waits on the queued projection retry the failed
-    # application left behind, so the whole report is accounted for here rather than
-    # split across the rollback, where its last line has no settled arrival.
-    reported_browser_errors(
-        page,
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected complete-list failure; injected complete-list failure"
-        ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-        "leaf: read failed: Thread list presentation retry failed",
+
+
+def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
+    """A placeholder has no identity inventory from which to retire a choice."""
+    url = serve(
+        leaf_page(
+            "Unavailable threads",
+            '<h1>Review</h1><p id="earlier">Earlier passage.</p>'
+            '<p id="later">Later passage.</p>',
+        )
     )
+    for identity, section in [("earlier-thread", "earlier"), ("later-thread", "later")]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": identity,
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": section},
+                "text": f"Accepted conversation on {section}.",
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    selected = page.locator('.lf-thread[data-id="later-thread"]')
+    expect(page.locator(".lf-thread").first).not_to_have_attribute(
+        "data-id", "later-thread"
+    )
+    selected.locator(".lf-thread-summary").click()
+    expect(selected).to_have_attribute("open", "")
+    general = page.locator(".lf-general leaf-text")
+    general.click()
+    # Exercise the presentation owner's real unavailable reading. Keep focus outside
+    # the list, so title restoration cannot conceal losing the selected conversation.
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('leaf-thread-list');
+          window.availableThreadReading = list.model;
+          const unavailable = {...list.model,
+            rows: [{kind: 'empty', key: 'unavailable',
+              text: 'Current threads temporarily unavailable.'}],
+            count: null,
+            pageSeats: new Map(),
+          };
+          await list.present(unavailable);
+          list.commit(unavailable);
+        }"""
+    )
+    expect(page.locator("leaf-thread-list")).to_contain_text(
+        "Current threads temporarily unavailable."
+    )
+    expect(selected).to_have_count(0)
+    expect(general).to_be_focused()
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('leaf-thread-list');
+          const available = window.availableThreadReading;
+          await list.present(available);
+          list.commit(available);
+        }"""
+    )
+    expect(selected).to_have_attribute("open", "")
+    expect(general).to_be_focused()
 
 
 def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(

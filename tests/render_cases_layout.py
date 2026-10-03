@@ -1,26 +1,23 @@
 """Shared layout browser-integration cases and readings."""
 
-import fcntl
 import hashlib
 import io
 import math
 import re
 import struct
 import zlib
-from contextlib import ExitStack
 from types import SimpleNamespace
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import record_claim, running_http_server
+from interact_support import record_claim
 from leaf import cli as cli_model
 from leaf import hosting as hosting_model
-from leaf import http as http_model
+from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
@@ -1229,8 +1226,8 @@ def live_leaf(tmp_path, monkeypatch):
     working, freshly, so its row has a judged state to show. A factory rather than one
     fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    servers = ExitStack()
-    held = []
+    served = []
+    waiters = []
 
     def go(name, title):
         d = machine_model.state_home() / "pages" / name
@@ -1257,34 +1254,20 @@ def live_leaf(tmp_path, monkeypatch):
             id=f"s-{name}",
             cwd=str(tmp_path / f"{name}-work"),
         )
-        # Served under the machine's key, which the URL its neighbours link to
-        # carries (`server.running_server`), as a real server is.
-        httpd = hosting_model.LeafHTTPServer(
-            ("127.0.0.1", 0), http_model.page_endpoint(d, server_model.host_key())
+        waiters.append(
+            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
         )
-        servers.enter_context(running_http_server(httpd))
-        port = httpd.server_address[1]
-        # Desired address and a held, contentless lease are the two facts a real
-        # server exposes to neighbouring pages.
-        cleanup_model.write_json(
-            d / "service.json",
-            {
-                "host": "127.0.0.1",
-                "bind": "127.0.0.1",
-                "port": port,
-                "enabled": True,
-                "lifetime": "standing",
-            },
-        )
-        lease = open(d / "server.lock", "a+b")  # noqa: SIM115 - held, see above
-        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        held.append(lease)
-        return f"http://127.0.0.1:{port}", d
+        # Use the durable server's maintenance loop: the row remains canonical
+        # even while no browser has visited this neighboring page.
+        url, _ = hosting_model.start_server(d, standing=True)
+        served.append(d)
+        return url.split("?")[0].rstrip("/"), d
 
     yield go
-    servers.close()
-    for lease in held:
-        lease.close()
+    for directory in served:
+        hosting_model.cmd_stop(directory)
+    for waiter in waiters:
+        leases_model.release_lease(waiter)
 
 
 @pytest.fixture

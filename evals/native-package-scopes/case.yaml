@@ -1,0 +1,51 @@
+# The native package compositor changes root authoring while keeping automatic
+# isolation. This case checks whether the routed package reference teaches the
+# new root, outside-condition, and shadow-host surfaces together.
+# Three-trial comparison: base 0/3, candidate 3/3, with no execution errors.
+description: native-package-scopes
+metadata:
+  purpose: Package CSS names its roots and conditions under native confinement.
+  tags:
+  - packages
+  - styles
+vars:
+  prompt: |
+    I'm writing theme.css and shadow.css for a Leaf package declaring lf-notice
+    and lf-meter. The notice itself needs a 3px green border, and paragraphs
+    inside either widget need green text. A notice should use orange text while
+    Leaf is interactive. Its shadow-tree host needs 4px padding when it wears
+    class ready. The page's own paragraphs and other packages' widgets must keep
+    their normal faces.
+
+    Read the package reference and show the two package stylesheets, explaining
+    how their rules reach the intended elements. Return CSS in your reply.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: llm-rubric
+  metric: root-and-descendants
+  value: |
+    Pass only if the package CSS styles the lf-notice root through :scope with an
+    lf-notice type condition, styles descendant paragraphs with p in theme.css or
+    the shared shadow.css (which also reaches the document), and relies
+    on composition's native package boundary rather than a global page selector
+    or a hand-written subject filter. The interactive condition must select a
+    native root through an outside-aware nested scope or equivalent native scope
+    syntax; ordinary html[data-lf-interactive] lf-notice descendant syntax under
+    the implicit widget scope does not match its root.
+- type: llm-rubric
+  metric: shadow-host-state
+  value: |
+    Pass only if shadow CSS combines :scope and a :host(...) predicate that
+    matches class ready, directly or in a nested scope whose body styles :scope.
+    Accept a type condition inside :host, such as :scope:host(lf-notice.ready). Ordinary
+    :scope.ready cannot read a featureless shadow host's class. Explain that the
+    composed shadow scope restricts these rules to this package's host types.

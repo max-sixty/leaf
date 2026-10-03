@@ -1,49 +1,35 @@
-"""Score an instruction change: `claude plugin eval` on the cases in `evals/`, run at once on
-the base's payload and the working tree's, read into one table.
+"""Promptfoo scores the same instruction cases on Claude Code and Codex.
 
-    uv run leaf-dev instructions-eval pin-takes-no-page-room --runs 1
-
-Both arms are built outside the checkout, since `claude plugin eval` loads every plugin
-and case below its target. Both get the working tree's case directories matching a
-CASE glob, or every case, so a case newer than the base runs on the base too, and a
-case's images, which the pinned assets hold at the case's path (`leaf_dev.leaf_assets`),
-are laid in beside it. Each arm's `aggregate-result.json`, `report.html` and log stay under `.tmp/instructions-eval/`.
-
-Package instruction file references are resolved against each arm's payload. A
-baseline from before the directory rename uses its own `guidance/` files; prompt
-references and their Read graders change together, preserving the same task and
-scoring rather than measuring whether an older payload has a newer file name.
+Cases are native Promptfoo tests; this module only stages Leaf's base/candidate
+payloads and isolated authenticated homes. Every host/arm/repetition has its own
+cwd and home, outside any repository. Models receive the same task and shipped
+skill. Static authoring cases do not exercise plugin discovery or hooks; the
+terminal task verification owns those boundaries.
 """
 
 import fnmatch
-import json
 import re
 import shutil
-import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import click
+import yaml
 
 from leaf_dev import ROOT
-from leaf_dev.harness import base_ref, build_arm, copy_working, environment
+from leaf_dev.harness import base_ref, build_arm, claude_child, codex_home
 from leaf_dev.leaf_assets import pinned_copy
+from leaf_dev.promptfoo import output_directory, report, run
 
-OUT = ROOT / ".tmp" / "instructions-eval"
 ARMS = ("base", "candidate")
+HOSTS = ("cc", "codex")
 PACKAGE_INSTRUCTION_PATH = re.compile(
     r"packages/[a-z][a-z0-9-]*/instructions/[a-z][a-z0-9-]*(?:\\)?\.md"
 )
-# `/developing-leaf`, "Score an instruction change", says why each is needed.
-FLAGS = (
-    "--no-publish", "--ablation", "none", "--trust-plugin", "--judge-model", "opus",
-    "-j", "8", "--allow-tools", "Skill", "Read",
-)  # fmt: skip
 
 
 def select_cases(globs: tuple[str, ...]) -> list[str]:
-    """The working tree's case names matching any of `globs`, or all of them."""
+    """Select current cases, so a new case also scores the historical payload."""
     cases = sorted(path.parent.name for path in (ROOT / "evals").glob("*/case.yaml"))
     for glob in globs:
         if not fnmatch.filter(cases, glob):
@@ -51,14 +37,11 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     return [c for c in cases if not globs or any(fnmatch.fnmatch(c, g) for g in globs)]
 
 
-def resolve_case_instruction_paths(case_file: Path, payload: Path) -> None:
-    """Resolve package instruction references and Read matches in one copied case.
+def read_case(case_file: Path, payload: Path) -> dict:
+    """Use each historical payload's own package instruction addresses.
 
-    Only file locations differ between arms. The candidate case, judgment criteria,
-    and expected file-read behavior remain the same. The historical directory is
-    used only when the requested file is absent and its old location exists; no
-    alias or copied instructions enter either payload. An absent file in both
-    locations is a harness error before any model runs.
+    The task and assertions remain identical apart from the directory rename.
+    Missing resources fail preparation before spending any model calls.
     """
     source = case_file.read_text()
 
@@ -75,96 +58,162 @@ def resolve_case_instruction_paths(case_file: Path, payload: Path) -> None:
             f"{payload} (also checked {historical})"
         )
 
-    prepared = PACKAGE_INSTRUCTION_PATH.sub(resolved, source)
-    if prepared != source:
-        case_file.write_text(prepared)
+    return yaml.safe_load(PACKAGE_INSTRUCTION_PATH.sub(resolved, source))
 
 
-def read_run(out: Path) -> tuple[dict[str, list[dict]], float]:
-    """Each case's runs and the run's whole cost, judges included, from one arm."""
-    result_file = out / "aggregate-result.json"
-    if not result_file.exists():
-        raise click.ClickException(
-            f"{out.name} wrote no results; see {out / 'run.log'}"
-        )
-    result = json.loads(result_file.read_text())
-    runs = {case["name"]: case["arms"]["with"] for case in result["cases"]}
-    judges = sum(run["judgeCostUsd"] or 0 for rs in runs.values() for run in rs)
-    return runs, result["costUsd"] + judges
+def provider(host: str, payload: Path, work: Path) -> dict:
+    """Native providers; only the supplied skill and local account login are shared."""
+    if host == "cc":
+        child = claude_child(work)
+        return {
+            "id": "anthropic:claude-agent-sdk",
+            "config": {
+                "model": "opus",
+                "apiKeyRequired": False,
+                "working_dir": str(work),
+                "persist_session": False,
+                "setting_sources": [],
+                "strict_mcp_config": True,
+                "plugins": [{"type": "local", "path": str(payload)}],
+                "additional_directories": [str(payload)],
+                "tools": ["Skill", "Read"],
+                "custom_allowed_tools": ["Skill", "Read"],
+                "permission_mode": "dontAsk",
+                "max_turns": 24,
+                "settings": {"autoMemoryEnabled": False},
+                "env": {
+                    "XDG_STATE_HOME": str(Path(child["env"]["HOME"]) / ".local/state"),
+                    **{
+                        key: child["env"][key]
+                        for key in (
+                            "HOME",
+                            "TMPDIR",
+                            "UV_CACHE_DIR",
+                            "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
+                        )
+                    },
+                },
+            },
+        }
+    home = work.with_name(f"{work.name}-home")
+    home.mkdir(mode=0o700)
+    config_home = codex_home(home / ".codex")
+    (config_home / "skills").mkdir()
+    (config_home / "skills" / "leaf").symlink_to(payload / "skills" / "leaf")
+    return {
+        "id": "openai:codex-app-server",
+        "config": {
+            "model": "gpt-6.1-sol",
+            "model_reasoning_effort": "medium",
+            "working_dir": str(work),
+            "skip_git_repo_check": True,
+            "sandbox_mode": "read-only",
+            "approval_policy": "never",
+            "persist_threads": False,
+            "ephemeral": True,
+            "reuse_server": False,
+            "turn_timeout_ms": 300000,
+            "cli_env": {
+                "HOME": str(home),
+                "CODEX_HOME": str(config_home),
+                "XDG_STATE_HOME": str(home / ".local/state"),
+            },
+        },
+    }
 
 
-def of(runs: list[dict]) -> str:
-    """A case's passes on one arm, naming the runs that errored (a rate limit or a
-    timeout), since those measured nothing about the instructions."""
-    count = f"{sum(run['passed'] for run in runs)} of {len(runs)}"
-    errored = sum(run["error"] is not None for run in runs)
-    return f"{count} ({errored} errored)" if errored else count
+def prepare(
+    cases: list[str],
+    arms: dict[str, Path],
+    scratch: Path,
+    hosts: tuple[str, ...],
+    runs: int,
+) -> dict:
+    """Produce native Promptfoo config, giving every evaluated cell a fresh session."""
+    tests, providers = [], []
+    for arm, payload in arms.items():
+        for case in cases:
+            source = read_case(ROOT / "evals" / case / "case.yaml", payload)
+            images = pinned_copy(ROOT / "evals" / case)
+            for assertion in source["assert"]:
+                value = assertion.get("value")
+                if isinstance(value, str) and value.startswith("file://"):
+                    assertion["value"] = (
+                        f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
+                    )
+            for host in hosts:
+                for repetition in range(runs):
+                    label = f"{host}/{arm}/{case}/{repetition + 1}"
+                    work = scratch / label.replace("/", "-")
+                    work.mkdir()
+                    if images is not None and images.is_dir():
+                        shutil.copytree(
+                            images, work / "evals" / case, dirs_exist_ok=True
+                        )
+                    configured = provider(host, payload, work)
+                    configured["label"] = label
+                    providers.append(configured)
+                    tests.append(
+                        {
+                            **source,
+                            "providers": [label],
+                            "metadata": {
+                                **source["metadata"],
+                                "case": case,
+                                "host": host,
+                                "arm": arm,
+                            },
+                        }
+                    )
+    return {
+        "description": "Leaf instruction comparison",
+        "prompts": [
+            "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n{{prompt}}"
+        ],
+        "providers": providers,
+        "tests": tests,
+        "defaultTest": {
+            "options": {
+                "provider": {
+                    "id": "anthropic:claude-agent-sdk",
+                    "config": {
+                        "model": "sonnet",
+                        "apiKeyRequired": False,
+                        "setting_sources": [],
+                        "persist_session": False,
+                    },
+                }
+            }
+        },
+    }
 
 
 @click.command("instructions-eval")
 @click.argument("case_globs", metavar="[CASE]...", nargs=-1)
-@click.option("--base", help="The base ref; the merge base with main.")
-@click.option("--runs", type=int, help="Runs per case; each case's own, or 3.")
-def instructions_eval(case_globs: tuple[str, ...], base: str | None, runs: int | None):
-    """Score the instructions cases, base vs the working tree.
-
-    Runs the cases in evals/ matching the CASE globs, or all of them, on the instructions
-    at --base, else the merge base with main, and the working tree's at once.
-    Prints each case's passes per arm and the cost."""
+@click.option("--base", help="Base ref; defaults to the merge base with main.")
+@click.option(
+    "--host", type=click.Choice([*HOSTS, "both"]), default="both", show_default=True
+)
+@click.option("--runs", type=click.IntRange(min=1), default=1, show_default=True)
+def instructions_eval(
+    case_globs: tuple[str, ...], base: str | None, host: str, runs: int
+):
+    """Score CASE globs (or all cases), on base and working-tree instructions."""
     cases = select_cases(case_globs)
-    started = datetime.now().astimezone()
-    OUT.mkdir(parents=True, exist_ok=True)
-    out = Path(tempfile.mkdtemp(prefix=f"{started:%Y%m%d-%H%M%S}-", dir=OUT))
-    with tempfile.TemporaryDirectory(prefix="leaf-instructions-eval-") as built:
-        arms = {arm: Path(built) / arm for arm in ARMS}
+    out = output_directory("instructions-eval")
+    with tempfile.TemporaryDirectory(prefix="leaf-promptfoo-") as temporary:
+        scratch = Path(temporary)
+        arms = {arm: scratch / arm for arm in ARMS}
         commits = {
             "base": build_arm(base_ref(base), arms["base"]),
             "candidate": build_arm(None, arms["candidate"]),
         }
-        click.echo(f"base       {commits['base'][:9]}")
-        click.echo(f"candidate  the working tree on {commits['candidate'][:9]}")
-        click.echo(f"running both arms; their logs and results go under\n{out}")
-        procs = []
-        for arm, arm_dir in arms.items():
-            copy_working([f"evals/{case}" for case in cases], arm_dir)
-            for case in cases:
-                images = pinned_copy(ROOT / "evals" / case)
-                if images.is_dir():
-                    shutil.copytree(
-                        images, arm_dir / "evals" / case, dirs_exist_ok=True
-                    )
-                resolve_case_instruction_paths(
-                    arm_dir / "evals" / case / "case.yaml", arm_dir
-                )
-        # Validate both case sets before starting either arm, so a missing resource
-        # cannot leave a model running on a comparison the harness already refused.
-        for arm, arm_dir in arms.items():
-            (out / arm).mkdir()
-            with (out / arm / "run.log").open("w") as log:
-                procs.append(
-                    subprocess.Popen(
-                        ["claude", "plugin", "eval", str(arm_dir), *FLAGS]
-                        + ["--output-dir", str(out / arm)]
-                        + ["--report", str(out / arm / "report.html")]
-                        + (["--runs", str(runs)] if runs else []),
-                        cwd=arm_dir,
-                        env=environment(),
-                        stdin=subprocess.DEVNULL,
-                        stdout=log,
-                        stderr=subprocess.STDOUT,
-                    )
-                )
-        for proc in procs:
-            proc.wait()
-    results, cost = {}, 0.0
-    for arm in ARMS:
-        results[arm], arm_cost = read_run(out / arm)
-        cost += arm_cost
-    rows = [(case, *(of(results[arm].get(case, [])) for arm in ARMS)) for case in cases]
-    widths = [max(len(row[i]) for row in [("case", *ARMS), *rows]) for i in range(2)]
-    click.echo()
-    for case, before, after in [("case", *ARMS), *rows]:
-        click.echo(f"{case:<{widths[0]}}  {before:<{widths[1]}}  {after}")
-    click.echo(f"\ncost ${cost:.2f}")
-    for arm in ARMS:
-        click.echo(f"{arm} report:\nfile://{out / arm / 'report.html'}")
+        config = prepare(
+            cases, arms, scratch, HOSTS if host == "both" else (host,), runs
+        )
+        click.echo(
+            f"base {commits['base'][:9]}; candidate working tree on {commits['candidate'][:9]}"
+        )
+        click.echo(f"{len(config['tests'])} samples; results and log: {out}")
+        result, status = run(config, out)
+    report(result, status, out)

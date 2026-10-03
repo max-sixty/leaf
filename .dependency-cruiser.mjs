@@ -30,9 +30,9 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 const exactClosures = {
   "control-selectors.js": [],
   "image-difference.js": [],
-  "margin-entry-model.js": [],
-  "margin-model.js": ["margin-entry-model.js"],
-  "margin-map-model.js": ["margin-entry-model.js"],
+  "contribution-model.js": [],
+  "margin-model.js": ["contribution-model.js"],
+  "margin-map-model.js": ["contribution-model.js"],
   "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js"],
   "thread/model.js": [
@@ -147,6 +147,40 @@ export default {
       to: { path: isModule("keyboard/page.js") },
     },
     {
+      name: "annotation-services-independent-of-overlay",
+      comment:
+        "Shared inventory, activation, controls and Page Map do not load overlay geometry.",
+      severity: "error",
+      from: {
+        path: isOneOf([
+          "contributions.js",
+          "contribution-controls.js",
+          "annotation-inventory.js",
+          "inline-contributions.js",
+          "page-map-dialog.js",
+        ]),
+      },
+      to: {
+        reachable: true,
+        path: isOneOf([
+          "margin-layout.js",
+          "margin-projection.js",
+          "margin-cluster-view.js",
+        ]),
+      },
+    },
+    {
+      name: "content-layout-independent-of-annotation-layout",
+      comment:
+        "Authored residents share one content geometry owner without loading annotation geometry.",
+      severity: "error",
+      from: { path: isModule("content-layout.js") },
+      to: {
+        reachable: true,
+        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
+      },
+    },
+    {
       name: "no-cycle",
       comment:
         "A cycle has no boot order; whichever module the browser evaluates first " +
@@ -179,7 +213,8 @@ export default {
   ],
   options: {
     moduleSystems: ["es6"],
-    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/"] },
+    // /checks probes are supplied by the Python server, outside the runtime graph.
+    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/"] },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },

@@ -5,6 +5,10 @@ compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat_do_not_populate_process_env"]
 workers_dev = false
 
+[dev]
+port = 0
+inspector_port = 0
+
 [assets]
 directory = "../.tmp/site-assets"
 binding = "ASSETS"
@@ -34,7 +38,7 @@ image = "../Dockerfile.website"
 # and leave ten slots free for rollout bookkeeping.
 max_instances = 5900
 instance_type = "basic"
-# A visible tab's news stream keeps an active session alive. During a release,
+# A visible tab's freshness requests keep an active session alive. During a release,
 # Cloudflare may still replace it after this bounded drain window; website state is
 # explicitly ephemeral until it has a durable page-directory store.
 rollout_active_grace_period = 600

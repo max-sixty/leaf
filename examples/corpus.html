@@ -1543,18 +1543,9 @@
       #bg-panel-presets {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: var(--sp-2);
         margin-block: var(--sp-3);
-      }
-
-      #bg-panel-presets button {
-        border: 1px solid var(--border-2);
-        border-radius: var(--r);
-        background: var(--paper);
-        color: inherit;
-        padding: var(--sp-2) var(--sp-3);
-        font: inherit;
-        cursor: pointer;
       }
 
       #bg-panel-sample {
@@ -1671,16 +1662,6 @@
         gap: 6px;
         color: var(--ink-2);
         font: var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery .lf-interaction-setting select {
-        min-height: var(--aim-floor);
-        padding: 5px 24px 5px 8px;
-        border: 1px solid var(--border-2);
-        border-radius: 6px;
-        background: var(--card);
-        color: var(--ink);
-        font: inherit;
       }
 
       .interaction-gallery .lf-interaction-loop {
@@ -1862,6 +1843,16 @@
         frameOpener.disabled = true;
       });
 
+      document
+        .querySelector("#bg-read-user-view")
+        .addEventListener("click", async () => {
+          const response = await fetch(new URL("api/user-view", pageRoot));
+          if (!response.ok) throw new Error(`User view: HTTP ${response.status}`);
+          const output = document.querySelector("#bg-user-view-reading");
+          output.textContent = JSON.stringify(await response.json(), null, 2);
+          output.hidden = false;
+        });
+
       await customElements.whenDefined("lf-sample");
 
       const sample = document.querySelector("#bg-panel-sample");
@@ -1936,6 +1927,11 @@
 
       function selectPanelView(view, ready = sample.ready) {
         selected = view;
+        for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+          const pressed = String(button.dataset.view === view);
+          if (button.getAttribute("aria-pressed") !== pressed)
+            button.setAttribute("aria-pressed", pressed);
+        }
         for (const finish of pendingPaints) finish();
         void showPanelView(view, ++selectionVersion, ready);
       }
@@ -1943,6 +1939,9 @@
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
         button.addEventListener("click", () => selectPanelView(button.dataset.view));
       }
+      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
+        sample.style.maxWidth = event.target.value;
+      });
       sample.addEventListener("lf-sample-ready", () => {
         if (selected) selectPanelView(selected);
       });
@@ -6712,6 +6711,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
                 disappears; the field remains available, and widening reattaches it.
               </p>
+              <p id="bg-revision-editor-guide">
+                Open Threads, expand the lunch question, and leave its empty reply
+                focused. Restamp this gallery with a prose change, then with a changed
+                inline module: each revision arrives automatically and keeps the reply
+                focused. Writing in it holds a revision for review instead, so leave it
+                empty to inspect automatic arrival.
+              </p>
             </section>
           </section>
         </lf-tab>
@@ -6725,10 +6731,38 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads panel views">
-              <button type="button" data-view="overview">Open threads</button>
-              <button type="button" data-view="you">On you</button>
-              <button type="button" data-view="resolved">Resolved</button>
-              <button type="button" data-view="summary">Long discussion</button>
+              <button
+                type="button"
+                class="button"
+                data-view="overview"
+                aria-pressed="false"
+              >
+                Open threads
+              </button>
+              <button type="button" class="button" data-view="you" aria-pressed="false">
+                On you
+              </button>
+              <button
+                type="button"
+                class="button"
+                data-view="resolved"
+                aria-pressed="false"
+              >
+                Resolved
+              </button>
+              <button
+                type="button"
+                class="button"
+                data-view="summary"
+                aria-pressed="false"
+              >
+                Long discussion
+              </button>
+              <label for="bg-panel-width">Sample width</label>
+              <select id="bg-panel-width" class="field">
+                <option value="30rem">Wide</option>
+                <option value="20rem">Narrow</option>
+              </select>
             </div>
             <lf-sample id="bg-panel-sample" label="workshop threads">
               <template
@@ -6798,6 +6832,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               the words on this passage, where opening the composer again finds them;
               the general box in Threads gets them back in place.
             </p>
+            <p id="bg-wide-passage-guide">
+              <strong>A passage in a wide block.</strong> Select the words in the
+              <code>does</code> value below. The comment field follows the passage's
+              inline start while standing clear of the code block. Send a comment: its
+              thread keeps that attachment.
+            </p>
+            <pre
+              id="bg-wide-passage"
+              data-width="wide"
+            ><code class="language-javascript">const decision = {
+  label: "Keep",
+  does: "keep the active card",
+};</code></pre>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
               in shows the draft the way the sent message will read. Type
@@ -6894,6 +6941,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-tab>
 
         <lf-tab id="bg-view-page" label="Page & layout">
+          <section id="bg-user-view">
+            <h2><strong>The user's observed view</strong></h2>
+            <p id="bg-user-view-guide">
+              Resize this window, change its color scheme, or open another tab. Read the
+              observations to inspect each document's viewport, visible reading regions,
+              revision, freshness, and passive geometry checks. The authoring agent gets
+              this context under <code>user_views</code> in
+              <code>leaf page state</code>. The measurements leave the layout decision
+              with the author. On the public site, make a decision or comment first to
+              activate your private page, then return here.
+            </p>
+            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <pre id="bg-user-view-reading" hidden></pre>
+          </section>
+
           <section id="bg-widths" data-width="wide">
             <p class="eyebrow">data-width</p>
             <h2><strong>Responsive block widths</strong></h2>
@@ -8082,8 +8144,10 @@ switch --readers checkout-api,orders-api</code></pre>
                   </div>
                   <figcaption>
                     Leaf’s real response field submits with <kbd>Enter</kbd>, then
-                    becomes the real inline thread. A seeded comment lets the gallery
-                    replay that accepted-send transition without posting another one.
+                    becomes the real inline thread, whose controls grow around the words
+                    in their original place. Placement fits that frame before typing. A
+                    seeded comment lets the gallery replay that accepted-send transition
+                    without posting another one.
                   </figcaption>
                 </figure>
               </lf-tab>
@@ -8170,8 +8234,8 @@ switch --readers checkout-api,orders-api</code></pre>
 <lf-tab id="corpus-targeting-gallery" label="Targeting package">
 <h1 id="targeting-title">Point at the interface change</h1>
       <p class="lede" id="targeting-lede">
-        Targeting turns a visual selection into a structured set of exact element,
-        scope, attribute, style, and instruction changes.
+        Select exact interface targets, preview box-model style changes, and submit
+        those changes with target-bound instructions.
       </p>
       <lf-ask id="targeting-ask">
         <h2>Which exact changes should be made?</h2>

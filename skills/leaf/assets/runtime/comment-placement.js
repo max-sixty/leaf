@@ -5,12 +5,14 @@
    placing (floating.js): this module chooses the side and names the boxes, and
    Floating UI's offset, size and shift do the rest.
 
-   A comment stands by what it is about, read four ways. `clear` is the box it keeps
+   A comment stands by what it is about. `clear` is the box it keeps
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
    row a pointing gesture named in it (pointed-place.js). `extent` is that box whole,
    however much of it a scroll has clipped, which is what the room around it is measured
    from. `row` is the line it stands level with beside `clear`: a passage's first line,
-   else `clear`'s top. `margin` is where across the page the margin row for it stands,
+   else `clear`'s top. `column` is the passage's inline start when it quotes words;
+   without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
+   across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. An existing subject
    with no visible attachment supplies `clear: null`: its open editor stands in the
@@ -36,8 +38,8 @@
    thread has or will have stays in view, at the cost of the card's width; where it
    does not, the surface stands over the row. Neither choice reads the surface's own
    width or height, so the box and the card make the same one. Under or over, its inline
-   start is where the card's minimum width would end on `clear`'s right edge, and it
-   keeps that start as it widens.
+   start follows `column`, independently of the block it keeps clear, and it keeps
+   that start as it widens.
 
    It grows away from what it is about, down beside or under and up over it (floating.js,
    `held`), and the boundary holds it in only while what it stands by is in the window:
@@ -53,6 +55,11 @@
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
+
+   Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
+   frame's side and inline start where the boundary still matches, and returns its
+   block offsets for the card to hold. The attachment is then the card's current one:
+   scrolling retains it, while a boundary or target-width change chooses afresh.
 
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
@@ -111,10 +118,10 @@ export function reachableRoom(side, extent, boundary, scroller) {
 
 // Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
-// and the least room a surface stands in cannot show together, no scroll makes that
-// room, and the surface stands over what it is about where it is.
+// and this surface cannot show together, no scroll makes that room. The boundary
+// then holds the surface over its subject instead of scrolling the subject away.
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  if (extent.height + COMMENT_GAP + LEAST_HEIGHT > boundary.height) return false;
+  if (extent.height + COMMENT_GAP + height > boundary.height) return false;
   const overflow =
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
@@ -170,31 +177,67 @@ export const cardMeasure = () => rootLength("--thread-card");
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
    across the scroll the surface itself asked for (`makeRoom`).
 
-   `fit({ side, width, scale })` sizes the surface for the room its side gives: the width
-   of its lane, in its positioning space, with the scale that space has. */
+   `capture` is an opaque reading carried inside the editor's frame, whose `box` is a
+   client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
+   returns its initial `{ top, foot }` as `hold` until `landed` confirms a position.
+   A superseded computation retains that hold. The placement owns its carried inline
+   offset; `hold` supplied to `options` names only a block edge.
+
+   `fit({ side, width, scale })` sizes the surface for the room its side gives, in its
+   positioning space. Its declared minimum is limited only by the boundary, never by
+   its passage's column.
+   The intended inline start caps growth, before a restored draft's own width can
+   shift it; a landed adjustment then keeps that start as typing widens the field. */
 export function commentPlacement() {
   let side = null;
   let inline = null;
   let input = null;
+  let pending = null;
+  let carriedInline = null;
+  let initialHold = null;
   // Whether `clear` has stood in the boundary since the side was chosen.
   let seen = false;
+  const forget = () => {
+    side = null;
+    inline = null;
+    input = null;
+    pending = null;
+    carriedInline = null;
+    initialHold = null;
+    seen = false;
+  };
+  const line = (clear, row) =>
+    side === "bottom"
+      ? (clear?.bottom ?? row)
+      : side === "top"
+        ? (clear?.top ?? row)
+        : row;
   return {
     get side() {
       return side;
     },
-    forget() {
-      side = null;
-      inline = null;
-      input = null;
-      seen = false;
+    // Mechanical handoff between the editor's transparent frame and its sent card.
+    capture() {
+      return { side, boundary: input?.slice(1, 5) ?? null, seen };
     },
+    adopt(frame) {
+      forget();
+      pending = frame;
+    },
+    forget,
     scrolled() {
       input = null;
     },
-    line(clear, row) {
-      return side === "bottom" ? clear.bottom : side === "top" ? clear.top : row;
-    },
-    choose({ clear, extent = clear, boundary, minimum, scroller, coarse }) {
+    line,
+    choose({
+      clear,
+      extent = clear,
+      boundary,
+      row = clear?.top ?? boundary.top,
+      minimumWidth,
+      scroller,
+      coarse,
+    }) {
       // No visible attachment puts the editor in the window. The authored subject
       // remains its semantic anchor; no rectangle here pretends to represent it.
       const unanchored = !clear;
@@ -208,10 +251,27 @@ export function commentPlacement() {
         extent.left,
         extent.right,
       ];
-      if (input && key.some((value, index) => Math.abs(value - input[index]) > 0.5)) {
-        side = null;
-        inline = null;
-        seen = false;
+      const frame = pending;
+      pending = null;
+      const adopted =
+        frame?.placement.boundary &&
+        key
+          .slice(1, 5)
+          .every(
+            (value, index) => Math.abs(value - frame.placement.boundary[index]) <= 0.5,
+          );
+      if (adopted) {
+        // A draft can have lost its visible attachment before Send. Its card still
+        // starts at that frame, then follows the card's attachment from this choice.
+        ({ side, seen } = frame.placement);
+        carriedInline = frame.box.left - (clear?.left ?? boundary.left);
+        const top = frame.box.top - line(clear, row);
+        initialHold = { top, foot: top + frame.box.height };
+      } else if (
+        input &&
+        key.some((value, index) => Math.abs(value - input[index]) > 0.5)
+      ) {
+        forget();
       }
       input = key;
       const fresh = side === null;
@@ -221,18 +281,34 @@ export function commentPlacement() {
             clear,
             extent,
             boundary,
-            width: minimum.width,
+            width: minimumWidth,
             scroller,
             coarse,
           });
-      return { side, fresh };
+      return {
+        side,
+        fresh,
+        ...(initialHold ? { hold: initialHold } : {}),
+      };
     },
-    options(ui, { clear, row, margin = null, boundary, minimum, fit, hold = null }) {
+    options(
+      ui,
+      {
+        clear,
+        row,
+        column = null,
+        margin = null,
+        boundary,
+        minimumWidth,
+        fit,
+        hold = null,
+      },
+    ) {
       const across = vertical(side);
       const unanchored = !clear;
       // Floating UI reads a window attachment point for the unanchored posture,
       // sharing the same sizing, shift and coordinate conversion as an anchored box.
-      clear ??= new DOMRect(boundary.left, boundary.top, minimum.width, 0);
+      clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
       seen ||=
         !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
       // Beside on the right, the margin row is kept clear too where the room past it
@@ -241,13 +317,16 @@ export function commentPlacement() {
         side === "right" &&
         margin &&
         margin.right > clear.right + 0.5 &&
-        boundary.right - margin.right - COMMENT_GAP >= minimum.width
+        boundary.right - margin.right - COMMENT_GAP >= minimumWidth
           ? margin.right
           : null;
       const box =
         past === null
           ? clear
           : new DOMRect(clear.left, clear.top, past - clear.left, clear.height);
+      const inlineStart = unanchored
+        ? boundary.left
+        : (column ?? box.right - minimumWidth);
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
@@ -265,7 +344,7 @@ export function commentPlacement() {
           return {
             data: {
               scale,
-              reference: rects.reference,
+              column: rects.reference.x + (inlineStart - box.left) / scale.x,
               line:
                 side === "bottom"
                   ? rects.reference.y + rects.reference.height
@@ -277,28 +356,43 @@ export function commentPlacement() {
         },
       };
       const measure = (state) => state.middlewareData.scaled;
-      const holding = hold && {
+      const holding = ((!across && hold) || carriedInline !== null) && {
         name: "hold",
         fn(state) {
-          const edge = hold();
-          if (!edge) return {};
+          const edge = !across && hold?.();
+          if (!edge && carriedInline === null) return {};
           const { line, scale } = measure(state);
-          return {
-            y:
+          const position = {};
+          if (carriedInline !== null)
+            position.x = state.rects.reference.x + carriedInline / scale.x;
+          if (edge)
+            position.y =
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
-                : line + edge.top / scale.y,
-          };
+                : line + edge.top / scale.y;
+          return position;
         },
       };
       const middleware = [
         scaled,
         ui.offset((state) => {
           const { scale } = measure(state);
+          const edge = across && hold?.();
+          // Declare the held separation to offset itself, so the attachment limiter
+          // follows the same edge instead of pulling a shorter card toward its target.
+          const top =
+            edge &&
+            ("foot" in edge
+              ? edge.foot / scale.y - state.rects.floating.height
+              : edge.top / scale.y);
           return {
-            mainAxis: COMMENT_GAP / (across ? scale.y : scale.x),
+            mainAxis: edge
+              ? side === "top"
+                ? -top - state.rects.floating.height
+                : top
+              : COMMENT_GAP / (across ? scale.y : scale.x),
             crossAxis: across
-              ? state.rects.reference.width + (inline ?? -minimum.width / scale.x)
+              ? measure(state).column - state.rects.reference.x + (inline ?? 0)
               : (row - COMMENT_GAP - box.top) / scale.y,
           };
         }),
@@ -308,15 +402,19 @@ export function commentPlacement() {
           apply(state) {
             const { scale } = measure(state);
             const lane =
-              side === "right"
-                ? boundary.right - box.right - COMMENT_GAP
-                : side === "left"
-                  ? clear.left - boundary.left - COMMENT_GAP
-                  : boundary.right -
-                    (box.right + (inline ?? -minimum.width / scale.x) * scale.x);
+              carriedInline !== null
+                ? boundary.right - clear.left - carriedInline
+                : across
+                  ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
+                  : side === "right"
+                    ? boundary.right - box.right - COMMENT_GAP
+                    : clear.left - boundary.left - COMMENT_GAP;
             fit({
               side,
-              width: Math.max(0, Math.min(state.availableWidth, lane / scale.x)),
+              width: Math.max(
+                Math.min(minimumWidth, boundary.width) / scale.x,
+                Math.min(state.availableWidth, lane / scale.x),
+              ),
               scale,
             });
           },
@@ -359,8 +457,9 @@ export function commentPlacement() {
       };
     },
     landed({ x, y, middlewareData }) {
-      const { scale, reference, line } = middlewareData.scaled;
-      if (vertical(side)) inline ??= x - (reference.x + reference.width);
+      initialHold = null;
+      const { scale, column, line } = middlewareData.scaled;
+      if (vertical(side)) inline ??= x - column;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       return {
         scale,

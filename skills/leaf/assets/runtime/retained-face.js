@@ -14,7 +14,8 @@
    `RowFocus` keeps focus in a keyed row list across a repaint. When the row holding
    focus leaves the list, focus moves to the nearest row that survives after it, then
    before it, and otherwise to the caller's fallback, so the user is never left on a
-   node the list removed. */
+   node the list removed. This is continuity across a repaint: it does not reveal an
+   off-screen replacement after the user has scrolled elsewhere in the list. */
 import { LitElement } from "../vendor/browser-runtime.js";
 
 export class RetainedFace extends LitElement {
@@ -127,6 +128,6 @@ export class RowFocus {
         : [...this.#list.querySelectorAll(this.#rows)].find(
             (row) => row.getAttribute(this.#key) === key,
           );
-    (destination ?? fallback)?.focus();
+    (destination ?? fallback)?.focus({ preventScroll: true });
   }
 }

@@ -1,4 +1,4 @@
-/* The page's ear: the state reads, the news stream that says when to ask, the heartbeat
+/* The page's ear: the state reads, finite freshness reads that say when to ask, the heartbeat
    that re-applies what the page holds, and the phase the answers leave it in.
 
    `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
@@ -25,9 +25,8 @@ import {
 import { applicationState } from "./semantic-state.js";
 import {
   layerHeaders,
-  observeSession,
+  admitResponse,
   reportPageError,
-  sameDelivery,
   sessionIsActive,
 } from "./layer-client.js";
 
@@ -64,8 +63,7 @@ async function readState(bound) {
       // recovery boundary.
       return null;
     }
-    if (res) observeSession(res);
-    if (res?.ok && !sameDelivery(res)) return null;
+    if (res && !admitResponse(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 403. A live server refusing the key and a dead one both leave the page
     // unreachable from here, and the terminal link is the recourse for both.
@@ -100,8 +98,8 @@ export function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
 }
 
-// Failed reads retry on the clock: a news wake-up says that state changed, but
-// cannot guarantee its read succeeded. Healthy pages ask only when news moves.
+// Failed state reads and crossed freshness observations retry on the clock. Freshness names a changed reading, but
+// cannot guarantee its state read succeeded. Healthy pages read state only on change.
 export function createStateFeed({
   projectionDeferred,
   retryProjection,
@@ -223,7 +221,7 @@ export function createStateFeed({
         renderStatus(error);
       }
     };
-    // What the page does when the stream says it has moved. State application remains
+    // What the page does when a freshness look says it has moved. State application remains
     // independent — see readState — but the network side admits only one read at a time.
     // status.json can move several times while a container is still answering the first
     // read; those wake-ups mean "read again afterwards", not "open another socket". One
@@ -235,8 +233,8 @@ export function createStateFeed({
     // answer with nothing in it — an unreachable server, a refused key, a layer that has
     // moved on and is reloading — still presents, since the authored page under an
     // unreachable server is a page, and saying so is the banner's job.
-    // The buffered first read is already out, so the slot starts held: a tick or a stream
-    // word arriving while it is still unanswered queues a trailing read behind it instead
+    // The buffered first read is already out, so the slot starts held: a tick or a freshness
+    // answer arriving while it is still unanswered queues a trailing read behind it instead
     // of opening a second one alongside.
     let reading = true;
     let readQueued = false;
@@ -289,85 +287,52 @@ export function createStateFeed({
         ask();
       });
     };
-    // The page's ear: one stream per visible interval, on which the server names the
-    // page's reading each time it changes, and again every five seconds whether or
-    // not it did — nothing else rides it. State still comes by asking, so every reader
-    // of a state request — in the page, or a test standing outside it with a route on
-    // the request — keeps its meaning; the stream only says when asking is worth it.
-    // The reading compared is the one the page has applied: a wake-up naming what the
-    // page already shows, which a page's own POST response leaves it holding, is no
-    // reason to ask. The repeated word is what makes the comparison safe to rest on: a
-    // reading that reached the page some other way, or that the server's own memory of
-    // this stream missed, differs from the next word here and is asked for then.
-    //
-    // The browser reopens a stream that drops. One the server refused — a key it no
-    // longer honours, a server too old to have the door — is closed for good, and is
-    // reopened from here at the spacing a failed read always had. Either way, whether
-    // the server is there is put to a read, which is what the banner answers from: a
-    // dropped stream is a prompt to ask, not a verdict. Coming back after a silence, the
-    // page asks if its last read failed, since whatever it is showing about the server
-    // is from before the silence.
-    // A visible tab is the user lease for its server-side page. The stream itself is
-    // that lease: while any tab for a browser session is visible, at least one incoming
-    // request keeps its shared container active. Hidden tabs close their streams, so the
-    // container's ordinary idle timeout begins after the last visible tab leaves without
-    // trusting an unload signal the browser may never deliver.
-    //
-    // Visibility, rather than `window.focus`, is the boundary. A page remains useful in
-    // split-screen or while its developer tools have focus, and the platform aggregates
-    // multiple tabs naturally: each tab owns only its own stream.
+    // Each visible document asks for a cheap reading, never holding a connection
+    // between looks. State still travels through the coalesced read above, and an
+    // unchanged token does not replay or repaint the page. The news request is also
+    // this document's visible-page lease; hidden documents cancel it and stop asking.
     const pageIsVisible = () => document.visibilityState !== "hidden";
     let feedStarted = false;
-    let news = null;
-    let quiet = null;
-    let reopen = null;
+    let listening = null;
+    let freshness = null;
+    let nextLook = null;
     const stopListening = () => {
-      clearTimeout(quiet);
-      clearTimeout(reopen);
-      quiet = null;
-      reopen = null;
-      const openNews = news;
-      news = null;
-      openNews?.close();
+      clearTimeout(nextLook);
+      nextLook = null;
+      listening?.abort();
+      listening = null;
+      freshness = null;
     };
     const listen = () => {
-      if (!feedStarted || !pageIsVisible() || !sessionIsActive() || news) return;
-      const opened = new EventSource(pageUrl("api/news"));
-      news = opened;
-      const alive = () => {
-        if (news !== opened || !pageIsVisible()) return;
-        clearTimeout(quiet);
-        quiet = setTimeout(() => {
-          if (news !== opened || !pageIsVisible()) return;
-          stopListening();
-          listen();
-        }, SILENCE_MS);
+      if (!feedStarted || !pageIsVisible() || !sessionIsActive() || listening) return;
+      const interval = new AbortController();
+      listening = interval;
+      const look = async () => {
+        let delay = LOOK_MS;
+        try {
+          const response = await fetch(pageUrl("api/news"), {
+            signal: globalThis.AbortSignal.any([
+              interval.signal,
+              globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
+            ]),
+          });
+          if (listening !== interval) return;
+          if (!admitResponse(response))
+            throw new Error("news belongs to another delivery");
+          if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
+          const reading = await response.text();
+          if (listening === interval) {
+            if (reading !== freshness && reading !== runtime.reading) ask();
+            freshness = reading;
+          }
+        } catch {
+          if (listening !== interval) return;
+          ask();
+          delay = TICK_MS;
+        }
+        if (listening === interval) nextLook = setTimeout(look, delay);
       };
-      opened.addEventListener("open", () => {
-        alive();
-        if (!readAnswered) void ask();
-      });
-      opened.addEventListener("message", (event) => {
-        alive();
-        if (event.data !== runtime.reading) void ask();
-      });
-      opened.addEventListener("error", () => {
-        if (news !== opened) return;
-        clearTimeout(quiet);
-        quiet = null;
-        if (!pageIsVisible()) {
-          stopListening();
-          return;
-        }
-        if (opened.readyState === EventSource.CLOSED) {
-          news = null;
-          reopen = setTimeout(() => {
-            reopen = null;
-            listen();
-          }, RETRY_MS);
-        }
-        void ask();
-      });
+      void look();
     };
     document.addEventListener("visibilitychange", () => {
       if (pageIsVisible()) listen();
@@ -375,16 +340,16 @@ export function createStateFeed({
     });
     document.addEventListener("lf-session-active", listen);
     // The ear opens once the page has presented, not once the container has answered: a
-    // page whose first read is still out has nothing for the stream's first word to be
-    // compared with, so that word asks — which is what the slot the read still holds is
+    // page whose first read is still out has nothing for the first freshness answer to be
+    // compared with, so that answer asks — which is what the slot the read still holds is
     // for. A page that did get its answer holds a reading, and an unchanged page is not
     // asked for twice.
     const initialPresentation = readAndPresent();
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
       // A passive sample is a fixed replay controlled by its parent gallery. It needs
-      // the first reading to render production chrome, but another news stream and
-      // heartbeat would duplicate the outer page's connection for a picture that cannot
+      // the first reading to render production chrome, but another freshness clock and
+      // heartbeat would repeat the outer page's checks for a picture that cannot
       // accept user input or durable updates.
       if (passiveSample) {
         const retry = () => {
@@ -400,7 +365,15 @@ export function createStateFeed({
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
         if (!pageIsVisible()) return;
-        if (readAnswered && sessionIsActive() && activityTransitionDue(runtime.state))
+        // A state read can cross a short-lived process lease and name a different
+        // observation than the unchanged freshness token. Repair that crossing on
+        // the same clock as failed reads, rather than repeating state at every look.
+        if (
+          readAnswered &&
+          sessionIsActive() &&
+          (activityTransitionDue(runtime.state) ||
+            (freshness !== null && freshness !== runtime.reading))
+        )
           void ask();
         else if (readAnswered) void heartbeat();
         else void ask();
@@ -420,16 +393,10 @@ export function createStateFeed({
 // what the agent is doing.
 const TICK_MS = 2000;
 
-// How long the page waits before reopening a news stream the server refused.
-// This is a retry delay, not a polling cadence; an open stream delivers news immediately.
-const RETRY_MS = 2000;
-
-// How long the news stream may say nothing before the page takes it for dead. The
-// server speaks at least every five seconds, so half a minute of silence is a
-// connection something between them has quietly lost — a proxy, a laptop that slept —
-// which is the one failure the browser cannot see for itself and would otherwise wait
-// on forever.
-const SILENCE_MS = 30_000;
+// Visible pages check a cheap reading four times per second. Each finite response
+// leaves the origin's HTTP slots free. Each completed check waits 250 ms before
+// the next; request duration adds to the interval. Quiet checks do not rebuild.
+const LOOK_MS = 250;
 
 // How long the page waits on its first read before presenting without one. Presentation
 // is the user's page arriving, so this is the only bound a user feels, and it is set
@@ -453,7 +420,7 @@ const FIRST_READ_TIMEOUT_MS = 120_000;
 // How long every read after that may take. These have no wait beside them, and the
 // banner's one honesty mechanism about the server runs through a read that *completed*
 // with nothing: `renderStatus(null)` is the only path to OFFLINE_LINE, and a read still
-// in flight holds the slot, so a stream word or a clock tick only queues a trailing read
+// in flight holds the slot, so freshness or a clock tick only queues a trailing read
 // behind it. This bound is therefore the whole time a user watching a live page can be
 // shown a reading the server has stopped standing behind, which is a user's timescale
 // rather than the gate's. On expiry readState produces the same offline answer as any

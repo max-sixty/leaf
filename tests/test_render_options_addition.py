@@ -4,6 +4,7 @@ import base64
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -254,7 +255,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
 ):
     """The add form stays in Tab order while c enters the visible thread."""
     url = serve(ASK_WITH_CONTEXT_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -511,7 +512,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     draft = "Keep this answer even if another thread arrives first."
     write(first, draft)
 
-    external = events_model.append_event(
+    external = append_carried_log_record(
         d,
         {
             "kind": "comment",

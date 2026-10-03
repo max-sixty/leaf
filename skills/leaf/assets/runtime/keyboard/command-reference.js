@@ -6,8 +6,9 @@
    before the native dialog moves focus. The resulting catalog contains evaluated display
    values and stable command ids, not callbacks or live predicates. Search, ranking,
    selection, and metadata are local user-session state projected through one Lit
-   template. The dispatcher still resolves an activated id afresh after the dialog closes,
-   so a stale row cannot run.
+   template. Activation closes the dialog and resolves its id afresh in the same gesture,
+   after returning focus to its origin. No deferred dispatch can reinterpret the command
+   at a newer control or take that control's focus; a stale row cannot run.
 
    The native dialog, retained Close button, return place, focus, selection, and scrolling
    stay with this controller. Modal entry follows the platform contract rather than
@@ -16,7 +17,6 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
-import { nextRender } from "../rendering.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
@@ -506,12 +506,14 @@ function activateCommandEntry(entry) {
     };
     return presentCommandReference();
   }
-  // Close the modal, then let fresh dispatch choose the command's destination on the
-  // next frame.
+  // Native modal close and the origin handoff are synchronous, so fresh dispatch sees
+  // the original gesture's context before another input can change it.
   const invokeCommand = commandReferenceInvoke;
   closeCommandReference();
-  nextRender(() => {
-    if (invokeCommand?.(entry.id)) return;
+  if (invokeCommand?.(entry.id)) return;
+  // Complete native close before opening its replacement. This microtask still belongs
+  // to the same input turn: no newer gesture can intervene as it could before a frame.
+  queueMicrotask(() => {
     openCommandReference(invokeCommand);
     commandReferenceState = {
       ...commandReferenceState,

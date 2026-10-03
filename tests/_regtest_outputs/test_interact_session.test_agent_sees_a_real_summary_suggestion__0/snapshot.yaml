@@ -5,7 +5,9 @@ delivery:
   id: <delivery>
   created_at: <time>
   carrier: hook
-  acknowledge: null
+  acknowledge: >-
+    Once this complete delivery is in your context, confirm it with `leaf delivery
+    ack <delivery>`. Until then, the user's moves read Sent.
   batches:
     - page: <page>
       through_seq: 14
@@ -99,7 +101,8 @@ delivery:
         h5: >-
           Your reply renders as Markdown, so show code or markup in a fenced block.
       events:
-        - kind: reply
+        - attention: true
+          kind: reply
           author: user
           parent: event-2
           text: >-

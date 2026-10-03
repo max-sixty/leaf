@@ -14,17 +14,19 @@
  * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
  * ink, and rule rather than inventing a tooltip palette. Paper puts the explanation
  * after the phrase, where it can honour its words. */
-lf-gloss { display: inline; }
+:scope:is(lf-gloss) { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over. */
-lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
+:scope:is(lf-gloss)[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
 /* Where the runtime runs, the module puts the words in the card, so the phrase never
  * shows them inline, before the upgrade either. A runtime missing what it needs to start
  * takes the mark off (runtime/prepaint.js), since no card will come. */
-html[data-lf-interactive] lf-gloss[tip]::after,
-lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-gloss)[tip]::after{ content: none; }
+}
+:scope:is(lf-gloss):has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
-  html:root lf-gloss {
+  :scope:is(lf-gloss){
     text-decoration-line: underline;
     text-decoration-color: var(--accent);
     text-decoration-thickness: 1px;
@@ -36,7 +38,7 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   opacity: 0; pointer-events: none;
 }
-lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
+:scope:is(lf-gloss):has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
   outline: var(--focus-ring); --lf-focus-ring: gloss-mark;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -55,13 +57,13 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
 }
 .lf-gloss-popover::backdrop { background: transparent; }
 @media print {
-  lf-gloss > .lf-gloss-popover {
+  :scope:is(lf-gloss) > .lf-gloss-popover {
     display: inline; position: static; width: auto; max-width: none;
     margin: 0; padding: 0; border: 0; background: none; color: var(--muted);
     box-shadow: none; font: inherit;
   }
-  lf-gloss > .lf-gloss-popover::before { content: " ("; }
-  lf-gloss > .lf-gloss-popover::after { content: ")"; }
+  :scope:is(lf-gloss) > .lf-gloss-popover::before { content: " ("; }
+  :scope:is(lf-gloss) > .lf-gloss-popover::after { content: ")"; }
 }
 
 /* Every attribute the registry marks x-says is written twice here. The runtime
@@ -94,15 +96,15 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
  * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
-.lf-tree-badge, .lf-shotcap, .lf-shotdelta, lf-metric,
-lf-sample::before, lf-sample > [data-lf-said="label"], lf-column::before,
-lf-column > [data-lf-said="label"], lf-tab::before,
-lf-chip {
+.lf-tree-badge, .lf-shotcap, .lf-shotdelta, :scope:is(lf-metric),
+:scope:is(lf-sample)::before, :scope:is(lf-sample) > [data-lf-said="label"], :scope:is(lf-column)::before,
+:scope:is(lf-column) > [data-lf-said="label"], :scope:is(lf-tab)::before,
+:scope:is(lf-chip) {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The kernel's chip face (.tag), in the chip tokens it is set in, so a band of chips
  * and an inline label stand the same height. */
-lf-chip {
+:scope:is(lf-chip) {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
   box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
@@ -192,15 +194,15 @@ lf-chip {
    Avoid general rules followed by a reset for the other form; specificity can leave
    the wrong state partially active. A rule stays general only when its effect is true
    in every form. */
-lf-options { display: block; margin: 14px 0; --lf-joined: 0;
+:scope:is(lf-options) { display: block; margin: 14px 0; --lf-joined: 0;
              --lf-option-font: var(--t-4)/1.6 var(--serif);
              container-type: inline-size; }
-lf-options:not(:has(> lf-option > strong)) {
+:scope:is(lf-options):not(:has(> lf-option > strong)) {
              --lf-option-font: var(--t-5)/1.5 var(--sans);
              font: var(--lf-option-font); }
-lf-option { display: block; position: relative; }
+:scope:is(lf-option) { display: block; position: relative; }
 /* Markdown prose is an inline island beside the option's authored elements and controls. */
-lf-option > .lf-markdown-words, lf-option > .lf-option-words { white-space: normal; }
+:scope:is(lf-option) > .lf-markdown-words, :scope:is(lf-option) > .lf-option-words { white-space: normal; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. The same sentence
@@ -211,29 +213,29 @@ lf-option > .lf-markdown-words, lf-option > .lf-option-words { white-space: norm
  * uses the border the card already owns plus the explicit check, so no second band has
  * to be composed into this property. Nothing else in this file draws an option's
  * shadow, which is what says a row nobody can press has no edges of its own. */
-lf-options:has(> lf-option > strong) > lf-option { padding: var(--sp-3); --lf-block-frame: 1;
+:scope:is(lf-options):has(> lf-option > strong) > lf-option { padding: var(--sp-3); --lf-block-frame: 1;
             --lf-lift: 0 0 #0000; box-shadow: var(--lf-lift); }
 @container style(--lf-joined: 0) {
-  lf-options:has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
+  :scope:is(lf-options):has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
               border-radius: var(--r); background: var(--card); }
 }
-lf-option > strong { display: block; margin: 0 0 4px; }
+:scope:is(lf-option) > strong { display: block; margin: 0 0 4px; }
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
  * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where
  * the band sits — and what a chip adds is the band: margins that space and wrap a row of
  * them. The shared chip face bounds and wraps the author's words against the card;
  * there is no length the theme can assume. */
-lf-chip { margin: 0 6px 2px 0; }
+:scope:is(lf-chip) { margin: 0 6px 2px 0; }
 /* The tint is the author's, per chip. The theme knows the three semantic pairs and
  * nothing about which facet earns one — the pair this replaced tinted `risk` and not
  * `effort`, which was the theme holding an opinion about a word, and the opinion went
  * wrong the moment the author picked the facet. Same bargain lf-metric makes with
  * `direction`. Untoned is the default and should stay the common case: a band where
  * every chip is coloured points at nothing. */
-lf-chip[tone="ok"]     { background: var(--ok-tint);     color: var(--ok-ink); }
-lf-chip[tone="warn"]   { background: var(--warn-tint);   color: var(--warn-ink); }
-lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink); }
+:scope:is(lf-chip)[tone="ok"]     { background: var(--ok-tint);     color: var(--ok-ink); }
+:scope:is(lf-chip)[tone="warn"]   { background: var(--warn-tint);   color: var(--warn-ink); }
+:scope:is(lf-chip)[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink); }
 /* The titled form. A titled option is a card arguing its own case, and the cards
  * stack into full-width rows, read down the page the way a decision record
  * reads — which is how pages stopped growing a comparison table and an "in
@@ -262,12 +264,12 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * suggestion slots' copy states: an attribute selector inside :not() would lift
  * this whole rule a specificity column and let a layout question outrank the
  * marks painted over it. */
-lf-options:has(> lf-option > strong),
-lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
+:scope:is(lf-options):has(> lf-option > strong),
+:scope:is(lf-compare):has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
     label, link, map, mark, math, meta, meter, noscript, object, output, picture,
     progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-    svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
+svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   display: block;
   & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
   & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }
@@ -295,20 +297,20 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
    * is where it is really stated. */
   & > :is(lf-option, lf-variant) { container-type: inline-size; }
   /* The rail declares the frame its option already does, because the trim reaches one
-     level and the rail is what stands in that level: a `dt`'s 6px between terms is the
-     first term's too, and collapsing hands it to the option, whose padding then paints it
-     — so the rail's first line sat 6px below the case docked beside it. Stated here
-     rather than under the float, since where the rail stacks the same 6px reaches the
-     option through the same collapse. */
+  level and the rail is what stands in that level: a `dt`'s 6px between terms is the
+  first term's too, and collapsing hands it to the option, whose padding then paints it
+  — so the rail's first line sat 6px below the case docked beside it. Stated here
+  rather than under the float, since where the rail stacks the same 6px reaches the
+  option through the same collapse. */
   & > :is(lf-option, lf-variant) > .facts { display: block; margin: 0 0 var(--sp-2);
-      --lf-block-frame: 1; }
+    --lf-block-frame: 1; }
   @container (min-width: calc(9.5em + 16px + 20em)) {
     & > :is(lf-option, lf-variant) > .facts { float: right; clear: right; width: 9.5em;
-        margin: 0 0 var(--sp-2) var(--sp-3); }
+      margin: 0 0 var(--sp-2) var(--sp-3); }
   }
   & > :is(lf-option, lf-variant) > .facts dt { color: var(--muted);
-      font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
-      font-weight: 400; margin-top: 6px; padding: 0; }
+    font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 400; margin-top: 6px; padding: 0; }
   & > :is(lf-option, lf-variant) > .facts dd { font-size: var(--t-5); margin: 0; }
 }
 /* With `choose`, the group takes the user's pick by click. What follows is a card
@@ -321,7 +323,7 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * over, so the joined form says both as a bar beside the option's words (further
  * below), in the same channel and under the guard that is true of it. */
 @container style(--lf-joined: 0) {
-  lf-options:has(> lf-option > strong) > lf-option[chosen] {
+  :scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] {
                          border-color: var(--ok); }
 }
 /* The pick is the group's own gesture rather than a press on any one thing — a click
@@ -377,13 +379,13 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * page is that page. No shipped authored page does: each reaches the runtime through
  * its Leaf scaffold. Paper is already out by the guards above. */
 @media screen {
- lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { cursor: pointer;
+ :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option { cursor: pointer;
                         transition: box-shadow .12s ease, transform .12s ease; }
  @container style(--lf-joined: 0) {
-   lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
-                        > lf-option:hover {
-                          transform: translateY(-1px);
-                          --lf-lift: 0 3px 10px var(--shade); }
+   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
+    > lf-option:hover {
+      transform: translateY(-1px);
+      --lf-lift: 0 3px 10px var(--shade); }
  }
 }
 /* The mark the upgrade injects is both the keyboard path and the state. Each form gives
@@ -402,12 +404,11 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * The slot is reserved beside the author's chip band and title on every card, so neither
  * a pick nor a binding badge moves or covers the words. A document-only chosen card keeps
  * the compact caption below: it has no live header state or binding badge. */
-lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
-lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
+:scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
+:scope:is(lf-options):has(> lf-option > strong) > lf-option > .lf-pick {
                      position: absolute; left: var(--sp-3); bottom: 9px; }
 @media screen {
- html:root
- lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+ :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong){
    --lf-card-state-room: 80px;
    & > :is(lf-option, .lf-another) { padding-inline-start: var(--sp-3); }
    & > lf-option { padding-bottom: var(--sp-3); }
@@ -463,7 +464,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
  * wearing .lf-ui where the group takes picks, a bare span where it doesn't — and only
  * one of them has the class to answer for it, so the one rule both shapes share names
  * the family, size and line itself. */
-lf-option .lf-pick { display: inline-flex; align-items: center; gap: 6px;
+:scope:is(lf-option) .lf-pick { display: inline-flex; align-items: center; gap: 6px;
                      font-family: var(--sans);
                      font-size: var(--t-6); line-height: 1.5;
                      color: var(--muted); }
@@ -473,7 +474,7 @@ lf-option .lf-pick { display: inline-flex; align-items: center; gap: 6px;
  * across in an advance box a pixel wider than the interior — a tick filling the mark it is
  * inside rather than sitting in it. (The border asks for 1.5px and Chrome uses 1; half a
  * pixel of ring is a paint decision, and the interior is what the glyph gets.) */
-lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
+:scope:is(lf-option) .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
                      border: 1.5px solid var(--muted);
                      display: grid; place-items: center; box-sizing: border-box;
                      font-size: 8px; line-height: 1; color: var(--card); }
@@ -500,18 +501,18 @@ lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
  * inside another question's option, and the inner group's marks would have taken the
  * outer group's arity for want of a default. Reach only as far as the options the group
  * owns and the case cannot arise. */
-lf-options:not([multiple]) > lf-option > .lf-pick::before { border-radius: 50%; }
-lf-options[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
+:scope:is(lf-options):not([multiple]) > lf-option > .lf-pick::before { border-radius: 50%; }
+:scope:is(lf-options)[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
 /* Keyed on the selection role rather than on the class, because only one of the mark's
  * two shapes is a control: the hand is on the mark exactly while the mark can take a
  * selection. */
-lf-option .lf-pick[role="checkbox"] { cursor: pointer; }
+:scope:is(lf-option) .lf-pick[role="checkbox"] { cursor: pointer; }
 /* An offer says nothing on screen, so its word is not drawn. "Choose one" or "choose any"
  * remains the mark's accessible name because shape reaches no screen reader. A picked
  * row and an inert document mark stay just as terse: their check and tint state the fact.
  * A live titled card is the exception declared in its own layout above, where the picked
  * word becomes a compact header status in room the open state already reserved. */
-lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
+:scope:is(lf-option) .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 /* Warming the ring under the aim, wherever the ring is drawn — a row, a card under
  * `multiple`, and a card in a settled group. A live single-pick card group draws none, so
  * this reaches nothing there and the cell's own hover is the answer instead. The keyboard
@@ -520,38 +521,38 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  * mark the next toggle will take. Guarded with the group's other answers to the pointer, and free of
  * specificity for the same reason they are. */
 @media screen {
- lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
-                    :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
-                    border-color: var(--ink-2); }
+ :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
+  :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
+    border-color: var(--ink-2); }
 }
 /* Child combinators, for the same reason the corner rules reach only the options the
  * group owns: a question nests inside another question's option, and a descendant rule
  * painted every inner mark with the outer option's state. */
-lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
-lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
+:scope:is(lf-option)[chosen] > .lf-pick { color: var(--ok-ink); }
+:scope:is(lf-option)[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
 /* Paper has no live mark, but authored selection is still part of the document. Keep
  * the same compact check without reviving a dead control or its former status caption. */
-@media print { lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
+@media print { :scope:is(lf-option)[chosen]::after { content: "✓"; color: var(--ok-ink);
                                         font-family: var(--sans); font-weight: 700; } }
-lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-pick;
+:scope:is(lf-option) .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-pick;
                      outline-offset: var(--focus-ring-gap); border-radius: 4px; }
 /* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
-lf-option > .lf-key-badge { position: absolute; z-index: 1;
+:scope:is(lf-option) > .lf-key-badge { position: absolute; z-index: 1;
                      inset-inline-start: var(--lf-key-badge-start); }
-lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
+:scope:is(lf-options):has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
 /* Done completes a multiple-choice Ask. Its pressed state paints the answer without
  * writing a second copy into the author's markup; it sits as the joined control's
  * final cell on the page and in a thread. */
-lf-options > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
+:scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
 /* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
  * press, inside the cell rather than hung off its corner. */
-lf-options > lf-options-done { display: grid; padding: 0; }
-lf-options > lf-options-done > .lf-done { position: relative; width: 100%; }
-lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-index: 1;
+:scope:is(lf-options) > lf-options-done { display: grid; padding: 0; }
+:scope:is(lf-options) > lf-options-done > .lf-done { position: relative; width: 100%; }
+:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-index: 1;
                      inset-inline-start: var(--lf-key-badge-start);
                      top: 0; bottom: 0; margin: auto 0; }
 /* A group under `choose` is one control, not a set of options standing near each other.
@@ -609,14 +610,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
  * cards behind its disclosure. Room above and below is the frame's, so only the joined
  * control asks for it. */
 @media screen {
- :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
+ :where(:scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)) > * {
                     padding-inline-start: var(--lf-key-badge-col); }
- :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
+ :where(:scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
                     padding-block: var(--sp-2); padding-inline-end: var(--sp-3); }
 }
 @media screen {
- html:root {
-  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
+
+  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
     /* Where the runtime runs, the authored options paint before their generated Add
@@ -732,20 +733,20 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   [data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
   ) { --lf-ask-ring: none; }
-  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
-      outline: var(--focus-ring); --lf-focus-ring: options-row;
-      outline-offset: calc(-1 * var(--focus-ring-w));
-    }
+  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
+  > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
+    outline: var(--focus-ring); --lf-focus-ring: options-row;
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
   /* The add field's own outline is off (below), so the row it sits in is the only thing
    * that can answer the keyboard for it — in every group that shows the field, not just
    * the open ones. A settled group opened by its disclosure shows the same cell, and
    * scoped to :not([settled]) this rule left a user who had Tabbed into it with
    * nothing on screen saying where they were. */
-  lf-options[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(leaf-text:is(:focus, .lf-focus)) {
-      outline: var(--focus-ring); --lf-focus-ring: options-row;
-      outline-offset: calc(-1 * var(--focus-ring-w));
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
+  > .lf-another:has(leaf-text:is(:focus, .lf-focus)) {
+    outline: var(--focus-ring); --lf-focus-ring: options-row;
+    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
                 --lf-option-add-seat-inset: var(--sp-1);
@@ -771,7 +772,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
                      --lf-icon-action-hit: var(--lf-option-action-size);
                      --lf-compose-pad-block: 0px; --lf-compose-pad-inline-start: 0px;
                      position: static; }
-  .lf-another leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
+  .lf-another > .lf-compose-field > leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
                      padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
@@ -790,15 +791,15 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    *
    * Screen only: paper receives no key badge. The column is named
    * because options and generated cells all begin on it. */
-  lf-options[choose]:not(:where([data-lf-exhibit]) *) {
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
                      --lf-key-badge-start: var(--sp-2);
                      --lf-key-badge-col: calc(var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px); }
-  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
                      padding-inline-start: var(--lf-key-badge-col); }
- }
+
 }
 @media print {
-  lf-options > :is(.lf-another, lf-options-done) { display: none; }
+  :scope:is(lf-options) > :is(.lf-another, lf-options-done) { display: none; }
 }
 /* The row form: a list, so it reads like one. Every row opens at the same column, the
  * mark leads it, and the apparatus that is about somewhere else — the block reference —
@@ -838,7 +839,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
  * symptom of is not: what the last 30px holds today is the block reference, and a row
  * running past its group still clips. A card is laid out at its own width and absorbs the
  * same padding without being told. */
-lf-options:not(:has(> lf-option > strong)) > lf-option {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
                      position: relative;
                      display: table; width: 100%; box-sizing: border-box;
                      border-spacing: var(--lf-row-gap) 0;
@@ -857,18 +858,18 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * --lf-key-badge-col on every child, so the form's addition has to outrank that rather
  * than be reset by it. Without `choose` there is no binding-badge column and the mark's is
  * the whole of it. */
-lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
                      --lf-pick-col: 17px; --lf-row-gap: var(--sp-2);
                      padding-inline-start: var(--lf-pick-col); }
-lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
-                     > :is(lf-option, .lf-another) {
-                     padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col)); }
+:scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+> :is(lf-option, .lf-another) {
+  padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col)); }
 /* A row's table spacing holds its prose off the mark column. The form has no anonymous
  * table cell to supply that space, so its text field takes the same named gap. Matching the
  * option's vertical inset makes the draft and the option it becomes one stable row. */
-lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
                      gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
-lf-options:not(:has(> lf-option > strong)) > .lf-another {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > .lf-another {
                      --lf-compose-text-margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
@@ -877,15 +878,15 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
  * use the compact spacing token when the group's own box is narrow; the cells retain a
  * visible gap without clipping the mark the user presses. */
 @container (max-width: 20rem) {
-  lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+  :scope:is(lf-options):not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
                      --lf-row-gap: var(--sp-1); }
 }
 /* The row's own ground: a corner to round and a wash to say its status in, both of which
  * are answers to standing alone. A joined row is a cell that butts its neighbours and
  * takes the group's stripe, so it is handed neither rather than having both undone. */
 @container style(--lf-joined: 0) {
-  lf-options:not(:has(> lf-option > strong)) > lf-option { border-radius: 6px; }
-  lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
+  :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option { border-radius: 6px; }
+  :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
                      background: var(--ok-tint); }
 }
 /* The wash is this form's whole answer to the pointer, where a card has a lift — so it
@@ -893,10 +894,10 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
  * reasons stated there. It is also the only thing that ever draws a row's own box. */
 @media screen {
  @container style(--lf-joined: 0) {
-   lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
-                    > lf-option:hover { background: var(--chip); }
-   lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
-                    > lf-option[chosen]:hover { background: var(--ok-tint); }
+   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+    > lf-option:hover { background: var(--chip); }
+   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+    > lf-option[chosen]:hover { background: var(--ok-tint); }
  }
 }
 /* The apparatus takes a cell each and claims none of the row's free width, so what is
@@ -911,7 +912,7 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
  * down with it. The mark turns that from tidiness into a rule — its dot is out of flow
  * and centred on the row (below), so a word left on the baseline of a two-line label
  * sat a line above the tick it belongs to. */
-lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-ref {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
                      display: table-cell; width: 0; white-space: nowrap;
                      vertical-align: middle; }
 /* The mark stands in that column rather than in the table, which is the same answer a
@@ -928,7 +929,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-ref {
  * down with it, and a word left on the baseline of a two-line label would sit a line
  * above the tick it belongs to. The height is stated because an absolute box given both
  * offsets and no height stretches to fill them. */
-lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-pick {
                      position: absolute;
                      inset-inline-start: var(--lf-key-badge-col, 0px);
                      top: 0; bottom: 0; margin: auto 0; height: 11px; }
@@ -937,7 +938,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
  * fill, and that stays true whatever size they are set at. It is the row and not the first
  * line — a label long enough to wrap carries its digit down with its mark, the two staying
  * level with each other. */
-lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
+:scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
                      top: 0; bottom: 0; margin: auto 0; }
 /* The thread's shared rules live with the integrated theme. The group's own
  * placement of it is stated above, in the choose-group block. */
@@ -955,7 +956,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
  * chosen card is the page speaking and says so, which anchoring reads over the class —
  * see lf-options.js.) Laid out by the live-page block below; hidden until then, because
  * a button is worth showing only where something will answer it. */
-lf-options[settled] > .lf-settled {
+:scope:is(lf-options)[settled] > .lf-settled {
               display: none; width: 100%; align-items: baseline;
               min-height: var(--aim-floor);
               gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 7px 12px;
@@ -965,9 +966,9 @@ lf-options[settled] > .lf-settled {
 /* Open or closed is the row's own expanded state, which is where the module says it
  * (aria-expanded) — the group wore an `open` attribute for these two rules, and that
  * is authored namespace for a fact no version carries (lf-options.js). */
-lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
-lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
-lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-settled;
+:scope:is(lf-options)[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
+:scope:is(lf-options)[settled] > .lf-settled:hover { border-color: var(--border-2); }
+:scope:is(lf-options)[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-settled;
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
@@ -981,8 +982,8 @@ lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outlin
  * handed it, rather than by undoing a hide. A page left holding the row elsewhere
  * would state a decision and offer no way to the options it was made among. */
 @media screen {
-  html:root {
-    lf-options[settled] > .lf-settled { display: flex; }
+
+  :scope:is(lf-options)[settled] > .lf-settled { display: flex; }
     /* until-found keeps the card's own box in flow, and a card is bordered,
      * padded, and (stacked) margined — zero it all, or the collapse leaves a
      * stack of empty boxes behind. A block, because the content-visibility that
@@ -990,49 +991,51 @@ lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outlin
      * over a table box without a word: a question row states its layout as a table
      * and stayed on screen under a closed disclosure, reading as a group that had
      * not collapsed at all. */
-    lf-options[settled] > lf-option[hidden] { display: block; padding: 0; border: 0;
-                                              box-shadow: none; margin: 0; }
+  :scope:is(lf-options)[settled] > lf-option[hidden] { display: block; padding: 0; border: 0;
+    box-shadow: none; margin: 0; }
     /* The boolean-hidden fallback (no until-found support) hides here, because the
      * display:block above outranks the UA's [hidden] rule. */
-    lf-options[settled] > lf-option[hidden]:not([hidden="until-found"]) { display: none; }
-  }
+  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden="until-found"]) { display: none; }
+
 }
 /* Paper cannot edit the document, so collapsed cards keep their hidden attribute and the
  * content-visibility it carries is undone here. */
 @media print {
-  lf-options[settled] > lf-option { content-visibility: visible !important; }
+  :scope:is(lf-options)[settled] > lf-option { content-visibility: visible !important; }
 }
 
 /* lf-milestones / lf-milestone: a rail of status dots. The rail and dots are
  * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. */
-lf-milestones { display: block; margin: 14px 0 14px 8px; }
-lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
+:scope:is(lf-milestones) { display: block; margin: 14px 0 14px 8px; }
+:scope:is(lf-milestone) { display: block; position: relative; padding: 0 0 16px 26px;
                border-left: 2px solid var(--rule); --lf-block-frame: 1; }
-lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
-lf-milestone::before { content: ""; position: absolute; left: -7px;
+:scope:is(lf-milestone):last-child { border-left-color: transparent; padding-bottom: 2px; }
+:scope:is(lf-milestone)::before { content: ""; position: absolute; left: -7px;
                        top: calc(0.5lh - 7px);
                        width: 10px; height: 10px; border-radius: 50%;
                        background: var(--paper); border: 2px solid var(--muted); }
-lf-milestone[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
-lf-milestone[status="active"]::before { border-color: var(--accent);
+:scope:is(lf-milestone)[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
+:scope:is(lf-milestone)[status="active"]::before { border-color: var(--accent);
                                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-lf-milestone[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
-lf-milestone > strong { display: block; margin: 0 0 2px; }
+:scope:is(lf-milestone)[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
+:scope:is(lf-milestone) > strong { display: block; margin: 0 0 2px; }
 /* Where the runtime runs, the chip row the module builds from `when` and `tags` (the
  * kernel's .lf-chips) has its room from the first paint: one row of chips under the
  * title, or at the top of a milestone that has none. Chips that wrap onto a second row
  * are not reserved. */
-html[data-lf-interactive]
-  lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(:has(> .lf-chips))
-  > strong:first-of-type::after { content: ""; display: block;
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-milestone):is([when]:not([when=""]), [tags]:not([tags=""])):not(:has(> .lf-chips))
+  > strong:first-of-type::after{ content: ""; display: block;
     height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
+}
 /* The row's top margin collapses through the milestone once it is the first child, so
  * the milestone wears it until then. */
-html[data-lf-interactive]
-  lf-milestone:is([when]:not([when=""]), [tags]:not([tags=""])):not(
-    :has(> .lf-chips, > strong)) { margin-top: 2px;
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-milestone):is([when]:not([when=""]), [tags]:not([tags=""])):not(
+  :has(> .lf-chips, > strong)){ margin-top: 2px;
     padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
-lf-milestone[status="done"] > strong { color: var(--muted); }
+}
+:scope:is(lf-milestone)[status="done"] > strong { color: var(--muted); }
 /* The status word a user listening gets wears the runtime's .lf-ui .lf-quiet —
  * real text, clipped on screen where the dot already says it. Which attributes get
  * one is declared (x-paints) and the writing is the runtime's own pass, so
@@ -1043,23 +1046,23 @@ lf-milestone[status="done"] > strong { color: var(--muted); }
 
 /* lf-chronology / lf-chronology-entry: a chronology on a rail. The dot is ::after, absolute,
  * colored by kind; the time label is the `at` attribute, said above the title. */
-lf-chronology { display: block; margin: 14px 0 14px 8px; }
-lf-chronology-entry { display: block; position: relative; padding: 0 0 16px 26px;
+:scope:is(lf-chronology) { display: block; margin: 14px 0 14px 8px; }
+:scope:is(lf-chronology-entry) { display: block; position: relative; padding: 0 0 16px 26px;
            border-left: 2px solid var(--rule); --lf-block-frame: 1; }
-lf-chronology-entry:last-child { border-left-color: transparent; padding-bottom: 2px; }
-lf-chronology-entry::after { content: ""; position: absolute; left: -7px; top: 4px;
+:scope:is(lf-chronology-entry):last-child { border-left-color: transparent; padding-bottom: 2px; }
+:scope:is(lf-chronology-entry)::after { content: ""; position: absolute; left: -7px; top: 4px;
                   width: 10px; height: 10px; border-radius: 50%;
                   background: var(--paper); border: 2px solid var(--muted); }
-lf-chronology-entry[kind="observation"]::after    { background: var(--muted); }
-lf-chronology-entry[kind="intervention"]::after  { background: var(--accent); border-color: var(--accent); }
-lf-chronology-entry[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
-lf-chronology-entry[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
-lf-chronology-entry[at]::before,
-lf-chronology-entry > [data-lf-said="at"] { display: block; font-family: var(--mono);
+:scope:is(lf-chronology-entry)[kind="observation"]::after    { background: var(--muted); }
+:scope:is(lf-chronology-entry)[kind="intervention"]::after  { background: var(--accent); border-color: var(--accent); }
+:scope:is(lf-chronology-entry)[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
+:scope:is(lf-chronology-entry)[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
+:scope:is(lf-chronology-entry)[at]::before,
+:scope:is(lf-chronology-entry) > [data-lf-said="at"] { display: block; font-family: var(--mono);
                        font-size: var(--t-6); color: var(--muted); margin-bottom: 1px; }
-lf-chronology-entry[at]::before { content: attr(at); }
-lf-chronology-entry:has(> [data-lf-said="at"])::before { content: none; }
-lf-chronology-entry > strong { margin-right: 6px; }
+:scope:is(lf-chronology-entry)[at]::before { content: attr(at); }
+:scope:is(lf-chronology-entry):has(> [data-lf-said="at"])::before { content: none; }
+:scope:is(lf-chronology-entry) > strong { margin-right: 6px; }
 
 /* lf-compare / lf-variant: labeled columns; exhibition, not decision.
  *
@@ -1074,43 +1077,43 @@ lf-chronology-entry > strong { margin-right: 6px; }
  * off the child count is a different width per count. An exhibition is read down its
  * columns as much as across its rows, and a card wider than its peers because it happened
  * to be last says something about that variant that isn't true. So the room stays. */
-lf-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+:scope:is(lf-compare) { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
              align-items: start; gap: var(--sp-3); margin: 14px 0; }
-lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(--r);
+:scope:is(lf-variant) { display: block; border: 1px solid var(--rule); border-radius: var(--r);
              padding: var(--sp-3); background: var(--card); --lf-block-frame: 1; }
-lf-variant > strong { display: block; margin: 0 0 4px; }
+:scope:is(lf-variant) > strong { display: block; margin: 0 0 4px; }
 
 /* lf-metric: one headline number as a tile; a row of them is a `.layout-tiles`. The
  * value leads, said from the attribute; the delta trails and colors by sign × direction —
  * honest coloring, no JS. */
-lf-metric { display: block; border: 1px solid var(--rule); border-radius: var(--r);
+:scope:is(lf-metric) { display: block; border: 1px solid var(--rule); border-radius: var(--r);
             padding: 10px 14px; background: var(--card); font-size: var(--t-6);
             text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
             --lf-block-frame: 1; }
-lf-metric::before,
-lf-metric > [data-lf-said="value"] { display: block; font-size: var(--t-2);
+:scope:is(lf-metric)::before,
+:scope:is(lf-metric) > [data-lf-said="value"] { display: block; font-size: var(--t-2);
                     font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
                     text-transform: none; color: var(--ink); }
-lf-metric::before { content: attr(value); }
-lf-metric:has(> [data-lf-said="value"])::before { content: none; }
-lf-metric[delta]::after,
-lf-metric > [data-lf-said="delta"] { display: inline-block; margin-left: 6px;
+:scope:is(lf-metric)::before { content: attr(value); }
+:scope:is(lf-metric):has(> [data-lf-said="value"])::before { content: none; }
+:scope:is(lf-metric)[delta]::after,
+:scope:is(lf-metric) > [data-lf-said="delta"] { display: inline-block; margin-left: 6px;
                           padding: var(--chip-pad); border-radius: var(--chip-r);
                           letter-spacing: 0; text-transform: none;
                           font-size: var(--t-6); line-height: var(--chip-lh);
                           background: var(--chip); color: var(--ink-2); }
-lf-metric[delta]::after { content: attr(delta); }
-lf-metric:has(> [data-lf-said="delta"])::after { content: none; }
-lf-metric[direction="up-good"][delta^="+"]::after,
-lf-metric[direction="up-bad"][delta^="-"]::after,
-lf-metric[direction="up-good"][delta^="+"] > [data-lf-said="delta"],
-lf-metric[direction="up-bad"][delta^="-"] > [data-lf-said="delta"]
-                    { background: var(--ok-tint); color: var(--ok-ink); }
-lf-metric[direction="up-good"][delta^="-"]::after,
-lf-metric[direction="up-bad"][delta^="+"]::after,
-lf-metric[direction="up-good"][delta^="-"] > [data-lf-said="delta"],
-lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
-                    { background: var(--danger-tint); color: var(--danger-ink); }
+:scope:is(lf-metric)[delta]::after { content: attr(delta); }
+:scope:is(lf-metric):has(> [data-lf-said="delta"])::after { content: none; }
+:scope:is(lf-metric)[direction="up-good"][delta^="+"]::after,
+:scope:is(lf-metric)[direction="up-bad"][delta^="-"]::after,
+:scope:is(lf-metric)[direction="up-good"][delta^="+"] > [data-lf-said="delta"],
+:scope:is(lf-metric)[direction="up-bad"][delta^="-"] > [data-lf-said="delta"]
+{ background: var(--ok-tint); color: var(--ok-ink); }
+:scope:is(lf-metric)[direction="up-good"][delta^="-"]::after,
+:scope:is(lf-metric)[direction="up-bad"][delta^="+"]::after,
+:scope:is(lf-metric)[direction="up-good"][delta^="-"] > [data-lf-said="delta"],
+:scope:is(lf-metric)[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
+{ background: var(--danger-tint); color: var(--danger-ink); }
 
 /* lf-board / lf-column / lf-card: the one widget the user edits directly.
  * All presentation is CSS; the lf-board upgrade wires move controls and reports
@@ -1143,18 +1146,18 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
-lf-board { --lf-board-columns: 1; }
+:scope:is(lf-board) { --lf-board-columns: 1; }
 @media screen {
-  lf-board { min-inline-size: min(calc(var(--lf-board-columns)
+  :scope:is(lf-board) { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
                calc(100cqi - 2 * var(--col-pad)), var(--lf-box-cap, 100vw)); }
 }
-lf-board:has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
-lf-board:has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
-lf-board:has(> lf-column:nth-of-type(4)) { --lf-board-columns: 4; }
-lf-board:has(> lf-column:nth-of-type(5)) { --lf-board-columns: 5; }
-lf-board:has(> lf-column:nth-of-type(6)) { --lf-board-columns: 6; }
-lf-board { display: grid; grid-auto-flow: column;
+:scope:is(lf-board):has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
+:scope:is(lf-board):has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
+:scope:is(lf-board):has(> lf-column:nth-of-type(4)) { --lf-board-columns: 4; }
+:scope:is(lf-board):has(> lf-column:nth-of-type(5)) { --lf-board-columns: 5; }
+:scope:is(lf-board):has(> lf-column:nth-of-type(6)) { --lf-board-columns: 6; }
+:scope:is(lf-board) { display: grid; grid-auto-flow: column;
            container: lf-board / inline-size;
            --lf-card-measure: 136px; --lf-reading-column-inset: 8px; --lf-card-inset: 10px;
            --lf-reading-column-floor: calc(var(--lf-card-measure)
@@ -1170,7 +1173,7 @@ lf-board { display: grid; grid-auto-flow: column;
    and a specified min-width is exactly what that automatic minimum resolves to, so the
    track is the width it was. A track width is a border-box measure, so the column is
    sized as one too, and its min-height restates the outer box it stated before. */
-lf-column { display: block; background: var(--field); box-sizing: border-box;
+:scope:is(lf-column) { display: block; background: var(--field); box-sizing: border-box;
             border-radius: var(--r); padding: var(--lf-reading-column-inset);
             min-width: var(--lf-reading-column-floor);
             min-height: calc(64px + 2 * var(--lf-reading-column-inset));
@@ -1184,7 +1187,7 @@ lf-column { display: block; background: var(--field); box-sizing: border-box;
    nothing until a column offers a snap position. */
 @media screen {
   @container lf-board (width <= 640px) {
-    lf-column { min-width: max(var(--lf-reading-column-floor),
+    :scope:is(lf-column) { min-width: max(var(--lf-reading-column-floor),
                 calc(100cqi - var(--sp-4))); scroll-snap-align: start; }
   }
 }
@@ -1205,32 +1208,32 @@ lf-column { display: block; background: var(--field); box-sizing: border-box;
    words as its name and the span is aria-hidden, so they reach the tree once;
    where no script runs at all there is no name either, and the generated text
    is the whole rendering, audible as well as visible. */
-lf-column::before,
-lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-label);
+:scope:is(lf-column)::before,
+:scope:is(lf-column) > [data-lf-said="label"] { display: block; font-size: var(--t-working-label);
             font-weight: 600; line-height: 1.5; color: var(--ink-2);
             padding: 2px var(--lf-card-inset) 10px; }
-lf-column::before { content: attr(label); }
+:scope:is(lf-column)::before { content: attr(label); }
 /* The column's heading row: a status dot, the name, and its card count at the far
    edge. A tone says what landing in the column means, in the page's three status tones;
    only the dot takes it, so a board reads as one surface with its blocking column
    marked rather than as blocks of colour. A column without a tone keeps a quiet dot so
    every heading starts at the same place. */
-lf-column { position: relative; --lf-tone-dot: var(--border-2); }
-lf-column[tone="ok"] { --lf-tone-dot: var(--ok); }
-lf-column[tone="warn"] { --lf-tone-dot: var(--warn); }
-lf-column[tone="danger"] { --lf-tone-dot: var(--danger); }
-lf-column::before,
-lf-column > [data-lf-said="label"] { padding-left: calc(var(--lf-card-inset) + 14px);
+:scope:is(lf-column) { position: relative; --lf-tone-dot: var(--border-2); }
+:scope:is(lf-column)[tone="ok"] { --lf-tone-dot: var(--ok); }
+:scope:is(lf-column)[tone="warn"] { --lf-tone-dot: var(--warn); }
+:scope:is(lf-column)[tone="danger"] { --lf-tone-dot: var(--danger); }
+:scope:is(lf-column)::before,
+:scope:is(lf-column) > [data-lf-said="label"] { padding-left: calc(var(--lf-card-inset) + 14px);
   padding-right: calc(var(--lf-card-inset) + 2.5em);
   background: radial-gradient(circle, var(--lf-tone-dot) 3.5px, transparent 4px)
     no-repeat var(--lf-card-inset) 0.62em / 8px 8px; }
-lf-column > .lf-column-count { position: absolute;
+:scope:is(lf-column) > .lf-column-count { position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
   font: 600 var(--t-working-label)/1.5 var(--sans); color: var(--muted);
   font-variant-numeric: tabular-nums; }
-lf-column:has(> [data-lf-said="label"])::before { content: none; }
-lf-card { display: block; position: relative; background: var(--card);
+:scope:is(lf-column):has(> [data-lf-said="label"])::before { content: none; }
+:scope:is(lf-card) { display: block; position: relative; background: var(--card);
           font: var(--t-5)/1.5 var(--sans);
           border: 1px solid var(--rule); border-radius: var(--r);
           padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2);
@@ -1258,19 +1261,19 @@ lf-card { display: block; position: relative; background: var(--card);
    block after the card's first child clears the grip: it starts under the grip's box
    and takes the card's width. An inline child ignores `clear`. */
 @media screen {
-  lf-card::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
+  :scope:is(lf-card)::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
                     block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
-  lf-card > :not(:first-child) { clear: right; }
+  :scope:is(lf-card) > :not(:first-child) { clear: right; }
 }
-lf-card:last-child { margin-bottom: 0; }
-lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
+:scope:is(lf-card):last-child { margin-bottom: 0; }
+:scope:is(lf-card) > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
 /* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. It says no
    size, because `offer` builds it wearing .lf-ui and the runtime's own rule sets that
    face's size once for every control in the layer — the 14px stated here was --t-5
    written out a second time, under a selector specific enough to win, so the chrome's
    size would have moved everywhere but on a card's grip. `line-height: 1` stays: .lf-ui
    sets a line of its own, and this glyph wants none. */
-lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
+:scope:is(lf-card) .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           padding: 8px 10px; cursor: grab;
           min-height: var(--aim-floor); min-width: var(--aim-floor);
           border-radius: 4px; user-select: none;
@@ -1281,25 +1284,25 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
    container, so 100cqi is its content). Without it a board scrolling sideways showed only
    the 30px grip, leaving the card's words and column cut off at the board's edge. The
    reveal is the browser's, so a focus restored without scrolling leaves the board be. */
-lf-card .lf-grip { scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset)); }
-lf-card:hover > .lf-grip { color: var(--ink-2); }
-lf-card .lf-grip:hover { background: var(--chip); }
+:scope:is(lf-card) .lf-grip { scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset)); }
+:scope:is(lf-card):hover > .lf-grip { color: var(--ink-2); }
+:scope:is(lf-card) .lf-grip:hover { background: var(--chip); }
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls
    have theirs, because this one is flush with its card's edge inside lf-board, which
    scrolls sideways. At the width where three columns reach their 10rem floor the board
    clips a pixel outside the last column's cards, so the ring's right run and both
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
-lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
+:scope:is(lf-card) .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
-lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
+:scope:is(lf-card).lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
 /* A held card says so with its contour. The lift's shadow alone does not show on the
    dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
    is merely focused. */
-lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
+:scope:is(lf-card).lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
-lf-card.lf-inhand { opacity: 1; cursor: grabbing;
+:scope:is(lf-card).lf-inhand { opacity: 1; cursor: grabbing;
                     box-shadow: 0 8px 24px var(--shade); }
 /* lf-tabs / lf-tab: several views, one panel on screen at a time. The
  * strip is generated by the upgrade; which tab is open is the user's view
@@ -1308,12 +1311,12 @@ lf-card.lf-inhand { opacity: 1; cursor: grabbing;
  * index from the current view, and the frame answers how far that view runs.
  * Unupgraded, and anywhere the strip has no handler behind it, the panels stack
  * as labeled sections. */
-lf-tabs { display: block; margin: 14px 0; }
-lf-tab { display: block; }
-lf-tab::before { content: attr(label); display: block; font-size: var(--t-6);
+:where(:scope:is(lf-tabs)) { display: block; margin: 14px 0; }
+:scope:is(lf-tab) { display: block; }
+:scope:is(lf-tab)::before { content: attr(label); display: block; font-size: var(--t-6);
                  text-transform: uppercase; letter-spacing: .05em;
                  color: var(--muted); margin: 18px 0 8px; }
-lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
+:scope:is(lf-tabs).lf-rendered > lf-tab { margin-top: 14px; }
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
 .lf-tabstrip { display: none; flex-wrap: wrap; gap: 2px;
@@ -1353,86 +1356,86 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * A control whose state the browser owns needs no such block and has none;
  * that is the whole difference between this widget and lf-shot's checkbox. */
 @media screen {
-  html:root {
+
     /* :where keeps the frame face below the generic edge trim's specificity. */
-    :where(lf-tabs.lf-rendered) { margin: var(--sp-4) 0 32px;
-      border: 1px solid var(--border-2); border-radius: var(--r);
-      background: var(--card); --lf-block-frame: 1; }
+  :where(:scope:is(lf-tabs).lf-rendered) { margin: var(--sp-4) 0 32px;
+    border: 1px solid var(--border-2); border-radius: var(--r);
+    background: var(--card); --lf-block-frame: 1; }
     /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
      * the room the page keeps for it before upgrade (below) is one number. */
-    .lf-tabstrip { display: flex; padding: 8px 8px 0;
-      box-sizing: border-box; min-block-size: var(--lf-tabstrip-h);
-      border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-      background: var(--field); }
-    lf-tabs.lf-rendered > lf-tab::before { content: none; } /* the strip carries the label */
+  .lf-tabstrip { display: flex; padding: 8px 8px 0;
+    box-sizing: border-box; min-block-size: var(--lf-tabstrip-h);
+    border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+    background: var(--field); }
+  :scope:is(lf-tabs).lf-rendered > lf-tab::before { content: none; } /* the strip carries the label */
     /* Padding belongs only to the panel on screen. An until-found panel keeps a box in
      * flow, so padding on every panel would leave one blank band per preceding tab. */
-    lf-tabs.lf-rendered > lf-tab { margin: 0; padding: 0; }
-    lf-tabs.lf-rendered > lf-tab:not([hidden]) {
-      padding: var(--sp-4); --lf-block-frame: 1;
-    }
+  :scope:is(lf-tabs).lf-rendered > lf-tab { margin: 0; padding: 0; }
+  :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]) {
+    padding: var(--sp-4); --lf-block-frame: 1;
+  }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
-    lf-tabs.lf-rendered > lf-tab[hidden] { margin: 0; }
+  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] { margin: 0; }
     /* The boolean-hidden fallback (no until-found support) hides here, because the
      * display:block above outranks the UA's [hidden] rule. */
-    lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
+  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
     /* A boxed set's panel is a bounded box, so it is the container what it holds
      * measures itself against (theme.css in the kernel says why a framed box is one). */
-    lf-tabs.lf-rendered[data-lf-tabs-flow="box"] > lf-tab { container-type: inline-size; }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="box"] > lf-tab { container-type: inline-size; }
 
     /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
      * list is a column left of the open panel wherever the set holds both, and a row
      * over it below that, as a narrow window or a phone gives it, so the open item is
      * never below the whole list. The set is the container its own parts ask, which
      * is why the stacking is written on them and not on the set. */
-    lf-tabs[list="side"].lf-rendered {
-      container-type: inline-size;
-      display: grid;
-      grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
-      align-items: start;
-    }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
-      grid-column: 1;
-      grid-row: 1;
-      flex-direction: column;
-      flex-wrap: nowrap;
-      gap: 0;
-      padding: 8px;
-      border-bottom: 0;
-      border-inline-end: 1px solid var(--border-2);
-      border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
-      align-self: stretch;
-    }
+  :scope:is(lf-tabs)[list="side"].lf-rendered {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+    align-items: start;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0;
+    padding: 8px;
+    border-bottom: 0;
+    border-inline-end: 1px solid var(--border-2);
+    border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+    align-self: stretch;
+  }
     /* A row is its name, then its diff count, with the summary on a line under them. */
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: baseline;
-      justify-items: start;
-      text-align: start;
-    }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    justify-items: start;
+    text-align: start;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 0 5px 2px;
+    font-size: var(--t-6);
+    color: var(--muted);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
+  @container (width < 36rem) {
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip {
       grid-column: 1 / -1;
-      grid-row: 2;
-      padding: 0 5px 2px;
-      font-size: var(--t-6);
-      color: var(--muted);
+      grid-row: auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      border-inline-end: 0;
+      border-bottom: 1px solid var(--border-2);
+      border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     }
-    lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
-    @container (width < 36rem) {
-      lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
-        grid-column: 1 / -1;
-        grid-row: auto;
-        flex-direction: row;
-        flex-wrap: wrap;
-        border-inline-end: 0;
-        border-bottom: 1px solid var(--border-2);
-        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-      }
-      lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
-    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+  }
 
     /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
      * navigation over sections of one page rather than a framed widget inside it: a
@@ -1440,146 +1443,146 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * of its own. The strip and the panel are blocks of `main` like any other, so they
      * take the page's width, column or wide, and whatever stands in `main` beside the set
      * (a header, a sidebar) stays where it would on a page without tabs. */
-    :where(lf-tabs.lf-rendered[data-lf-tabs-flow="page"]) {
-      margin-block: 0 32px;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      --lf-block-frame: 0;
-    }
+  :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]) {
+    margin-block: 0 32px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    --lf-block-frame: 0;
+  }
     /* The strip is a sticky header over the page, so it is one row of a stated height
      * (`--lf-tabstrip-h`), and what it stands over stacks below it through
      * `--lf-top` (kernel theme.css): a diff's file header in a page tab pins under the
      * strip rather than over it. The height is the kernel theme's token, since the
      * root's `scroll-padding` adds it too (lf-tabs.js), and a package's rules reach
      * only its widgets. */
-    lf-tabs[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
-    lf-tabs[data-lf-tabs-flow="page"] > lf-tab {
-      --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
-    }
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
-      position: sticky;
-      top: var(--lf-top);
-      z-index: 2;
-      box-sizing: border-box;
-      block-size: var(--lf-tabstrip-h);
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 8px 0 0;
-      border-radius: 0;
-      background: var(--paper);
-    }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+  }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
+    position: sticky;
+    top: var(--lf-top);
+    z-index: 2;
+    box-sizing: border-box;
+    block-size: var(--lf-tabstrip-h);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 0 0;
+    border-radius: 0;
+    background: var(--paper);
+  }
     /* A scrollbar would add to that height, so the strip draws none, and a press at
      * either edge scrolls the names that run past it (lf-tabs.js), shown while the
      * layer reads more that way (`data-lf-more-before`, `data-lf-more-after`,
      * reach.js). The press's own face fades the names under it, so the layer's edge
      * fade is off here. A finger or a trackpad scrolls the strip itself, and an opened
      * tab brings itself into view. */
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
-      scrollbar-width: none;
-      scroll-padding-inline: var(--lf-tabstrip-press);
-      --lf-tabstrip-press: 36px;
-      --lf-more-fade-to: #000;
-    }
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip > .lf-tabstrip-scroll {
-      display: block;
-    }
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-before]
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
+    scrollbar-width: none;
+    scroll-padding-inline: var(--lf-tabstrip-press);
+    --lf-tabstrip-press: 36px;
+    --lf-more-fade-to: #000;
+  }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip > .lf-tabstrip-scroll {
+    display: block;
+  }
+    :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-before]
       > .lf-tabstrip-scroll[data-to="start"],
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-after]
-      > .lf-tabstrip-scroll[data-to="end"] {
-      visibility: visible;
-    }
+    :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-after]
+  > .lf-tabstrip-scroll[data-to="end"] {
+    visibility: visible;
+  }
     /* Each press stands at its edge without taking room in the row: a box no wider
      * than nothing, stuck to that edge, whose face lies over the names beside it and
      * fades into them. */
-    .lf-tabstrip-scroll {
-      display: none;
-      visibility: hidden;
-      position: sticky;
-      z-index: 1;
-      flex: none;
-      inline-size: 0;
-      align-self: stretch;
-    }
-    .lf-tabstrip-scroll[data-to="start"] {
-      inset-inline-start: 0;
-      margin-inline-end: -2px;
-    }
-    .lf-tabstrip-scroll[data-to="end"] {
-      inset-inline-end: 0;
-      margin-inline-start: -2px;
-    }
-    .lf-tabstrip-scroll > span {
-      position: absolute;
-      inset-block: 0 1px;
-      inline-size: var(--lf-tabstrip-press);
-      display: flex;
-      align-items: center;
-      font-size: 22px;
-      line-height: 1;
-      color: var(--muted);
-      cursor: pointer;
-    }
-    .lf-tabstrip-scroll > span:hover { color: var(--ink); }
-    .lf-tabstrip-scroll[data-to="start"] > span::before { content: "‹" / ""; }
-    .lf-tabstrip-scroll[data-to="end"] > span::before { content: "›" / ""; }
-    .lf-tabstrip-scroll[data-to="start"] > span {
-      inset-inline-start: 0;
-      justify-content: flex-start;
-      background: linear-gradient(to right, var(--paper) 55%, transparent);
-    }
-    .lf-tabstrip-scroll[data-to="end"] > span {
-      inset-inline-end: 0;
-      justify-content: flex-end;
-      background: linear-gradient(to left, var(--paper) 55%, transparent);
-    }
-    .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
-      background: linear-gradient(to left, var(--paper) 55%, transparent);
-    }
-    .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
-      background: linear-gradient(to right, var(--paper) 55%, transparent);
-    }
-    .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span::before { content: "›" / ""; }
-    .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span::before { content: "‹" / ""; }
+  .lf-tabstrip-scroll {
+    display: none;
+    visibility: hidden;
+    position: sticky;
+    z-index: 1;
+    flex: none;
+    inline-size: 0;
+    align-self: stretch;
+  }
+  .lf-tabstrip-scroll[data-to="start"] {
+    inset-inline-start: 0;
+    margin-inline-end: -2px;
+  }
+  .lf-tabstrip-scroll[data-to="end"] {
+    inset-inline-end: 0;
+    margin-inline-start: -2px;
+  }
+  .lf-tabstrip-scroll > span {
+    position: absolute;
+    inset-block: 0 1px;
+    inline-size: var(--lf-tabstrip-press);
+    display: flex;
+    align-items: center;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .lf-tabstrip-scroll > span:hover { color: var(--ink); }
+  .lf-tabstrip-scroll[data-to="start"] > span::before { content: "‹" / ""; }
+  .lf-tabstrip-scroll[data-to="end"] > span::before { content: "›" / ""; }
+  .lf-tabstrip-scroll[data-to="start"] > span {
+    inset-inline-start: 0;
+    justify-content: flex-start;
+    background: linear-gradient(to right, var(--paper) 55%, transparent);
+  }
+  .lf-tabstrip-scroll[data-to="end"] > span {
+    inset-inline-end: 0;
+    justify-content: flex-end;
+    background: linear-gradient(to left, var(--paper) 55%, transparent);
+  }
+  .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
+    background: linear-gradient(to left, var(--paper) 55%, transparent);
+  }
+  .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
+    background: linear-gradient(to right, var(--paper) 55%, transparent);
+  }
+  .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span::before { content: "›" / ""; }
+  .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span::before { content: "‹" / ""; }
     /* The strip scrolls when its names outrun it; a tab that shrank instead would
      * cut its own name, which the strip's scroll could never reach. The name's 2px
      * rule comes out of the aim floor's padding, a pixel from each side. */
-    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none;
-      padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px)
-                     max(7px, (var(--aim-floor) - 1lh) / 2 - 2px); }
-    lf-tabs[data-lf-tabs-flow="page"]
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none;
+    padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px)
+    max(7px, (var(--aim-floor) - 1lh) / 2 - 2px); }
+    :scope:is(lf-tabs)[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn
-      > .lf-tab-name {
-      border-bottom: 2px solid transparent;
-      background: transparent;
-    }
-    lf-tabs[data-lf-tabs-flow="page"]
+  > .lf-tab-name {
+    border-bottom: 2px solid transparent;
+    background: transparent;
+  }
+    :scope:is(lf-tabs)[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn[aria-selected="true"]
-      > .lf-tab-name {
-      border-bottom-color: currentColor;
-      background: transparent;
-    }
-    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
-      padding: var(--sp-4) 0 0;
-    }
+  > .lf-tab-name {
+    border-bottom-color: currentColor;
+    background: transparent;
+  }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
+    padding: var(--sp-4) 0 0;
+  }
     /* A page tab is a section of the page, not a box on it: it declares the frame only
      * so its first line trims under the strip and, like `main`, hands the room back to
      * what it holds, so a wide exhibit in a page tab grows out as it would on a page
      * without tabs. */
-    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) > * {
-      --lf-room: inherit;
-    }
-    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
-      align-self: start;
-      height: 0;
-      min-height: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) > * {
+    --lf-room: inherit;
+  }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
+    align-self: start;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
 
     /* Where the runtime will run, a set has the geometry above from the first paint:
      * the frame its flow draws, one row of the strip kept empty for the names the
@@ -1590,7 +1593,8 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * row, and a side list taller than its panel. A page whose runtime is missing
      * what it needs to start loses the mark (runtime/prepaint.js) and keeps the
      * stacked, labeled panels, since no strip will come to reach the hidden ones. */
-    &[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) {
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab){
       margin: var(--sp-4) 0 32px; border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card); --lf-block-frame: 1;
       &::before { content: ""; display: block; box-sizing: border-box;
@@ -1601,15 +1605,18 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       & > lf-tab::before { content: none; }
       & > lf-tab:not([data-lf-opening]) { display: none; }
     }
-    &[data-lf-interactive] body > main > lf-tabs:not(.lf-rendered):nth-child(1 of lf-tabs):not(
-        [list="side"]):has(> lf-tab) {
+  }
+  @scope (html[data-lf-interactive] body > main > :scope) {
+    :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
+    [list="side"]):has(> lf-tab){
       margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
       & > lf-tab { padding: var(--sp-4) 0 0; }
     }
-    &[data-lf-interactive]
-      lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
+  }
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-tabs)[list="side"]:not(.lf-rendered):has(> lf-tab){
       container-type: inline-size; display: grid;
       grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); align-items: start;
       &::before { grid-column: 1; grid-row: 1; align-self: stretch; border-bottom: 0;
@@ -1624,11 +1631,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       }
     }
   }
+
 }
 /* Paper cannot edit the document, so inactive panels keep their hidden attribute and the
  * content-visibility it carries is undone here. */
 @media print {
-  lf-tabs.lf-rendered > lf-tab { content-visibility: visible !important; }
+  :scope:is(lf-tabs).lf-rendered > lf-tab { content-visibility: visible !important; }
 }
 
 /* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
@@ -1638,62 +1646,64 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * of the host and the transparent native checkbox covers them — one fallback for loading
  * and controls-off alike.
  * Print stacks both frames. */
-lf-shot { display: block; margin: 16px 0; }
-lf-shot:has(.lf-shotframe) { display: grid; }
+:scope:is(lf-shot) { display: block; margin: 16px 0; }
+:scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
  * (`data-lf-media-width`, `data-lf-media-height`), so the images and the comparison
  * arrive in a box that is already there. */
-html[data-lf-interactive] lf-shot:not(:has(> .lf-shotrail)) {
-  &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
-    border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
-  &::after { content: ""; display: block; box-sizing: border-box;
-    aspect-ratio: attr(data-lf-media-width type(<number>)) /
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-shot):not(:has(> .lf-shotrail)){
+    &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
+      border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
+    &::after { content: ""; display: block; box-sizing: border-box;
+      aspect-ratio: attr(data-lf-media-width type(<number>)) /
       attr(data-lf-media-height type(<number>));
-    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
-    background: var(--card); }
+      border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
+      background: var(--card); }
+  }
 }
-lf-shot .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio);
+:scope:is(lf-shot) .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio);
     border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
     background: var(--card); --divider-width: 2px; --handle-size: 38px;
     --wa-color-surface-default: var(--card); --wa-color-neutral-on-quiet: var(--ink-2);
     --wa-focus-ring: var(--focus-ring); --wa-focus-ring-offset: 1px;
     --lf-focus-ring: shot; }
-lf-shot .lf-shotcomparison::part(divider) {
+:scope:is(lf-shot) .lf-shotcomparison::part(divider) {
     background: color-mix(in srgb, var(--ink-2) 48%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
     transition: background-color 120ms ease; }
-lf-shot .lf-shotcomparison::part(handle) { border: 1px solid var(--ink-2);
+:scope:is(lf-shot) .lf-shotcomparison::part(handle) { border: 1px solid var(--ink-2);
     box-shadow: 0 1px 3px var(--shade);
     opacity: .52; scale: .88;
     transition: opacity 120ms ease, scale 120ms ease; }
-lf-shot .lf-shot-handle { display: block; box-sizing: border-box;
+:scope:is(lf-shot) .lf-shot-handle { display: block; box-sizing: border-box;
     width: 13px; height: 13px; border: 1.5px solid currentColor;
     border-radius: 50%; pointer-events: none; }
-lf-shot .lf-shotcomparison::part(before),
-lf-shot .lf-shotcomparison::part(after) { cursor: pointer; }
-lf-shot .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(divider) {
+:scope:is(lf-shot) .lf-shotcomparison::part(before),
+:scope:is(lf-shot) .lf-shotcomparison::part(after) { cursor: pointer; }
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(divider) {
     background: var(--ink-2); }
-lf-shot .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(handle) {
     opacity: 1; scale: 1; }
-lf-shot .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
     opacity: .18; scale: .68; }
-lf-shot .lf-shotframe { position: relative; overflow: hidden; background: var(--card); }
-lf-shot .lf-shotframe img { display: block; width: 100%; height: auto;
+:scope:is(lf-shot) .lf-shotframe { position: relative; overflow: hidden; background: var(--card); }
+:scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
-lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
+:scope:is(lf-shot) .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
     justify-content: space-between; height: 34px; padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
-lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
+:scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
-lf-shot .lf-shotcap[data-lf-state] { outline-offset: -2px; }
-lf-shot .lf-shotcap:hover { background: var(--chip); }
-lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--chip);
+:scope:is(lf-shot) .lf-shotcap[data-lf-state] { outline-offset: -2px; }
+:scope:is(lf-shot) .lf-shotcap:hover { background: var(--chip); }
+:scope:is(lf-shot) .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-lf-shot .lf-shotcap[aria-pressed="false"] {
+:scope:is(lf-shot) .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
 /* Where the pair differs: each frame outlines its own regions where they sit in it, so
    content that moved is marked at its old place in before and its new place in after,
@@ -1703,78 +1713,78 @@ lf-shot .lf-shotcap[aria-pressed="false"] {
    they mark rather than over it, and stop at the frame's edge, so a region that reaches
    the edge still shows its outline there. The rail counts the regions, and says so when
    there is none to draw: identical, throughout the image, or only slight. */
-lf-shot .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
+:scope:is(lf-shot) .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
     aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
-lf-shot .lf-shotdiff > span { position: absolute;
+:scope:is(lf-shot) .lf-shotdiff > span { position: absolute;
     left: max(0px, calc(var(--lf-shot-x) - 4px));
     top: max(0px, calc(var(--lf-shot-y) - 4px));
     right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 4px));
     bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
     border: 2px solid var(--warn); border-radius: 2px; }
-lf-shot .lf-shotdiff > span[data-lf-shot-mark="moved"] {
+:scope:is(lf-shot) .lf-shotdiff > span[data-lf-shot-mark="moved"] {
     border-style: dashed; border-color: var(--accent); }
-lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
+:scope:is(lf-shot) .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
 /* A pair that is identical, or changed only slightly, is what a handoff most often
    describes wrong, so the rail raises those readings. */
-lf-shot .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
+:scope:is(lf-shot) .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
     color: var(--warn-ink); font-weight: 650; }
 /* The outlines, and the count they make up, show where the pair asks for them. */
-lf-shot:not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
+:scope:is(lf-shot):not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
     display: none; }
 
 /* Before the progressive comparison arrives the image is itself the native target. The
    one fallback covers loading and controls-off. */
-lf-shot > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
+:scope:is(lf-shot) > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-lf-shot:not(:has(> .lf-shotcomparison)) > .lf-shotframe {
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)) > .lf-shotframe {
     grid-area: 2 / 1; border: 1px solid var(--rule);
     border-radius: 0 0 var(--r) var(--r); }
-lf-shot:not(:has(> .lf-shotcomparison))
-  > .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
-lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
-  > .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
-lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
-  > .lf-shotframe[data-lf-state="after"] { visibility: visible; }
-lf-shot:not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison))
+> .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):has(input:checked)
+> .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):has(input:checked)
+> .lf-shotframe[data-lf-state="after"] { visibility: visible; }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
     display: block; }
-lf-shot:not(:has(> .lf-shotcomparison)):not(:has(input:checked))
-  .lf-shotcap[data-lf-state="before"] {
-    color: var(--ink); background: var(--chip);
-    box-shadow: inset 0 -2px var(--accent); }
-lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
-  .lf-shotcap[data-lf-state="before"] {
-    color: var(--muted); box-shadow: none; }
-lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
-  .lf-shotcap[data-lf-state="after"] {
-    color: var(--ink); background: var(--chip);
-    box-shadow: inset 0 -2px var(--accent); }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):not(:has(input:checked))
+.lf-shotcap[data-lf-state="before"] {
+  color: var(--ink); background: var(--chip);
+  box-shadow: inset 0 -2px var(--accent); }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):has(input:checked)
+.lf-shotcap[data-lf-state="before"] {
+  color: var(--muted); box-shadow: none; }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)):has(input:checked)
+.lf-shotcap[data-lf-state="after"] {
+  color: var(--ink); background: var(--chip);
+  box-shadow: inset 0 -2px var(--accent); }
 
-lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
+:scope:is(lf-shot):has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
     outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;
     border-radius: var(--r); }
 
 @media print {
-  lf-shot, lf-shot:has(.lf-shotframe) { display: block !important; }
-  lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
+  :scope:is(lf-shot), :scope:is(lf-shot):has(.lf-shotframe) { display: block !important; }
+  :scope:is(lf-shot) > .lf-shotrail { border-bottom: 1px solid var(--rule);
     margin-bottom: var(--sp-2); }
-  lf-shot .lf-shotcap { color: var(--ink) !important; background: none !important;
+  :scope:is(lf-shot) .lf-shotcap { color: var(--ink) !important; background: none !important;
     box-shadow: none !important; }
-  lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
-  lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
-  lf-shot > input.lf-shotflip { display: none; }
-  lf-shot > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
+  :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
+  :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
+  :scope:is(lf-shot) > input.lf-shotflip { display: none; }
+  :scope:is(lf-shot) > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
     overflow: visible; }
   /* The before frame sits in the component's second part (lf-shot.js), and paper
    * puts it on top. */
-  lf-shot > .lf-shotcomparison::part(comparison) { display: flex;
+  :scope:is(lf-shot) > .lf-shotcomparison::part(comparison) { display: flex;
     flex-direction: column-reverse; }
-  lf-shot > .lf-shotcomparison::part(before),
-  lf-shot > .lf-shotcomparison::part(after) { position: relative; width: auto;
+  :scope:is(lf-shot) > .lf-shotcomparison::part(before),
+  :scope:is(lf-shot) > .lf-shotcomparison::part(after) { position: relative; width: auto;
     height: auto; clip-path: none !important; }
-  lf-shot > .lf-shotcomparison::part(divider) { display: none; }
-  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
+  :scope:is(lf-shot) > .lf-shotcomparison::part(divider) { display: none; }
+  :scope:is(lf-shot) .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
     border: 1px solid var(--rule); border-radius: var(--r); }
 }
 
@@ -1794,28 +1804,28 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
  * Depth changes only the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words. */
-lf-toc { display: block; margin: var(--sp-4) 0 30px; }
-lf-toc:empty { display: none; }
-lf-toc .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
+:scope:is(lf-toc) { display: block; margin: var(--sp-4) 0 30px; }
+:scope:is(lf-toc):empty { display: none; }
+:scope:is(lf-toc) .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
                      padding-left: var(--sp-3); color: var(--muted);
                      font: var(--t-5)/1.3 var(--sans); }
-lf-toc .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
+:scope:is(lf-toc) .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
                          font-size: var(--t-6); font-weight: 650;
                          letter-spacing: .08em; text-transform: uppercase; }
-lf-toc .lf-toc-start, lf-toc .lf-toc-window { display: none; }
-@media print { lf-toc .lf-toc-start { display: block; } }
-lf-toc ol { list-style: none; margin: 0; padding: 0; }
-lf-toc li { --lf-toc-indent: 0px; margin: 0 0 0 var(--lf-toc-indent); }
-lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
-lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
-lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
-lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
+:scope:is(lf-toc) .lf-toc-start, :scope:is(lf-toc) .lf-toc-window { display: none; }
+@media print { :scope:is(lf-toc) .lf-toc-start { display: block; } }
+:scope:is(lf-toc) ol { list-style: none; margin: 0; padding: 0; }
+:scope:is(lf-toc) li { --lf-toc-indent: 0px; margin: 0 0 0 var(--lf-toc-indent); }
+:scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
+:scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
+:scope:is(lf-toc) li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
+:scope:is(lf-toc) li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
 /* Each link is a stacked row with no gap to the next, so its box is the whole of its aim:
  * the padding centres its line in the aim floor, which a finger raises to 44px where the
  * 3px a mouse needs left 24px rows. */
-lf-toc a { display: inline-block; color: inherit; text-decoration: none;
+:scope:is(lf-toc) a { display: inline-block; color: inherit; text-decoration: none;
            padding-block: max(3px, (var(--aim-floor) - 1lh) / 2); }
-lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
+:scope:is(lf-toc) a:hover, :scope:is(lf-toc) a:focus-visible { color: var(--accent); }
 
 /* The core sidebar states its actual posture after viewport and drawer-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
@@ -1836,7 +1846,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
    * presses; the rectangle does once the spine is hovered or focused (below). */
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
-      lf-toc { position: fixed;
+      :scope:is(lf-toc) { position: fixed;
                left: var(--sp-4);
                top: var(--lf-banner-h, 0px);
                z-index: 4;
@@ -1849,55 +1859,57 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                 * it rather than losing its last entry under the keyboard's line. */
                height: var(--lf-view-height);
                margin: 0; }
-      lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
+      :scope:is(lf-toc) .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
                            pointer-events: none;
                            transition: background-color .24s ease-out; }
-      lf-toc .lf-toc-heading { display: none; }
-      lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
+      :scope:is(lf-toc) .lf-toc-heading { display: none; }
+      :scope:is(lf-toc) .lf-toc-rows { position: relative; display: flex; height: 100%;
                             flex-direction: column; }
       /* At rest the map takes presses on its spine alone, a strip one step wide, so it
        * never stands over the page's words beside it (the column claims no margin for
        * it). Hovering or focusing the spine opens the whole surface its labels reveal
        * onto, and that surface keeps the pointer while it moves across them. */
-      lf-toc .lf-toc-rows::after { content: ""; position: absolute; z-index: 1;
+      :scope:is(lf-toc) .lf-toc-rows::after { content: ""; position: absolute; z-index: 1;
                                    top: 0; bottom: 0; left: calc(-1 * var(--sp-2));
                                    width: var(--sp-4); pointer-events: auto; }
-      lf-toc:is(:hover, :focus-within, [data-lf-outline]),
-      lf-toc:is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav,
-      body[data-lf-go-to-active] :is(lf-toc, lf-toc .lf-toc-nav) { pointer-events: auto; }
-      lf-toc .lf-toc-rows::before { content: ""; position: absolute;
+      :scope:is(lf-toc):is(:hover, :focus-within, [data-lf-outline]),
+      :scope:is(lf-toc):is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav{ pointer-events: auto; }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav){ pointer-events: auto; }
+      }
+      :scope:is(lf-toc) .lf-toc-rows::before { content: ""; position: absolute;
                                     z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
                                     background: var(--border-2); }
       /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
-      lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
+      :scope:is(lf-toc) .lf-toc-window { display: block; position: absolute; z-index: 1;
                               top: 0; left: 0; width: 1px; height: 1px;
                               transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
        * row's span never stands over that link: the link is the only thing here to
        * press. */
-      lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
+      :scope:is(lf-toc) .lf-toc-start, :scope:is(lf-toc) li { --lf-toc-indent: 0px;
                                         position: relative; z-index: 2; display: block;
                                         flex: var(--lf-toc-span, 1) 1 0px;
                                         min-height: 0; margin: 0; pointer-events: none; }
-      lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
-      lf-toc ol { display: contents; }
-      lf-toc .lf-toc-start::before, lf-toc li::before {
+      :scope:is(lf-toc) :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
+      :scope:is(lf-toc) ol { display: contents; }
+      :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
         content: ""; position: absolute; z-index: 2;
         top: calc(7px + var(--lf-toc-row-shift, 0px));
         left: -1px; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
-      lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+      :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
         background: var(--ink-2);
       }
-      lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
-      lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
-      lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
-      lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-      lf-toc .lf-toc-start a, lf-toc li a {
+      :scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
+      :scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
+      :scope:is(lf-toc) li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
+      :scope:is(lf-toc) li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
+      :scope:is(lf-toc) .lf-toc-start a, :scope:is(lf-toc) li a {
         position: absolute; z-index: 3; display: -webkit-box;
         top: 0; left: 0; width: 100%;
         overflow: hidden; max-height: 2.6em;
@@ -1907,23 +1919,30 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         opacity: var(--lf-toc-label-opacity); pointer-events: none;
         transition: color .12s ease-out, opacity .24s ease-out;
       }
-      lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
+      :scope:is(lf-toc) .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                                line-height: 1.2; max-height: 2.4em; }
-      lf-toc li a[aria-current="location"]:not(:hover, :focus-visible) {
+      :scope:is(lf-toc) li a[aria-current="location"]:not(:hover, :focus-visible) {
         color: var(--ink-2);
       }
-      lf-toc a:focus-visible { outline: var(--focus-ring); --lf-focus-ring: toc-link;
+      :scope:is(lf-toc) a:focus-visible { outline: var(--focus-ring); --lf-focus-ring: toc-link;
                                outline-offset: calc(-1 * var(--focus-ring-w)); }
-      lf-toc:is(:hover, :focus-within) .lf-toc-nav,
-      body[data-lf-go-to-active] lf-toc .lf-toc-nav {
+      :scope:is(lf-toc):is(:hover, :focus-within) .lf-toc-nav{
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
-      lf-toc:is(:hover, :focus-within) .lf-toc-nav a,
-      body[data-lf-go-to-active] lf-toc .lf-toc-nav a { pointer-events: auto; }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :scope:is(lf-toc) .lf-toc-nav{
+          --lf-toc-label-opacity: 1;
+          background: color-mix(in srgb, var(--paper) 92%, transparent);
+        }
+      }
+      :scope:is(lf-toc):is(:hover, :focus-within) .lf-toc-nav a{ pointer-events: auto; }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :scope:is(lf-toc) .lf-toc-nav a{ pointer-events: auto; }
+      }
       /* A crowded but physically fitting map uses one line per destination before the
        * shared scale is fitted. It still reveals the complete route. */
-      lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
+      :scope:is(lf-toc)[data-lf-compact] :is(.lf-toc-start, li) a {
         max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
         -webkit-line-clamp: 1;
       }
@@ -1931,25 +1950,25 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * scrollable outline instead. Unlike the transient map, it is always interactive,
        * so it keeps an opaque paper and fits the free gutter rather than covering the
        * document beneath it. */
-      lf-toc[data-lf-outline] .lf-toc-nav {
+      :scope:is(lf-toc)[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         width: max(40px, min(320px,
           calc(var(--lf-beside) + var(--lf-shift, 0px) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
-      lf-toc[data-lf-outline] .lf-toc-rows::before,
-      lf-toc[data-lf-outline] .lf-toc-window,
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before { display: none; }
-      lf-toc[data-lf-outline] .lf-toc-heading { display: block; }
-      lf-toc[data-lf-outline] .lf-toc-rows { display: block; height: auto; }
-      lf-toc[data-lf-outline] ol { display: block; }
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li) {
+      :scope:is(lf-toc)[data-lf-outline] .lf-toc-rows::before,
+      :scope:is(lf-toc)[data-lf-outline] .lf-toc-window,
+      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li)::before { display: none; }
+      :scope:is(lf-toc)[data-lf-outline] .lf-toc-heading { display: block; }
+      :scope:is(lf-toc)[data-lf-outline] .lf-toc-rows { display: block; height: auto; }
+      :scope:is(lf-toc)[data-lf-outline] ol { display: block; }
+      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) {
         display: block; margin: 0 0 0 var(--lf-toc-indent);
       }
-      lf-toc[data-lf-outline]
-        :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li) a {
+      :scope:is(lf-toc)[data-lf-outline]
+      :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
+      :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) a {
         position: relative; display: block; max-height: none;
         padding: 3px 0; transform: none; -webkit-line-clamp: initial;
         opacity: 1; pointer-events: auto;
@@ -1958,17 +1977,17 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  lf-shot .lf-shotcomparison::part(divider),
-  lf-shot .lf-shotcomparison::part(handle),
-  lf-toc a { transition: none; }
+  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
+  :scope:is(lf-shot) .lf-shotcomparison::part(handle),
+  :scope:is(lf-toc) a { transition: none; }
 }
 @media (forced-colors: active) {
-  lf-toc .lf-toc-rows::before,
-  lf-toc .lf-toc-start::before, lf-toc li::before {
+  :scope:is(lf-toc) .lf-toc-rows::before,
+  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
     forced-color-adjust: none; background: CanvasText;
   }
-  lf-toc .lf-toc-window,
-  lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+  :scope:is(lf-toc) .lf-toc-window,
+  :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
     forced-color-adjust: none; background: Highlight;
   }
 }
@@ -1977,52 +1996,52 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * an optional excerpt under it. The sentence's place is its link or thread button, drawn
  * as a link either way because both take the user there; the time sits after it in
  * the muted voice. A row taken back keeps its place, struck through and marked undone. */
-lf-activity { display: block; margin: var(--sp-3) 0; }
-lf-activity .lf-activity-list { list-style: none; margin: 0; padding: 0;
+:scope:is(lf-activity) { display: block; margin: var(--sp-3) 0; }
+:scope:is(lf-activity) .lf-activity-list { list-style: none; margin: 0; padding: 0;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
-lf-activity .lf-activity-row { display: grid; grid-template-columns: 22px minmax(0, 1fr);
+:scope:is(lf-activity) .lf-activity-row { display: grid; grid-template-columns: 22px minmax(0, 1fr);
   column-gap: 10px; padding: 7px 0; border-top: 1px solid var(--rule); }
-lf-activity .lf-activity-row:first-child { border-top: 0; }
-lf-activity .lf-activity-avatar { grid-row: span 2; align-self: start; width: 22px; height: 22px;
+:scope:is(lf-activity) .lf-activity-row:first-child { border-top: 0; }
+:scope:is(lf-activity) .lf-activity-avatar { grid-row: span 2; align-self: start; width: 22px; height: 22px;
   border-radius: 50%; display: grid; place-items: center; font: 600 var(--t-6) var(--sans);
   background: var(--accent-tint); color: var(--accent); }
-lf-activity [data-lf-activity-author="user"] > .lf-activity-avatar {
+:scope:is(lf-activity) [data-lf-activity-author="user"] > .lf-activity-avatar {
   background: var(--chip); color: var(--ink-2); }
-lf-activity [data-lf-activity-author="page"] > .lf-activity-avatar {
+:scope:is(lf-activity) [data-lf-activity-author="page"] > .lf-activity-avatar {
   background: var(--field); color: var(--muted); }
-lf-activity .lf-activity-line { margin: 0; overflow-wrap: anywhere; }
-lf-activity .lf-activity-actor { color: var(--ink); font-weight: 600; }
-lf-activity .lf-activity-what { color: var(--ink-2); }
-lf-activity :is(a, button).lf-activity-target { color: var(--accent);
+:scope:is(lf-activity) .lf-activity-line { margin: 0; overflow-wrap: anywhere; }
+:scope:is(lf-activity) .lf-activity-actor { color: var(--ink); font-weight: 600; }
+:scope:is(lf-activity) .lf-activity-what { color: var(--ink-2); }
+:scope:is(lf-activity) :is(a, button).lf-activity-target { color: var(--accent);
   text-decoration: underline; text-underline-offset: 2px;
   text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-lf-activity button.lf-activity-target { appearance: none; background: none; border: 0;
+:scope:is(lf-activity) button.lf-activity-target { appearance: none; background: none; border: 0;
   padding: 0; margin: 0; font: inherit; text-align: start; cursor: pointer; }
-lf-activity :is(a, button).lf-activity-target:hover { text-decoration-color: currentColor; }
-lf-activity span.lf-activity-target { color: var(--ink-2); }
-lf-activity .lf-activity-time { color: var(--muted); white-space: nowrap; }
-lf-activity .lf-activity-time::before { content: "· "; }
-lf-activity .lf-activity-undone { color: var(--muted); font-size: var(--t-6);
+:scope:is(lf-activity) :is(a, button).lf-activity-target:hover { text-decoration-color: currentColor; }
+:scope:is(lf-activity) span.lf-activity-target { color: var(--ink-2); }
+:scope:is(lf-activity) .lf-activity-time { color: var(--muted); white-space: nowrap; }
+:scope:is(lf-activity) .lf-activity-time::before { content: "· "; }
+:scope:is(lf-activity) .lf-activity-undone { color: var(--muted); font-size: var(--t-6);
   border: 1px solid var(--border-2); border-radius: var(--chip-r);
   padding: var(--chip-pad); }
-lf-activity [data-lf-undone] :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
+:scope:is(lf-activity) [data-lf-undone] :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
   text-decoration: line-through; text-decoration-color: var(--muted); }
-lf-activity .lf-activity-excerpt { grid-column: 2; margin: 2px 0 0; color: var(--muted);
+:scope:is(lf-activity) .lf-activity-excerpt { grid-column: 2; margin: 2px 0 0; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5) var(--sans); }
+:scope:is(lf-activity) .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5) var(--sans); }
 
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
-lf-ask { display: block; }
+:scope:is(lf-ask) { display: block; }
 /* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
  * heading and one answer gives the answer what the heading leaves, so a widget composing
  * its own regions there, such as a playground, fills the window. With context between
  * the two there is no one box to give the height to, so every part keeps its own. */
 @container style(--lf-full-height: 1) {
-  main > lf-ask { display: flex; flex-direction: column; }
-  main > lf-ask > :nth-child(2):last-child {
+  :scope:is(lf-ask) { display: flex; flex-direction: column; }
+  :scope:is(lf-ask) > :nth-child(2):last-child {
     flex: 1 1 0;
     min-block-size: 0;
     margin-block-end: 0;
@@ -2121,7 +2140,7 @@ lf-ask { display: block; }
  * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-lf-sample { display: table; table-layout: fixed; width: 100%;
+:scope:is(lf-sample) { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
 /* An authored width widens a block by negative margins (theme.css, the breakout rule),
@@ -2131,26 +2150,26 @@ lf-sample { display: table; table-layout: fixed; width: 100%;
  * Only its own breakout's: `--lf-surplus` inherits, and a sample in a list inside wide
  * evidence took the section's surplus on top of the item's width. */
 @media screen {
-  lf-sample[data-lf-space]:not([data-lf-space="column"]) {
+  :scope:is(lf-sample)[data-lf-space]:not([data-lf-space="column"]) {
     width: calc(100% + var(--lf-surplus)); }
 }
 /* Containment does not apply to a table, so the sample cannot be the size container
  * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */
-lf-sample > * { --lf-box-cap: 100%; }
-lf-sample::before,
-lf-sample > [data-lf-said="label"] { display: table-caption;
+:scope:is(lf-sample) > * { --lf-box-cap: 100%; }
+:scope:is(lf-sample)::before,
+:scope:is(lf-sample) > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);
               letter-spacing: .08em; text-transform: uppercase;
               color: var(--muted); }
-lf-sample::before { content: "quoted"; }
-lf-sample[label]::before { content: "quoted · " attr(label); }
-lf-sample:has(> [data-lf-said="label"])::before { content: none; }
-lf-sample > [data-lf-said="label"]::before { content: "quoted · "; }
-lf-sample[data-lf-sample-live]::before { content: "live sample"; }
-lf-sample[data-lf-sample-live][label]::before { content: "live sample · " attr(label); }
-lf-sample[data-lf-sample-live]:has(> [data-lf-said="label"])::before { content: none; }
-lf-sample[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live sample · "; }
+:scope:is(lf-sample)::before { content: "quoted"; }
+:scope:is(lf-sample)[label]::before { content: "quoted · " attr(label); }
+:scope:is(lf-sample):has(> [data-lf-said="label"])::before { content: none; }
+:scope:is(lf-sample) > [data-lf-said="label"]::before { content: "quoted · "; }
+:scope:is(lf-sample)[data-lf-sample-live]::before { content: "live sample"; }
+:scope:is(lf-sample)[data-lf-sample-live][label]::before { content: "live sample · " attr(label); }
+:scope:is(lf-sample)[data-lf-sample-live]:has(> [data-lf-said="label"])::before { content: none; }
+:scope:is(lf-sample)[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live sample · "; }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
  * The frame's height is a placeholder until its child presents and the widget sizes it
  * to the child's page. */
@@ -2163,10 +2182,12 @@ lf-sample[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live
 /* A window sample keeps a window's height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * banner and bottom bar in view with the whole frame. */
-lf-sample[window] > .lf-sample-frame { height: min(75vh, 48rem); }
+:scope:is(lf-sample)[window] > .lf-sample-frame { height: min(75vh, 48rem); }
 /* Inside a block sample the viewport follows the content, so there a window takes a
  * fixed height rather than a share of the frame it is growing. */
-html[data-lf-sample-block] lf-sample[window] > .lf-sample-frame { height: 32rem; }
+@scope (html[data-lf-sample-block] :scope) {
+  :scope:is(lf-sample)[window] > .lf-sample-frame{ height: 32rem; }
+}
 @media print {
   .lf-sample-controls, .lf-sample-frame { display: none; }
 }
@@ -2187,13 +2208,13 @@ html[data-lf-sample-block] lf-sample[window] > .lf-sample-frame { height: 32rem;
  * inside these widgets is a <pre> that gives up the document's dressing and inherits from
  * here (the rule below), so this is the size such a page is set in until a module
  * runs. */
-lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
+:scope:is(lf-chart), :scope:is(lf-tree), :scope:is(lf-code) { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
 /* Code scrolls its own lines, so its longest line never sizes what holds it. */
-lf-code { contain: inline-size; }
-lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
+:scope:is(lf-code) { contain: inline-size; }
+:scope:is(lf-chart).lf-rendered, :scope:is(lf-tree).lf-rendered, :scope:is(lf-code).lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
@@ -2202,8 +2223,8 @@ lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
    be rendered or edited, inside an element that has already said how it looks and how
    far it stands off. The rendered <pre> a module builds is evidence again, and keeps
    the dressing. */
-lf-chart:not(.lf-rendered) > pre,
-lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
+:scope:is(lf-chart):not(.lf-rendered) > pre,
+:scope:is(lf-tree):not(.lf-rendered) > pre, :scope:is(lf-code):not(.lf-rendered) > pre, :scope:is(lf-draft) > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
 /* A chart is Plot's drawing, and the page dresses it the way it dresses its own text.
@@ -2213,38 +2234,44 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
  * Plot lays its axes out for 10px labels, and at the theme's 11.5px an axis label lands
  * on the tick beside it. Plot writes its face as attributes, which any rule here
  * outranks; lf-chart.js hands it to the legends Plot styles from its own sheet. */
-lf-chart .lf-chart-drawing { display: block; font: 10px var(--sans); color: var(--muted); }
+:scope:is(lf-chart) .lf-chart-drawing { display: block; font: 10px var(--sans); color: var(--muted); }
 /* Where the runtime runs, the chart's box is laid out before it draws (x-height), and the source
  * waiting in it is code for the drawing rather than words for the reader. */
-html[data-lf-interactive] lf-chart:not(.lf-rendered) > pre { visibility: hidden; }
-lf-chart .lf-chart-drawing svg { display: block; font: inherit; }
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-chart):not(.lf-rendered) > pre{ visibility: hidden; }
+}
+:scope:is(lf-chart) .lf-chart-drawing svg { display: block; font: inherit; }
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
    the `pre` contract again, and a
    tree's own reason for taking it is that its lines are paths, the same words a code block
    holds, set to the same measure beside them. */
-lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
+:scope:is(lf-tree).lf-rendered { font-family: var(--mono); font-size: var(--code-size);
                       line-height: var(--code-line); color: var(--code-ink); }
-lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
-lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
-lf-tree li { margin: 3px 0; }
+:scope:is(lf-tree) ul { list-style: none; margin: 0; padding-left: 0; }
+:scope:is(lf-tree) ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
+:scope:is(lf-tree) li { margin: 3px 0; }
 /* Where the runtime runs, each line of the body stands at the pitch its rendered row will (a
  * row, and the 3px between rows), so the tree takes its height from the first paint.
  * The line's half of the gap above the first row and below the last stays inside the
  * box, as the rendered rows' outer margins leave it. */
-html[data-lf-interactive] lf-tree:not(.lf-rendered) { display: flow-root; }
-html[data-lf-interactive] lf-tree:not(.lf-rendered) > pre {
-  line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
-lf-tree .lf-tree-dir { font-weight: 600; }
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-tree):not(.lf-rendered){ display: flow-root; }
+}
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-tree):not(.lf-rendered) > pre{
+    line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
+}
+:scope:is(lf-tree) .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
  * one, it split a two-character badge down the middle and drew half the chip on each
  * line. The name is what breaks now, which is the one of the three that can. */
-lf-tree .lf-tree-badge { font-size: var(--t-6); padding: var(--chip-pad);
+:scope:is(lf-tree) .lf-tree-badge { font-size: var(--t-6); padding: var(--chip-pad);
                          margin-left: 6px; vertical-align: top;
                          border-radius: var(--chip-r); white-space: nowrap; }
-lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
-lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
+:scope:is(lf-tree) .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
+:scope:is(lf-tree) .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
 
 /* lf-code rendered form: numbered lines, hi ranges, elided rows, notes docked at their
    line. The gutter is as wide as the block's widest number (--lf-code-digits, which the
@@ -2252,7 +2279,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
    resolves in the code's face on the <pre> and a note inherits that width, not its own
    face's `ch`. */
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
-lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
+:scope:is(lf-code).lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
 /* A line wraps inside the frame, on screen as on paper. Scrolled, a line longer than the
    frame hid its end behind a scrollbar at the block's foot, and the end is where a log
@@ -2264,52 +2291,52 @@ lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
    structure. The hang stops at 24 characters, so a deep line in a narrow frame keeps
    room to wrap into. A line that fits keeps its columns. `anywhere` because what runs
    long is paths, URLs and hashes, none of which offer the line box a break. */
-lf-code .lf-code-line { display: block; position: relative;
+:scope:is(lf-code) .lf-code-line { display: block; position: relative;
              --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
              padding: 0 14px 0 calc(var(--lf-code-gutter) + 8px + var(--lf-code-hang));
              text-indent: calc(-1 * var(--lf-code-hang));
              white-space: pre-wrap; overflow-wrap: anywhere; }
-lf-code :is(.lf-code-line, .lf-code-elided)::before {
+:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)::before {
              content: attr(data-line); display: inline-block; width: var(--lf-code-gutter);
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
              border-right: 1px solid var(--code-border); background: var(--code-chrome);
              text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
-lf-code .lf-code-line::before { position: absolute; inset-block: 0; inset-inline-start: 0;
+:scope:is(lf-code) .lf-code-line::before { position: absolute; inset-block: 0; inset-inline-start: 0;
              text-indent: 0; }
 /* The lines an excerpt leaves out: a row of its own with a mark in the gutter and the
    count beside it, both painted, so the copy and the anchors see only quoted source.
    A note docked in the stretch follows the count as the row's caption, in the same
    face; it stays selectable, since it is authored text a comment can anchor on. The
    row is a flex line so a long caption wraps beside the gutter rather than under it. */
-lf-code .lf-code-elided { display: flex; align-items: baseline; padding: 0 14px 0 0;
+:scope:is(lf-code) .lf-code-elided { display: flex; align-items: baseline; padding: 0 14px 0 0;
              color: var(--code-muted); user-select: none; }
-lf-code .lf-code-elided::before { content: "\22EE"; flex: none; order: -2; }
-lf-code .lf-code-elided::after { content: attr(data-elided); order: -1; flex: none; }
-lf-code .lf-code-elided::after, lf-code .lf-code-elided > lf-note {
+:scope:is(lf-code) .lf-code-elided::before { content: "⋮"; flex: none; order: -2; }
+:scope:is(lf-code) .lf-code-elided::after { content: attr(data-elided); order: -1; flex: none; }
+:scope:is(lf-code) .lf-code-elided::after, :scope:is(lf-code) .lf-code-elided > lf-note {
              font-family: var(--sans); font-size: var(--t-6); font-style: italic; }
-lf-code .lf-code-elided > lf-note { display: block; min-width: 0; margin-inline-start: 0.5em;
+:scope:is(lf-code) .lf-code-elided > lf-note { display: block; min-width: 0; margin-inline-start: 0.5em;
              white-space: normal; user-select: text; }
-lf-code .lf-code-elided > lf-note::before { content: "\2014\2002"; }
-lf-code :is(.lf-code-line, .lf-code-elided).hi { background: var(--hi-tint); }
-lf-code :is(.lf-code-line, .lf-code-elided).hi::before { border-right-color: var(--warn); }
+:scope:is(lf-code) .lf-code-elided > lf-note::before { content: "— "; }
+:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi { background: var(--hi-tint); }
+:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided).hi::before { border-right-color: var(--warn); }
 /* The line another widget is indicating (indication.js): an accent bar at the gutter's
    outer edge and an accent number, so it reads apart from an hi line by shape as well as
    hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's, not
    the line's, because the gutter's own background paints over an inset on the line. */
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] { outline: none; }
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
+:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] { outline: none; }
+:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
              background: var(--accent-tint); }
-lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
+:scope:is(lf-code) :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
              box-shadow: inset 3px 0 0 var(--accent); color: var(--accent); font-weight: 600; }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the gutter. Horizontal rules mark the insertion
    without inventing author metadata the note does not carry. */
-lf-code lf-note { display: block; }
+:scope:is(lf-code) lf-note { display: block; }
 /* The note wears this box wherever it stands: docked at its line inside the frame, or
    before the module docks it, after the source (below). */
-lf-code > lf-note, lf-code > pre > lf-note {
+:scope:is(lf-code) > lf-note, :scope:is(lf-code) > pre > lf-note {
              margin: 5px 0 6px; padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
              background: var(--pre-bg);
              border-block: 1px solid var(--code-border);
@@ -2320,25 +2347,27 @@ lf-code > lf-note, lf-code > pre > lf-note {
    has its height from the first paint and the module only moves each note up to its
    line. Not reserved: the elided rows an excerpt's `lines` leaves gaps for, and the
    deeper hang a wrapped line takes from its indent. */
-html[data-lf-interactive] lf-code:not(.lf-rendered) {
-  & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
-            border-radius: var(--r);
-            padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
-            white-space: pre-wrap; overflow-wrap: anywhere; }
-  & > lf-note { margin-inline: 1px; }
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-code):not(.lf-rendered){
+    & > pre { background: var(--pre-bg); border: 1px solid var(--code-border);
+      border-radius: var(--r);
+      padding: 12px 14px 12px calc(var(--lf-code-gutter) + 8px);
+      white-space: pre-wrap; overflow-wrap: anywhere; }
+    & > lf-note { margin-inline: 1px; }
+  }
 }
 
 /* lf-text-document: captured text with the provenance needed to identify the immutable
    selection. The frame is one evidence object; its caption uses the apparatus face
    without becoming runtime chrome, because the label is captured page data too. */
-lf-text-document { display: block; margin: 14px 0; min-height: 2px; }
-lf-text-document > .lf-text-document-view {
+:scope:is(lf-text-document) { display: block; margin: 14px 0; min-height: 2px; }
+:scope:is(lf-text-document) > .lf-text-document-view {
   margin: 0; border: 1px solid var(--code-border); border-radius: var(--r);
   overflow: hidden; background: var(--pre-bg); --lf-block-frame: 1;
 }
 /* The caption is the frame's header bar, not a line of reading, so it spans the frame:
    under the reading measure its rule stopped 53px short of a 795px frame. */
-lf-text-document figcaption {
+:scope:is(lf-text-document) figcaption {
   max-inline-size: none; padding: 7px 11px; border-bottom: 1px solid var(--rule);
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
@@ -2351,18 +2380,18 @@ lf-text-document figcaption {
    simply the default. The frame keeps `overflow-x: auto` for what no line box can break:
    a path, a URL, minified data. An author whose capture is columnar has no attribute to
    say so yet; add one when a page needs it. */
-lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-wrap; }
+:scope:is(lf-text-document) pre { margin: 0; border: 0; border-radius: 0; white-space: pre-wrap; }
 /* A bounded capture keeps its caption in view and scrolls the listing under it. */
 @media screen {
-  lf-text-document[data-lf-bound] { max-block-size: none; overflow: visible;
+  :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
-  lf-text-document[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
+  :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
     overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded
    corners, so an outside ring loses a pixel on three sides. */
-lf-text-document pre:is(:focus-visible, .lf-focus-visible) {
+:scope:is(lf-text-document) pre:is(:focus-visible, .lf-focus-visible) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
@@ -2404,7 +2433,7 @@ lf-text-document pre:is(:focus-visible, .lf-focus-visible) {
    layout, so every rect agreed nothing had happened and it took a screenshot diff to
    find. Inside the border there is padding to paint on and nothing of the page's to
    disturb. */
-lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
+:scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
 .lf-draft-pencil { opacity: 1; }
@@ -2417,31 +2446,31 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
 /* The editor is a field, so on a touch screen it stands on --entry-floor (shadow.css);
    the box holds its shown words on the same floor, or a draft in a 14px sidenote opens a
    size larger than the words it showed. */
-lf-draft { font-size: max(var(--entry-floor), 1em); }
+:scope:is(lf-draft) { font-size: max(var(--entry-floor), 1em); }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
            --lf-focus-ring: none; }
 .lf-draft-history { display: none; }
 @media screen {
-  html:root {
+
     /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
        edge it already wears to say "editable" sharpens under the aim, the way the
        layer's own pressables warm their ground. Not the ground here — the user is
        about to type on it, and the words have to stay the page's words while they
        decide. A quoted draft is an exhibit with no door and gets none of this. */
-    lf-draft:not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
-               border-color: var(--muted); }
-    lf-draft:has(.lf-draft-edit) { border-style: solid;
-               border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-               box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-    lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--focus-ring);
-               --lf-focus-ring: draft-editor;
-               outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
-    lf-draft:has(.lf-draft-edit) > .lf-draft-body { display: none; }
-    .lf-draft-history { display: block; }
-  }
+  :scope:is(lf-draft):not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
+    border-color: var(--muted); }
+  :scope:is(lf-draft):has(.lf-draft-edit) { border-style: solid;
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  :scope:is(lf-draft):has(.lf-draft-edit:focus-visible) { outline: var(--focus-ring);
+    --lf-focus-ring: draft-editor;
+    outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
+  :scope:is(lf-draft):has(.lf-draft-edit) > .lf-draft-body { display: none; }
+  .lf-draft-history { display: block; }
+
 }
 @media (forced-colors: active) {
-  html:root lf-draft:has(.lf-draft-edit:focus-visible) {
+  :scope:is(lf-draft):has(.lf-draft-edit:focus-visible){
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }

@@ -46,10 +46,14 @@ import {
 import { scrollBehavior } from "./motion.js";
 import { scrollersOf } from "./reading-regions.js";
 import { pushEntry, replaceEntry } from "./history.js";
-import { moveScrollerBy, pageScroller, reachable } from "./scrolling.js";
+import { pageScroller } from "./scrolling.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
 import { reveal } from "./widget-elements.js";
-import { retainUserIntent } from "./user-intent.js";
+import { threadNames } from "./thread/model.js";
+import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
+import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
+import { rangeOf } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
@@ -71,9 +75,9 @@ export function createAnchorTravel({
   announce,
 }) {
   let travelIntent = 0;
-  const retainTravel = () => {
+  const retainTravel = (retained = retainUserIntent()) => {
     const intent = ++travelIntent;
-    return retainUserIntent({ available: () => intent === travelIntent });
+    return restrictUserIntent(retained, () => intent === travelIntent);
   };
 
   // A push leaves the current scroll position on the entry it leaves, and Back
@@ -284,62 +288,10 @@ export function createAnchorTravel({
     return arrived;
   }
 
-  // Where in its scroller's landing band a destination's top stands. An element keeps
-  // the room its own `scroll-margin-top` asks for, which is the browser's rule for every
-  // native landing: a destination wearing the ring outside itself asks for the ring's
-  // room, and a landing flush with the band's edge cut the ring off there.
-  function centreBy(where, block = "center", box = pageScroller) {
-    const rect =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    const band = landingBand(box);
-    const room = band.bottom - band.top;
-    const margin =
-      where instanceof Range
-        ? 0
-        : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
-    const place =
-      where instanceof Range
-        ? (room - rect.height) / 2
-        : block === "start"
-          ? margin
-          : Math.max((room - rect.height) / 2, margin);
-    return rect.top - band.top - place;
-  }
-
   // Reading-region membership also covers fixed chrome, but its viewport position does
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
   const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
-
-  // Centre a destination in the box that scrolls it, then bring it into each box around
-  // that one only as far as it must: a bounded block the page shows leaves the page
-  // still, and one scrolled out of the window comes back with the destination in it.
-  // Each move is reckoned from where the moves inside it leave the destination, so a
-  // glide in the inner box composes with the one around it.
-  function centreThrough(where, holder, block, behavior) {
-    const [box, ...around] = scrollersOf(holder);
-    if (!box) return;
-    const rect =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    let { top, bottom } = rect;
-    const centre = centreBy(where, block, box);
-    let moved = reachable(box, centre);
-    moveScrollerBy(box, centre, behavior);
-    for (const outer of around) {
-      top -= moved;
-      bottom -= moved;
-      const band = landingBand(outer);
-      if (!band) return;
-      const by =
-        top < band.top
-          ? top - band.top
-          : bottom > band.bottom
-            ? Math.min(bottom - band.bottom, top - band.top)
-            : 0;
-      moved = reachable(outer, by);
-      if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
-    }
-  }
 
   function scrollRevealedElement(
     element,
@@ -432,7 +384,7 @@ export function createAnchorTravel({
       if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
       if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
-    centreThrough(alignment, holder, block, behavior);
+    scrollIntoReadingBand(alignment, holder, block, behavior);
   }
 
   function scrollRevealedRange(where, behavior = scrollBehavior()) {
@@ -449,22 +401,31 @@ export function createAnchorTravel({
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
-  // Where a thread's travel lands: its first mark, or the element its anchor placed.
+  // Travel reads the first passage segment or semantic element from canonical placement,
+  // independently of whether the selected presentation paints a mark.
   // A thread pointed into its target is travelled to at the row its own margin row
   // stands by (pointed-place.js), which a target taller than the window would otherwise
   // leave off screen.
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const where = anchors.marksFor(id)[0] ?? placement?.element ?? null;
-    return standingPoint(placement?.target, placement?.point) ?? where;
+    const segment = targetSegments(placement)[0];
+    const where = segment
+      ? rangeOf([segment])
+      : (targetElement(placement) ?? targetPlace(placement));
+    return (
+      standingPoint(
+        targetElement(placement) ?? targetPlace(placement),
+        placement?.point,
+      ) ?? where
+    );
   };
 
   async function scrollToThread(
     id,
-    { focus = null, keep = false, presented = null } = {},
+    { focus = null, keep = false, presented = null, intent } = {},
   ) {
-    const mayArrive = retainTravel();
-    const thread = currentThreads().find((candidate) => candidate.id === id);
+    const mayArrive = retainTravel(intent);
+    const thread = threadNames(currentThreads()).get(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating =

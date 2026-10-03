@@ -27,7 +27,17 @@ from leaf.schema import (
     STATUS_FILE,
     UNNAMED_AGENT,
 )
-from leaf.session_cleanup import EVENTS_FILE, flocked, now_iso, page_key, write_json
+from leaf.state import (
+    EVENTS_FILE,
+    close_session_turn,
+    ensure_session,
+    flocked,
+    now_iso,
+    open_session_turn,
+    page_key,
+    session_record,
+    write_json,
+)
 
 if TYPE_CHECKING:
     from leaf.host import Harness
@@ -52,7 +62,7 @@ def claim_path(page_dir: Path) -> Path:
 # lifetime keys `claim_is_active` cascades on, and a `harness` whose value
 # `host.claim_harness` looks up in `HARNESSES`.
 CLAIM_IDENTITY = frozenset(
-    {"page", "ts", "released", "id", "harness", "agent", "turn", "turn_closed"}
+    {"page", "ts", "released", "id", "harness", "agent", "generation", "acquisition"}
 )
 CLAIM_LIFETIMES = frozenset({"job", "activity", "pid"})
 
@@ -84,29 +94,22 @@ def readable_claim(claim: dict | None) -> dict | None:
 
     if claim["harness"] not in HARNESSES:
         return None
-    return claim if CLAIM_LIFETIMES & claim.keys() else None
+    record = session_record(claim["id"])
+    if record is None or claim["generation"] != record["generation"]:
+        return {**claim, "turn": None, "turn_opened": None, "turn_closed": None}
+    return {
+        **claim,
+        "released": claim["released"] or record["ended"],
+        **record["lifetime"],
+        "turn": record["turn"],
+        "turn_opened": record["turn_opened"],
+        "turn_closed": record["turn_closed"],
+    }
 
 
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one released or whose lifetime ended."""
     return readable_claim(read_json(claim_path(page_dir)))
-
-
-def claim_lifetime(page_dir: Path, harness: "Harness") -> dict:
-    """The fields `claim_is_active` reads, as everything that writes them must.
-
-    Two things state a lifetime on this rule: a page's claim, and a preview that
-    takes no claim but is reaped by the session all the same. Neither is the
-    place to learn which fields the reading needs — a host stating its lifetime a
-    new way adds a branch below, and a writer that kept the old set fails on that
-    host alone. So the set is built here, next to the reading that consumes it,
-    and a claim carries these among its own fields rather than beside them."""
-    return {
-        "page": str(page_dir),
-        "ts": now_iso(),
-        "released": None,
-        **harness.lifetime(),
-    }
 
 
 def claim_is_active(claim: dict | None) -> bool:
@@ -118,6 +121,14 @@ def claim_is_active(claim: dict | None) -> bool:
     above that writes what this reads."""
     if not claim or claim["released"] is not None:
         return False
+    if "generation" in claim:
+        record = session_record(claim["id"])
+        if (
+            not record
+            or record["generation"] != claim["generation"]
+            or record["ended"] is not None
+        ):
+            return False
     if "job" in claim:
         return (Path(claim["job"]) / "state.json").is_file()
     if "activity" in claim:
@@ -131,12 +142,12 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     The page directory is the record of its own use, and it already holds both
     halves. The session appends events and writes status there; the server
     writes `viewed.json` every thirty seconds for as long as a tab holds the
-    page's news stream, so a user looking at the page is a touch too. Neither
+    page's freshness requests, so a user looking at the page is a touch too. Neither
     side has to stamp a heartbeat for this, and one shallow `iterdir` reads both
     — shallow because every file a touch moves sits at the top level, and this is
     read on the serving watchdog's poll.
 
-    Only a *visible* tab, though: `state-feed.js` closes the stream from its
+    Only a *visible* tab, though: `state-feed.js` stops freshness requests from its
     `visibilitychange` listener, so a page sitting in a background tab goes
     untouched until the user returns to it. That gap, not the agent's, is what
     ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
@@ -144,7 +155,7 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     Diagnostic `interactions.jsonl` is excluded: a request alone does not prove
     a visible reader or active agent. `served_state/reading.py` excludes both it
     and `viewed.json` from the page's own reading token, where counting either
-    would make a stream answer its own question. There is no such loop here:
+    would make freshness answer its own question. There is no such loop here:
     ownership feeds the watchdog, not the token.
 
     The claim's own timestamp joins the files for the page that has been served
@@ -164,20 +175,15 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
 
 
 def claim_records(session_id: str | None = None) -> list:
-    """Every atomic page claim record currently on this machine, retiring each
-    record whose page directory is gone. When a session is named, unrelated
-    records need no harness validation or lifetime reading.
+    """Readable claims for pages still on this machine.
 
-    A claim outlives its session on purpose: it is the provenance of a page that
-    is still there. Once the page is gone it says nothing, and a page is usually
-    removed from outside leaf — a worktree's `.tmp/previews` goes with the
-    worktree, a scratch directory with its session — so no leaf process sees the
-    moment, and without this the record stays to be read by every later scan.
-    This scan is where leaf learns it, so the record goes here, whichever version
-    wrote it: a missing page is the same fact to every reader, and `page init`
-    already keeps a page made again at that path from inheriting the record. A
-    successor claim at that path could only be lost by a `page init` and a claim
-    both landing between this check and the unlink."""
+    A scan observes ownership without changing it. A missing directory can be
+    recreated and claimed immediately after the observation, so removing its
+    claim here could erase the successor's ownership. Fresh page initialization
+    clears the prior claim under the page lock instead.
+
+    When a session is named, unrelated records need no harness validation or
+    lifetime reading."""
     directory = state_home() / "claims"
     if not directory.is_dir():
         return []
@@ -186,7 +192,7 @@ def claim_records(session_id: str | None = None) -> list:
         record = read_json(path)
         page = record.get("page") if isinstance(record, dict) else None
         if isinstance(page, str) and not Path(page).is_dir():
-            path.unlink(missing_ok=True)
+            continue
         elif (
             session_id is None
             or (isinstance(record, dict) and record.get("id") == session_id)
@@ -232,45 +238,39 @@ class PageTransaction:
         previous = self.claim
         path = claim_path(self.page_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
-        same_open_turn = bool(
-            previous
-            and claim_is_active(previous)
-            and previous["released"] is None
-            and previous["id"] == harness.session
-            and previous.get("turn_closed") is None
-        )
+        session = ensure_session(harness.session, harness.lifetime())
         claim = {
-            **claim_lifetime(self.page_dir, harness),
+            "page": str(self.page_dir),
+            "ts": now_iso(),
+            "released": None,
             "id": harness.session,
+            "generation": session["generation"],
+            "acquisition": secrets.token_hex(16),
             "harness": harness.name,
             "agent": harness.agent,
             "cwd": os.getcwd(),
-            # Identity of the currently open agent turn on this page: its host's
-            # id where the host names one, and an opaque one Leaf mints otherwise
-            # (`open_turn`). Delivery transitions name it, so an unresolved pickup
-            # from an old turn cannot become "being handled" merely because a
-            # later prompt opened another turn in the same session.
-            "turn": previous["turn"] if same_open_turn else secrets.token_hex(8),
-            # When that turn opened, which is how long an open turn can be taken
-            # for one still running when no Stop ever closes it.
-            "turn_opened": previous.get("turn_opened") if same_open_turn else now_iso(),
-            # When this session's last turn ended. None until one has, and
-            # cleared again when a batch delivered to this session opens the
-            # next turn. See close_turn and open_turn.
-            "turn_closed": None,
         }
         write_json(path, claim)
-        return previous, claim
+        return previous, page_claim(self.page_dir)
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""
-        if self.claim != expected:
+        current = read_json(claim_path(self.page_dir))
+        if not current or current.get("acquisition") != expected["acquisition"]:
             return
         path = claim_path(self.page_dir)
         if previous is None:
             path.unlink(missing_ok=True)
         else:
-            write_json(path, previous)
+            write_json(
+                path,
+                {
+                    key: value
+                    for key, value in previous.items()
+                    if key
+                    not in {"turn", "turn_opened", "turn_closed", *CLAIM_LIFETIMES}
+                },
+            )
 
     def owned_by(self, harness: "Harness | None") -> bool:
         """Whether this transaction may act for the given waiter."""
@@ -284,86 +284,22 @@ class PageTransaction:
     def release_claim(self) -> None:
         claim = self.claim
         if claim and claim["released"] is None:
-            write_json(claim_path(self.page_dir), {**claim, "released": now_iso()})
+            write_json(
+                claim_path(self.page_dir),
+                {**read_json(claim_path(self.page_dir)), "released": now_iso()},
+            )
 
     def close_turn(self, session_id: str, turn_id: str | None = None) -> None:
-        """Record that the turn which could have renewed this page's claim has ended.
-
-        A `working` claim is written by a model's turn rather than by a process,
-        and a turn can end at any token without running anything — so there is no
-        close to write on the way out, and a claim nobody renewed used to be
-        found only by a clock fifteen minutes later. The Stop hook is the harness
-        observing that same moment exactly, which is what the hooks are for.
-
-        It lands here with the rest of the claim's provenance and not in
-        status.json, the line SessionEnd already draws: what the agent said it
-        was doing stays the agent's to write, and whether anything is still
-        behind those words stays the page's to judge from evidence.
-
-        `turn_id` narrows the close to that turn, for a carrier whose account may
-        arrive after a later turn opened. A synchronous Stop closes the session's
-        current claims, including one taken mid-turn before the host named it.
-        A provider observation guards that close against a newer prompt.
-        """
         claim = self.claim
-        if (
-            claim
-            and claim["released"] is None
-            and claim["id"] == session_id
-            and (turn_id is None or claim.get("turn") == turn_id)
-        ):
-            write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
+        if claim and claim["id"] == session_id and claim_is_active(claim):
+            close_session_turn(session_id, turn_id)
 
     def open_turn(self, session_id: str, turn_id: str | None = None) -> str | None:
-        """Record that a turn of this session's is running again.
-
-        `close_turn` is stamped by the Stop hook, and until this it was stamped
-        by nothing else — so the page could see a turn end but never see the
-        next one begin. That is not symmetric bookkeeping for its own sake: the
-        canonical activity fold stops believing a declaration left behind by a
-        closed turn, and an opened delivery belongs to the current turn only by
-        exact turn identity. Without an opening, a session that came back could
-        be presented as one that had walked away.
-
-        Two things observe the beginning. A prompt is one: the hook that mirrors
-        the Stop hook fires with the turn already running, whoever caused it —
-        including the user who did the thing the banner told them to and
-        nudged in the terminal, leaving no batch for any delivery to carry. A
-        delivery is the other, and whether it is belongs to the carrier that
-        makes it: the direct consumer confirms a complete delivery, so its receipt opens
-        the turn; the Codex adapter hands a pointer to a durable queue an
-        unloaded task leaves standing, so its handoff is not, and it declines
-        this.
-
-        A prompt or delivery into a turn that is already open renews its
-        `turn_opened` instead: it is proof the turn runs now, and an interrupt,
-        which some hosts leave open without a hook, would otherwise leave the
-        next prompt's work judged by the interrupted turn's opening.
-
-        The turn's identity is its host's, where the host names one: Codex names
-        each turn to its hooks and on its App Server alike, so the prompt hook and
-        a carrier following the same turn open the same id, and whichever arrives
-        second renews what the first opened. That id ended once `close_turn`
-        stamped it, so opening it again changes nothing. A host that names no turn
-        leaves `turn_id` None, and Leaf mints one when the last has closed.
-
-        Nothing else about the claim moves. What the agent said it was doing
-        stays the agent's to write, and the fifteen-minute grace on that claim's
-        own age still catches a turn that ends without a Stop to stamp it.
-        """
         claim = self.claim
-        if not claim or claim["released"] is not None or claim["id"] != session_id:
+        if not claim or claim["id"] != session_id or not claim_is_active(claim):
             return None
-        ended = claim.get("turn_closed") is not None
-        if turn_id is None:
-            turn_id = secrets.token_hex(8) if ended else claim.get("turn")
-        elif turn_id == claim.get("turn") and ended:
-            return turn_id
-        write_json(
-            claim_path(self.page_dir),
-            {**claim, "turn": turn_id, "turn_opened": now_iso(), "turn_closed": None},
-        )
-        return turn_id
+        record = open_session_turn(session_id, turn_id)
+        return record["turn"] if record else None
 
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
@@ -375,8 +311,10 @@ class PageTransaction:
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
         went out for."""
-        claim = self.claim
-        write_json(claim_path(self.page_dir), {**claim, "messaged_ending": ending})
+        write_json(
+            claim_path(self.page_dir),
+            {**read_json(claim_path(self.page_dir)), "messaged_ending": ending},
+        )
 
     @property
     def status(self) -> dict:
@@ -796,41 +734,6 @@ def starting_claim(page_dir: Path, *, standing: bool = False):
         raise
 
 
-def open_session_turn(session_id: str, turn_id: str | None = None) -> None:
-    """Open one session turn on every page the session holds (`open_turn`).
-
-    A turn belongs to the session, not to the page whose batch opened it. The
-    Stop hook stamps the ending across `owned_pages`, so an opening that clears
-    only one page leaves every sibling claim stamped through a turn that is
-    demonstrably running: the user comments on one leaf, and two minutes later
-    the next leaf tells its own user the agent left when its turn ended and to
-    nudge it in the terminal.
-
-    This and `close_session_turn` are the one path by which a turn opens and
-    closes, for the prompt and Stop hooks and for every carrier that follows a
-    turn itself. Each page takes its own transaction, and a page the turn never
-    touches still falls to the fifteen-minute grace on its own claim age.
-    """
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                page.open_turn(session_id, turn_id)
-        except FileNotFoundError:
-            continue
-
-
-def close_session_turn(session_id: str, turn_id: str | None = None) -> bool:
-    """Stamp the end of a turn across every page one session still holds."""
-    pages = owned_pages(session_id)
-    for page_dir in pages:
-        try:
-            with PageTransaction(page_dir) as page:
-                page.close_turn(session_id, turn_id)
-        except FileNotFoundError:
-            continue
-    return bool(pages)
-
-
 def read_status(page_dir: Path) -> dict:
     """The page's work declaration, `status.json`, as every reader takes it.
 
@@ -856,34 +759,21 @@ def owned_pages(session_id: str | None) -> list:
 
 
 def unacknowledged(events: list, cursor: int) -> list:
-    """The events past the acknowledgement cursor that the page's watcher owes a
-    reading: the user's own, and workers' reports — a report moves the page the
-    way a user's action does, and the watcher is the one who can absorb it into
-    a version. One cursor and one predicate for the whole batch, so `leaf
-    wait`'s output, the Stop hook's count, and the idle gate cannot disagree
-    about what is still owed. The user's banner counts only the user half
-    (full_state's `pending`): a report is news the agent owes the page, not
-    something the user owes an answer. A session that reports to a page it
-    also watches reads its own report back once — rare enough (workers report,
-    the watcher publishes) that a session-keyed carve-out would cost a second,
-    parameterized predicate for no failure anyone has hit."""
-    return [
-        e
-        for e in events
-        if e["seq"] > cursor
-        # The user's own, a worker's report, and the page reporting itself
-        # broken — the last is the agent's debt exactly as a report is.
-        and requires_agent_attention(e)
-    ]
+    """Attention-marked events past the page's acknowledgement cursor.
+
+    Carriers, the unpicked-input Stop guard and the idle gate read the same
+    admission decision. The user-facing pending count includes only user input;
+    workers' reports and page errors wake the agent without increasing that count.
+    """
+    return [e for e in events if e["seq"] > cursor and requires_agent_attention(e)]
 
 
 def requires_agent_attention(event: dict) -> bool:
-    """Whether a log event creates host work, rather than user bookkeeping."""
-    from leaf.registry.kernel import bookkeeping_kinds
+    """Admission's decision that this event changes work the agent owes.
 
-    return (
-        event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
-    ) or event["kind"] in {"report", "error"}
+    A record without the admitted decision is absent input.
+    """
+    return event.get("attention") is True
 
 
 # The fields every stored work claim carries (`PageService.set_status`).

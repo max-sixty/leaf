@@ -87,7 +87,7 @@ import {
   paintKeys,
   quoted,
   revisionLabel,
-  registerMarginContribution,
+  registerContribution,
   sendDraft,
   submitBindings,
   submitLabel,
@@ -96,7 +96,7 @@ import {
   commands,
   saveDraft,
   loadDraft,
-  marginEntry,
+  contributionEntry,
   clearDraft,
   watchDraft,
   alignText,
@@ -275,16 +275,21 @@ customElements.define(
 
     #watchDraft() {
       if (quoted(this) || !this.#margin) return;
-      this.#stopDraft ??= watchDraft(ctx(this.id), (text) => {
-        if (text === null) this.#close(false);
-        else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
-      });
+      this.#stopDraft?.();
+      this.#stopDraft = watchDraft(
+        ctx(this.id),
+        (text) => {
+          if (text === null) this.#close(false);
+          else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
+        },
+        { input: this.#ta },
+      );
     }
 
     #offer() {
       if (quoted(this) || this.#margin) return;
       this.#ensureCommands();
-      this.#margin = registerMarginContribution({
+      this.#margin = registerContribution({
         key: `draft:${this.id}`,
         target: () => this,
         read: () => this.#readMargin(),
@@ -363,7 +368,7 @@ customElements.define(
       const available = this.#available();
       if (!this.#ta)
         return [
-          marginEntry({
+          contributionEntry({
             key: "edit",
             icon: "edit",
             label: "Edit",
@@ -378,7 +383,7 @@ customElements.define(
           }),
         ];
       return [
-        marginEntry({
+        contributionEntry({
           key: this.#saveKey(),
           icon: this.#failed ? "retry" : "check",
           label: this.#failed ? "Retry" : "Save",
@@ -389,7 +394,7 @@ customElements.define(
           activation: "commit",
           scope: this.#commandScope,
         }),
-        marginEntry({
+        contributionEntry({
           key: "cancel",
           icon: "cross",
           label: "Cancel",
@@ -620,10 +625,14 @@ customElements.define(
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
       this.#ta = ta;
+      this.#watchDraft();
       commands(ta, this.#commandScope);
       this.#body.after(ta);
       this.#refreshMargin();
-      if (arrive) ta.focus();
+      // A pointer is already on visible words. Opening their editor preserves that
+      // place before handing the clicked caret across; the pencil instead reveals
+      // the initial caret at the start of the text. A padding press carries null.
+      if (arrive) ta.focus({ preventScroll: at !== undefined });
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
       // in the body's text, so it names a word only in a box holding that text — a
@@ -643,6 +652,7 @@ customElements.define(
         this.#margin?.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
+      this.#watchDraft();
       this.#failed = false;
       this.#refreshMargin({
         immediate: stood,

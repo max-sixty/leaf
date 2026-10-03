@@ -1,0 +1,66 @@
+# Added while separating contribution ownership from annotation geometry. This guards
+# the shared producer contract across its public API cutover; a pass on both arms is
+# evidence of preserved authoring behavior, not a measured guidance improvement.
+description: shared-contribution-actions
+metadata:
+  purpose: A package supplies one current action reading for target controls and Page Map.
+  tags:
+  - packages
+  - contributions
+vars:
+  prompt: |
+    An existing Leaf package widget already owns its editable text and exposes
+    `editing` and `disabled` boolean properties plus `beginEditing()`, `saveDraft()`
+    and `cancelDraft()` methods. Add its action integration: Edit while resting,
+    Save and Cancel while editing. The same current actions must appear beside the
+    widget and in Leaf's searchable Page Map, share their disabled state, and
+    remain reachable by keyboard. Removing the widget releases its registration.
+    Show the public imports, registration, state-update and disconnect methods;
+    the editor and its existing effect methods are already implemented.
+
+    Only Leaf's shipped references are available here; the runtime source, page
+    directory and package-check execution are unavailable. Use the reference's
+    public API and reply with the JavaScript integration snippet.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: regex
+  metric: shared-registration
+  value: register(?:Margin)?Contribution\s*\(
+- type: regex
+  metric: entry-records
+  value: (?:marginEntry|contributionEntry)\s*\(
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the integration uses Leaf's supported contribution registration and
+    entry-record helpers imported from /runtime/widget-api.js, returns the current
+    Edit or Save/Cancel reading from one producer, routes effects through its sole
+    activation callback, updates that registration after editing state changes,
+    and unregisters on disconnect. It leaves editing state and words with the existing widget. It
+    must not create a second Page Map action directory, manually place page-edge
+    controls, import a private runtime owner, or post raw events. The old and new
+    names of the shared public helpers are both accepted for this invariant.
+    Judge the JavaScript integration, including explicit instructions to call
+    its update method from existing state setters. The task supplies the editor
+    and effect methods; they need not be reimplemented. Its environment cannot
+    execute runtime checks, so saying it could not run them is not a failure.
+    Every constructed entry must have a nonempty key and label and exactly one
+    nonempty glyph or icon. Check spread objects too: the Edit entry needs its
+    own glyph or icon. Entry options do not accept kind; that field belongs to
+    the whole reading. The accepted entry behaviors are action, disclosure,
+    status; tones neutral, positive, negative; ranks complete, escape, primary,
+    secondary, reading, overflow; states idle, engaged, busy, failed. A missing
+    required field, an unknown option, or a guessed enum value is a failure,
+    even when the ownership architecture otherwise looks correct. Do not
+    reward an agent for admitting such assumptions. A native keyboard route
+    through Leaf controls and Page Map is sufficient; custom bindings are
+    optional, and if supplied they must invoke the same registration.

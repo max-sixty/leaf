@@ -14,7 +14,7 @@ import {
 } from "./banner-toolbar.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { asksBtn, othersBtn } from "./drawers.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";

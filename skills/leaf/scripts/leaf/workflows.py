@@ -26,7 +26,7 @@ Answers are one of:
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in.
 
-Two kinds of move are delivered with no answer of their own. A user input a
+Two kinds of move have workflows with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
 answer settles both. A widget move that answers no Ask, such as an edit to a
 user-owned draft or a moved card, owes nothing: the log carries it onto later
@@ -35,6 +35,9 @@ of it that version must write. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
+Delivery is separate from workflows. Admission records whether a user's move
+changes outstanding Asks, pending answers, claimed work or approval; carriers keep
+that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a
 pick before the Done its group declares, a swipe before the deck's queue is empty —
@@ -49,14 +52,93 @@ answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
-from .asks import ask_answered, part_of_ask
-from .events import spoken_turns, unanswered_turns
+from .asks import ask_answered, part_of_ask, thread_ask_readings, thread_awaits_user
+from .document_reading import read_document
+from .events import build_threads, spoken_turns, standing_approvals, unanswered_turns
 from .projection import (
     NO_RECORD,
     PageReading,
     canonical_updates,
     recorded_state,
 )
+
+
+def obligation_reading(readings, claims: list) -> dict:
+    """The outstanding Asks, answers and claimed inputs a gesture can change.
+
+    Delivery progress, receipt-only moves and presentation are absent. Claims
+    also hold their subject's standing widget inputs, even while an Ask is being
+    composed: changing a pick under ongoing work changes that work before Done.
+    Admission compares this reading on either side of the append and stores the
+    result, before a later status write can discard the claim that it changed.
+    """
+    page = (
+        readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
+    )
+    thread = readings.thread
+    events = readings.events
+    threads = build_threads(events, page.within if page is not None else {})
+    thread_asks = thread_ask_readings(
+        events,
+        readings.registry,
+        {identity for identity, held in threads.items() if held["resolved"]},
+        reading=thread,
+    )
+    open_ask_threads = {ask["thread"] for ask in thread_asks["user"]}
+    prompts = {}
+    for identity, held in threads.items():
+        _awaiting, prompt = thread_awaits_user(
+            identity,
+            held,
+            readings.registry,
+            thread_asks["awaiting"],
+            thread.structure,
+            open_ask_threads,
+        )
+        if prompt is not None:
+            prompts[identity] = prompt["message"]
+    workflows = canonical_workflows(claims, threads, thread, page=page, events=events)
+    effective = [
+        update
+        for update in canonical_updates(None, claims, threads, events)
+        if update["disposition"] == "effective"
+    ]
+    inputs = [
+        source
+        for projection in ([page.projection] if page is not None else [])
+        + [thread.projection]
+        for source, _spec in projection.actions.values()
+        if source["author"] == "user"
+    ]
+    return {
+        "asks": {
+            "page": [
+                ask["id"] for ask in read_document(page, threads).asks["unanswered"]
+            ]
+            if page is not None
+            else [],
+            "thread": [ask["id"] for ask in thread_asks["unanswered"]],
+            "prompts": prompts,
+        },
+        "answers": [item["answer"] for item in workflows if item["answer"] is not None],
+        "claims": [
+            {
+                "id": claim["id"],
+                "inputs": [
+                    source["id"]
+                    for source in inputs
+                    if claim["target"] == {"kind": "widget", "id": source["widget"]}
+                    or claim["target"]
+                    == {
+                        "kind": "thread",
+                        "id": thread.thread_by_widget.get(source["widget"]),
+                    }
+                ],
+            }
+            for claim in effective
+        ],
+        "approvals": [event["id"] for event in standing_approvals(events)],
+    }
 
 
 def page_action_unsettled(

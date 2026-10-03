@@ -27,13 +27,17 @@
    the temporary addressable resolves selected text to the first rendered block, matching the
    target where replay later seats its standing reaction.
 
+   Putting a reaction on or taking it back ends the response gesture synchronously,
+   after admission to the local ledger. Its durable answer never closes a newer composer
+   or returns focus: those belong to the gesture that has already ended.
+
    Token rendering and per-press submission helpers are passive exports. Boot
    constructs the reaction controller with auxiliary-surface, composer, and travel
    capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
 import { nextRender } from "./rendering.js";
-import { registerMarginContribution } from "./margin-entries.js";
+import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
@@ -272,24 +276,20 @@ export function createReactionController({
     const returnTo = fabReturnTo();
     const restoreTargetFocus = () => handBack(returnTo);
     if (!anchor) return;
-    if (standing) {
-      await commands.withdrawReaction(standing);
-      hideComposer();
-      showFab(null, null, { returnFocus: "none" });
-      setReact(false);
-      restoreTargetFocus();
-      return;
+    let sent;
+    if (standing) sent = commands.withdrawReaction(standing);
+    else {
+      const event = {
+        kind: "comment",
+        revision: runtime.currentRevision,
+        token: name,
+        anchor: structuredClone(anchor),
+      };
+      if (designModeActive()) event.about = "design";
+      sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     }
-    const event = {
-      kind: "comment",
-      revision: runtime.currentRevision,
-      token: name,
-      anchor: structuredClone(anchor),
-    };
-    if (designModeActive()) event.about = "design";
-    const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
-    showFab(null, null, { returnFocus: "none" });
+    showFab(null, { returnFocus: "none" });
     setReact(false);
     restoreTargetFocus();
     getSelection()?.removeAllRanges();
@@ -331,7 +331,7 @@ export function createReactionController({
     fabBar.dataset.lfMarginRaised = "1";
     const standing = unfoldedMarginEntries()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
-    marginOffer = registerMarginContribution({
+    marginOffer = registerContribution({
       key: "responses",
       target,
       read: () => {
@@ -434,7 +434,7 @@ export function createReactionController({
             // The target's margin row may stand where the target itself is
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
-            showFab(target.target.anchor, null, {
+            showFab(target.target.anchor, {
               origin: reactFrom,
               place: false,
             });

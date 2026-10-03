@@ -11,7 +11,9 @@
    interval and restores physical focus before dispatch. Code that acts on physical focus
    otherwise reads `document.activeElement` directly. `markHere` paints one `--focus-ring`
    around the semantic ask or control that contains focus. The ring is derived on
-   each paint; it does not store the ask walk's position.
+   each paint; it does not store the ask walk's position or move either reading surface.
+   An explicit Ask arrival reveals its matching drawer row; ordinary focus and refresh
+   preserve the place the user has chosen in that list.
 
    The ring is therefore paintable on an ask the `a`/`A` ask walk will not step to.
    The drawer does list it: the walk is a worklist, while the drawer is the complete route
@@ -129,7 +131,7 @@ import {
   projectCommandScope,
 } from "../keyboard/scopes.js";
 import { addressableLabel, addressableWord } from "../anchor-resolution.js";
-import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./drawer-list.js";
@@ -166,6 +168,7 @@ export function createAskView({
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
   const askNode = (ask) => (ask ? elementById(ask.id) : null);
+  const askRow = (ask) => ask && asksPanel.querySelector(`[${ASK_AT}="${ask.id}"]`);
   const sourceNode = (ask) => (ask ? elementById(ask.sourceId) : null);
   const hasAsk = (asks, candidate) =>
     Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
@@ -747,14 +750,10 @@ export function createAskView({
   function markHere() {
     const record = standingAsk();
     const here = askNode(record);
-    const row = record && asksPanel.querySelector(`[${ASK_AT}="${record.id}"]`);
+    const row = askRow(record);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
     );
-    // A walk that runs past the foot of an open drawer leaves its mark off screen, which is
-    // the drawer saying nothing exactly while the user is using it. `nearest` so a row
-    // already in view moves nothing.
-    if (row && drawerIsOpen("asks")) row.scrollIntoView({ block: "nearest" });
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
@@ -1046,6 +1045,7 @@ export function createAskView({
       },
     );
     if (!arrived) return false;
+    if (drawerIsOpen("asks")) askRow(next)?.scrollIntoView({ block: "nearest" });
     const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
     const index = asks.findIndex((ask) => ask.id === next.id);
     announce(walkPositionLabel("Ask", index + 1, asks.length, state));

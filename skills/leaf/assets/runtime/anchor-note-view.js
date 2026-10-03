@@ -1,7 +1,7 @@
 /* The accessible comment note for each authored block carrying comments.
  *
  * A painted range builds no accessibility node, so a block cannot say by itself that it
- * carries comments. Anchor paint supplies each commented block with its thread ids, and
+ * carries comments. Anchor controls supplies each commented block with its thread ids, and
  * this projection keeps one native button per block saying how many, which enters the
  * block's first thread. The button stands on the details shelf, and the block names it as
  * its details (details-shelf.js).
@@ -15,7 +15,7 @@
  */
 import { addressableAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
-import { spokenSubject } from "./margin-entry-model.js";
+import { spokenSubject } from "./contribution-model.js";
 import { offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 
@@ -29,8 +29,9 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
     const note = offer("button", "lf-skip lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId: null };
-    note.addEventListener("click", () =>
-      openThread(record.firstThreadId, { focus: "thread" }),
+    note.addEventListener(
+      "click",
+      () => void openThread(record.firstThreadId, { focus: "thread" }),
     );
     return record;
   }

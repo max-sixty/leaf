@@ -43,8 +43,8 @@ content-addressed over the document and its resources.
 
 The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
 with no interaction sleeps after ten idle minutes. After any page in a session is
-active, a visible active page holds its container through Leaf's news stream; a passive
-page opens no stream. Hidden tabs close their streams, so the idle timer can begin after
+active, a visible active page holds its container through Leaf's finite freshness requests; a passive
+page makes none. Hidden tabs stop these requests, so the idle timer can begin after
 the browser session has no visible active Leaf page. This is resource lifetime, not a
 persistence guarantee: Cloudflare can replace an active instance, and each site release
 deliberately gets a fresh one. Durable website sessions will require a durable
@@ -299,7 +299,9 @@ debugging log. Live incidents use
 query builder.
 
 The local end-to-end verifier prints the same container records and leaves them at
-`.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
+`.tmp/verify-site/run-*/website-agent-local.log` for a later agent to inspect. Each
+run builds its own site, binds an OS-assigned HTTP port, and gives each website host
+a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
 website config, matching production without changing personal state. Its JSON result
 records `responseVisibleMs` from the first non-empty agent reply the open Threads panel

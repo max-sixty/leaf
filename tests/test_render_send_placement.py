@@ -16,11 +16,13 @@ line:
   `moves` still says whether the card took the box's side.
 - `stands`: whether it stands where that side puts it: beside the block `level with
   the words`, or `clear of the block` under or over it, else how far off.
+  The touch passage verifies either clear placement or a window-constrained frame
+  when the paragraph and frame cannot fit together; font metrics can choose either.
 - `moves`: how far the card stands from where the box stood, at the edge each holds
   (the left edge across; the top down, or the foot where the card stands above),
   bucketed `still` (the same place), `near` (a line or two) or `away`.
 
-Each case also writes the pair it read to `.tmp/send-placement/<case>.png`: the box as
+Each case also writes the pair it read to its test's `tmp_path/<case>.png`: the box as
 the user typed in it on the left, the card on the right with the box's outline drawn
 over it, so a move shows at a glance. After an intentional change, re-record and read
 the diff beside those pictures:
@@ -30,11 +32,10 @@ the diff beside those pictures:
 import base64
 import io
 import re
-from pathlib import Path
 
 import pytest
 from interact_support import wait_for, yaml_document
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
@@ -46,9 +47,8 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    sending,
 )
-
-SHOTS = Path(__file__).resolve().parent.parent / ".tmp" / "send-placement"
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -269,7 +269,7 @@ def direction(pixels, positive, negative):
     return f" {positive if pixels > 0 else negative}"
 
 
-def picture(name, before, after, box):
+def picture(destination, before, after, box):
     """The box and the card side by side, the box's outline drawn over the card."""
     left = Image.open(io.BytesIO(before)).convert("RGB")
     right = Image.open(io.BytesIO(after)).convert("RGB")
@@ -282,7 +282,7 @@ def picture(name, before, after, box):
     pair = Image.new("RGB", (left.width * 2 + 12, left.height), (220, 0, 0))
     pair.paste(left, (0, 0))
     pair.paste(right, (left.width + 12, 0))
-    pair.save(SHOTS / f"{name}.png")
+    pair.save(destination)
 
 
 def send_one(page, on, touch):
@@ -298,7 +298,7 @@ def send_one(page, on, touch):
     rendered(page)
 
 
-def sent(browser, serve, name):
+def sent(browser, serve, name, shots):
     """The case's reading: where the box stood with the comment typed, and where the
     card stands once the comment is sent, both in the page as it stood before Send."""
     size, touch, on, expected, *rest = CASES[name]
@@ -323,8 +323,18 @@ def sent(browser, serve, name):
     page.keyboard.insert_text(COMMENT)
     rendered(page)
     box_side = SIDES[bar.get_attribute("data-lf-placement")]
-    box = page.evaluate(RECT, ".lf-fab-input")
+    # Both placement readings describe the complete frame, including the transparent
+    # slots around the editor. The glyph test below measures the painted words.
+    box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
+    phone_room = None
+    if name == "phone-touch-passage":
+        phone_room = page.evaluate("""async () => {
+          const {commentBoundary, COMMENT_GAP} =
+            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+          const {top, bottom, height} = commentBoundary();
+          return {top, bottom, height, gap: COMMENT_GAP};
+        }""")
     scrolled = page.evaluate("scrollY")
     before = page.screenshot()
 
@@ -342,12 +352,16 @@ def sent(browser, serve, name):
     card_side = card.get_attribute("data-lf-thread-placement")
     # A card that scrolled the page is read where it stands on the page the box stood on.
     carried = page.evaluate("scrollY") - scrolled
+    if phone_room is not None:
+        assert carried == 0, (
+            "The touch handoff must keep the page and its boundary still"
+        )
     placed = {
         edge: value + (carried if edge in ("top", "bottom") else 0)
         for edge, value in page.evaluate(RECT, ".lf-margin-preview").items()
     }
     picture(
-        name,
+        shots / f"{name}.png",
         before,
         page.screenshot(),
         {
@@ -359,15 +373,34 @@ def sent(browser, serve, name):
     def allowed(side):
         return expected if side in expected.split(" or ") else side
 
+    def standing(side, rect):
+        if phone_room is None:
+            return stands(side, rect, words, block)
+        assert side in ("above", "below"), side
+        gap = (
+            block["top"] - rect["bottom"]
+            if side == "above"
+            else rect["top"] - block["bottom"]
+        )
+        if gap < 0:
+            limits = (block, rect, phone_room)
+            required = block["bottom"] - block["top"] + rect["bottom"] - rect["top"]
+            assert required + phone_room["gap"] > phone_room["height"], limits
+            edge = "top" if side == "above" else "bottom"
+            assert rect[edge] == pytest.approx(phone_room[edge], abs=0.75), limits
+        else:
+            assert gap <= NEAR, (block, rect)
+        return "clear or window-constrained"
+
     reading = {
         "expected": expected,
         "comment box": {
             "side": allowed(box_side),
-            "stands": stands(box_side, box, words, block),
+            "stands": standing(box_side, box),
         },
         "thread card": {
             "side": allowed(card_side),
-            "stands": stands(card_side, placed, words, block),
+            "stands": standing(card_side, placed),
         },
         "moves": movement(box, placed, card_side),
     }
@@ -379,14 +412,208 @@ def sent(browser, serve, name):
     return reading
 
 
-def test_where_a_comment_stands_before_and_after_send(browser, serve, snapshot):
-    SHOTS.mkdir(parents=True, exist_ok=True)
+def test_where_a_comment_stands_before_and_after_send(
+    browser, serve, snapshot, tmp_path
+):
     snapshot.check(
         yaml_document(
             "Where each case's comment box, and the thread card it became, stand.",
-            {name: sent(browser, serve, name) for name in CASES},
+            {name: sent(browser, serve, name, tmp_path) for name in CASES},
         )
     )
+
+
+@pytest.mark.parametrize("width", [900, 1650])
+@pytest.mark.parametrize("route", ["pointer", "search"])
+def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
+    browser, serve, width, route
+):
+    """A wide block is clearance, not the passage's inline attachment. The editor
+    and its sent card stand by the selected words while keeping that block clear."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "passage attachment",
+                '<h1>Review the handler</h1><pre id="source"><code>'
+                'const answer = {\n  decision: "Keep",\n  does: "Keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p>",
+                layout="wide",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": width, "height": 900})
+    words = "Keep the active card"
+    phrase = """words => {
+      const text = document.querySelector('#source code').firstChild;
+      const range = document.createRange();
+      const start = text.data.indexOf(words);
+      range.setStart(text, start);
+      range.setEnd(text, start + words.length);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    passage = page.evaluate(phrase, words)
+    if route == "pointer":
+        y = passage["top"] + passage["height"] / 2
+        select(page, (passage["left"] + 1, y), (passage["right"] - 1, y))
+    else:
+        page.keyboard.press("/")
+        page.keyboard.insert_text(words)
+        page.keyboard.press("Enter")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
+    rendered(page)
+
+    def attached(selector):
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    rendered(page)
+    before = attached(".lf-fab-bar")
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+
+
+def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_and_send(
+    browser, serve
+):
+    """A later, less indented line cannot move the passage's inline attachment.
+    Native selection and the captured draft/card use the same first fragment, while
+    their clearance continues to belong to the whole code block."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Multiline attachment",
+                '<h1>Review the handler</h1><pre id="source"><code class="language-javascript">'
+                'const answer = {\n  decision: "Keep",\n  does: "keep the active card",\n};'
+                "</code></pre><p>The handler records the current decision.</p>",
+                layout="wide",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    phrase = """words => {
+      const code = document.querySelector('#source code');
+      const start = code.textContent.indexOf(words);
+      const end = start + words.length;
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      let offset = 0;
+      for (let node; (node = walker.nextNode());) {
+        const next = offset + node.length;
+        if (offset <= start && start < next) range.setStart(node, start - offset);
+        if (offset < end && end <= next) range.setEnd(node, end - offset);
+        offset = next;
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return {
+        first: fragments[0].toJSON(), last: fragments.at(-1).toJSON(),
+        box: range.getBoundingClientRect().toJSON(),
+      };
+    }"""
+    passage = page.evaluate(phrase, 'Keep",\n  does: "keep the active card')
+    first, last = passage["first"], passage["last"]
+    select(
+        page,
+        (first["left"] + 1, first["top"] + first["height"] / 2),
+        (last["right"] - 1, last["top"] + last["height"] / 2),
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    words = page.evaluate("() => getSelection().toString()")
+
+    def attached(selector):
+        rendered(page)
+        passage = page.evaluate(phrase, words)
+        # The fixture must distinguish the first words from the whole range's left edge.
+        assert passage["first"]["left"] - passage["box"]["left"] > 50
+        rect = page.evaluate(RECT, selector)
+        block = page.evaluate(RECT, "#source")
+        assert rect["left"] == pytest.approx(passage["first"]["left"], abs=1)
+        assert rect["bottom"] <= block["top"] or rect["top"] >= block["bottom"]
+        return rect
+
+    attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.insert_text("Keep this meaning explicit.")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => getSelection().isCollapsed")
+    attached(".lf-fab-bar")
+    resized(page, 1200, 900)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    attached(".lf-fab-bar")
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", "Keep this meaning explicit.")
+    before = attached(".lf-fab-bar")
+    field.click()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    after = attached(".lf-margin-preview")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    attached(".lf-margin-preview")
+
+
+def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
+    browser, serve
+):
+    """A passage's column attaches the surface; it cannot shrink its usable frame.
+    Send's frame adoption must not hide a different rule when that card reopens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "right edge passage",
+                '<h1>Review the note</h1><p id="edge">Needle</p><p>Keep its thread usable.</p>',
+                head="<style>#edge { text-align: right; }</style>",
+                layout="wide",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 900, "height": 900})
+    page.keyboard.press("/")
+    page.keyboard.insert_text("Needle")
+    page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    field.click()
+    page.keyboard.insert_text("A note")
+    rendered(page)
+    before = page.evaluate(RECT, ".lf-fab-bar")
+    page.keyboard.insert_text(" with enough words to widen and wrap. " * 5)
+    rendered(page)
+    after = page.evaluate(RECT, ".lf-fab-bar")
+    assert after["left"] == pytest.approx(before["left"], abs=1)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    rendered(page)
+    card = page.evaluate(RECT, ".lf-margin-preview")
+    boundary, minimum = page.evaluate("""async () => {
+      const {commentBoundary, cardMinimum} =
+        await window.__lfRuntimeImport('/runtime/comment-placement.js');
+      const {left, right, width} = commentBoundary();
+      return [{left, right, width}, cardMinimum()];
+    }""")
+    assert card["right"] - card["left"] >= min(minimum, boundary["width"]) - 1
+    assert card["left"] >= boundary["left"] - 1
+    assert card["right"] <= boundary["right"] + 1
 
 
 @pytest.mark.parametrize("region", ["document", "pane"])
@@ -514,3 +741,282 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         or any(abs(box_top - window_top) <= 1 for window_top in window_tops)
         for target_top, box_top in shown
     ), readings
+
+
+@pytest.mark.parametrize(
+    "size,at,long,touch,again,motion,options",
+    [
+        ((1440, 900), 0.4, False, False, False, "no-preference", False),
+        ((900, 600), 0.85, False, False, False, "no-preference", False),
+        ((390, 844), 0.12, False, False, False, "no-preference", False),
+        ((900, 600), 0.4, True, False, False, "no-preference", False),
+        ((1440, 900), 0.4, "paragraphs", False, False, "no-preference", False),
+        ((390, 844), 0.12, False, True, False, "no-preference", False),
+        ((1440, 900), 0.4, False, False, True, "no-preference", False),
+        ((1440, 900), 0.4, False, False, False, "reduce", False),
+        ((390, 844), 0.4, "passage", True, False, "no-preference", False),
+        pytest.param(
+            (900, 600),
+            0.85,
+            False,
+            False,
+            False,
+            "no-preference",
+            True,
+            id="above-with-options-desktop",
+        ),
+        pytest.param(
+            (390, 844),
+            0.85,
+            False,
+            False,
+            False,
+            "no-preference",
+            True,
+            id="above-with-options-phone",
+        ),
+    ],
+)
+def test_send_grows_thread_around_the_words(
+    browser, serve, size, at, long, touch, again, motion, options
+):
+    """The real draft's words keep their position/wrapping/scroll through Send,
+    including the decoration animation and acknowledgement. Read inside the editor
+    solely to measure its actual glyphs, without changing its closed-root behavior."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(PAGE),
+        context=context,
+        init_script="""
+      window.editorRoots = new WeakMap();
+      const attach = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function(options) {
+        const root = attach.call(this, options);
+        if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+        return root;
+      };
+    """,
+    )
+    resized(page, *size)
+    page.emulate_media(reduced_motion=motion)
+    if again:
+        send_one(page, STEP, touch)
+    on = FIRST_LINE if long == "passage" else STEP
+    page.locator(on.block).evaluate(
+        "(el, at) => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * at)",
+        at,
+    )
+    rendered(page)
+    on.open(page, touch)
+    text = (
+        "Keep the runner checkout fixed while the disposable workspace is safely removed. "
+        * (80 if long is True else 2)
+    )
+    if long == "paragraphs":
+        text = "First paragraph.\n\nSecond paragraph."
+    field = page.locator(".lf-fab-input")
+    before_typing = field.bounding_box()
+    page.keyboard.insert_text(text)
+    rendered(page)
+    after_typing = field.bounding_box()
+    if long is False:
+        assert (
+            min(
+                abs(after_typing["y"] - before_typing["y"]),
+                abs(
+                    after_typing["y"]
+                    + after_typing["height"]
+                    - before_typing["y"]
+                    - before_typing["height"]
+                ),
+            )
+            <= 1
+        ), "Typing a short comment may grow its field, but must not carry it"
+    if options:
+        page.locator(".lf-response-more").click()
+        rendered(page)
+        page.locator(".lf-fab-input").focus()
+        rendered(page)
+    if long == "passage":
+        assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
+    page.evaluate("""() => {
+      const input = document.querySelector('.lf-fab-input');
+      const blockRects = node => {
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        const text = nodes.map(n => n.textContent).join('');
+        const boxes = [];
+        let at = 0, i = 0;
+        for (const word of text.matchAll(/\\S+/g)) {
+          while (at + nodes[i].length <= word.index) at += nodes[i++].length;
+          const range = document.createRange();
+          // CodeMirror splits long text into nodes. A split inside a ligature
+          // changes Chrome's single-character range without moving its paint;
+          // measure the complete word across those nodes instead.
+          range.setStart(nodes[i], word.index - at);
+          let j = i, endAt = at;
+          const end = word.index + word[0].length;
+          while (endAt + nodes[j].length < end) endAt += nodes[j++].length;
+          range.setEnd(nodes[j], end - endAt);
+          const r = range.getBoundingClientRect();
+          boxes.push([r.x,r.y,r.width,r.height]);
+        }
+        return boxes;
+      };
+      const rects = node => {
+        const blocks = node.matches('.cm-content') ? [...node.querySelectorAll('.cm-line')]
+          : [...node.children];
+        return blocks.flatMap(blockRects);
+      };
+      const editor = window.editorRoots.get(input).querySelector('.cm-content');
+      window.beforeWords = rects(editor);
+      window.beforeScroll = input.scrollTop;
+      window.beforePageScroll = scrollY;
+      window.sendFrames = [];
+      const sample = () => {
+        const card = document.querySelector('.lf-margin-preview');
+        const body = card?.querySelector('.lf-msg-body');
+        if (body && card.checkVisibility()) {
+          window.sendFrames.push({rects:rects(body), scroll:body.scrollTop, pageScroll:scrollY,
+            frame:card.getBoundingClientRect().toJSON()});
+        }
+        window.sampling = requestAnimationFrame(sample);
+      };
+      window.sampling = requestAnimationFrame(sample);
+    }""")
+    with sending(page, "comment"):
+        if touch:
+            page.locator(".lf-fab-bar").get_by_role(
+                "button", name="Comment", exact=True
+            ).tap()
+        else:
+            page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-comment-frame", "")
+    rendered(page)
+    wait_for(
+        lambda: page.evaluate(
+            "document.querySelector('.lf-margin-preview').getAnimations().length"
+        ),
+        lambda n: n == 0,
+        failure="Thread growth never finished",
+    )
+    reading = page.evaluate("""() => {
+      cancelAnimationFrame(window.sampling);
+      return {before:beforeWords,scroll:beforeScroll,pageScroll:beforePageScroll,frames:sendFrames};
+    }""")
+    assert reading["frames"]
+    for frame in reading["frames"]:
+        assert frame["frame"]["left"] >= -0.75
+        assert frame["frame"]["right"] <= size[0] + 0.75
+        assert frame["frame"]["top"] >= -0.75
+        assert frame["frame"]["bottom"] <= size[1] + 0.75
+        assert [v for r in frame["rects"] for v in r] == pytest.approx(
+            [v for r in reading["before"] for v in r], abs=0.75
+        ), reading
+        assert frame["scroll"] == pytest.approx(reading["scroll"], abs=1), reading
+        assert frame["pageScroll"] == reading["pageScroll"], reading
+    expect(
+        card.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+    expect(card.locator('leaf-text[name="reply"]')).to_be_visible()
+
+    if long is True:
+        body = card.locator(".lf-msg-body").first
+        body.hover()
+        page.mouse.wheel(0, -300)
+        expect(body).not_to_have_js_property("scrollTop", reading["scroll"])
+        scroll_settled(page)
+        retained = body.evaluate("el => el.scrollTop")
+        resized(page, size[0] + 1, size[1])
+        rendered(page)
+        assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
+        expect(card).to_have_attribute("data-lf-comment-frame", "")
+    if not long and not touch and not again and motion == "no-preference":
+        card.locator('leaf-text[name="reply"]').click()
+        page.keyboard.insert_text("The same placement works for a reply.")
+        painted_growth = size == (900, 600) and not options
+        if painted_growth:
+            rendered(page)
+            # Layout Instability compares painted frames; a RAF measurement can
+            # catch an intermediate height the browser never actually displayed.
+            card.evaluate("""card => {
+              const growth = [];
+              const record = entries => {
+                for (const entry of entries) for (const source of entry.sources) {
+                  if (source.node !== card || !source.previousRect.height) continue;
+                  const before = source.previousRect.height, after = source.currentRect.height;
+                  if (Math.abs(after - before) > 0.75) growth.push({before, after});
+                }
+              };
+              const observer = new PerformanceObserver(list => record(list.getEntries()));
+              observer.observe({type: 'layout-shift'});
+              window.__replyGrowth = () => {
+                record(observer.takeRecords());
+                observer.disconnect();
+                return growth;
+              };
+            }""")
+        with sending(page, "reply"):
+            page.keyboard.press("Enter")
+        rendered(page)
+        expect(
+            card.get_by_text("The same placement works for a reply.")
+        ).to_be_visible()
+        if painted_growth:
+            growth = page.evaluate("window.__replyGrowth()")
+            assert len(growth) == 1 and growth[0]["after"] > growth[0]["before"], growth
+
+        # The first sent message, subsequent turns, metadata and the empty reply
+        # share one reading edge, both during the handoff and after reopening.
+        def reading_edges():
+            return card.evaluate("""card => {
+              const firstGlyph = node => {
+                const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+                while (walker.nextNode()) {
+                  const text = walker.currentNode;
+                  const at = text.textContent.search(/\\S/);
+                  if (at < 0) continue;
+                  const range = document.createRange();
+                  range.setStart(text, at); range.setEnd(text, at + 1);
+                  return range.getBoundingClientRect().left;
+                }
+              };
+              return [...card.querySelectorAll('.lf-msg-head > b, .lf-msg-body, .lf-compose-placeholder > span')]
+                .map(firstGlyph);
+            }""")
+
+        edges = reading_edges()
+        assert len(edges) == 5, edges
+        assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
+        card.locator(".lf-margin-preview-close").click()
+        page.keyboard.press("Enter")
+        rendered(page)
+        edges = reading_edges()
+        assert len(edges) == 5, edges
+        assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
+        if size == (390, 844) and at == 0.12:
+            # Reopening at a wider measure removes a line. Spend only the travel
+            # that fitted height needs, keeping both the page's words and the card.
+            card.locator(".lf-margin-preview-close").click()
+            resized(page, 900, 600)
+            page.locator(on.block).evaluate(
+                "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * .4)"
+            )
+            rendered(page)
+            page.keyboard.press("Enter")
+            rendered(page)
+            opening = card.evaluate("""async card => {
+              const {commentBoundary, COMMENT_GAP} =
+                await window.__lfRuntimeImport('/runtime/comment-placement.js');
+              const box = card.getBoundingClientRect();
+              return {top:box.top, bottom:box.bottom,
+                boundary:commentBoundary().top, gap:COMMENT_GAP};
+            }""")
+            assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
+            assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
+                opening["gap"], abs=1
+            ), opening
+    judge_watches()

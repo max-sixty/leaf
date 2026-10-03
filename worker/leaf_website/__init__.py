@@ -20,9 +20,11 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
-from functools import cache, partial
+from functools import partial
 from html import escape
 from pathlib import Path
+
+import click
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
 # one binding: whatever takes a turn's readings there takes the host's too.
@@ -46,6 +48,7 @@ from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.page_memory import Slot, memo
 from leaf.registry.storage import layer_metadata
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -55,10 +58,10 @@ from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
     PageTransaction,
-    close_session_turn,
     page_claim,
     restore_page_claim,
 )
+from leaf.state import close_session_turn
 from leaf.thread import (
     fail_answer,
     release_delivery_reply,
@@ -143,10 +146,6 @@ WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_F
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
-RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
-CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
-CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
-CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The hosted agent reads the same App Server contract a terminal task does, whole, and
 # leaf.page's own terms follow it as additions. The agent may not read outside its page
@@ -243,10 +242,16 @@ def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
     return {"eventIds": event_ids}
 
 
-@cache
+class _Binding(Slot):
+    """A published page's immutable delivery metadata."""
+
+
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
-    """Read immutable delivery metadata once per published page and process."""
-    return layer_metadata(page_dir), preview_metadata(page_dir)
+    """Read immutable delivery metadata once while this process keeps the page
+    (`leaf.page_memory`)."""
+    return memo(page_dir, _Binding).get(
+        None, lambda: (layer_metadata(page_dir), preview_metadata(page_dir))
+    )
 
 
 def site_metadata(page_root: str, page: dict) -> str:
@@ -441,7 +446,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.open()
+        if not self.open():
+            raise RuntimeError("the hosted turn no longer owns its session epoch")
         open_app_server_delivery(
             self.page_dir,
             self.session_id,
@@ -597,13 +603,17 @@ class WebsiteCodexHost:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path = CODEX_SOCKET,
-        log_path: Path = CODEX_LOG,
+        socket_path: Path | None = None,
+        log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        self.socket_path = socket_path
-        self.log_path = log_path
-        self.endpoint = f"unix://{socket_path}"
+        # App Server's Unix socket is short and private to this host, even when
+        # multiple website versions run in the same machine's temporary directory.
+        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
+        runtime = Path(self.runtime.name)
+        self.socket_path = socket_path or runtime / "codex.sock"
+        self.log_path = log_path or runtime / "codex.log"
+        self.endpoint = f"unix://{self.socket_path}"
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -690,12 +700,15 @@ class WebsiteCodexHost:
             self.process = None
         if process is not None:
             self._stop_server(process)
+        self.runtime.cleanup()
 
     def _stop_server(self, process: subprocess.Popen) -> None:
         stop_app_server(process)
         self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
+        if self.stop_event.is_set():
+            raise RuntimeError("the website host is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
         if self.process is not None:
@@ -1461,12 +1474,19 @@ def close_on_signal(agent_host: WebsiteCodexHost) -> None:
     signal.signal(signal.SIGINT, stop)
 
 
-def main() -> None:
+@click.command()
+@click.option(
+    "--port",
+    type=click.IntRange(0, 65535),
+    default=PORT,
+    help="HTTP port; 0 lets the OS choose a private local listener.",
+)
+def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
-    httpd = LeafHTTPServer(("0.0.0.0", PORT), site_endpoint(site_root, agent_host))
-    log_agent("container_http_ready")
+    httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_host))
+    log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(agent_host)
     agent_host.prewarm()
     try:

@@ -2162,6 +2162,7 @@ def left_alone(page):
     clock through every callback while Date.now stays fixed; the following test keeps
     real-time timers.
     """
+
     def prepare_children(parent):
         for frame in parent.child_frames:
             if frame.evaluate(

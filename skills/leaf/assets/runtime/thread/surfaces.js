@@ -356,7 +356,6 @@ export function renderSurfaces(collection, placements, commands) {
     // Page candidates cover every exact target. Only surviving widget nominations
     // reserve a Thread or composer here; a failed page cannot certify the cohort.
     const widgetClaims = new Set();
-    let widgetComposition = false;
     for (const plan of plans) {
       try {
         validateOutlets(plan.registration, plan.byOutlet);
@@ -375,7 +374,6 @@ export function renderSurfaces(collection, placements, commands) {
             ),
           );
         if (
-          (plan.registration.kind === "page" && widgetComposition) ||
           !plan.byOutlet.has(plan.compositionOutlet) ||
           !exactTarget(
             plan.registration,
@@ -393,7 +391,6 @@ export function renderSurfaces(collection, placements, commands) {
       if (plan.registration.kind === "widget") {
         for (const threads of plan.byOutlet.values())
           for (const thread of threads) widgetClaims.add(thread.id);
-        widgetComposition ||= Boolean(plan.compositionOutlet);
       }
     }
     const previousComposition = commands.composition.outlet();
@@ -404,10 +401,15 @@ export function renderSurfaces(collection, placements, commands) {
       if (
         sameAnchor(activeComposition?.anchor, commands.composition.active()?.anchor)
       ) {
-        const selected = plans.find(({ compositionOutlet }) => compositionOutlet);
         movedComposition = true;
-        if (selected) commands.composition.seat(selected.compositionOutlet);
-        else commands.composition.restore();
+        // Only an admitted native editor seat reserves composition. Folded Thread
+        // outlets remain valid materialization, while an unavailable typing place
+        // yields to the surviving page nomination or the actual composition home.
+        const seated = plans.some(
+          ({ compositionOutlet }) =>
+            compositionOutlet && commands.composition.seat(compositionOutlet),
+        );
+        if (!seated) commands.composition.restore();
       }
       const nextClaimed = new Set();
       for (const { registration, byOutlet } of plans) {
@@ -441,9 +443,11 @@ export function renderSurfaces(collection, placements, commands) {
       // ThreadSeat retention restores the conversations. Composition owns its own
       // native editor, so return it through the same seat/restore producer first.
       if (movedComposition) {
-        if (previousComposition?.isConnected)
-          commands.composition.seat(previousComposition);
-        else commands.composition.restore();
+        if (
+          !previousComposition?.isConnected ||
+          !commands.composition.seat(previousComposition)
+        )
+          commands.composition.restore();
       }
       throw error;
     }

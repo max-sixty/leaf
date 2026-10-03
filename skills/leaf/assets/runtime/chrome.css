@@ -1167,22 +1167,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     outline: none; --lf-focus-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     box-shadow: var(--focus-shadow), 0 2px 8px var(--shade); }
-  /* The field takes the size its words want. A short note is one line; a
-     longer one widens to a readable measure before it wraps, then grows along the edge
-     placement attached and scrolls past the room placement gave the field
-     (--lf-float-h). Floating UI supplies both limits from the reading boundary and the
-     one-line minimum, so content cannot re-seat the bar. The room's width caps the
-     whole bar, and the field is the flex item that shrinks, so on a narrow screen the
-     words wrap sooner and the ellipsis keeps its room. */
-  leaf-text.lf-fab-input { width: auto; min-width: 0;
-    max-width: var(--lf-response-room, calc(var(--thread-card) - 60px));
-    max-height: var(--lf-float-h, 60vh);
+  /* The physical response presentation allocates the field's box. The host is
+     the editor's scrollport; its content-sized editor keeps native caret reveals. */
+  leaf-text.lf-fab-input { width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
-    --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
-    flex: 0 1 auto; }
+    --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
   .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);

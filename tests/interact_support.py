@@ -1434,11 +1434,11 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
 import json, sys
 from pathlib import Path
 from leaf.hosting import start_server
-from leaf.service import starting_claim
+from leaf.service import claim_page
 page = Path(sys.argv[1])
-with starting_claim(page):
-    url, _ = start_server(page)
-print(json.dumps({"url": url}))
+claim_page(page)
+started = start_server(page)
+print(json.dumps({"url": started.url}))
 """
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),

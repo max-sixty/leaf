@@ -262,8 +262,8 @@ class PreviewService:
 
         if not self.user:
             return self._serve_temporary()
-        started = claim_and_start(self.page)
-        self.claim = started.claim
+        with claim_and_start(self.page) as started:
+            self.claim = started.claim
         return started.url, started.note
 
     def serve_again(self) -> None:

@@ -4157,17 +4157,8 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     assert server_model.page_access(page_dir) == service
 
 
-def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spawn):
-    """A serving child whose caller goes away before committing its start
-    withdraws it, and that withdrawal is a transition of its own. A stop arriving
-    after the child took its lease must wait for the lease without holding the
-    transition, or the two block each other forever.
-
-    A caller that reads the announcement and never acknowledges it holds the child
-    there with its lease taken and its record enabled; closing its end of the
-    handshake is the caller leaving.
-    """
-    assert service_model.claim_page(page_dir)
+def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spawn):
+    """Another start cannot adopt a listener its caller has not accepted."""
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -4175,6 +4166,7 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
             "server",
             "_serve",
             str(page_dir),
+            "--standing",
             "--handshake",
             str(end.fileno()),
         ],
@@ -4185,27 +4177,65 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     )
     end.close()
     caller.settimeout(30)
+    successor = []
+    attempting = threading.Event()
+
+    def start():
+        attempting.set()
+        successor.append(hosting_model.start_server(page_dir, standing=True))
+
+    starting = threading.Thread(target=start, daemon=True)
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
-        service = page_dir / "service.json"
-        assert json.loads(service.read_text())["enabled"]
-        stopped = []
-        stopping = threading.Thread(
-            target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
-            daemon=True,
-        )
+        assert files_model.read_json(page_dir / "service.json") is None
+        starting.start()
+        assert attempting.wait(10)
+        assert leases_model.lock_is_held(page_dir / "server.lock")
+        caller.close()  # Abandon the private listener; the successor must bind its own.
+        assert child.wait(timeout=10) == 0
+        starting.join(timeout=30)
+        assert len(successor) == 1
+        assert fetch(successor[0].url)[0] == 200
+    finally:
+        caller.close()
+        starting.join(timeout=30)
+        hosting_model.cmd_stop(page_dir)
+
+
+def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
+    caller, end = socket.socketpair()
+    child = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page_dir),
+            "--standing",
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    end.close()
+    caller.settimeout(30)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
+        daemon=True,
+    )
+    try:
+        assert "url" in json.loads(caller.makefile("rb").readline())
         stopping.start()
-        wait_for(
-            lambda: not json.loads(service.read_text())["enabled"],
-            bool,
-            failure="the stop did not disable the record",
-        )
+        assert files_model.read_json(page_dir / "service.json") is None
     finally:
         caller.close()
     stopping.join(timeout=30)
-    assert stopped == [True]
-    assert child.wait(timeout=10) is not None
-    assert not json.loads(service.read_text())["enabled"]
+    assert stopped == [False]
+    assert child.wait(timeout=10) == 0
+    assert files_model.read_json(page_dir / "service.json") is None
 
 
 def test_a_start_whose_caller_left_before_committing_leaves_no_service(
@@ -4224,8 +4254,8 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
 
     with monkeypatch.context() as patched:
         patched.setattr(detached_model.socket.socket, "sendall", interrupted)
-        with pytest.raises(KeyboardInterrupt):
-            hosting_model.claim_and_start(page_dir)
+        with pytest.raises(KeyboardInterrupt), hosting_model.claim_and_start(page_dir):
+            pass
 
     assert not claim_file.exists(), "the uncommitted start kept its claim"
     wait_for(
@@ -4233,7 +4263,7 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
         bool,
         failure="the server stayed up after its caller left uncommitted",
     )
-    assert not json.loads((page_dir / "service.json").read_text())["enabled"]
+    assert files_model.read_json(page_dir / "service.json") is None
 
 
 @pytest.mark.parametrize(
@@ -4440,11 +4470,12 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
 def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
     calls = []
 
-    def start_detached(arguments, **options):
+    @contextmanager
+    def starting_detached(arguments, **options):
         calls.append(arguments)
-        return {"url": "http://127.0.0.1:41234/?t=test"}
+        yield {"url": "http://127.0.0.1:41234/?t=test", "claim": None}
 
-    monkeypatch.setattr(hosting_model, "start_detached", start_detached)
+    monkeypatch.setattr(hosting_model, "starting_detached", starting_detached)
 
     started = hosting_model.start_server(
         page_dir,
@@ -4453,7 +4484,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
         revive=True,
     )
 
-    assert started[0] == "http://127.0.0.1:41234/?t=test"
+    assert started.url == "http://127.0.0.1:41234/?t=test"
     assert calls == [
         [
             "server",

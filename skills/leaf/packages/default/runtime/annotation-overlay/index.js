@@ -8,3 +8,4 @@ export { createFloatingResponsePlacement } from "./composing/floating-response.j
 export { postedDrawings } from "./composing/drawing-paint.js";
 export { syncMarginResidency } from "./margin-layout.js";
 export { mountAnnotationControls, restoreAnnotations } from "./annotation-layer.js";
+export { floatingSelections } from "./floating.js";

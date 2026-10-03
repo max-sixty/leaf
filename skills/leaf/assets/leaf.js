@@ -42,6 +42,7 @@ import {
   pendingDrawing,
 } from "./runtime/composing/selection.js";
 import { createResponseSurface } from "./runtime/composing/surface.js";
+import { createFloatingResponsePlacement } from "./runtime/composing/floating-response.js";
 import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
 import { createAim } from "./runtime/composing/aim.js";
@@ -556,6 +557,7 @@ selectionComposer = createSelectionComposer({
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
+  createPlacement: createFloatingResponsePlacement,
   panelElements,
   panelIsOpen,
   landIn: landing.landIn,

@@ -166,7 +166,10 @@ export function createThreadPresentation({
           draft: readDraft(),
           actionAnchor: activeActionAnchor(),
         });
-        if (anchors) anchorControls.render(anchorPaint.paint(anchors));
+        if (anchors) {
+          anchorPaint?.paint(anchors);
+          anchorControls.render(anchors);
+        }
         drawingPaint.paint(threads);
       };
       readTargets();

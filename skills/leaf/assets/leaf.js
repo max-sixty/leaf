@@ -168,7 +168,12 @@ import {
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
+import {
+  focused,
+  paintKeys,
+  reflectFirstScopes,
+  reflectKeys,
+} from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
@@ -868,6 +873,7 @@ if (!offlineInteractive) {
   watchDisclosures(document);
   mountRepaint({
     reflectFirstScopes,
+    reflectKeys,
     paintStandingContent: standing.paintStandingContent,
     syncLayout: layout.syncLayout,
     pageShifted: pageGeometry.pageShifted,
@@ -876,7 +882,7 @@ if (!offlineInteractive) {
 } else {
   // An interactive export attaches no chrome, so its standing is only what a widget's
   // own box shows: an options group's addition field paints there as it does live.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs });
+  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
 
 const replayReady = passiveSample

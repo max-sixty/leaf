@@ -357,7 +357,12 @@ export function createMarginProjection({
   }
 
   function carryCommentFrame(origin) {
-    previewMessageViewport = origin && { scroll: origin.scroll, body: null };
+    previewMessageViewport?.stopRegion?.();
+    previewMessageViewport = origin && {
+      scroll: origin.scroll,
+      body: null,
+      stopRegion: null,
+    };
     preview.toggleAttribute("data-lf-comment-frame", Boolean(previewMessageViewport));
     const properties = {
       "--lf-comment-width": previewMessageViewport && `${origin.frame.width}px`,
@@ -638,9 +643,9 @@ export function createMarginProjection({
       0,
     );
   }
-  // The reply takes the room below the transcript without carrying the words above
-  // it. A transcript that cannot fit beside even one editor line scrolls itself;
-  // typing then uses the remaining room and scrolls inside the editor.
+  // Draft lines take room before they scroll. A long transcript yields up to half
+  // the card's body to the reply; a short one leaves the remaining room available.
+  // Growing the editor moves their shared boundary, never the card's attachment.
   function fitThreadCardEditors() {
     const listRoom =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
@@ -653,18 +658,22 @@ export function createMarginProjection({
       const line = parseFloat(box.lineHeight);
       const furniture = row.offsetHeight - input.offsetHeight;
       const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      // Reserve the turns' own content, rather than the room the last-sized editor
-      // left them. After a resize that editor can exceed the new card's height.
-      const answered =
-        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) +
-        thread.querySelector(".lf-thread-transcript").scrollHeight;
+      const available =
+        listRoom -
+        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) -
+        furniture -
+        inset;
+      const answered = Math.min(
+        thread.querySelector(".lf-thread-transcript").scrollHeight,
+        available / 2,
+      );
       const oneLine =
         input.offsetHeight -
         input.clientHeight +
         line +
         parseFloat(box.paddingTop) +
         parseFloat(box.paddingBottom);
-      const room = Math.max(oneLine, listRoom - answered - furniture - inset);
+      const room = Math.max(oneLine, available - answered);
       input.style.setProperty("--lf-thread-editor-room", `${room}px`);
     }
   }
@@ -881,8 +890,16 @@ export function createMarginProjection({
         if (previewMessageViewport) {
           const body = previewList.querySelector(".lf-msg > .lf-msg-body");
           if (body && body !== previewMessageViewport.body) {
+            previewMessageViewport.stopRegion?.();
             body.scrollTop = previewMessageViewport.scroll;
             previewMessageViewport.body = body;
+            // Adoption retains the editor's viewport inside the transcript. It is
+            // a reading region of its own while that inner viewport stands.
+            previewMessageViewport.stopRegion = registerReadingRegion({
+              id: `${THREAD_CARD}:submitted`,
+              host: body,
+              body,
+            });
           }
         }
         // The spot the rule stood the card at before the boundary shifted it in, so a

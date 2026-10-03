@@ -61,10 +61,10 @@ its playground when it owns the same decision.
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
-theme's tokens, and the `playground` package's elements
-(`<root>/skills/leaf/packages/playground/instructions/author.md`) wrap the
-candidates: the controls and presets the user explores them with, the
-candidates in its preview, and an output saying what to build.
+theme's tokens. Follow
+`<root>/skills/leaf/packages/playground/instructions/author.md` to choose the
+selection and exploration elements, present the candidates, and submit a task
+saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it

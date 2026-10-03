@@ -3598,10 +3598,10 @@ How this text reaches the agent, by example
 
 @LOGGED@
 
-3. Earlier, the agent started `leaf wait` in the background and went idle. The
-   agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-   line, prints one line naming the page, and exits, which opens a turn. Leaf's
-   prompt hook runs as that turn begins and builds a delivery for the comment.
+3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
+   The watch notices the new input and wakes the session. Leaf's prompt hook
+   runs as that turn begins and builds a delivery for the comment. This test
+   drives the same watch and complete reader delivery through `leaf wait`.
    The comment is owed a reply, which the delivery records as its `answer` (step
    4): a `reply` for `leaf thread reply` here, where the Codex App Server route
    would record a `turn`, which the turn's own messages write. For the
@@ -3621,14 +3621,14 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` is null: the hook confirmed the delivery as it
-   handed it over, so the comment already reads Picked up. The whole delivery,
+   The envelope's `acknowledge` tells the reader to confirm the complete delivery
+   with `leaf delivery ack`. Hook output alone confirms nothing. The whole delivery,
    indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent starts `leaf wait` again so later input wakes it, and follows
-   `handling`: it names any work the comment asks for with `leaf status`, does it,
+5. The agent confirms the complete delivery, then follows `handling`: it names
+   any work the comment asks for with `leaf status`, does it,
    and replies in the thread with `leaf thread reply`.
 
 What this file records
@@ -3845,7 +3845,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     pinned = {
         record["id"]: "1946b466",
         record["ts"]: "2026-09-21T20:12:30-07:00",
-        envelope["id"]: "e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92",
+        envelope["id"]: "e8417b8a",
         str(page_dir): "/path/to/page",
     }
     envelope["created_at"] = 1790046750.29
@@ -3986,7 +3986,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     """The snapshot is the page a developer reads to compare what one comment puts
     in front of the agent on each carrier: `leaf wait`, Claude Code's hooks, the
     Codex queue's pointer and the delivery it names, and the Codex App Server
-    turn. None but the hook confirms the delivery, so it goes last. Each
+    turn. These captures confirm nothing, so each sees the same pending input. Each
     is taken from the code that carrier runs, after one real POST, so a change to
     any carrier's framing or to a delivery's contents shows up as a diff under the
     carrier it reaches."""

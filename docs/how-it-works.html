@@ -353,10 +353,11 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 confirms it with <code>leaf delivery ack &lt;delivery-id&gt;</code> once
                 the complete envelope is in context; a hook timeout can discard its
                 output, so the hook itself confirms nothing. A Codex task running its
-                own wait gets the envelope printed and confirms it the same way; printed
-                output can be lost or cut off, so unconfirmed events stay available to
-                the next wait. The Codex adapter acknowledges what it carries, and the
-                agent follows the adapter's route rather than starting a competing wait.
+                own wait gets the envelope printed and confirms it with
+                <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
+                lost or cut off, so unconfirmed events stay available to the next wait.
+                The Codex adapter acknowledges what it carries, and the agent follows
+                the adapter's route rather than starting a competing wait.
               </li>
               <li id="work-evidence">
                 <strong>Work</strong>: what the agent is doing. A move that asks for an

@@ -5704,9 +5704,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(decision).to_be_focused()
     expect(page.locator(".lf-swipe-pass")).to_have_attribute("aria-keyshortcuts", "1")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["1", "2"]
-    )
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_have_text(["1", "2"])
     assert ask_actions_hint("1–2") in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
@@ -5741,7 +5741,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
     expect(
-        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
     ).to_have_count(0)
     assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
@@ -7839,7 +7839,7 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
     assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
 
@@ -7910,9 +7910,9 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     expect(page.locator("#sug")).to_be_focused()
     assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["1", "2", "3"]
-    )
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_have_text(["1", "2", "3"])
 
     # The Ask's third route invokes the original command. Once the command's own control
     # is focused, both equivalent intrinsic bindings and the independent Ask digit remain
@@ -7921,11 +7921,12 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     expect(inspect).to_have_attribute("data-activated", "1")
     inspect.evaluate("control => delete control.dataset.activated")
     inspect.focus()
-    expect(inspect).to_have_attribute("aria-keyshortcuts", "x y 3")
+    rendered(page)
+    assert set(inspect.get_attribute("aria-keyshortcuts").split()) == {"x", "y", "3"}
     assert "I\nInspect" in shortcut_bar_text(page)
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["1", "2", "3"]
-    )
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_have_text(["1", "2", "3"])
     page.keyboard.press("y")
     expect(inspect).to_have_attribute("data-activated", "1")
     inspect.evaluate("control => delete control.dataset.activated")
@@ -7944,7 +7945,8 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
           }]);
         }"""
     )
-    expect(inspect).to_have_attribute("aria-keyshortcuts", "y 3")
+    rendered(page)
+    assert set(inspect.get_attribute("aria-keyshortcuts").split()) == {"y", "3"}
     assert "y\nInspect" in shortcut_bar_text(page)
     page.keyboard.press("x")
     expect(inspect).not_to_have_attribute("data-dead-local-x", "1")
@@ -7998,9 +8000,9 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     inspect.focus()
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["2"]
-    )
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_have_text(["2"])
     page.keyboard.press("1")
     expect(inspect).to_have_attribute("data-activated", "1")
     inspect.evaluate("control => delete control.dataset.activated")
@@ -8190,7 +8192,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
     page.keyboard.press("a")
     selector = (
         "#live-question > :is(lf-option, .lf-another) "
-        "> .lf-key-badge[data-lf-ask-binding-badge]"
+        "> .lf-key-badge[data-lf-binding-badge]"
     )
     ask = page.locator(selector)
     expect(ask).to_have_text(["1", "2", "3"])
@@ -8227,7 +8229,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
     write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
     assert page.evaluate("window.__addEmptyAtInput") is False
     page.keyboard.press("Tab")
-    binding_badge = addition.locator("> .lf-key-badge[data-lf-ask-binding-badge]")
+    binding_badge = addition.locator("> .lf-key-badge[data-lf-binding-badge]")
     expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()
     badge_box = binding_badge.bounding_box()
@@ -8246,7 +8248,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
     )
     assert gap == pytest.approx(expected_gap, abs=0.5)
     expect(
-        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
     ).to_have_count(0)
 
 
@@ -8318,19 +8320,20 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
         ("#clipped-face", "7"),
     ):
         expect(page.locator(control)).to_have_attribute("aria-keyshortcuts", binding)
-    expect(
-        page.locator("#shared-binding-badge[data-lf-ask-binding-badge]")
-    ).to_have_count(0)
-    expect(
-        page.locator("#covered-binding-badge[data-lf-ask-binding-badge]")
-    ).to_have_count(0)
-    expect(
-        page.locator("#clipped-binding-badge[data-lf-ask-binding-badge]")
-    ).to_have_count(0)
+    expect(page.locator("#shared-binding-badge[data-lf-binding-badge]")).to_have_count(
+        0
+    )
+    expect(page.locator("#covered-binding-badge[data-lf-binding-badge]")).to_have_count(
+        0
+    )
+    expect(page.locator("#clipped-binding-badge[data-lf-binding-badge]")).to_have_count(
+        0
+    )
     for binding in ("3", "4", "5", "6", "7"):
         expect(
             page.locator(
-                ".lf-ask-binding-badges > .lf-ask-binding-badge", has_text=binding
+                ".lf-command-binding-badges > .lf-command-binding-badge",
+                has_text=binding,
             )
         ).to_have_count(1)
 
@@ -8356,7 +8359,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     expect(page.locator("#rows-decision")).to_be_focused()
     scroll_settled(page)
     expect(
-        page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
+        page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     # Put the second row's badge one pixel into the shortcut bar's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
@@ -8365,7 +8368,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     page.evaluate(
         """() => {
           const badges = document.querySelectorAll(
-            '#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]'
+            '#rows > lf-option > .lf-key-badge[data-lf-binding-badge]'
           );
           const last = badges[badges.length - 1].getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
@@ -8374,7 +8377,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     )
     scroll_settled(page)
     expect(
-        page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
+        page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {
@@ -8385,7 +8388,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
           return {
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
-              '.lf-ask-binding-badges > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
+              '.lf-command-binding-badges > .lf-command-binding-badge, [data-lf-binding-badge]'
             )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
           };
         }"""

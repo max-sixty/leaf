@@ -26,7 +26,10 @@
      actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
-     its containing Ask. The row may carry an existing `bindingBadge`. Routes may carry
+     its containing Ask. `bindingBadge` requests an inline hint independently of that
+     Decision role: an Element lends the widget's seat, null requests a control-corner
+     badge, and absence requests none. A route inherits the row's seat only when its
+     field is undefined. Routes may carry
      the same fields when one row describes a parameterized family of controls. Every
      Decision receives an independent contextual digit from the Ask projection; intrinsic
      widget bindings remain available in the widget's own focus scope. The projection
@@ -50,7 +53,8 @@
      by default; a local action that happens to clear state can leave the slot to the
      next action on that state. A step of the ladder sets the same field for the shared
      Escape row it answers through while it is the innermost one.
-   - `when` says whether the capability exists. When a destination surface is available
+   - `when` says whether the capability exists. A declared control's native or ARIA
+     disabled state also makes its command unavailable. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
    - `covering`, on a row of the page's own scope, keeps that command reachable while an
@@ -218,7 +222,11 @@ export const commandEntries = (row, active = bindings(row)) => {
   const routes = commandRoutes(row);
   if (!routes.length) return [{ id: row.id, binding: active[0], route: null }];
   return routes
-    .filter((route) => active.includes(route.binding))
+    .filter(
+      (route) =>
+        active.includes(route.binding) &&
+        controlAvailable(word(route.control ?? row.control)),
+    )
     .map((route) => ({ id: route.id, binding: route.binding, route }));
 };
 // The command identities a visual presentation gives one row. Rows whose bindings are
@@ -251,8 +259,13 @@ export const labelOf = (row) => {
 };
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
-// inside `run` instead is a liveness no surface can see.
-export const live = (row) => !row.when || row.when();
+// inside `run` instead is a liveness no surface can see. A declared visible control's
+// native or ARIA disabled state is part of that same availability reading.
+export const controlAvailable = (control) =>
+  !control ||
+  (!control.matches(":disabled") && control.getAttribute("aria-disabled") !== "true");
+export const live = (row) =>
+  (!row.when || row.when()) && controlAvailable(word(row.control));
 
 // The presses a finger needs a control for: the row's one press, or each route of a routed
 // row that names its words. `id` is the command the press invokes.
@@ -356,7 +369,12 @@ export function decisionControls(commands, where = "an Ask") {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
       const label = decisionName(contribution, where);
-      const bindingBadge = word(contribution.bindingBadge ?? row.bindingBadge) ?? null;
+      const bindingBadge =
+        word(
+          contribution.bindingBadge !== undefined
+            ? contribution.bindingBadge
+            : row.bindingBadge,
+        ) ?? null;
       const active = route ? [route.binding] : bindings(row);
       // A semantic command may temporarily have no presented control: a compact
       // margin cluster can give its seat to another contribution, or the owning

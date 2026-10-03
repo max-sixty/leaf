@@ -1206,9 +1206,9 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["1", "2"]
-    )
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
           const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
@@ -1235,7 +1235,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
               node => node.getBoundingClientRect().top
             )),
             chips: boxes([...document.querySelectorAll(
-              '.lf-ask-binding-badges > .lf-ask-binding-badge'
+              '.lf-command-binding-badges > .lf-command-binding-badge'
             )]),
           };
         }"""

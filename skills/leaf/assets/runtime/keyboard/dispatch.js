@@ -320,7 +320,10 @@ function referencedInvocation(reference) {
 }
 
 function invocationFor(row, binding, command, recovered = null) {
-  const reference = routedCommand(command?.route);
+  if (!command || !live(row)) return null;
+  const current = commandEntries(row, [binding]).find(({ id }) => id === command.id);
+  if (!current) return null;
+  const reference = routedCommand(current.route);
   if (reference) return referencedInvocation(reference);
   const run = row.run
     ? () => row.run(binding)

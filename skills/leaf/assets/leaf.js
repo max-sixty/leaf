@@ -86,7 +86,11 @@ import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createMarginProjection } from "./runtime/margin-projection.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
-import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import {
+  commandHintLayer,
+  createCommandHints,
+} from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
@@ -507,6 +511,10 @@ asks = createAskView({
   repaint,
 });
 
+const commandHints = createCommandHints({
+  presentedControl: app.margin.presentedControl,
+});
+
 const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
@@ -718,6 +726,7 @@ const standing = createStanding({
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetPickerHints: targets.paintTargetPickerHints,
+  paintCommandHints: commandHints.paint,
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
@@ -747,7 +756,7 @@ if (!offlineInteractive) {
     panel,
     legendRoot,
     goToHintLayer,
-    askActionLayer,
+    commandHintLayer,
     targetPickerHintLayer,
     pageSearchSurface,
     targetPaint.visualMarkLayer,
@@ -789,6 +798,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  commandHints.mount();
   app.margin.mount();
   app.mountThread();
   app.mountRead();

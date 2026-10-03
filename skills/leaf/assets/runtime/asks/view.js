@@ -95,21 +95,19 @@
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
 
-import { documentPoint, landingBand, shownBox, shownParts } from "../geometry.js";
+import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
-import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   bindings,
   clampedRow,
   contextualRoute,
   decisionControls,
-  routedCommand,
   spell,
 } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
-import { el, reserve, reveal } from "../widget-elements.js";
-import { keeps, keepsText } from "../keeps.js";
+import { reserve, reveal } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 import { asksBtn, asksList, asksOffered, asksPanel, drawerIsOpen } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import {
@@ -120,22 +118,19 @@ import {
 } from "./model.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
-  commandScope,
   commandScopesWithin,
   commandsWithin,
   documentFocused,
   focused,
   paintKeys,
-  projectCommandScope,
 } from "../keyboard/scopes.js";
 import { addressableLabel, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
-import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
+import { ASK_CONTROL } from "./view-elements.js";
 import { ASK_AT } from "./drawer-list.js";
 import { askHolding, declareSide, placeOf, walkOrigin } from "../standing-target.js";
-import { availableCommandRoutes } from "../keyboard/dispatch.js";
-import { coveringAuxiliarySurface, pageCommand } from "../keyboard/register.js";
+import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import {
@@ -148,9 +143,7 @@ import {
 } from "../semantic-state.js";
 import { hostIn, under } from "../shadow.js";
 
-// Contextual actions for the Ask the user is standing in. These share the binding-badge face
-// but not the g sequence's lifecycle: the ask view paints them whenever its semantic
-// focus and the dispatch stack leave the contributed action row reachable.
+// Ask owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createAskView({
   panelIsOpen,
   setPanel,
@@ -509,211 +502,6 @@ export function createAskView({
     when: () => actionRoutes().length > 0,
     commandReferenceWhen: () => allAsks().length > 0,
   };
-  const reachableActionRoutes = (available = availableCommandRoutes()) => {
-    const reachable = available.get(actionRow) ?? new Set();
-    return actionRoutes().filter(({ binding }) => reachable.has(binding));
-  };
-
-  // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
-  // listener-facing projection on each exact action control. A widget that already owns
-  // a binding-badge face lends that face and its exact placement; other actions get chrome at
-  // the visible margin entry's corner. Off-screen actions keep their digit in the shortcut
-  // bar's range and their name in the command reference, but wear no chip. A nearer
-  // keyboard layer suppresses the row and both projections through the exact reachable
-  // bindings, so a digit never stays promised after a sequence, text box, or modal takes it.
-  //
-  // The listener's projection is a command scope projected onto the control
-  // (`projectCommandScope`), beside whatever scopes the control holds already, so the
-  // attribute has one writer that composes them all. Its one row names the digit and the
-  // command's own bindings that still reach it from here, and runs nothing: the Ask's
-  // row above runs the digit, and the owning widget's scope its own keys.
-  const wornBindingBadges = new Map();
-  const ASK_ROUTES = Symbol("Ask action routes");
-  const routedControls = new Set();
-  function exposedBindingBadge(bindingBadge, control, visible) {
-    const whole = bindingBadge.getBoundingClientRect();
-    if (
-      ["left", "right", "top", "bottom"].some(
-        (edge) => Math.abs(whole[edge] - visible[edge]) > 0.5,
-      )
-    )
-      return false;
-    const x = (visible.left + visible.right) / 2;
-    const y = (visible.top + visible.bottom) / 2;
-    const inset = Math.min(
-      3,
-      (visible.right - visible.left) / 4,
-      (visible.bottom - visible.top) / 4,
-    );
-    // The whole stack at each point, read the same whether the face is worn or withheld
-    // (transparent, and still in the hit test): nothing may stand over the face but the
-    // control it labels, whose state mark shares the slot and yields it to a worn face
-    // (an option's pick turns transparent).
-    const root = bindingBadge.getRootNode();
-    return [
-      [x, y],
-      [x, visible.top + inset],
-      [x, visible.bottom - inset],
-      [visible.left + inset, y],
-      [visible.right - inset, y],
-    ].every(([atX, atY]) => {
-      const stack = root.elementsFromPoint(atX, atY);
-      const at = stack.indexOf(bindingBadge);
-      return at >= 0 && stack.slice(0, at).every((over) => under(over, control));
-    });
-  }
-  // What a face said before the Ask lent it: its words, and the inline properties the
-  // loan sets.
-  const LENT_PROPERTIES = ["display", "opacity"];
-  function restoreStyle(bindingBadge, name) {
-    const [value, priority] = wornBindingBadges.get(bindingBadge)[name];
-    if (value) bindingBadge.style.setProperty(name, value, priority);
-    else bindingBadge.style.removeProperty(name);
-  }
-  function restoreBindingBadge(bindingBadge) {
-    bindingBadge.removeAttribute("data-lf-ask-binding-badge");
-    keepsText(bindingBadge, wornBindingBadges.get(bindingBadge).text);
-    for (const name of LENT_PROPERTIES) restoreStyle(bindingBadge, name);
-    wornBindingBadges.delete(bindingBadge);
-  }
-  function restoreBindingBadges(kept = new Set()) {
-    for (const bindingBadge of [...wornBindingBadges.keys()])
-      if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge);
-  }
-  // A chip per control, kept across passes, so a pass that finds the same chips standing
-  // where they stood writes nothing.
-  const bindingChips = new Map();
-  // Withdraw the routes' scope from every control but the ones still routed.
-  function withdrawRoutes(kept = new Set()) {
-    for (const control of routedControls) {
-      if (kept.has(control)) continue;
-      projectCommandScope(control, ASK_ROUTES, null);
-      routedControls.delete(control);
-    }
-  }
-  function clearActionProjections() {
-    restoreBindingBadges();
-    withdrawRoutes();
-  }
-  // The page scrolls under these projections on every frame, so a pass writes only what
-  // changed (keeps.js): a badge already worn keeps its face, and a chip
-  // stands in the document plane, where the scroll carries it.
-  function paintActionProjections() {
-    const available = availableCommandRoutes();
-    const routes = reachableActionRoutes(available);
-    for (const route of routes) {
-      const reached = available.get(routedCommand(route).row) ?? new Set();
-      const keys = new Set([
-        ...route.intrinsicBindings.filter((key) => reached.has(key)),
-        route.binding,
-      ]);
-      projectCommandScope(
-        route.control,
-        ASK_ROUTES,
-        commandScope(null, [{ id: "ask.action-route", keys: [...keys] }]),
-      );
-      routedControls.add(route.control);
-    }
-    withdrawRoutes(new Set(routes.map(({ control }) => control)));
-    if (!routes.length) {
-      restoreBindingBadges();
-      bindingChips.clear();
-      askActionLayer.replaceChildren();
-      return;
-    }
-    // A covering auxiliary surface does not invalidate the commands or their accessible
-    // shortcuts, but it does hide the page controls outside it that binding-badge faces
-    // claim to label. What a surface standing over the page hides is shownRect's to say,
-    // which the placement below reads.
-    const covering = coveringAuxiliarySurface();
-    const covered = (control) => covering && !under(control, covering);
-    const placement = keyBadgePlacement();
-    const bindingBadgeClaims = new Map();
-    for (const { bindingBadge } of routes)
-      if (bindingBadge)
-        bindingBadgeClaims.set(
-          bindingBadge,
-          (bindingBadgeClaims.get(bindingBadge) ?? 0) + 1,
-        );
-
-    // Reuse a widget's page-local binding badge where it has one. Besides preserving the
-    // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
-    // the fixed shortcut bar above it. One face belongs to one action, and every part of
-    // it must be visible on top; otherwise the ordinary core chip carries the same route.
-    // That can be read only off the face as it would stand, so the face stays lent while
-    // its route stands: one that is not exposed keeps the digit and its box but turns
-    // transparent, rather than being put back after each measurement and lent again on
-    // the next pass. A press on it is a press on what it labels (lf-options.js).
-    const lent = new Set();
-    const worn = new Set();
-    for (const { binding, control, bindingBadge } of routes) {
-      // A control the window does not show cannot show its face either, and wearing
-      // the face only to measure it away would write it twice on every scroll.
-      if (
-        covered(control) ||
-        !bindingBadge?.isConnected ||
-        bindingBadgeClaims.get(bindingBadge) !== 1 ||
-        !placement.visibleBounds(control)
-      )
-        continue;
-      if (!wornBindingBadges.has(bindingBadge)) {
-        const said = { text: bindingBadge.textContent };
-        for (const name of LENT_PROPERTIES)
-          said[name] = [
-            bindingBadge.style.getPropertyValue(name),
-            bindingBadge.style.getPropertyPriority(name),
-          ];
-        wornBindingBadges.set(bindingBadge, said);
-      }
-      keepsText(bindingBadge, spell(binding));
-      bindingBadge.style.display = "block";
-      lent.add(bindingBadge);
-      const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
-      const exposed = Boolean(
-        box &&
-        exposedBindingBadge(bindingBadge, control, box) &&
-        placement.reserve(box),
-      );
-      bindingBadge.toggleAttribute("data-lf-ask-binding-badge", exposed);
-      if (exposed) {
-        restoreStyle(bindingBadge, "opacity");
-        worn.add(bindingBadge);
-      } else bindingBadge.style.opacity = "0";
-    }
-    restoreBindingBadges(lent);
-
-    const chips = [];
-    for (const { binding, control, bindingBadge } of routes) {
-      if (covered(control)) continue;
-      if (bindingBadge && worn.has(bindingBadge)) continue;
-      const presented = presentedActionControl(control);
-      if (!presented.checkVisibility()) continue;
-      const box = placement.badgeBox(presented);
-      if (!box) continue;
-      let chip = bindingChips.get(control);
-      if (!chip) {
-        chip = el("span", "lf-key-badge lf-ask-binding-badge");
-        chip.setAttribute("aria-hidden", "true");
-        bindingChips.set(control, chip);
-      }
-      keepsText(chip, spell(binding));
-      chips.push({
-        chip,
-        owner: presented,
-        corner: box,
-        at: documentPoint(box.left, box.top),
-      });
-    }
-    // `chips` holds seats, so a chip is kept by the seat that names it; comparing a chip
-    // with the seats themselves dropped every chip, and each pass made its chips again
-    // at their anchors, where a chip pulled inside the window was painted a frame early.
-    const seated = new Set(chips.map(({ chip }) => chip));
-    for (const control of [...bindingChips.keys()])
-      if (!seated.has(bindingChips.get(control))) bindingChips.delete(control);
-    placement.paint(askActionLayer, chips);
-  }
-  // Resizing can make routes unreachable or put their controls under a covering drawer.
-  // Repaint unconditionally so either transition clears the prior projections.
   // The ring that says so, painted from the focus rather than written where the user was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and an ask
@@ -758,7 +546,6 @@ export function createAskView({
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
-    paintActionProjections();
   }
   // The ask `dir` steps to from there, clamped at the first and last open asks.
   // Document position rather than an index into the list, because the user's place is a
@@ -1078,14 +865,12 @@ export function createAskView({
   let mounted = false;
   let stopActionChanges = null;
   const actionsChanged = () => mounted && void syncAsks();
-  const pageScrolled = () => reachableActionRoutes().length && repaint();
 
   function mount() {
     if (mounted) return;
     mounted = true;
     stopActionChanges = watchSemantic(actionsChanged);
     document.addEventListener(PRESENTATION, actionsChanged);
-    addEventListener("scroll", pageScrolled, { capture: true, passive: true });
     addEventListener("resize", repaint);
   }
 
@@ -1095,13 +880,9 @@ export function createAskView({
       stopActionChanges?.();
       stopActionChanges = null;
       document.removeEventListener(PRESENTATION, actionsChanged);
-      globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
       globalThis.removeEventListener("resize", repaint);
     }
     presenter.disconnect();
-    clearActionProjections();
-    bindingChips.clear();
-    askActionLayer.replaceChildren();
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   }

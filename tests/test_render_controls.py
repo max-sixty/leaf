@@ -14,6 +14,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import session_cleanup as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -101,6 +102,369 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
+
+KEYBOARD_HINT_REGISTRY = {
+    "lf-keyboard-probe": {
+        "description": "Exercises declared keyboard commands and their controls.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+    }
+}
+
+KEYBOARD_HINT_MODULE = """\
+import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    this.count = 0;
+    this.allowed = true;
+    this.result = offer('output', '', '0');
+    const editor = offer('input');
+    editor.setAttribute('aria-label', 'Practice note');
+    this.makeControl();
+    this.append(this.control, editor, this.result);
+    const disable = offer('button', '', 'Toggle disabled');
+    disable.onclick = () => {
+      this.control.disabled = !this.control.disabled;
+      paintKeys();
+    };
+    const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
+    ariaDisable.onclick = () => {
+      keeps(this.control, 'aria-disabled',
+        this.control.getAttribute('aria-disabled') === 'true' ? null : 'true');
+      paintKeys();
+    };
+    const guard = offer('button', '', 'Toggle availability');
+    guard.onclick = () => { this.allowed = !this.allowed; paintKeys(); };
+    const replace = offer('button', '', 'Replace action control');
+    replace.onclick = () => {
+      const prior = this.control;
+      this.makeControl();
+      prior.replaceWith(this.control);
+      paintKeys();
+    };
+    const quiet = offer('button', '', 'Quiet action');
+    quiet.onclick = () => keepsText(quiet, 'Quiet action applied');
+    this.append(disable, ariaDisable, guard, replace, quiet);
+    const scope = commandScope('In the command probe', [
+      {
+        id: 'probe.apply', keys: ['1', 'x'],
+        control: () => this.control, bindingBadge: () => this.badge,
+        does: 'Apply the operation', line: 'apply',
+        when: () => this.allowed,
+        run: () => this.control.click(),
+      },
+      {
+        id: 'probe.quiet', keys: ['q'], control: quiet,
+        does: 'Activate without an inline hint', line: 'quiet action',
+        run: () => quiet.click(),
+      },
+    ]);
+    commands(this, scope);
+    commands(this.closest('section'), scope);
+  }
+
+  makeControl() {
+    this.control = offer('button', '', 'Apply');
+    this.badge = offer('kbd', 'lf-key-badge');
+    this.badge.setAttribute('aria-hidden', 'true');
+    this.control.prepend(this.badge);
+    this.control.onclick = () => { keepsText(this.result, String(++this.count)); };
+  }
+});
+"""
+
+
+@pytest.mark.parametrize("hint_seat", ["widget", "corner"])
+def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hint_seat):
+    """A package command needs no Ask role to expose its working keyboard route.
+
+    The same scope stands on the widget and its question context. Focus, native text
+    entry, control availability, and replacement change dispatch and the inline hint
+    together; forwarding never creates a second badge for the same action.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "command hints",
+                '<h1>Command hints</h1><button id="outside">Outside the widget</button>'
+                '<section id="question" tabindex="0"><h2>Apply the operation?</h2>'
+                '<lf-keyboard-probe id="probe"></lf-keyboard-probe></section>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={
+                "lf-keyboard-probe.js": (
+                    KEYBOARD_HINT_MODULE
+                    if hint_seat == "widget"
+                    else KEYBOARD_HINT_MODULE.replace(
+                        "bindingBadge: () => this.badge", "bindingBadge: null"
+                    )
+                )
+            },
+        ),
+    )
+    widget = page.locator("#probe")
+    badge = (
+        widget.locator("kbd")
+        if hint_seat == "widget"
+        else page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    )
+    active_hints = page.locator(
+        "[data-lf-binding-badge], "
+        ".lf-command-binding-badges > .lf-command-binding-badge"
+    )
+    result = widget.locator("output")
+    action = widget.get_by_role("button", name="Apply", exact=True)
+
+    # No scope stands while focus is outside, so an empty seat advertises nothing.
+    page.locator("#outside").focus()
+    rendered(page)
+    expect(badge).to_be_hidden()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("0")
+
+    # The question context forwards the widget's declaration without an Ask allocator.
+    page.keyboard.press("Tab")
+    expect(page.locator("#question")).to_be_focused()
+    expect(badge).to_be_visible()
+    expect(badge).to_have_text("1")
+    expect(active_hints).to_have_count(1)
+    page.keyboard.press("1")
+    expect(result).to_have_text("1")
+
+    page.keyboard.press("Tab")
+    expect(action).to_be_focused()
+    expect(badge).to_be_visible()
+    expect(active_hints).to_have_count(1)
+    page.keyboard.press("x")
+    expect(result).to_have_text("2")
+
+    # Native editing hides the numeric alias and retains the character press.
+    page.keyboard.press("Tab")
+    editor = widget.get_by_role("textbox", name="Practice note")
+    expect(editor).to_be_focused()
+    rendered(page)
+    expect(badge).to_be_hidden()
+    page.keyboard.type("1x")
+    expect(editor).to_have_value("1x")
+    expect(result).to_have_text("2")
+
+    widget.get_by_role("button", name="Toggle disabled").click()
+    rendered(page)
+    expect(action).to_be_disabled()
+    expect(badge).to_be_hidden()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("2")
+    widget.get_by_role("button", name="Toggle disabled").click()
+    expect(badge).to_be_visible()
+
+    # ARIA-disabled controls also suppress the keyboard callback, not just clicks.
+    widget.get_by_role("button", name="Toggle ARIA disabled").click()
+    rendered(page)
+    expect(badge).to_be_hidden()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("2")
+    widget.get_by_role("button", name="Toggle ARIA disabled").click()
+    expect(badge).to_be_visible()
+
+    widget.get_by_role("button", name="Toggle availability").click()
+    rendered(page)
+    expect(badge).to_be_hidden()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("2")
+    widget.get_by_role("button", name="Toggle availability").click()
+    expect(badge).to_be_visible()
+
+    widget.get_by_role("button", name="Replace action control").click()
+    expect(badge).to_be_visible()
+    expect(badge).to_have_text("1")
+    expect(active_hints).to_have_count(1)
+    page.keyboard.press("1")
+    expect(result).to_have_text("3")
+    # A control whose command omitted bindingBadge has no hint, but its key works.
+    page.keyboard.press("q")
+    expect(widget.get_by_role("button", name="Quiet action applied")).to_be_visible()
+    expect(active_hints).to_have_count(1)
+
+    page.locator("#outside").focus()
+    rendered(page)
+    expect(badge).to_be_hidden()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("3")
+
+
+KEYBOARD_ROUTE_MODULE = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const first = offer('button', '', 'First action');
+    const second = offer('button', '', 'Second action');
+    const result = offer('output', '', 'No action');
+    const firstHint = offer('kbd', 'lf-key-badge');
+    const secondHint = offer('kbd', 'lf-key-badge');
+    for (const badge of [firstHint, secondHint]) badge.setAttribute('aria-hidden', 'true');
+    first.prepend(firstHint);
+    second.prepend(secondHint);
+    DISABLE_FIRST
+    const apply = (binding) => keepsText(result, binding === '1' ? 'First applied' : 'Second applied');
+    first.onclick = () => apply('1');
+    second.onclick = () => apply('2');
+    this.append(first, second, result);
+    commands(this, 'In parameterized actions', [{
+      id: 'probe.apply', keys: ['1', '2'], does: 'Apply an action', line: 'apply',
+      routes: [
+        {id: 'probe.first', binding: '1', control: first,
+         bindingBadge: firstHint, does: 'Apply the first action'},
+        {id: 'probe.second', binding: '2', control: second,
+         bindingBadge: secondHint, does: 'Apply the second action'},
+      ],
+      run: apply,
+    }]);
+    commands(this.closest('section'), 'Outside parameterized actions', [{
+      id: 'probe.outer', keys: ['1'], does: 'Apply the outer action', line: 'outer action',
+      run: () => keepsText(result, 'Outer applied'),
+    }]);
+  }
+});
+"""
+
+
+@pytest.mark.parametrize("disabled", ["native", "aria"])
+def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
+    browser, serve, disabled
+):
+    """A disabled route cannot invoke its row's handler or expose an outer meaning.
+
+    The sibling route in the same row remains live, with its working inline hint. The
+    row's handler directly applies the operation, so a native button's click refusal
+    cannot mask a missing check at the keyboard invocation boundary.
+    """
+    module = KEYBOARD_ROUTE_MODULE.replace(
+        "DISABLE_FIRST",
+        "first.disabled = true;"
+        if disabled == "native"
+        else "first.setAttribute('aria-disabled', 'true');",
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "disabled command routes",
+                "<h1>Command routes</h1><section><h2>Apply an action</h2>"
+                '<lf-keyboard-probe id="probe"></lf-keyboard-probe></section>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": module},
+        ),
+    )
+    first = page.get_by_role("button", name="First action")
+    second = page.get_by_role("button", name="Second action")
+    result = page.locator("#probe output")
+
+    second.focus()
+    rendered(page)
+    expect(first).to_be_disabled()
+    expect(first.locator("kbd")).to_be_hidden()
+    expect(second.locator("kbd")).to_be_visible()
+    expect(second.locator("kbd")).to_have_text("2")
+
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("No action")
+    page.keyboard.press("2")
+    expect(result).to_have_text("Second applied")
+    expect(second.locator("kbd")).to_be_visible()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("Second applied")
+
+
+ROUTE_HINT_OVERRIDE_MODULE = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
+
+customElements.define('lf-verdict', class extends HTMLElement {
+  connectedCallback() {
+    const control = offer('button', '', 'Inspect');
+    const inheritedHint = offer('kbd', 'lf-key-badge');
+    inheritedHint.setAttribute('aria-hidden', 'true');
+    const result = offer('output', '', '0');
+    let count = 0;
+    control.onclick = () => keepsText(result, String(++count));
+    this.append(control, inheritedHint, result);
+    commands(this, 'In the inspection', [{
+      id: 'probe.inspect', keys: ['x'], does: 'Inspect the proposal', line: 'inspect',
+      bindingBadge: inheritedHint,
+      routes: [{
+        id: 'probe.inspect-proposal', binding: 'x', decision: 'Inspect',
+        control, bindingBadge: null, does: 'Inspect the proposal',
+      }],
+      run: () => control.click(),
+    }]);
+  }
+});
+"""
+
+
+def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, serve):
+    """Explicit null chooses a corner hint instead of inheriting the row's face.
+
+    Ask forwarding and the intrinsic route must preserve that choice and merge into
+    one hint when both bindings reach the same original command.
+    """
+    registry = {
+        "lf-verdict": {
+            key: value
+            for key, value in SEATED_ASK_LAYER["lf-verdict"].items()
+            if key != "x-thread-seat"
+        }
+    }
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "route hint override",
+                '<h1>Inspection</h1><lf-ask id="question"><h2>Inspect this?</h2>'
+                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></lf-ask>',
+            ),
+            layer_registry=registry,
+            layer_widgets={"lf-verdict.js": ROUTE_HINT_OVERRIDE_MODULE},
+        ),
+    )
+    control = page.get_by_role("button", name="Inspect", exact=True)
+    inherited = page.locator("#probe kbd")
+    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    result = page.locator("#probe output")
+
+    page.keyboard.press("a")
+    expect(page.locator("#question")).to_be_focused()
+    expect(chip).to_have_text("1")
+    expect(chip).to_be_visible()
+    expect(inherited).to_be_hidden()
+    page.keyboard.press("1")
+    expect(result).to_have_text("1")
+
+    page.keyboard.press("Tab")
+    expect(control).to_be_focused()
+    rendered(page)
+    expect(chip).to_have_count(1)
+    expect(chip).to_have_text("1")
+    expect(inherited).to_be_hidden()
+    assert set(control.get_attribute("aria-keyshortcuts").split()) == {"1", "x"}
+    page.keyboard.press("x")
+    expect(result).to_have_text("2")
+    expect(chip).to_have_count(1)
+
 
 SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
 

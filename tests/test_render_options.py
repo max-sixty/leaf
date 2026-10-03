@@ -598,7 +598,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(mark).to_have_attribute("aria-checked", "false")
     expect(
         page.locator(
-            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+            "#storage-options > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     assert shortcut_bar_text(page) == line
@@ -1593,7 +1593,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#routes > lf-option > .lf-key-badge")).to_have_count(10)
     expect(
-        page.locator("#routes > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
+        page.locator("#routes > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(9)
     opacity = "el => getComputedStyle(el).opacity"
     for index in range(1, 10):
@@ -2853,9 +2853,9 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
         frame["x"] <= box["x"]
         and box["x"] + box["width"] <= frame["x"] + frame["width"]
     ), f"Done's binding badge {box} stands outside the group {frame}"
-    expect(page.locator(".lf-ask-binding-badges .lf-ask-binding-badge")).to_have_count(
-        0
-    )
+    expect(
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    ).to_have_count(0)
     done.click()
     round_trip(page)
     message = question.locator(
@@ -2890,7 +2890,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
           const badge = o.querySelector(':scope > .lf-key-badge');
           const pick = o.querySelector(':scope > .lf-pick').getBoundingClientRect();
           const box = badge.getBoundingClientRect();
-          return {worn: badge.hasAttribute('data-lf-ask-binding-badge'),
+          return {worn: badge.hasAttribute('data-lf-binding-badge'),
                   top: box.top - o.getBoundingClientRect().top,
                   seat: Math.abs(pick.height - box.height) < 1.5};
         })"""
@@ -2898,7 +2898,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     assert all(seat["worn"] and seat["seat"] for seat in seats), seats
     assert len({round(seat["top"]) for seat in seats}) == 1, seats
     expect(
-        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
     ).to_have_count(0)
     page.keyboard.press("1")
     chosen = page.locator("#ar-canary-consecutive")
@@ -2920,7 +2920,7 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
     )
     resized(page, 1024, 768)
     page.keyboard.press("a")
-    chip = page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(
         """chip => {

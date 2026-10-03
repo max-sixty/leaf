@@ -677,12 +677,18 @@ therefore rechecks the original scope and liveness and calls the original `run` 
 clicks a run-less native control). A focused widget declaration
 wins when it collides with an Ask digit; undeclared digits continue to the Ask.
 
-`bindingBadge` may name an empty face a widget already positions. Each supplied face
-belongs to one action; core writes the reachable Ask digit there while the whole face is
-connected, visible, and uncovered. Otherwise core paints its own binding badge at the
-visible control. Routes let one parameterized row contribute distinct controls and
-intrinsic bindings. Do not maintain a second Ask-control list or declare the Ask's
-contextual digits in the package.
+Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
+not the command is a Decision. An element names an empty face the widget positions;
+`null` requests a badge at the control's corner. Each supplied face belongs to one
+action. The shared keyboard presenter writes its first reachable binding while the
+whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
+over an intrinsic binding for the same command. Otherwise it paints a corner badge at
+the visible control. Commands without `bindingBadge` do not request an inline hint.
+The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
+scope, during native text entry, or when the command is unavailable. A widget owns the
+face's placement, not its text or active state. Routes let one parameterized row
+contribute distinct controls and intrinsic bindings. Do not maintain a second
+Ask-control list or declare the Ask's contextual digits in the package.
 
 Command scopes compose by focused ancestry. The exact control scope is nearest, followed
 by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings

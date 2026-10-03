@@ -2537,7 +2537,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     # are the next Tab stops.
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     page.evaluate(
@@ -2553,7 +2553,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(page.locator(".lf-notice")).to_be_visible()
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
@@ -2561,7 +2561,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(
         page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
@@ -9842,7 +9842,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     page.keyboard.press("a")
     expect(page.locator("#decision")).to_be_focused()
     panel_settled(page, open=not clears)
-    badges = page.locator(".lf-ask-binding-badge, [data-lf-ask-binding-badge]")
+    badges = page.locator(".lf-command-binding-badge, [data-lf-binding-badge]")
     if clears:
         expect(badges).to_have_count(3)
     else:
@@ -9852,7 +9852,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
         page.wait_for_function(
             """(left) => {
               const shown = [...document.querySelectorAll(
-                '.lf-ask-binding-badge, [data-lf-ask-binding-badge]')];
+                '.lf-command-binding-badge, [data-lf-binding-badge]')];
               return shown.length > 0 && shown.every(
                 (badge) => badge.getBoundingClientRect().right <= left);
             }""",

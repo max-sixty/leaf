@@ -11,6 +11,7 @@ export function createStanding({
   renderShortcutBar,
   paintGoToHints,
   paintTargetPickerHints,
+  paintCommandHints,
   paintCoreControls,
   paintVersionShortcuts,
   paintInputs,
@@ -48,6 +49,7 @@ export function createStanding({
     // panel's own render was calling the chip pass.
     paintGoToHints();
     paintTargetPickerHints();
+    paintCommandHints();
     paintCoreControls();
     paintVersionShortcuts();
   }

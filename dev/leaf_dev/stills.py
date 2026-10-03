@@ -194,6 +194,13 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def widget_inline_hints(page: Page) -> None:
+    """A standalone command scope with an active inline hint, outside an Ask."""
+    page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    page.locator("#bg-local-shortcuts").focus()
+
+
 DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
@@ -216,6 +223,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         element_thread,
         versions_menu,
         go_to,
+        widget_inline_hints,
     )
 }
 
@@ -232,6 +240,7 @@ class State:
 
 STATES = (
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
